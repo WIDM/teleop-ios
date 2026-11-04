@@ -1,0 +1,91 @@
+name: ios
+
+on:
+  push:
+    paths: ["**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check string catalog
+        run: python3 scripts/check-strings.py
+
+      - name: Core package tests
+        run: swift test
+        working-directory: Packages/TeleopCore
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Pick simulator
+        run: |
+          xcrun simctl list devices available
+          NAME=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
+          echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Prepare build dir
+        run: mkdir -p build
+
+      - name: xcodebuild test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Teleop.xcodeproj \
+            -scheme Teleop \
+            -destination "platform=iOS Simulator,name=$SIM_NAME" \
+            -resultBundlePath build/Teleop.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild.log
+        env:
+          NSUnbufferedIO: "YES"
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p build/screenshots
+          xcrun xcresulttool export attachments --path build/Teleop.xcresult --output-path build/screenshots || true
+          python3 - <<'PY'
+          import json, pathlib, shutil
+          out = pathlib.Path("build/screenshots")
+          manifest = out / "manifest.json"
+          if manifest.exists():
+              for test in json.loads(manifest.read_text()):
+                  for att in test.get("attachments", []):
+                      src = out / att["exportedFileName"]
+                      name = att.get("suggestedHumanReadableName", src.stem).split("_0_")[0]
+                      if src.exists():
+                          shutil.copy(src, out / (name + src.suffix))
+          PY
+
+      - name: Upload xcodebuild log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios-app/build/xcodebuild.log
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ios-app/build/screenshots
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: ios-app/build/Teleop.xcresult

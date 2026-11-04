@@ -1,0 +1,37 @@
+{
+  "extractionState": "manual",
+  "strings": {
+    "CFBundleDisplayName": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teleop"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The camera tracks the phone pose and detects volume-key hold and release."
+          }
+        }
+      }
+    },
+    "NSMotionUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motion sensors map phone rotation to wrist orientation."
+          }
+        }
+      }
+    }
+  },
+  "sourceLanguage": "en",
+  "version": "1.0"
+}

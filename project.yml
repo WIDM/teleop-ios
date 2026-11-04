@@ -1,0 +1,74 @@
+name: Teleop
+options:
+  bundleIdPrefix: widm.teleop
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  TeleopCore:
+    path: Packages/TeleopCore
+targets:
+  Teleop:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: TeleopCore
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Teleop
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIRequiredDeviceCapabilities:
+          - arm64
+        NSCameraUsageDescription: The camera tracks the phone pose and detects volume-key hold and release.
+        NSMotionUsageDescription: Motion sensors map phone rotation to wrist orientation.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app
+        TARGETED_DEVICE_FAMILY: "1"
+        DEVELOPMENT_LANGUAGE: en
+        SWIFT_EMIT_LOC_STRINGS: YES
+  TeleopTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/TeleopTests
+    dependencies:
+      - target: Teleop
+      - package: TeleopCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+  TeleopUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/TeleopUITests
+    dependencies:
+      - target: Teleop
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Teleop:
+    build:
+      targets:
+        Teleop: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TeleopTests
+        - TeleopUITests
