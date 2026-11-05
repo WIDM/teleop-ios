@@ -49,12 +49,29 @@ final class StopFlowTests: XCTestCase {
         expect("standby.simulate_high_latency")
     }
 
-    func testFallbackHoldAreaAcceptsPress() {
+    func testDebugSheetKeepsStopReachable() {
+        expect("status.mode_pill")
+        element("status.mode_pill").press(forDuration: 1.3)
+        expect("standby.simulate_high_latency")
+        expect("stop")
+        element("stop").tap()
+        expect("stop.release")
+    }
+
+    func testFallbackHoldAreaMovesWhilePressedAndStopsOnRelease() {
         app.terminate()
-        app.launchArguments = ["-startRoute", "s5_fallback"]
+        app.launchArguments = ["-startRoute", "s5_fallback", "-startConnected", "YES"]
         app.launch()
-        expect("fallback.hold")
-        element("fallback.hold").press(forDuration: 0.5)
-        expect("fallback.hold")
+        let pad = element("fallback.hold")
+        XCTAssertTrue(pad.waitForExistence(timeout: 5))
+        XCTAssertEqual(pad.value as? String, "stopped")
+        // press(forDuration:) pumps the run loop, so a main-queue block can sample the value mid-press.
+        var duringPress: String?
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            duringPress = pad.value as? String
+        }
+        pad.press(forDuration: 2.0)
+        XCTAssertEqual(duringPress, "moving")
+        XCTAssertEqual(pad.value as? String, "stopped")
     }
 }
