@@ -38,7 +38,8 @@ TeleopSession (TeleopCore)         HapticsController (Core Haptics)
 1. The S1 Connect button (`App/Sources/Screens/ConnectScreen.swift`, identifier `connect.connect`) sends `.connect`.
 2. `TeleopSession.perform(.connect)` calls `state.markConnected()` and `go(.p5)` (`Packages/TeleopCore/Sources/TeleopCore/TeleopSession.swift`).
 3. S1 Back sends `.s1Back` -> `go(.p5)`; system back resolves through `BackStackRules.previous(of: .s1) == .p5`.
-4. P5 -> S1 is `.changeServer`; any status chip is `.openConnection` -> P5; S1 Disconnect is `.disconnect` -> S7; S7 Reconnect is `.reconnect` -> S1.
+4. P5 Close (`.closeConnection`) returns to the screen that opened P5; while E-stop is latched it always returns to S4, and with no origin it returns to P4.
+5. P5 -> S1 is `.changeServer`; any status chip is `.openConnection` -> P5; S1 Disconnect is `.disconnect` -> S7; S7 Reconnect is `.reconnect` -> S1.
 
 Tests: `S1ConnectFlowTests`, `BackStackRulesTests`, `TeleopSessionTests` in `Packages/TeleopCore/Tests`.
 

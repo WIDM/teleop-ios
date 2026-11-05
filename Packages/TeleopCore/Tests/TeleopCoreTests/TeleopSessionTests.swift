@@ -78,6 +78,47 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertTrue(s.drainHaptics().isEmpty)
     }
 
+    func testCloseConnectionWhileEStoppedReturnsToS4() {
+        var s = TeleopSession(start: .p4)
+        s.perform(.stop)
+        s.perform(.openConnection)
+        XCTAssertEqual(s.route, .p5)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .s4)
+    }
+
+    func testCloseConnectionReturnsToStartingKeyboardScreen() {
+        var s = TeleopSession(start: .p7)
+        s.perform(.openConnection)
+        XCTAssertEqual(s.route, .p5)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .p7)
+    }
+
+    func testCloseConnectionReturnsToStartingScreenFromP4() {
+        var s = TeleopSession(start: .p4)
+        s.perform(.openConnection)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .p4)
+    }
+
+    func testCloseConnectionWithoutOriginFallsBackToP4() {
+        var s = TeleopSession(start: .p5)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .p4)
+    }
+
+    func testStaleOriginIsDroppedAfterLeavingConnectionScreens() {
+        var s = TeleopSession(start: .p7)
+        s.perform(.openConnection)
+        s.perform(.back)
+        s.perform(.openSettings)
+        s.perform(.settingsDone)
+        s.perform(.connect)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .p4)
+    }
+
     func testGripperRefusedWhenDisconnected() {
         var s = TeleopSession(start: .s5)
         s.perform(.toggleGripper)

@@ -290,7 +290,7 @@ Node: [`121:236`](https://www.figma.com/design/inLwADDDptRo8qIw34DRqP/?node-id=1
 - [ ] tap Latency -> P6.
 - [ ] tap Input -> P7.
 - [ ] tap Row Change server -> S1.
-- [ ] tap Close -> P4.
+- [ ] tap Close -> the screen that opened P5 (return to origin). If E-stop is latched, Close always returns to S4. Fallback when there is no origin: P4.
 - [ ] tap E-stop button -> S4.
 - [ ] tap Connection chip -> P5 (global requirement; absent from export).
 
@@ -304,6 +304,7 @@ Node: [`121:236`](https://www.figma.com/design/inLwADDDptRo8qIw34DRqP/?node-id=1
 - [ ] The normal latency dot is green; Change server uses neutral text with a right chevron, not blue text.
 
 Source note: Source gap: the visible Connection chip has no exported link; apply the global chip -> P5 invariant.
+Decision N1 (Kikyo, 2026-11-05): Figma links Close to P4 only because a static prototype cannot return to origin. The app must remember the origin screen. While E-stop is latched, closing P5 must never hide S4.
 
 ## P6 High latency
 

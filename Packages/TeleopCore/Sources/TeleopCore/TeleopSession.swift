@@ -44,6 +44,8 @@ public struct TeleopSession: Equatable, Sendable {
     public var state: FakeTeleopState
     public private(set) var navigator: TeleopNavigator
     public private(set) var pendingHaptics: [HapticCommand] = []
+    /// Screen that opened P5, so Close can return to it. Cleared once navigation leaves the P5 cluster.
+    private var connectionOrigin: Route?
 
     public init(state: FakeTeleopState = FakeTeleopState(), start: Route = .p1) {
         self.state = state
@@ -94,9 +96,11 @@ public struct TeleopSession: Equatable, Sendable {
                 go(.p4)
             }
         case .openConnection:
+            if route != .p5 { connectionOrigin = route }
             go(.p5)
         case .closeConnection:
-            go(.p4)
+            // E-stop latched: S4 must never be hidden. No origin: fall back to P4.
+            go(state.emergencyStop ? .s4 : (connectionOrigin ?? .p4))
         case .openKeyboard:
             go(.p7)
         case .keyboardDone:
@@ -166,6 +170,7 @@ public struct TeleopSession: Equatable, Sendable {
     }
 
     private mutating func go(_ route: Route) {
+        if ![.p5, .p7, .s1].contains(route) { connectionOrigin = nil }
         navigator.navigate(to: route)
     }
 }
