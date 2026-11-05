@@ -12,6 +12,8 @@ struct ConnectScreen: View {
                 Spacer()
                 ConnectionChip(connected: false, heartbeatOk: false) { model.send(.openConnection) }
             }
+            .padding(.horizontal, 8)
+            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
             Text("connect.title")
                 .font(.system(size: 28, weight: .bold))
                 .padding(.top, 16)

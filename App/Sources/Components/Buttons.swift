@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StopButton: View {
+    var accessibilityId = "stop"
     let action: () -> Void
 
     var body: some View {
@@ -19,7 +20,7 @@ struct StopButton: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("stop")
+        .accessibilityIdentifier(accessibilityId)
     }
 }
 
@@ -106,5 +107,41 @@ struct HoldButton: View {
                 .onEnded { _ in action() }
         )
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Press = start moving the arm, release = stop. Same session path as holding vol+ (`holdArmStart` / `holdArmEnd`).
+/// `@GestureState` resets when the system cancels the gesture (call, Control Center), so that reset also sends `holdArmEnd`.
+private struct ArmHoldModifier: ViewModifier {
+    let model: AppModel
+    @GestureState private var pressing = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($pressing) { _, state, _ in state = true }
+                    .onChanged { _ in
+                        guard !model.session.state.armMoving else { return }
+                        model.send(.holdArmStart)
+                    }
+                    .onEnded { _ in model.send(.holdArmEnd) }
+            )
+            .onChange(of: pressing) { _, isPressing in
+                if !isPressing { model.send(.holdArmEnd) }
+            }
+            .onDisappear {
+                guard model.session.state.armMoving else { return }
+                model.send(.holdArmEnd)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(model.session.state.armMoving ? "moving" : "stopped")
+    }
+}
+
+extension View {
+    func armHold(model: AppModel) -> some View {
+        modifier(ArmHoldModifier(model: model))
     }
 }

@@ -12,6 +12,8 @@ source = "\n".join(p.read_text() for p in (root / "App/Sources").rglob("*.swift"
 used = set(re.findall(r'"((?:[a-z_0-9]+)\.(?:[a-z_0-9]+)(?:\.[a-z_0-9]+)?)"', source))
 used = {k for k in used if k.split(".")[0] in {key.split(".")[0] for key in keys}}
 ids = set(re.findall(r'accessibilityIdentifier\("([^"]+)"\)', source))
+ids |= set(re.findall(r'accessibilityId:\s*"([^"]+)"', source))
+ids |= set(re.findall(r'accessibilityId\s*=\s*"([^"]+)"', source))
 missing = sorted(k for k in used - ids if k not in keys)
 unused = sorted(k for k in keys - used if not k.startswith("app."))
 for k in missing:

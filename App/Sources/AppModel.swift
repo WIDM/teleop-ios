@@ -10,6 +10,9 @@ final class AppModel {
     init(start: Route = .p1, haptics: HapticsPlaying = HapticsController()) {
         session = TeleopSession(start: start)
         self.haptics = haptics
+        // UI tests only: `-startConnected YES` marks the link live without navigating,
+        // so the launch route stays put and control input is accepted.
+        if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
     }
 
     func send(_ action: TeleopAction) {

@@ -31,11 +31,12 @@ public struct HapticPattern: Equatable, Sendable {
     )
 }
 
-/// The four patterns the app plays.
+/// The cues the app plays. They share four distinct patterns: `stopReleased` reuses the single short buzz (H15).
 public enum HapticCue: CaseIterable, Sendable {
     case gripperClosed
     case gripperOpened
     case commandBlocked
+    case stopReleased
     case emergencyLoop
 
     public var pattern: HapticPattern {
@@ -43,6 +44,7 @@ public enum HapticCue: CaseIterable, Sendable {
         case .gripperClosed: return HapticPattern.shortBuzz(count: 1)!
         case .gripperOpened: return HapticPattern.shortBuzz(count: 2)!
         case .commandBlocked: return HapticPattern.shortBuzz(count: 3)!
+        case .stopReleased: return HapticPattern.shortBuzz(count: 1)!
         case .emergencyLoop: return HapticPattern.longBuzz
         }
     }

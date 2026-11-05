@@ -53,12 +53,10 @@ private struct CloudCheckScaffold: View {
     let demoFailAction: (() -> Void)?
 
     var body: some View {
-        let state = model.session.state
         VStack(alignment: .leading, spacing: 0) {
-            ConnectionChip(connected: state.connected, heartbeatOk: state.heartbeatOk)
             Text("cloud.title")
                 .font(.system(size: 28, weight: .bold))
-                .padding(.top, 24)
+                .padding(.top, 48)
             Text(subtitle)
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)

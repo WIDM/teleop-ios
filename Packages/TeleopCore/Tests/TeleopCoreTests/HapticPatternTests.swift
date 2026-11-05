@@ -36,10 +36,14 @@ final class HapticPatternTests: XCTestCase {
     }
 
     func testExactlyFourDistinctPatterns() {
-        let patterns = HapticCue.allCases.map(\.pattern)
-        XCTAssertEqual(patterns.count, 4)
-        for (i, a) in patterns.enumerated() {
-            for b in patterns[(i + 1)...] { XCTAssertNotEqual(a, b) }
+        var distinct: [HapticPattern] = []
+        for pattern in HapticCue.allCases.map(\.pattern) where !distinct.contains(pattern) {
+            distinct.append(pattern)
         }
+        XCTAssertEqual(distinct.count, 4)
+    }
+
+    func testStopReleasedSharesTheSingleShortPattern() {
+        XCTAssertEqual(HapticCue.stopReleased.pattern, HapticCue.gripperClosed.pattern)
     }
 }

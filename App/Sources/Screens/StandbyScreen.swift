@@ -2,25 +2,30 @@ import SwiftUI
 import TeleopCore
 
 /// P4 and P6 (high latency). No latency number here; it lives on P5 and P7.
+/// The prototype shortcuts (simulate latency, on-screen controls) are not in Figma; they live in a
+/// debug sheet opened by holding the mode pill for 1 second.
 struct StandbyScreen: View {
     let model: AppModel
     var highLatency = false
     var showStop = true
+    @State private var showDebug = false
 
     var body: some View {
         let state = model.session.state
         let blocked = highLatency || state.commandsBlocked
+        let openDebug: (() -> Void)? = showStop ? { showDebug = true } : nil
         VStack(spacing: 8) {
             ControlStatusBar(
                 modeKey: "control.standby",
                 connected: state.connected,
                 amber: blocked,
-                heartbeatOk: state.heartbeatOk
+                heartbeatOk: state.heartbeatOk,
+                onModeLongPress: openDebug
             ) { model.send(.openConnection) }
 
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                 .fill(TeleopColors.camera)
-                .overlay(alignment: .top) { gripperCard(state).padding(.top, 12) }
+                .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
                 .overlay {
                     VStack(spacing: 4) {
                         Image(systemName: "plus").font(.system(size: 40, weight: .light))
@@ -28,13 +33,13 @@ struct StandbyScreen: View {
                     }
                     .foregroundStyle(.white)
                 }
-                .overlay(alignment: .bottom) { volumeHint.padding(.bottom, 16) }
+                .overlay(alignment: .bottom) { VolumeHintBox(textKey: "control.volume_hint").padding(.bottom, 16) }
                 .overlay(alignment: .trailing) {
                     BaseHandle { model.send(.openBase) }
                         .frame(width: 72)
                         .padding(.vertical, 56)
                 }
-                .overlay {
+                .overlay(alignment: .top) {
                     if blocked {
                         Text("connection.blocked_banner")
                             .font(.system(size: 14, weight: .semibold))
@@ -42,67 +47,63 @@ struct StandbyScreen: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity)
                             .background(TeleopColors.statusAmber, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 118)
                             .accessibilityIdentifier("standby.blocked_banner")
                     }
                 }
 
-            HStack {
+            HStack(spacing: 8) {
                 RecordButton(isRecording: state.isRecording, elapsed: state.recordingTimeLabel) {
                     model.send(.openRecording)
                 }
                 Button {} label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
-                    .buttonStyle(TextActionStyle())
+                    .buttonStyle(OutlineButtonStyle())
                 Button { model.send(.openSettings) } label: { Label("control.settings", systemImage: "gearshape") }
-                    .buttonStyle(TextActionStyle())
+                    .buttonStyle(OutlineButtonStyle())
                     .accessibilityIdentifier("standby.settings")
             }
-            .frame(maxWidth: .infinity)
 
-            if !highLatency {
-                Button { model.send(.simulateHighLatency) } label: { Text("demo.simulate_high_latency") }
-                    .buttonStyle(TextActionStyle(color: TeleopColors.textSecondary))
-                    .accessibilityIdentifier("standby.simulate_high_latency")
-            } else {
-                Button { model.send(.simulateNormalLatency) } label: { Text("demo.simulate_normal_latency") }
-                    .buttonStyle(TextActionStyle(color: TeleopColors.textSecondary))
-                    .accessibilityIdentifier("standby.simulate_normal_latency")
-            }
-            Button { model.send(.openFallback) } label: { Text("fallback.title") }
-                .buttonStyle(TextActionStyle(color: TeleopColors.textSecondary))
-                .accessibilityIdentifier("standby.fallback")
-
-            if showStop {
+            if showStop && !showDebug {
                 StopButton { model.send(.stop) }
             }
         }
         .padding(.horizontal, TeleopMetrics.margin)
         .padding(.vertical, 12)
+        .sheet(isPresented: $showDebug) { debugSheet }
     }
 
-    private func gripperCard(_ state: FakeTeleopState) -> some View {
-        VStack(spacing: 2) {
-            Text(LocalizedStringKey(state.gripper == .open ? "control.gripper_open" : "control.gripper_closed"))
-                .font(.system(size: 20, weight: .semibold))
-            Text("control.gripper_pulse_hint")
+    private var debugSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("debug.title").font(.system(size: 20, weight: .semibold))
+            Text("debug.hint")
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)
+            if highLatency {
+                debugButton("demo.simulate_normal_latency", id: "standby.simulate_normal_latency", .simulateNormalLatency)
+            } else {
+                debugButton("demo.simulate_high_latency", id: "standby.simulate_high_latency", .simulateHighLatency)
+            }
+            debugButton("fallback.title", id: "standby.fallback", .openFallback)
+            Spacer()
+            StopButton(accessibilityId: "stop.debug") {
+                showDebug = false
+                model.send(.stop)
+            }
         }
-        .foregroundStyle(TeleopColors.textPrimary)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(TeleopColors.card.opacity(0.92), in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+        .padding(20)
+        .presentationDetents([.height(280 + TeleopMetrics.stopHeight)])
     }
 
-    private var volumeHint: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "speaker.wave.2.fill")
-            Text("control.volume_hint").font(.system(size: 13))
-        }
-        .foregroundStyle(TeleopColors.textSecondary)
-        .padding(12)
-        .background(TeleopColors.card.opacity(0.92), in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+    private func debugButton(_ title: LocalizedStringKey, id: String, _ action: TeleopAction) -> some View {
+        Button {
+            showDebug = false
+            model.send(action)
+        } label: { Text(title) }
+            .buttonStyle(OutlineButtonStyle())
+            .accessibilityIdentifier(id)
     }
 }
 
@@ -142,18 +143,16 @@ struct RecordButton: View {
                         .monospacedDigit()
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .frame(minHeight: TeleopMetrics.touch)
+                .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
                 .background(TeleopColors.recording, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
                 .overlay(
                     RoundedRectangle(cornerRadius: TeleopMetrics.corner).strokeBorder(.white, lineWidth: 2)
                 )
             } else {
-                Label("control.record", systemImage: "circle.fill")
+                Label("control.record", systemImage: "circle")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(TeleopColors.primary)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: TeleopMetrics.touch)
+                    .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
                     .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
                     .overlay(
                         RoundedRectangle(cornerRadius: TeleopMetrics.corner)
