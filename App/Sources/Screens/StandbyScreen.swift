@@ -88,9 +88,13 @@ struct StandbyScreen: View {
             }
             debugButton("fallback.title", id: "standby.fallback", .openFallback)
             Spacer()
+            StopButton {
+                showDebug = false
+                model.send(.stop)
+            }
         }
         .padding(20)
-        .presentationDetents([.height(280)])
+        .presentationDetents([.height(280 + TeleopMetrics.stopHeight)])
     }
 
     private func debugButton(_ title: LocalizedStringKey, id: String, _ action: TeleopAction) -> some View {
