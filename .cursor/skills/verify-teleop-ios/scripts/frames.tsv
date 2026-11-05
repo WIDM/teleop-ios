@@ -1,0 +1,21 @@
+# screen_id	figma_node	figma_name	route_raw_value
+P1	121:135	P1 Mode select	p1_mode_select
+P2	121:153	P2 Cloud checks pass	p2_cloud_pass
+P3	121:175	P3 Cloud check failed	p3_cloud_fail
+P4	121:198	P4 Standby	p4_standby
+P5	121:236	P5 Connection details	p5_connection
+P6	121:291	P6 High latency	p6_high_latency
+P7	121:331	P7 Keyboard open	p7_keyboard
+T1	121:387	T1 Tutorial 1 of 3	t1_tutorial
+T2	121:435	T2 Tutorial 2 of 3	t2_tutorial
+T3	121:483	T3 Tutorial 3 of 3	t3_tutorial
+S1	121:1126	S1 Connect	s1_connect
+S2	121:1162	S2 Permissions	s2_permissions
+S3a	121:1190	S3a Recording	s3a_recording
+S3b	121:1237	S3b Record end	s3b_record_end
+S3m	121:1279	S3m Teleop with base	s3m_base
+S4	121:1327	S4 E-stopped	s4_estopped
+S5	121:1358	S5 Screen fallback	s5_fallback
+S5a	121:1394	S5a Recording fallback	s5a_fallback_recording
+S6	121:1434	S6 Settings	s6_settings
+S7	121:1493	S7 Errors	s7_errors
