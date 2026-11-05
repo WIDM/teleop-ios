@@ -31,6 +31,11 @@ TeleopSession (TeleopCore)         HapticsController (Core Haptics)
 - `TeleopSession.perform(_:)` is the only place where an action becomes a state change, a route change and a haptic cue.
 - `RootView` switches on `model.session.route` and picks the screen. There is no `NavigationStack`.
 - Control actions that move hardware (`toggleGripper`) are gated by `TeleopSession.canControl`: connected, not E-stopped, commands not blocked by latency.
+- Arm hold has one path: vol+ and the on-screen hold areas (S5, S5a) both raise `holdArmStart` on press and `holdArmEnd` on release; `FakeTeleopState.armMoving` is the result. Release always stops; E-stop clears it. The on-screen side is the `armHold(model:)` modifier in `Components/Buttons.swift`.
+- Refused control input (`toggleGripper`, `holdArmStart`) emits `.commandBlocked` (3 short) while connected and not E-stopped. While E-stopped or disconnected input is ignored silently. Toggling the gripper while the arm is held is refused too (haptics-v1 H8).
+- E-stop release emits `cancel` (ends the long buzz) then `.stopReleased` (1 short, haptics-v1 H15).
+- Deadband and smoothing live in `FakeTeleopState` (`deadbandDegrees`, `smoothing`, clamped setters), next to `sensitivity`, so S6 shows the same values after leaving and re-entering. They are in memory only, not written to disk.
+- P4/P6 prototype shortcuts (simulate latency, on-screen controls) are in a debug sheet, opened by holding the mode pill for 1 second. They are not part of the Figma layout.
 - There is no connection layer yet: `FakeTeleopState` stands in for it. A real transport will replace the state mutations inside `perform` and keep the action vocabulary.
 
 ## Where S1 -> P5 navigation lives
