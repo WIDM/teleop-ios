@@ -35,7 +35,7 @@ TeleopSession (TeleopCore)         HapticsController (Core Haptics)
 - Refused control input (`toggleGripper`, `holdArmStart`) emits `.commandBlocked` (3 short) while connected and not E-stopped. While E-stopped or disconnected input is ignored silently. Toggling the gripper while the arm is held is refused too (haptics-v1 H8).
 - E-stop release emits `cancel` (ends the long buzz) then `.stopReleased` (1 short, haptics-v1 H15).
 - Deadband and smoothing live in `FakeTeleopState` (`deadbandDegrees`, `smoothing`, clamped setters), next to `sensitivity`, so S6 shows the same values after leaving and re-entering. They are in memory only, not written to disk.
-- P4/P6 prototype shortcuts (simulate latency, on-screen controls) are in a debug sheet, opened by holding the mode pill for 1 second. They are not part of the Figma layout. The sheet carries its own STOP (same `StopButton`; it latches E-stop and dismisses the sheet), so STOP is always reachable.
+- P4/P6 prototype shortcuts (simulate latency, on-screen controls) are in a debug sheet, opened by holding the mode pill for 1 second. They are not part of the Figma layout. The sheet carries its own STOP (`StopButton` with accessibility id `stop.debug`; it latches E-stop and dismisses the sheet). The under-sheet STOP is hidden while the sheet is up so XCUITest hits the reachable control.
 - There is no connection layer yet: `FakeTeleopState` stands in for it. A real transport will replace the state mutations inside `perform` and keep the action vocabulary.
 
 ## Where S1 -> P5 navigation lives

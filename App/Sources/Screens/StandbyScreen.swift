@@ -66,7 +66,7 @@ struct StandbyScreen: View {
                     .accessibilityIdentifier("standby.settings")
             }
 
-            if showStop {
+            if showStop && !showDebug {
                 StopButton { model.send(.stop) }
             }
         }
@@ -88,7 +88,7 @@ struct StandbyScreen: View {
             }
             debugButton("fallback.title", id: "standby.fallback", .openFallback)
             Spacer()
-            StopButton {
+            StopButton(accessibilityId: "stop.debug") {
                 showDebug = false
                 model.send(.stop)
             }

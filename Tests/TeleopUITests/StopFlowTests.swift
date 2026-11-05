@@ -53,8 +53,8 @@ final class StopFlowTests: XCTestCase {
         expect("status.mode_pill")
         element("status.mode_pill").press(forDuration: 1.3)
         expect("standby.simulate_high_latency")
-        expect("stop")
-        element("stop").tap()
+        expect("stop.debug")
+        element("stop.debug").tap()
         expect("stop.release")
     }
 
