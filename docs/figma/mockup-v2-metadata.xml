@@ -1,0 +1,2356 @@
+<canvas id="121:134" name="Mockup v2" x="0" y="0" width="0" height="0">
+  <frame id="121:135" name="P1 Mode select" x="0" y="0" width="402" height="874">
+    <frame id="121:136" name="Status bar" x="18" y="58" width="366" height="38">
+      <text id="121:137" name="● Not connected" x="0" y="12" width="98" height="14" hidden="true" />
+    </frame>
+    <text id="121:138" name="Choose a mode" x="18" y="110" width="366" height="34" />
+    <text id="121:139" name="Pick once per launch. You can change it in Settings." x="18" y="158" width="366" height="14" />
+    <frame id="121:140" name="On-site mode button" x="18" y="186" width="366" height="76">
+      <frame id="121:141" name="row" x="18" y="18" width="330" height="18">
+        <text id="121:142" name="On-site mode" x="0" y="0" width="99" height="18" />
+        <text id="121:143" name="● Selected" x="265" y="0" width="65" height="14" />
+      </frame>
+      <text id="121:144" name="Phone and robot share the lab Wi-Fi." x="18" y="42" width="330" height="16" />
+    </frame>
+    <frame id="121:145" name="Cloud mode button" x="18" y="276" width="366" height="90">
+      <frame id="121:146" name="row" x="17" y="17" width="332" height="18">
+        <text id="121:147" name="Cloud mode" x="0" y="0" width="89" height="18" />
+        <text id="121:148" name="○" x="320" y="0" width="12" height="14" />
+      </frame>
+      <text id="121:149" name="Connect remotely. Two safety checks must pass first: robot heartbeat and physical e-stop." x="17" y="41" width="332" height="32" />
+    </frame>
+    <frame id="121:150" name="spacer" x="18" y="380" width="366" height="394" />
+    <frame id="121:151" name="Next button" x="18" y="788" width="366" height="48">
+      <text id="121:152" name="Next" x="166.5" y="15" width="33" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:153" name="P2 Cloud checks pass" x="520" y="0" width="402" height="874">
+    <frame id="121:154" name="Status bar" x="18" y="58" width="366" height="38">
+      <text id="121:155" name="● Connected" x="0" y="12" width="77" height="14" hidden="true" />
+    </frame>
+    <text id="121:156" name="Cloud safety check" x="18" y="110" width="366" height="34" />
+    <text id="121:157" name="Both checks must pass before standby." x="18" y="158" width="366" height="14" />
+    <frame id="121:158" name="Robot heartbeat button" x="18" y="186" width="366" height="64">
+      <frame id="121:159" name="text" x="17" y="15" width="269" height="34">
+        <text id="121:160" name="Robot heartbeat" x="0" y="0" width="102" height="16" />
+        <text id="121:161" name="Received just now" x="0" y="20" width="269" height="14" />
+      </frame>
+      <frame id="121:162" name="result" x="298" y="19" width="51" height="26">
+        <text id="121:163" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:164" name="Physical e-stop button" x="18" y="264" width="366" height="64">
+      <frame id="121:165" name="text" x="17" y="15" width="269" height="34">
+        <text id="121:166" name="Physical e-stop" x="0" y="0" width="94" height="16" />
+        <text id="121:167" name="Connected and not pressed" x="0" y="20" width="269" height="14" />
+      </frame>
+      <frame id="121:168" name="result" x="298" y="19" width="51" height="26">
+        <text id="121:169" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:170" name="spacer" x="18" y="342" width="366" height="370" />
+    <frame id="121:171" name="Enter standby button" x="18" y="726" width="366" height="48">
+      <text id="121:172" name="Enter standby" x="133" y="15" width="100" height="18" />
+    </frame>
+    <frame id="121:173" name="Back button" x="18" y="788" width="366" height="48">
+      <text id="121:174" name="Back" x="165" y="15" width="36" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:175" name="P3 Cloud check failed" x="1040" y="0" width="402" height="874">
+    <frame id="121:176" name="Status bar" x="18" y="58" width="366" height="38">
+      <text id="121:177" name="● Not connected" x="0" y="12" width="98" height="14" hidden="true" />
+    </frame>
+    <text id="121:178" name="Cloud safety check" x="18" y="110" width="366" height="34" />
+    <text id="121:179" name="One check failed. Standby is locked." x="18" y="158" width="366" height="14" />
+    <frame id="121:180" name="Robot heartbeat button" x="18" y="186" width="366" height="66">
+      <frame id="121:181" name="text" x="18" y="16" width="273" height="34">
+        <text id="121:182" name="Robot heartbeat" x="0" y="0" width="102" height="16" />
+        <text id="121:183" name="No heartbeat from the robot" x="0" y="20" width="273" height="14" />
+      </frame>
+      <frame id="121:184" name="result" x="303" y="20" width="45" height="26">
+        <text id="121:185" name="Fail" x="11" y="5" width="23" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:186" name="Physical e-stop button" x="18" y="266" width="366" height="64">
+      <frame id="121:187" name="text" x="17" y="15" width="269" height="34">
+        <text id="121:188" name="Physical e-stop" x="0" y="0" width="94" height="16" />
+        <text id="121:189" name="Connected and not pressed" x="0" y="20" width="269" height="14" />
+      </frame>
+      <frame id="121:190" name="result" x="298" y="19" width="51" height="26">
+        <text id="121:191" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <text id="121:192" name="Check the robot power and network, or ask someone on site to check the e-stop." x="18" y="344" width="366" height="32" />
+    <frame id="121:193" name="spacer" x="18" y="390" width="366" height="322" />
+    <frame id="121:194" name="Recheck button" x="18" y="726" width="366" height="48">
+      <text id="121:195" name="Recheck" x="152.5" y="15" width="61" height="18" />
+    </frame>
+    <frame id="121:196" name="Use on-site mode button" x="18" y="788" width="366" height="48">
+      <text id="121:197" name="Use on-site mode" x="120.5" y="15" width="125" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:198" name="P4 Standby" x="4160" y="0" width="402" height="874">
+    <frame id="121:199" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:200" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:201" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:202" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:203" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:204" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:205" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:206" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:207" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:208" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:209" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:210" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:211" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:212" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:213" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:214" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:215" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:216" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:217" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:218" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:219" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:220" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:221" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:222" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:223" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:224" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:225" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:226" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:227" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:228" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:229" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:230" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:231" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:232" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:233" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:234" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:235" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:236" name="P5 Connection details" x="6240" y="0" width="402" height="874">
+    <frame id="121:237" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:238" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:239" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:240" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:241" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:242" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:243" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:244" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:245" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:246" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:247" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:248" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:249" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:250" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:251" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:252" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:253" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:254" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:255" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:256" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:257" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:258" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:259" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:260" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:261" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:262" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:263" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:264" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:265" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:266" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:267" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:268" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:269" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:270" name="Dim" x="0" y="0" width="402" height="774" />
+    <frame id="121:271" name="Details sheet" x="0" y="344" width="402" height="422">
+      <text id="121:272" name="Connection" x="20" y="20" width="125" height="26" />
+      <frame id="121:273" name="Row Latency" x="20" y="54" width="362" height="48">
+        <ellipse id="121:274" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:275" name="Latency" x="18" y="15" width="57" height="18" />
+        <text id="121:276" name="80 ms, normal" x="83" y="15" width="100" height="18" />
+      </frame>
+      <frame id="121:277" name="Row Robot heartbeat" x="20" y="110" width="362" height="48">
+        <ellipse id="121:278" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:279" name="Robot heartbeat" x="18" y="15" width="117" height="18" />
+        <text id="121:280" name="Received just now" x="143" y="15" width="126" height="18" />
+      </frame>
+      <frame id="121:281" name="Field Server address" x="20" y="166" width="362" height="68">
+        <text id="121:282" name="Server address" x="0" y="0" width="86" height="14" />
+        <frame id="121:283" name="Input" x="0" y="20" width="362" height="48">
+          <text id="121:284" name="192.168.x.x:8765" x="13" y="14.5" width="123" height="19" />
+        </frame>
+      </frame>
+      <frame id="154:138" name="Row Change server" x="20" y="242" width="362" height="48">
+        <text id="154:139" name="Change server" x="0" y="15" width="103" height="18" />
+        <frame id="155:134" name="Spacer" x="111" y="23.5" width="209" height="1" />
+        <text id="155:135" name="chevron_right" x="328" y="13" width="18" height="22" />
+      </frame>
+      <frame id="121:285" name="Close" x="20" y="298" width="362" height="48">
+        <text id="121:286" name="Close" x="160" y="14.5" width="42" height="19" />
+      </frame>
+    </frame>
+    <frame id="121:287" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:288" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:289" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:290" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:291" name="P6 High latency" x="6760" y="0" width="402" height="874">
+    <frame id="121:292" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:293" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:294" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:295" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:296" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:297" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:298" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:299" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:300" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:301" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:302" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:303" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:304" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:305" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:306" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:307" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:308" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:309" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:310" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:311" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:312" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:313" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:314" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:315" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:316" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:317" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:318" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:319" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:320" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:321" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:322" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:323" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:324" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:325" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:326" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:327" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:328" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+    <frame id="121:329" name="Blocked banner" x="32" y="236" width="326" height="48">
+      <text id="121:330" name="New commands blocked. Latency is high." x="16" y="15" width="302" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:331" name="P7 Keyboard open" x="7280" y="0" width="402" height="874">
+    <frame id="121:332" name="Body" x="0" y="0" width="402" height="548">
+      <frame id="121:333" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:334" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:335" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:336" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:337" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:338" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:339" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:340" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:341" name="AR camera view" x="16" y="118" width="370" height="350">
+        <frame id="121:342" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:343" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:344" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:345" name="spacer" x="184.5" y="73" width="1" height="1" />
+        <text id="121:346" name="add" x="161" y="82" width="48" height="58" />
+        <text id="121:347" name="Gripper aim" x="145" y="148" width="80" height="17" />
+        <frame id="121:348" name="spacer" x="184.5" y="173" width="1" height="112" />
+        <frame id="121:349" name="Volume key hint" x="62" y="293" width="246" height="51">
+          <text id="121:350" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:351" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:352" name="Base handle (right edge)" x="286" y="73" width="72" height="269">
+          <text id="121:353" name="open_with" x="23" y="103.5" width="28" height="34" />
+          <text id="121:354" name="Base" x="17.5" y="145.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:355" name="Frame" x="16" y="484" width="370" height="48">
+        <frame id="121:356" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:357" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:358" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:359" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:360" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:361" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:362" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:363" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:364" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:365" name="Dim" x="0" y="0" width="402" height="548" />
+    <frame id="121:366" name="Details sheet" x="0" y="190" width="402" height="310">
+      <text id="121:367" name="Connection" x="20" y="20" width="125" height="26" />
+      <frame id="121:368" name="Row Latency" x="20" y="54" width="362" height="48">
+        <ellipse id="121:369" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:370" name="Latency" x="18" y="15" width="57" height="18" />
+        <text id="121:371" name="80 ms, normal" x="83" y="15" width="100" height="18" />
+      </frame>
+      <frame id="121:372" name="Row Robot heartbeat" x="20" y="110" width="362" height="48">
+        <ellipse id="121:373" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:374" name="Robot heartbeat" x="18" y="15" width="117" height="18" />
+        <text id="121:375" name="Received just now" x="143" y="15" width="126" height="18" />
+      </frame>
+      <frame id="121:376" name="Field Server address" x="20" y="166" width="362" height="68">
+        <text id="121:377" name="Server address" x="0" y="0" width="86" height="14" />
+        <frame id="121:378" name="Input" x="0" y="20" width="362" height="48">
+          <text id="121:379" name="192.168.x.x:8765" x="14" y="14.5" width="123" height="19" />
+        </frame>
+      </frame>
+      <frame id="121:380" name="Close" x="20" y="242" width="362" height="48">
+        <text id="121:381" name="Close" x="160" y="14.5" width="42" height="19" />
+      </frame>
+    </frame>
+    <instance id="121:386" name="Keyboard / Shared" x="0" y="632" width="402" height="242" />
+    <frame id="121:382" name="E-stop" x="16" y="548" width="370" height="84">
+      <frame id="121:383" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:384" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:385" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:387" name="T1 Tutorial 1 of 3" x="2600" y="0" width="402" height="874">
+    <frame id="121:388" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:389" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:390" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:391" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:392" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:393" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:394" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:395" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:396" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:397" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:398" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:399" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:400" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:401" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:402" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:403" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:404" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:405" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:406" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:407" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:408" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:409" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:410" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:411" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:412" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:413" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:414" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:415" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:416" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:417" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:418" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:419" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:420" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:421" name="Dim" x="0" y="0" width="402" height="774" />
+    <frame id="121:422" name="Tutorial card" x="24" y="220" width="342" height="224">
+      <text id="121:423" name="Step 1 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:424" name="Hold volume up to move the arm" x="20" y="48" width="302" height="48" />
+      <text id="121:425" name="The arm follows your phone only while the button is held. Release to stop." x="20" y="108" width="302" height="36" />
+      <frame id="121:426" name="Actions" x="20" y="156" width="302" height="48">
+        <frame id="121:427" name="Skip" x="0" y="0" width="145" height="48">
+          <text id="121:428" name="Skip" x="55.5" y="14.5" width="34" height="19" />
+        </frame>
+        <frame id="121:429" name="Next" x="157" y="0" width="145" height="48">
+          <text id="121:430" name="Next" x="55" y="14.5" width="35" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:431" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:432" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:433" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:434" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:435" name="T2 Tutorial 2 of 3" x="3120" y="0" width="402" height="874">
+    <frame id="121:436" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:437" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:438" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:439" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:440" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:441" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:442" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:443" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:444" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:445" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:446" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:447" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:448" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:449" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:450" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:451" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:452" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:453" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:454" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:455" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:456" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:457" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:458" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:459" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:460" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:461" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:462" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:463" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:464" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:465" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:466" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:467" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:468" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:469" name="Dim" x="0" y="0" width="402" height="774" />
+    <frame id="121:470" name="Tutorial card" x="24" y="220" width="342" height="224">
+      <text id="121:471" name="Step 2 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:472" name="Press volume down for the gripper" x="20" y="48" width="302" height="48" />
+      <text id="121:473" name="One short pulse means closed. Two short pulses mean opened." x="20" y="108" width="302" height="36" />
+      <frame id="121:474" name="Actions" x="20" y="156" width="302" height="48">
+        <frame id="121:475" name="Skip" x="0" y="0" width="145" height="48">
+          <text id="121:476" name="Skip" x="55.5" y="14.5" width="34" height="19" />
+        </frame>
+        <frame id="121:477" name="Next" x="157" y="0" width="145" height="48">
+          <text id="121:478" name="Next" x="55" y="14.5" width="35" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:479" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:480" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:481" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:482" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:483" name="T3 Tutorial 3 of 3" x="3640" y="0" width="402" height="874">
+    <frame id="121:484" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:485" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:486" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:487" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:488" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:489" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="121:490" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:491" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:492" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:493" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:494" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:495" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:496" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:497" name="spacer" x="184.5" y="73" width="1" height="221" />
+        <text id="121:498" name="add" x="161" y="302" width="48" height="58" />
+        <text id="121:499" name="Gripper aim" x="145" y="368" width="80" height="17" />
+        <frame id="121:500" name="spacer" x="184.5" y="393" width="1" height="112" />
+        <frame id="121:501" name="Volume key hint" x="62" y="513" width="246" height="51">
+          <text id="121:502" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:503" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:504" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:505" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:506" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:507" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:508" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:509" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:510" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:511" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:512" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:513" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:514" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:515" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:516" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:517" name="Dim" x="0" y="0" width="402" height="774" />
+    <frame id="121:518" name="Tutorial card" x="24" y="220" width="342" height="206">
+      <text id="121:519" name="Step 3 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:520" name="The red STOP button is always here" x="20" y="48" width="302" height="48" />
+      <text id="121:521" name="Tap it at any time to stop the robot at once." x="20" y="108" width="302" height="18" />
+      <frame id="121:522" name="Actions" x="20" y="138" width="302" height="48">
+        <frame id="121:523" name="Skip" x="0" y="0" width="145" height="48">
+          <text id="121:524" name="Back" x="53.5" y="14.5" width="38" height="19" />
+        </frame>
+        <frame id="121:525" name="Next" x="157" y="0" width="145" height="48">
+          <text id="121:526" name="Start" x="53.5" y="14.5" width="38" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:527" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:528" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:529" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:530" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:531" name="Android P1 Mode select" x="0" y="1100" width="412" height="915">
+    <frame id="121:532" name="Status bar" x="18" y="38" width="376" height="38">
+      <text id="121:533" name="● Not connected" x="0" y="12" width="98" height="14" hidden="true" />
+    </frame>
+    <text id="121:534" name="Choose a mode" x="18" y="90" width="376" height="34" />
+    <text id="121:535" name="Pick once per launch. You can change it in Settings." x="18" y="138" width="376" height="14" />
+    <frame id="121:536" name="On-site mode button" x="18" y="166" width="376" height="76">
+      <frame id="121:537" name="row" x="18" y="18" width="340" height="18">
+        <text id="121:538" name="On-site mode" x="0" y="0" width="99" height="18" />
+        <text id="121:539" name="● Selected" x="275" y="0" width="65" height="14" />
+      </frame>
+      <text id="121:540" name="Phone and robot share the lab Wi-Fi." x="18" y="42" width="340" height="16" />
+    </frame>
+    <frame id="121:541" name="Cloud mode button" x="18" y="256" width="376" height="90">
+      <frame id="121:542" name="row" x="17" y="17" width="342" height="18">
+        <text id="121:543" name="Cloud mode" x="0" y="0" width="89" height="18" />
+        <text id="121:544" name="○" x="330" y="0" width="12" height="14" />
+      </frame>
+      <text id="121:545" name="Connect remotely. Two safety checks must pass first: robot heartbeat and physical e-stop." x="17" y="41" width="342" height="32" />
+    </frame>
+    <frame id="121:546" name="spacer" x="18" y="360" width="376" height="451" />
+    <frame id="121:547" name="Next button" x="18" y="825" width="376" height="48">
+      <text id="121:548" name="Next" x="171.5" y="15" width="33" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:549" name="Android P2 Cloud checks pass" x="520" y="1100" width="412" height="915">
+    <frame id="121:550" name="Status bar" x="18" y="38" width="376" height="38">
+      <text id="121:551" name="● Connected" x="0" y="12" width="77" height="14" hidden="true" />
+    </frame>
+    <text id="121:552" name="Cloud safety check" x="18" y="90" width="376" height="34" />
+    <text id="121:553" name="Both checks must pass before standby." x="18" y="138" width="376" height="14" />
+    <frame id="121:554" name="Robot heartbeat button" x="18" y="166" width="376" height="64">
+      <frame id="121:555" name="text" x="17" y="15" width="279" height="34">
+        <text id="121:556" name="Robot heartbeat" x="0" y="0" width="102" height="16" />
+        <text id="121:557" name="Received just now" x="0" y="20" width="279" height="14" />
+      </frame>
+      <frame id="121:558" name="result" x="308" y="19" width="51" height="26">
+        <text id="121:559" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:560" name="Physical e-stop button" x="18" y="244" width="376" height="64">
+      <frame id="121:561" name="text" x="17" y="15" width="279" height="34">
+        <text id="121:562" name="Physical e-stop" x="0" y="0" width="94" height="16" />
+        <text id="121:563" name="Connected and not pressed" x="0" y="20" width="279" height="14" />
+      </frame>
+      <frame id="121:564" name="result" x="308" y="19" width="51" height="26">
+        <text id="121:565" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:566" name="spacer" x="18" y="322" width="376" height="427" />
+    <frame id="121:567" name="Enter standby button" x="18" y="763" width="376" height="48">
+      <text id="121:568" name="Enter standby" x="138" y="15" width="100" height="18" />
+    </frame>
+    <frame id="121:569" name="Back button" x="18" y="825" width="376" height="48">
+      <text id="121:570" name="Back" x="170" y="15" width="36" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:571" name="Android P3 Cloud check failed" x="1040" y="1100" width="412" height="915">
+    <frame id="121:572" name="Status bar" x="18" y="38" width="376" height="38">
+      <text id="121:573" name="● Not connected" x="0" y="12" width="98" height="14" hidden="true" />
+    </frame>
+    <text id="121:574" name="Cloud safety check" x="18" y="90" width="376" height="34" />
+    <text id="121:575" name="One check failed. Standby is locked." x="18" y="138" width="376" height="14" />
+    <frame id="121:576" name="Robot heartbeat button" x="18" y="166" width="376" height="66">
+      <frame id="121:577" name="text" x="18" y="16" width="283" height="34">
+        <text id="121:578" name="Robot heartbeat" x="0" y="0" width="102" height="16" />
+        <text id="121:579" name="No heartbeat from the robot" x="0" y="20" width="283" height="14" />
+      </frame>
+      <frame id="121:580" name="result" x="313" y="20" width="45" height="26">
+        <text id="121:581" name="Fail" x="11" y="5" width="23" height="16" />
+      </frame>
+    </frame>
+    <frame id="121:582" name="Physical e-stop button" x="18" y="246" width="376" height="64">
+      <frame id="121:583" name="text" x="17" y="15" width="279" height="34">
+        <text id="121:584" name="Physical e-stop" x="0" y="0" width="94" height="16" />
+        <text id="121:585" name="Connected and not pressed" x="0" y="20" width="279" height="14" />
+      </frame>
+      <frame id="121:586" name="result" x="308" y="19" width="51" height="26">
+        <text id="121:587" name="Pass" x="11" y="5" width="29" height="16" />
+      </frame>
+    </frame>
+    <text id="121:588" name="Check the robot power and network, or ask someone on site to check the e-stop." x="18" y="324" width="376" height="32" />
+    <frame id="121:589" name="spacer" x="18" y="370" width="376" height="379" />
+    <frame id="121:590" name="Recheck button" x="18" y="763" width="376" height="48">
+      <text id="121:591" name="Recheck" x="157.5" y="15" width="61" height="18" />
+    </frame>
+    <frame id="121:592" name="Use on-site mode button" x="18" y="825" width="376" height="48">
+      <text id="121:593" name="Use on-site mode" x="125.5" y="15" width="125" height="18" />
+    </frame>
+  </frame>
+  <frame id="121:594" name="Android P4 Standby" x="4160" y="1100" width="412" height="915">
+    <frame id="121:595" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:596" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:597" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:598" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:599" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:600" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:601" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:602" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:603" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:604" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:605" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:606" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:607" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:608" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:609" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:610" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:611" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:612" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:613" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:614" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:615" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:616" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:617" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:618" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:619" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:620" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:621" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:622" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:623" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:624" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:625" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:626" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:627" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:628" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:629" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:630" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:631" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:632" name="Android P5 Connection details" x="6240" y="1100" width="412" height="915">
+    <frame id="121:633" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:634" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:635" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:636" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:637" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:638" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:639" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:640" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:641" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:642" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:643" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:644" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:645" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:646" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:647" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:648" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:649" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:650" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:651" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:652" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:653" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:654" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:655" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:656" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:657" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:658" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:659" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:660" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:661" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:662" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:663" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:664" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:665" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:666" name="Dim" x="0" y="0" width="412" height="791" />
+    <frame id="121:667" name="Details sheet" x="0" y="369" width="412" height="422">
+      <text id="121:668" name="Connection" x="20" y="20" width="125" height="26" />
+      <frame id="121:669" name="Row Latency" x="20" y="54" width="372" height="48">
+        <ellipse id="121:670" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:671" name="Latency" x="18" y="15" width="57" height="18" />
+        <text id="121:672" name="80 ms, normal" x="83" y="15" width="100" height="18" />
+      </frame>
+      <frame id="121:673" name="Row Robot heartbeat" x="20" y="110" width="372" height="48">
+        <ellipse id="121:674" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:675" name="Robot heartbeat" x="18" y="15" width="117" height="18" />
+        <text id="121:676" name="Received just now" x="143" y="15" width="126" height="18" />
+      </frame>
+      <frame id="121:677" name="Field Server address" x="20" y="166" width="372" height="68">
+        <text id="121:678" name="Server address" x="0" y="0" width="86" height="14" />
+        <frame id="121:679" name="Input" x="0" y="20" width="372" height="48">
+          <text id="121:680" name="192.168.x.x:8765" x="13" y="14.5" width="123" height="19" />
+        </frame>
+      </frame>
+      <frame id="154:141" name="Row Change server" x="20" y="242" width="372" height="48">
+        <text id="154:142" name="Change server" x="0" y="15" width="103" height="18" />
+        <frame id="155:136" name="Spacer" x="111" y="23.5" width="219" height="1" />
+        <text id="155:137" name="chevron_right" x="338" y="13" width="18" height="22" />
+      </frame>
+      <frame id="121:681" name="Close" x="20" y="298" width="372" height="48">
+        <text id="121:682" name="Close" x="165" y="14.5" width="42" height="19" />
+      </frame>
+    </frame>
+    <frame id="121:683" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:684" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:685" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:686" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:687" name="Android P6 High latency" x="6760" y="1100" width="412" height="915">
+    <frame id="121:688" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:689" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:690" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:691" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:692" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:693" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:694" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:695" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:696" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:697" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:698" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:699" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:700" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:701" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:702" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:703" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:704" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:705" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:706" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:707" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:708" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:709" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:710" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:711" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:712" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:713" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:714" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:715" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:716" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:717" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:718" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:719" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:720" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:725" name="Blocked banner" x="32" y="236" width="348" height="48">
+      <text id="121:726" name="New commands blocked. Latency is high." x="16" y="15" width="302" height="18" />
+    </frame>
+    <frame id="121:721" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:722" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:723" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:724" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:727" name="Android P7 Keyboard open" x="7280" y="1100" width="412" height="915">
+    <frame id="121:728" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:729" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:730" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:731" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:732" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:733" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:734" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:735" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:736" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:737" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:738" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:739" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:740" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:741" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:742" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:743" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:744" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:745" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:746" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:747" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:748" name="Base handle (right edge)" x="286" y="73" width="72" height="394">
+          <text id="121:749" name="open_with" x="23" y="166" width="28" height="34" />
+          <text id="121:750" name="Base" x="17.5" y="208" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:751" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:752" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:753" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:754" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:755" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:756" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:757" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:758" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:759" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:760" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:761" name="Dim" x="0" y="0" width="412" height="589" />
+    <frame id="121:762" name="Details sheet" x="0" y="265" width="412" height="310">
+      <text id="121:763" name="Connection" x="20" y="20" width="125" height="26" />
+      <frame id="121:764" name="Row Latency" x="20" y="54" width="372" height="48">
+        <ellipse id="121:765" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:766" name="Latency" x="18" y="15" width="57" height="18" />
+        <text id="121:767" name="80 ms, normal" x="83" y="15" width="100" height="18" />
+      </frame>
+      <frame id="121:768" name="Row Robot heartbeat" x="20" y="110" width="372" height="48">
+        <ellipse id="121:769" name="Ellipse" x="0" y="19" width="10" height="10" />
+        <text id="121:770" name="Robot heartbeat" x="18" y="15" width="117" height="18" />
+        <text id="121:771" name="Received just now" x="143" y="15" width="126" height="18" />
+      </frame>
+      <frame id="121:772" name="Field Server address" x="20" y="166" width="372" height="68">
+        <text id="121:773" name="Server address" x="0" y="0" width="86" height="14" />
+        <frame id="121:774" name="Input" x="0" y="20" width="372" height="48">
+          <text id="121:775" name="192.168.x.x:8765" x="14" y="14.5" width="123" height="19" />
+        </frame>
+      </frame>
+      <frame id="121:776" name="Close" x="20" y="242" width="372" height="48">
+        <text id="121:777" name="Close" x="165" y="14.5" width="42" height="19" />
+      </frame>
+    </frame>
+    <instance id="121:782" name="Keyboard / Shared / Android" x="0" y="659" width="412" height="232" />
+    <frame id="121:778" name="E-stop" x="16" y="575" width="380" height="84">
+      <frame id="121:779" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:780" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:781" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:783" name="Android T1 Tutorial 1 of 3" x="2600" y="1100" width="412" height="915">
+    <frame id="121:784" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:785" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:786" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:787" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:788" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:789" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:790" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:791" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:792" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:793" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:794" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:795" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:796" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:797" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:798" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:799" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:800" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:801" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:802" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:803" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:804" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:805" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:806" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:807" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:808" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:809" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:810" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:811" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:812" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:813" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:814" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:815" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:816" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:817" name="Dim" x="0" y="0" width="412" height="791" />
+    <frame id="121:818" name="Tutorial card" x="24" y="220" width="364" height="200">
+      <text id="121:819" name="Step 1 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:820" name="Hold volume up to move the arm" x="20" y="48" width="324" height="24" />
+      <text id="121:821" name="The arm follows your phone only while the button is held. Release to stop." x="20" y="84" width="324" height="36" />
+      <frame id="121:822" name="Actions" x="20" y="132" width="324" height="48">
+        <frame id="121:823" name="Skip" x="0" y="0" width="156" height="48">
+          <text id="121:824" name="Skip" x="61" y="14.5" width="34" height="19" />
+        </frame>
+        <frame id="121:825" name="Next" x="168" y="0" width="156" height="48">
+          <text id="121:826" name="Next" x="60.5" y="14.5" width="35" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:827" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:828" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:829" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:830" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:831" name="Android T2 Tutorial 2 of 3" x="3120" y="1100" width="412" height="915">
+    <frame id="121:832" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:833" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:834" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:835" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:836" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:837" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:838" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:839" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:840" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:841" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:842" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:843" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:844" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:845" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:846" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:847" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:848" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:849" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:850" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:851" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:852" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:853" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:854" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:855" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:856" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:857" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:858" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:859" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:860" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:861" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:862" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:863" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:864" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:865" name="Dim" x="0" y="0" width="412" height="791" />
+    <frame id="121:866" name="Tutorial card" x="24" y="220" width="364" height="224">
+      <text id="121:867" name="Step 2 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:868" name="Press volume down for the gripper" x="20" y="48" width="324" height="48" />
+      <text id="121:869" name="One short pulse means closed. Two short pulses mean opened." x="20" y="108" width="324" height="36" />
+      <frame id="121:870" name="Actions" x="20" y="156" width="324" height="48">
+        <frame id="121:871" name="Skip" x="0" y="0" width="156" height="48">
+          <text id="121:872" name="Skip" x="61" y="14.5" width="34" height="19" />
+        </frame>
+        <frame id="121:873" name="Next" x="168" y="0" width="156" height="48">
+          <text id="121:874" name="Next" x="60.5" y="14.5" width="35" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:875" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:876" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:877" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:878" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:879" name="Android T3 Tutorial 3 of 3" x="3640" y="1100" width="412" height="915">
+    <frame id="121:880" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="121:881" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="121:882" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:883" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:884" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="121:885" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="121:886" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="121:887" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="121:888" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:889" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="121:890" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="121:891" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:892" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:893" name="spacer" x="189.5" y="73" width="1" height="256" />
+        <text id="121:894" name="add" x="166" y="337" width="48" height="58" />
+        <text id="121:895" name="Gripper aim" x="150" y="403" width="80" height="17" />
+        <frame id="121:896" name="spacer" x="189.5" y="428" width="1" height="112" />
+        <frame id="121:897" name="Volume key hint" x="67" y="548" width="246" height="51">
+          <text id="121:898" name="volume_up" x="12" y="13.5" width="20" height="24" />
+          <text id="121:899" name="Hold vol+: move arm Press vol−: gripper Hold right edge: move base" x="40" y="0" width="194" height="51" />
+        </frame>
+        <frame id="121:900" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:901" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:902" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:903" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="121:904" name="Record" x="0" y="0" width="122" height="48">
+          <text id="121:905" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="121:906" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:907" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="121:908" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="121:909" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:910" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="121:911" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="121:912" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <rounded-rectangle id="121:913" name="Dim" x="0" y="0" width="412" height="791" />
+    <frame id="121:914" name="Tutorial card" x="24" y="220" width="364" height="206">
+      <text id="121:915" name="Step 3 of 3" x="20" y="20" width="64" height="16" />
+      <text id="121:916" name="The red STOP button is always here" x="20" y="48" width="324" height="48" />
+      <text id="121:917" name="Tap it at any time to stop the robot at once." x="20" y="108" width="324" height="18" />
+      <frame id="121:918" name="Actions" x="20" y="138" width="324" height="48">
+        <frame id="121:919" name="Skip" x="0" y="0" width="156" height="48">
+          <text id="121:920" name="Back" x="59" y="14.5" width="38" height="19" />
+        </frame>
+        <frame id="121:921" name="Next" x="168" y="0" width="156" height="48">
+          <text id="121:922" name="Start" x="59" y="14.5" width="38" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:923" name="E-stop" x="16" y="799" width="380" height="84">
+      <frame id="121:924" name="E-stop button" x="17" y="6" width="346" height="72">
+        <text id="121:925" name="front_hand" x="123.5" y="19" width="28" height="34" />
+        <text id="121:926" name="STOP" x="159.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <symbol id="121:927" name="Keyboard / Shared" x="0" y="2200" width="390" height="242" />
+  <frame id="121:1126" name="S1 Connect" x="1560" y="0" width="402" height="874">
+    <frame id="121:1127" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="148:134" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="148:135" name="spacer" x="12" y="23.5" width="202" height="1" />
+        <frame id="148:136" name="Connection chip" x="214" y="0" width="152" height="48">
+          <ellipse id="148:137" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="148:138" name="Not connected" x="24" y="15.5" width="98" height="17" />
+          <text id="148:139" name="chevron_right" x="128" y="12" width="20" height="24" />
+        </frame>
+      </frame>
+      <frame id="121:1128" name="Connection" x="16" y="54" width="370" height="14" hidden="true">
+        <ellipse id="121:1129" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1130" name="Not connected" x="14" y="0" width="82" height="14" hidden="true" />
+        <frame id="121:1131" name="spacer" x="102" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1133" name="Frame" x="16" y="118" width="370" height="57">
+        <text id="121:1134" name="Teleop" x="0" y="0" width="99" height="36" />
+        <text id="121:1135" name="Connect to the robot" x="0" y="40" width="135" height="17" />
+      </frame>
+      <frame id="121:1136" name="Card" x="16" y="191" width="370" height="171">
+        <text id="121:1137" name="Server address" x="17" y="17" width="100" height="17" />
+        <frame id="121:1138" name="URL field" x="17" y="46" width="336" height="48">
+          <text id="121:1139" name="link" x="13" y="12" width="20" height="24" />
+          <text id="121:1140" name="192.168.x.x:8765" x="41" y="13.5" width="154" height="21" />
+        </frame>
+        <frame id="121:1141" name="Frame" x="17" y="106" width="336" height="48">
+          <frame id="121:1142" name="Connect" x="0" y="0" width="163" height="48">
+            <text id="121:1143" name="link" x="33.5" y="9.5" width="24" height="29" />
+            <text id="121:1144" name="Connect" x="65.5" y="14.5" width="64" height="19" />
+          </frame>
+          <frame id="121:1145" name="Disconnect" x="171" y="0" width="165" height="48">
+            <text id="121:1146" name="link_off" x="24" y="9.5" width="24" height="29" />
+            <text id="121:1147" name="Disconnect" x="56" y="14.5" width="85" height="19" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="121:1148" name="Card" x="16" y="378" width="370" height="127">
+        <frame id="121:1149" name="Frame" x="1" y="13" width="78" height="17">
+          <text id="121:1150" name="Recent" x="16" y="0" width="46" height="17" />
+        </frame>
+        <frame id="121:1151" name="lab Wi-Fi" x="1" y="30" width="368" height="48">
+          <text id="121:1152" name="history" x="16" y="12" width="20" height="24" />
+          <text id="121:1153" name="lab Wi-Fi" x="48" y="14.5" width="65" height="19" />
+        </frame>
+        <frame id="121:1154" name="Personal hotspot" x="1" y="78" width="368" height="48">
+          <text id="121:1155" name="history" x="16" y="12" width="20" height="24" />
+          <text id="121:1156" name="Personal hotspot" x="48" y="14.5" width="127" height="19" />
+        </frame>
+      </frame>
+      <text id="121:1157" name="Opens standby after connecting" x="16" y="521" width="370" height="14" />
+      <frame id="151:146" name="Back" x="16" y="551" width="370" height="48">
+        <text id="151:147" name="arrow_back" x="152.5" y="12" width="20" height="24" />
+        <text id="151:148" name="Back" x="180.5" y="14.5" width="37" height="19" />
+      </frame>
+    </frame>
+    <frame id="121:1158" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1159" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1160" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1161" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1162" name="S2 Permissions" x="2080" y="0" width="402" height="874">
+    <frame id="121:1163" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="148:146" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="148:147" name="Mode pill" x="12" y="11.5" width="64" height="25">
+          <text id="148:148" name="Setup" x="12" y="4" width="40" height="17" />
+        </frame>
+        <frame id="148:149" name="spacer" x="76" y="23.5" width="163" height="1" />
+        <frame id="148:150" name="Connection chip" x="239" y="0" width="127" height="48">
+          <ellipse id="148:151" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="148:152" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="148:153" name="chevron_right" x="103" y="12" width="20" height="24" />
+        </frame>
+      </frame>
+      <frame id="121:1164" name="Connection" x="16" y="54" width="370" height="14" hidden="true">
+        <ellipse id="121:1165" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1166" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1167" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <text id="121:1169" name="Two permissions are required" x="16" y="118" width="370" height="29" />
+      <frame id="121:1170" name="Camera" x="16" y="163" width="370" height="106">
+        <frame id="121:1171" name="Frame" x="17" y="17" width="48" height="48">
+          <text id="121:1172" name="photo_camera" x="12" y="9.5" width="24" height="29" />
+        </frame>
+        <frame id="121:1173" name="Frame" x="77" y="17" width="250" height="72">
+          <text id="121:1174" name="Camera" x="0" y="0" width="53" height="17" />
+          <text id="121:1175" name="Tracks phone pose for AR. On iOS the camera must stay on so volume-key hold and release are detected." x="0" y="21" width="250" height="51" />
+        </frame>
+      </frame>
+      <frame id="121:1176" name="Motion sensors" x="16" y="285" width="370" height="83">
+        <frame id="121:1177" name="Frame" x="17" y="17" width="48" height="48">
+          <text id="121:1178" name="screen_rotation" x="12" y="9.5" width="24" height="29" />
+        </frame>
+        <frame id="121:1179" name="Frame" x="77" y="17" width="250" height="49">
+          <text id="121:1180" name="Motion sensors" x="0" y="0" width="104" height="17" />
+          <text id="121:1181" name="Reads phone rotation and maps it to wrist orientation." x="0" y="21" width="250" height="28" />
+        </frame>
+      </frame>
+      <frame id="121:1182" name="spacer" x="16" y="384" width="370" height="280" />
+      <text id="121:1183" name="Continue opens the system permission prompts." x="16" y="680" width="370" height="14" />
+      <frame id="121:1184" name="Continue" x="16" y="710" width="370" height="48">
+        <text id="121:1185" name="Continue" x="149.5" y="14.5" width="71" height="19" />
+      </frame>
+    </frame>
+    <frame id="121:1186" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1187" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1188" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1189" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1190" name="S3a Recording" x="4680" y="0" width="402" height="874">
+    <frame id="121:1191" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1192" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:1193" name="Mode pill" x="13" y="11.5" width="108" height="25">
+          <ellipse id="121:1194" name="Rec dot (fiber_manual_record filled)" x="12" y="6.5" width="12" height="12" />
+          <text id="121:1195" name="Recording" x="28" y="4" width="68" height="17" />
+        </frame>
+        <frame id="121:1196" name="spacer" x="129" y="23.5" width="95" height="1" />
+        <frame id="121:1197" name="Volume key status" x="138" y="12" width="127" height="24" hidden="true">
+          <text id="121:1198" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="121:1199" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="121:1200" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1201" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1202" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:134" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="140:135" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:136" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:137" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1203" name="Connection" x="16" y="97" width="370" height="14" hidden="true">
+        <ellipse id="121:1204" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1205" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1206" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1208" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:1209" name="Gripper state" x="12" y="12" width="346" height="53">
+          <text id="121:1210" name="Gripper: open" x="106.5" y="4" width="133" height="24" />
+          <text id="121:1211" name="Close: 1 pulse. Open: 2 pulses." x="72.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:1215" name="spacer" x="184.5" y="73" width="1" height="164" />
+        <frame id="121:1216" name="Recording timer" x="88" y="245" width="194" height="71">
+          <ellipse id="121:1217" name="Ellipse" x="0" y="25.5" width="20" height="20" />
+          <text id="121:1218" name="00:12" x="32" y="0" width="162" height="71" />
+        </frame>
+        <frame id="121:1219" name="spacer" x="184.5" y="324" width="1" height="164" />
+        <frame id="121:1220" name="Volume key hint" x="9" y="496" width="352" height="68">
+          <text id="121:1221" name="volume_up" x="12" y="22" width="20" height="24" />
+          <text id="121:1222" name="Hold vol+: move arm with the phone, release to stop Press vol−: toggle gripper (after releasing vol+)" x="40" y="0" width="300" height="68" />
+        </frame>
+      </frame>
+      <frame id="121:1223" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1224" name="Record" x="0" y="0" width="170" height="48">
+          <ellipse id="139:138" name="Rec indicator" x="24" y="20" width="8" height="8" />
+          <text id="121:1225" name="stop" x="34.5" y="9.5" width="24" height="29" hidden="true" />
+          <text id="121:1226" name="Recording 0:12" x="40" y="15" width="106" height="18" />
+        </frame>
+        <frame id="121:1227" name="Reset scene" x="178" y="0" width="92" height="48">
+          <text id="121:1228" name="restart_alt" x="14.5" y="9.5" width="24" height="29" />
+          <text id="121:1229" name="Reset" x="42.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:1230" name="Settings" x="278" y="0" width="92" height="48">
+          <text id="121:1231" name="settings" x="6.5" y="9.5" width="24" height="29" />
+          <text id="121:1232" name="Settings" x="34.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1233" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1234" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1235" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1236" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1237" name="S3b Record end" x="5200" y="0" width="402" height="874">
+    <frame id="121:1238" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1239" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:1240" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:1241" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:1242" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:1243" name="Volume key status" x="180" y="12" width="127" height="24" hidden="true">
+          <text id="121:1244" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="121:1245" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="121:1246" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1247" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1248" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:142" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="140:143" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:144" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:145" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1249" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1250" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1251" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1252" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1254" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:1255" name="Gripper state" x="12" y="12" width="346" height="53">
+          <text id="121:1256" name="Gripper: open" x="106.5" y="4" width="133" height="24" />
+          <text id="121:1257" name="Close: 1 pulse. Open: 2 pulses." x="72.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:1261" name="spacer" x="184.5" y="73" width="1" height="181" />
+        <frame id="121:1262" name="Recording timer" x="104" y="262" width="162" height="71">
+          <text id="121:1263" name="00:42" x="0" y="0" width="162" height="71" />
+        </frame>
+        <frame id="121:1264" name="spacer" x="184.5" y="341" width="1" height="181" />
+        <frame id="121:1265" name="Volume key hint" x="9" y="530" width="352" height="34">
+          <text id="121:1266" name="volume_up" x="12" y="5" width="20" height="24" />
+          <text id="121:1267" name="Save or discard this take? The arm stays still until you choose." x="40" y="0" width="300" height="34" />
+        </frame>
+      </frame>
+      <frame id="121:1268" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1269" name="Discard" x="0" y="0" width="181" height="48">
+          <text id="121:1270" name="delete" x="10.5" y="9.5" width="24" height="29" />
+          <text id="121:1271" name="Discard (hold 1s)" x="42.5" y="14.5" width="128" height="19" />
+        </frame>
+        <frame id="121:1272" name="Save" x="189" y="0" width="181" height="48">
+          <text id="121:1273" name="save" x="51.5" y="9.5" width="24" height="29" />
+          <text id="121:1274" name="Save" x="83.5" y="12" width="46" height="24" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1275" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1276" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1277" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1278" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1279" name="S3m Teleop with base" x="5720" y="0" width="402" height="874">
+    <frame id="121:1280" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1281" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:1282" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:1283" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:1284" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:1285" name="Volume key status" x="120" y="12" width="127" height="24" hidden="true">
+          <text id="121:1286" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="121:1287" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="121:1288" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1289" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1290" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:150" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="140:151" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:152" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:153" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1291" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1292" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1293" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1294" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1296" name="AR camera view" x="16" y="118" width="370" height="576">
+        <frame id="121:1297" name="Gripper state" x="52" y="12" width="266" height="53">
+          <text id="121:1298" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="121:1299" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="121:1304" name="spacer" x="184.5" y="73" width="1" height="170.5" />
+        <text id="121:1305" name="add" x="161" y="251.5" width="48" height="58" />
+        <frame id="121:1306" name="spacer" x="184.5" y="317.5" width="1" height="170.5" />
+        <frame id="121:1307" name="Volume key hint" x="62" y="496" width="246" height="68">
+          <text id="121:1308" name="volume_up" x="12" y="22" width="20" height="24" />
+          <text id="121:1309" name="Hold vol+: move the arm Press vol−: toggle gripper Hold right edge: move the base" x="40" y="0" width="194" height="68" />
+        </frame>
+        <frame id="121:1310" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="121:1311" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="121:1312" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="121:1313" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1314" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:1315" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:1316" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:1317" name="Reset scene" x="126" y="0" width="118" height="48">
+          <text id="121:1318" name="restart_alt" x="27.5" y="9.5" width="24" height="29" />
+          <text id="121:1319" name="Reset" x="55.5" y="16" width="35" height="16" />
+        </frame>
+        <frame id="121:1320" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:1321" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:1322" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1323" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1324" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1325" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1326" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1327" name="S4 E-stopped" x="7800" y="0" width="402" height="874">
+    <frame id="121:1328" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1329" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="144:141" name="Mode pill" x="12" y="11.5" width="93" height="25">
+          <text id="144:142" name="E-stopped" x="12" y="4" width="69" height="17" />
+        </frame>
+        <frame id="121:1332" name="Volume key status" x="121" y="12" width="127" height="24" hidden="true">
+          <text id="121:1333" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="121:1334" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="121:1335" name="Keep awake" x="256" y="12" width="90" height="24" hidden="true">
+          <text id="121:1336" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1337" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="121:1331" name="spacer" x="113" y="23.5" width="112" height="1" />
+        <frame id="144:143" name="Connection chip" x="233" y="0" width="125" height="48">
+          <ellipse id="144:144" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="144:145" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="144:146" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1338" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1339" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1340" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1341" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1343" name="E-stopped card" x="16" y="118" width="370" height="206">
+        <text id="121:1344" name="front_hand" x="161" y="25" width="48" height="58" />
+        <text id="121:1345" name="E-stopped" x="105" y="91" width="160" height="38" />
+        <text id="121:1346" name="Arm stopped. All inputs are locked." x="55.5" y="137" width="259" height="19" />
+        <text id="121:1347" name="Volume keys and on-screen controls are ignored." x="27" y="164" width="316" height="17" />
+      </frame>
+      <frame id="121:1348" name="spacer" x="16" y="340" width="370" height="316" />
+      <frame id="121:1349" name="Release (hold 1s)" x="16" y="672" width="370" height="56">
+        <ellipse id="121:1350" name="Hold progress" x="85.5" y="16" width="24" height="24" />
+        <text id="121:1351" name="lock_open" x="117.5" y="13.5" width="24" height="29" />
+        <text id="121:1352" name="Hold 1s to release" x="149.5" y="18.5" width="135" height="19" />
+      </frame>
+      <text id="121:1353" name="Release early to cancel. A short buzz confirms release." x="16" y="744" width="370" height="14" />
+    </frame>
+    <frame id="121:1354" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1355" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1356" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1357" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1358" name="S5 Screen fallback" x="8320" y="0" width="402" height="874">
+    <frame id="121:1359" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1360" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:1361" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="121:1362" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="121:1363" name="spacer" x="101" y="23.5" width="123" height="1" />
+        <frame id="121:1364" name="Volume key status" x="110" y="12" width="160" height="24" hidden="true">
+          <text id="121:1365" name="volume_off" x="0" y="0" width="20" height="24" />
+          <text id="121:1366" name="Volume keys unavailable" x="22" y="5" width="138" height="14" />
+        </frame>
+        <frame id="121:1367" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1368" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1369" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:166" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="140:167" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:168" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:169" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1370" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1371" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1372" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1373" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1375" name="Hold pad" x="16" y="118" width="370" height="576">
+        <text id="121:1376" name="touch_app" x="161" y="211.5" width="48" height="58" />
+        <text id="121:1377" name="Hold here" x="127.5" y="277.5" width="115" height="29" />
+        <text id="121:1378" name="Hold here: phone motion moves the arm. Release to stop." x="25" y="314.5" width="320" height="14" />
+        <text id="121:1379" name="Gripper: open" x="17" y="336.5" width="336" height="28" />
+      </frame>
+      <frame id="121:1380" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1381" name="Record" x="0" y="0" width="118" height="48">
+          <text id="121:1382" name="fiber_manual_record" x="16" y="9.5" width="24" height="29" />
+          <text id="121:1383" name="Record" x="48" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="121:1384" name="Gripper toggle" x="126" y="0" width="118" height="48">
+          <text id="121:1385" name="swap_horiz" x="21" y="9.5" width="24" height="29" />
+          <text id="121:1386" name="Gripper" x="49" y="16" width="48" height="16" />
+        </frame>
+        <frame id="121:1387" name="Settings" x="252" y="0" width="118" height="48">
+          <text id="121:1388" name="settings" x="19.5" y="9.5" width="24" height="29" />
+          <text id="121:1389" name="Settings" x="47.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1390" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1391" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1392" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1393" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1394" name="S5a Recording fallback" x="8840" y="0" width="402" height="874">
+    <frame id="121:1395" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1396" name="Status bar" x="16" y="54" width="370" height="48">
+        <frame id="121:1397" name="Mode pill" x="13" y="11.5" width="108" height="25">
+          <ellipse id="121:1398" name="Rec dot (fiber_manual_record filled)" x="12" y="6.5" width="12" height="12" />
+          <text id="121:1399" name="Recording" x="28" y="4" width="68" height="17" />
+        </frame>
+        <frame id="121:1400" name="spacer" x="129" y="23.5" width="95" height="1" />
+        <frame id="121:1401" name="Volume key status" x="138" y="12" width="160" height="24" hidden="true">
+          <text id="121:1402" name="volume_off" x="0" y="0" width="20" height="24" />
+          <text id="121:1403" name="Volume keys unavailable" x="22" y="5" width="138" height="14" />
+        </frame>
+        <frame id="121:1404" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1405" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1406" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:174" name="Connection chip" x="232" y="0" width="125" height="48">
+          <ellipse id="140:175" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:176" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:177" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1407" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1408" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1409" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="121:1410" name="spacer" x="81" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1412" name="Hold pad" x="16" y="118" width="370" height="576">
+        <frame id="121:1413" name="Recording timer" x="88" y="172" width="194" height="71">
+          <ellipse id="121:1414" name="Ellipse" x="0" y="25.5" width="20" height="20" />
+          <text id="121:1415" name="00:12" x="32" y="0" width="162" height="71" />
+        </frame>
+        <text id="121:1416" name="touch_app" x="161" y="251" width="48" height="58" />
+        <text id="121:1417" name="Hold here" x="127.5" y="317" width="115" height="29" />
+        <text id="121:1418" name="Hold here: phone motion moves the arm. Release to stop." x="25" y="354" width="320" height="14" />
+        <text id="121:1419" name="Gripper: open / Stop recording hint" x="17" y="376" width="336" height="28" />
+      </frame>
+      <frame id="121:1420" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1421" name="Record" x="0" y="0" width="170" height="48">
+          <ellipse id="139:139" name="Rec indicator" x="24" y="20" width="8" height="8" />
+          <text id="121:1422" name="stop" x="34.5" y="9.5" width="24" height="29" hidden="true" />
+          <text id="121:1423" name="Recording 0:12" x="40" y="15" width="106" height="18" />
+        </frame>
+        <frame id="121:1424" name="Gripper toggle" x="178" y="0" width="92" height="48">
+          <text id="121:1425" name="swap_horiz" x="8" y="9.5" width="24" height="29" />
+          <text id="121:1426" name="Gripper" x="36" y="16" width="48" height="16" />
+        </frame>
+        <frame id="121:1427" name="Settings" x="278" y="0" width="92" height="48">
+          <text id="121:1428" name="settings" x="6.5" y="9.5" width="24" height="29" />
+          <text id="121:1429" name="Settings" x="34.5" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1430" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1431" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1432" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1433" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1434" name="S6 Settings" x="9360" y="0" width="402" height="874">
+    <frame id="121:1435" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1436" name="Header" x="16" y="54" width="370" height="48">
+        <frame id="121:1437" name="Back" x="0" y="0" width="84" height="48">
+          <text id="121:1438" name="arrow_back" x="0" y="11" width="22" height="26" />
+          <text id="121:1439" name="Back" x="30" y="14.5" width="38" height="19" />
+        </frame>
+        <frame id="121:1440" name="spacer" x="92" y="23.5" width="60.5" height="1" />
+        <text id="121:1441" name="Settings" x="160.5" y="12" width="81" height="24" />
+        <frame id="121:1442" name="spacer" x="249.5" y="23.5" width="60.5" height="1" />
+        <frame id="121:1443" name="Done" x="318" y="0" width="52" height="48">
+          <text id="121:1444" name="Done" x="16" y="15.5" width="36" height="17" />
+        </frame>
+      </frame>
+      <frame id="121:1445" name="Card" x="16" y="118" width="370" height="216">
+        <frame id="121:1446" name="Frame" x="17" y="17" width="336" height="50">
+          <frame id="121:1447" name="Frame" x="0" y="0" width="336" height="18">
+            <text id="121:1448" name="Sensitivity" x="0" y="0.5" width="71" height="17" />
+            <text id="121:1449" name="gain" x="79" y="1" width="29" height="16" />
+            <frame id="121:1450" name="spacer" x="116" y="8.5" width="186" height="1" />
+            <text id="121:1451" name="1.0" x="310" y="0" width="26" height="18" />
+          </frame>
+          <frame id="121:1452" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="121:1453" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="121:1454" name="Rectangle" x="0" y="10" width="163" height="4" />
+            <ellipse id="121:1455" name="Ellipse" x="151" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+        <frame id="121:1456" name="Frame" x="17" y="83" width="336" height="50">
+          <frame id="121:1457" name="Frame" x="0" y="0" width="336" height="18">
+            <text id="121:1458" name="Deadband" x="0" y="0.5" width="69" height="17" />
+            <text id="121:1459" name="deadband" x="77" y="1" width="58" height="16" />
+            <frame id="121:1460" name="spacer" x="143" y="8.5" width="168" height="1" />
+            <text id="121:1461" name="2°" x="319" y="0" width="17" height="18" />
+          </frame>
+          <frame id="121:1462" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="121:1463" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="121:1464" name="Rectangle" x="0" y="10" width="65.19999694824219" height="4" />
+            <ellipse id="121:1465" name="Ellipse" x="53.20000076293945" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+        <frame id="121:1466" name="Frame" x="17" y="149" width="336" height="50">
+          <frame id="121:1467" name="Frame" x="0" y="0" width="336" height="18">
+            <text id="121:1468" name="Smoothing" x="0" y="0.5" width="74" height="17" />
+            <text id="121:1469" name="smoothing" x="82" y="1" width="65" height="16" />
+            <frame id="121:1470" name="spacer" x="155" y="8.5" width="147" height="1" />
+            <text id="121:1471" name="0.3" x="310" y="0" width="26" height="18" />
+          </frame>
+          <frame id="121:1472" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="121:1473" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="121:1474" name="Rectangle" x="0" y="10" width="97.80000305175781" height="4" />
+            <ellipse id="121:1475" name="Ellipse" x="85.80000305175781" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="121:1476" name="Card" x="16" y="350" width="370" height="193">
+        <text id="121:1477" name="Debug log" x="17" y="17" width="79" height="19" />
+        <frame id="121:1478" name="Frame" x="17" y="44" width="336" height="76">
+          <text id="121:1479" name="12:01:03 → pose_start seq 41" x="12" y="12" width="202" height="16" />
+          <text id="121:1480" name="12:01:03 ← pose_stop_requested" x="12" y="30" width="216" height="16" />
+          <text id="121:1481" name="12:01:03 ← pose_stopped" x="12" y="48" width="166" height="16" />
+        </frame>
+        <frame id="121:1482" name="Frame" x="17" y="128" width="336" height="48">
+          <frame id="121:1483" name="Send hello" x="0" y="0" width="164" height="48">
+            <text id="121:1484" name="send" x="25.5" y="9.5" width="24" height="29" />
+            <text id="121:1485" name="Send hello" x="57.5" y="14.5" width="81" height="19" />
+          </frame>
+          <frame id="121:1486" name="Clear log" x="172" y="0" width="164" height="48">
+            <text id="121:1487" name="delete_sweep" x="32" y="9.5" width="24" height="29" />
+            <text id="121:1488" name="Clear log" x="64" y="14.5" width="68" height="19" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="122:135" name="Card extras" x="16" y="559" width="370" height="144">
+        <frame id="122:139" name="Replay tutorial" x="17" y="5" width="336" height="48">
+          <text id="122:140" name="Replay tutorial" x="0" y="16" width="92" height="16" />
+          <text id="122:141" name="&gt;" x="328" y="16" width="8" height="16" />
+        </frame>
+        <frame id="122:142" name="Developer mode" x="17" y="53" width="336" height="48">
+          <text id="122:143" name="Developer mode" x="0" y="16" width="103" height="16" />
+          <text id="122:144" name="Off" x="317" y="16" width="19" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1489" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1490" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1491" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1492" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="121:1493" name="S7 Errors" x="9880" y="0" width="402" height="874">
+    <frame id="121:1494" name="Body" x="0" y="0" width="402" height="774">
+      <frame id="121:1495" name="Status bar" x="16" y="54" width="370" height="48">
+        <text id="121:1496" name="Disconnected" x="13" y="15.5" width="93" height="17" hidden="true" />
+        <frame id="121:1497" name="spacer" x="13" y="23.5" width="193" height="1" />
+        <frame id="121:1498" name="Volume key status" x="123" y="12" width="127" height="24" hidden="true">
+          <text id="121:1499" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="121:1500" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="121:1501" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="121:1502" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="121:1503" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:182" name="Connection chip" x="214" y="0" width="143" height="48">
+          <ellipse id="140:183" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:184" name="Disconnected" x="24" y="15.5" width="91" height="17" />
+          <text id="140:185" name="chevron_right" x="121" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="121:1504" name="Connection" x="16" y="118" width="370" height="14" hidden="true">
+        <ellipse id="121:1505" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="121:1506" name="Disconnected" x="14" y="0" width="76" height="14" hidden="true" />
+        <frame id="121:1507" name="spacer" x="96" y="6.5" width="356" height="1" />
+      </frame>
+      <frame id="121:1509" name="Connection lost" x="16" y="118" width="370" height="83">
+        <text id="121:1510" name="wifi_off" x="17" y="17" width="24" height="29" />
+        <frame id="121:1511" name="Frame" x="53" y="17" width="270" height="49">
+          <text id="121:1512" name="Connection lost" x="0" y="0" width="108" height="17" />
+          <text id="121:1513" name="Arm stopped by heartbeat timeout. Reconnecting…" x="0" y="21" width="270" height="28" />
+        </frame>
+      </frame>
+      <frame id="121:1514" name="Heartbeat timed out" x="16" y="217" width="370" height="63">
+        <text id="121:1515" name="timer_off" x="17" y="17" width="24" height="29" />
+        <frame id="121:1516" name="Frame" x="53" y="17" width="270" height="28">
+          <text id="121:1518" name="No update for 750 ms. This command stopped. Release and try again." x="0" y="0" width="270" height="28" />
+        </frame>
+      </frame>
+      <frame id="121:1519" name="Command rejected busy" x="16" y="296" width="370" height="69">
+        <text id="121:1520" name="block" x="17" y="17" width="24" height="29" />
+        <frame id="121:1521" name="Frame" x="53" y="17" width="270" height="35">
+          <text id="121:1522" name="Command rejected: busy" x="0" y="0" width="172" height="17" />
+          <text id="121:1523" name="Another device is controlling the robot" x="0" y="21" width="270" height="14" />
+        </frame>
+      </frame>
+      <frame id="121:1524" name="spacer" x="16" y="381" width="370" height="313" />
+      <frame id="121:1525" name="Frame" x="16" y="710" width="370" height="48">
+        <frame id="121:1526" name="Reconnect" x="0" y="0" width="180" height="48">
+          <text id="121:1527" name="refresh" x="33.5" y="9.5" width="24" height="29" />
+          <text id="121:1528" name="Reconnect" x="65.5" y="14.5" width="81" height="19" />
+        </frame>
+        <frame id="121:1529" name="Back to connect" x="188" y="0" width="182" height="48">
+          <text id="121:1530" name="arrow_back" x="14" y="9.5" width="24" height="29" />
+          <text id="121:1531" name="Back to connect" x="46" y="14.5" width="122" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="121:1532" name="E-stop" x="16" y="774" width="370" height="84">
+      <frame id="121:1533" name="E-stop button" x="6" y="6" width="358" height="72">
+        <text id="121:1534" name="front_hand" x="129.5" y="19" width="28" height="34" />
+        <text id="121:1535" name="STOP" x="165.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:145" name="Android S1 Connect" x="1560" y="1100" width="412" height="915">
+    <frame id="122:146" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="148:140" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="148:141" name="spacer" x="12" y="23.5" width="212" height="1" />
+        <frame id="148:142" name="Connection chip" x="224" y="0" width="152" height="48">
+          <ellipse id="148:143" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="148:144" name="Not connected" x="24" y="15.5" width="98" height="17" />
+          <text id="148:145" name="chevron_right" x="128" y="12" width="20" height="24" />
+        </frame>
+      </frame>
+      <frame id="122:147" name="Connection" x="16" y="36" width="380" height="14" hidden="true">
+        <ellipse id="122:148" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:149" name="Not connected" x="14" y="0" width="82" height="14" hidden="true" />
+        <frame id="122:150" name="spacer" x="102" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:152" name="Frame" x="16" y="100" width="380" height="57">
+        <text id="122:153" name="Teleop" x="0" y="0" width="99" height="36" />
+        <text id="122:154" name="Connect to the robot" x="0" y="40" width="135" height="17" />
+      </frame>
+      <frame id="122:155" name="Card" x="16" y="173" width="380" height="171">
+        <text id="122:156" name="Server address" x="17" y="17" width="100" height="17" />
+        <frame id="122:157" name="URL field" x="17" y="46" width="346" height="48">
+          <text id="122:158" name="link" x="13" y="12" width="20" height="24" />
+          <text id="122:159" name="192.168.x.x:8765" x="41" y="13.5" width="154" height="21" />
+        </frame>
+        <frame id="122:160" name="Frame" x="17" y="106" width="346" height="48">
+          <frame id="122:161" name="Connect" x="0" y="0" width="168" height="48">
+            <text id="122:162" name="link" x="36" y="9.5" width="24" height="29" />
+            <text id="122:163" name="Connect" x="68" y="14.5" width="64" height="19" />
+          </frame>
+          <frame id="122:164" name="Disconnect" x="176" y="0" width="170" height="48">
+            <text id="122:165" name="link_off" x="26.5" y="9.5" width="24" height="29" />
+            <text id="122:166" name="Disconnect" x="58.5" y="14.5" width="85" height="19" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="122:167" name="Card" x="16" y="360" width="380" height="127">
+        <frame id="122:168" name="Frame" x="1" y="13" width="78" height="17">
+          <text id="122:169" name="Recent" x="16" y="0" width="46" height="17" />
+        </frame>
+        <frame id="122:170" name="lab Wi-Fi" x="1" y="30" width="378" height="48">
+          <text id="122:171" name="history" x="16" y="12" width="20" height="24" />
+          <text id="122:172" name="lab Wi-Fi" x="48" y="14.5" width="65" height="19" />
+        </frame>
+        <frame id="122:173" name="Personal hotspot" x="1" y="78" width="378" height="48">
+          <text id="122:174" name="history" x="16" y="12" width="20" height="24" />
+          <text id="122:175" name="Personal hotspot" x="48" y="14.5" width="127" height="19" />
+        </frame>
+      </frame>
+      <text id="122:176" name="Opens standby after connecting" x="16" y="503" width="380" height="14" />
+      <frame id="151:150" name="Back" x="16" y="533" width="380" height="48">
+        <text id="151:151" name="arrow_back" x="157.5" y="12" width="20" height="24" />
+        <text id="151:152" name="Back" x="185.5" y="14.5" width="37" height="19" />
+      </frame>
+    </frame>
+    <frame id="122:177" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:178" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:179" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:180" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:181" name="Android S2 Permissions" x="2080" y="1100" width="412" height="915">
+    <frame id="122:182" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="148:155" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="148:156" name="Mode pill" x="12" y="11.5" width="64" height="25">
+          <text id="148:157" name="Setup" x="12" y="4" width="40" height="17" />
+        </frame>
+        <frame id="148:158" name="spacer" x="76" y="23.5" width="173" height="1" />
+        <frame id="148:159" name="Connection chip" x="249" y="0" width="127" height="48">
+          <ellipse id="148:160" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="148:161" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="148:162" name="chevron_right" x="103" y="12" width="20" height="24" />
+        </frame>
+      </frame>
+      <frame id="122:183" name="Connection" x="16" y="36" width="380" height="14" hidden="true">
+        <ellipse id="122:184" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:185" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:186" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <text id="122:188" name="Two permissions are required" x="16" y="100" width="380" height="29" />
+      <frame id="122:189" name="Camera" x="16" y="145" width="380" height="106">
+        <frame id="122:190" name="Frame" x="17" y="17" width="48" height="48">
+          <text id="122:191" name="photo_camera" x="12" y="9.5" width="24" height="29" />
+        </frame>
+        <frame id="122:192" name="Frame" x="77" y="17" width="250" height="72">
+          <text id="122:193" name="Camera" x="0" y="0" width="53" height="17" />
+          <text id="122:194" name="Tracks phone pose for AR. On iOS the camera must stay on so volume-key hold and release are detected." x="0" y="21" width="250" height="51" />
+        </frame>
+      </frame>
+      <frame id="122:195" name="Motion sensors" x="16" y="267" width="380" height="83">
+        <frame id="122:196" name="Frame" x="17" y="17" width="48" height="48">
+          <text id="122:197" name="screen_rotation" x="12" y="9.5" width="24" height="29" />
+        </frame>
+        <frame id="122:198" name="Frame" x="77" y="17" width="250" height="49">
+          <text id="122:199" name="Motion sensors" x="0" y="0" width="104" height="17" />
+          <text id="122:200" name="Reads phone rotation and maps it to wrist orientation." x="0" y="21" width="250" height="28" />
+        </frame>
+      </frame>
+      <frame id="122:201" name="spacer" x="16" y="366" width="380" height="315" />
+      <text id="122:202" name="Continue opens the system permission prompts." x="16" y="697" width="380" height="14" />
+      <frame id="122:203" name="Continue" x="16" y="727" width="380" height="48">
+        <text id="122:204" name="Continue" x="154.5" y="14.5" width="71" height="19" />
+      </frame>
+    </frame>
+    <frame id="122:205" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:206" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:207" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:208" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:209" name="Android S3a Recording" x="4680" y="1100" width="412" height="915">
+    <frame id="122:210" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:211" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="122:212" name="Mode pill" x="13" y="11.5" width="108" height="25">
+          <ellipse id="122:213" name="Rec dot (fiber_manual_record filled)" x="12" y="6.5" width="12" height="12" />
+          <text id="122:214" name="Recording" x="28" y="4" width="68" height="17" />
+        </frame>
+        <frame id="122:215" name="spacer" x="129" y="23.5" width="105" height="1" />
+        <frame id="122:216" name="Volume key status" x="138" y="12" width="127" height="24" hidden="true">
+          <text id="122:217" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="122:218" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="122:219" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:220" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:221" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:138" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="140:139" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:140" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:141" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:222" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:223" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:224" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:225" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:227" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="122:228" name="Gripper state" x="12" y="12" width="356" height="53">
+          <text id="122:229" name="Gripper: open" x="111.5" y="4" width="133" height="24" />
+          <text id="122:230" name="Close: 1 pulse. Open: 2 pulses." x="77.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="122:234" name="spacer" x="189.5" y="73" width="1" height="181.5" />
+        <frame id="122:235" name="Recording timer" x="93" y="262.5" width="194" height="71">
+          <ellipse id="122:236" name="Ellipse" x="0" y="25.5" width="20" height="20" />
+          <text id="122:237" name="00:12" x="32" y="0" width="162" height="71" />
+        </frame>
+        <frame id="122:238" name="spacer" x="189.5" y="341.5" width="1" height="181.5" />
+        <frame id="122:239" name="Volume key hint" x="14" y="531" width="352" height="68">
+          <text id="122:240" name="volume_up" x="12" y="22" width="20" height="24" />
+          <text id="122:241" name="Hold vol+: move arm with the phone, release to stop Press vol−: toggle gripper (after releasing vol+)" x="40" y="0" width="300" height="68" />
+        </frame>
+      </frame>
+      <frame id="122:242" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:243" name="Record" x="0" y="0" width="174" height="48">
+          <ellipse id="139:140" name="Rec indicator" x="26" y="20" width="8" height="8" />
+          <text id="122:244" name="stop" x="36.5" y="9.5" width="24" height="29" hidden="true" />
+          <text id="122:245" name="Recording 0:12" x="42" y="15" width="106" height="18" />
+        </frame>
+        <frame id="122:246" name="Reset scene" x="182" y="0" width="95" height="48">
+          <text id="122:247" name="restart_alt" x="16" y="9.5" width="24" height="29" />
+          <text id="122:248" name="Reset" x="44" y="16" width="35" height="16" />
+        </frame>
+        <frame id="122:249" name="Settings" x="285" y="0" width="95" height="48">
+          <text id="122:250" name="settings" x="8" y="9.5" width="24" height="29" />
+          <text id="122:251" name="Settings" x="36" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:252" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:253" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:254" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:255" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:256" name="Android S3b Record end" x="5200" y="1100" width="412" height="915">
+    <frame id="122:257" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:258" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="122:259" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="122:260" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="122:261" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="122:262" name="Volume key status" x="180" y="12" width="127" height="24" hidden="true">
+          <text id="122:263" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="122:264" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="122:265" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:266" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:267" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:146" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="140:147" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:148" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:149" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:268" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:269" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:270" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:271" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:273" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="122:274" name="Gripper state" x="12" y="12" width="356" height="53">
+          <text id="122:275" name="Gripper: open" x="111.5" y="4" width="133" height="24" />
+          <text id="122:276" name="Close: 1 pulse. Open: 2 pulses." x="77.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="122:280" name="spacer" x="189.5" y="73" width="1" height="198.5" />
+        <frame id="122:281" name="Recording timer" x="109" y="279.5" width="162" height="71">
+          <text id="122:282" name="00:42" x="0" y="0" width="162" height="71" />
+        </frame>
+        <frame id="122:283" name="spacer" x="189.5" y="358.5" width="1" height="198.5" />
+        <frame id="122:284" name="Volume key hint" x="14" y="565" width="352" height="34">
+          <text id="122:285" name="volume_up" x="12" y="5" width="20" height="24" />
+          <text id="122:286" name="Save or discard this take? The arm stays still until you choose." x="40" y="0" width="300" height="34" />
+        </frame>
+      </frame>
+      <frame id="122:287" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:288" name="Discard" x="0" y="0" width="186" height="48">
+          <text id="122:289" name="delete" x="13" y="9.5" width="24" height="29" />
+          <text id="122:290" name="Discard (hold 1s)" x="45" y="14.5" width="128" height="19" />
+        </frame>
+        <frame id="122:291" name="Save" x="194" y="0" width="186" height="48">
+          <text id="122:292" name="save" x="54" y="9.5" width="24" height="29" />
+          <text id="122:293" name="Save" x="86" y="12" width="46" height="24" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:294" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:295" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:296" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:297" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:298" name="Android S3m Teleop with base" x="5720" y="1100" width="412" height="915">
+    <frame id="122:299" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:300" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="122:301" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="122:302" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="122:303" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="122:304" name="Volume key status" x="120" y="12" width="127" height="24" hidden="true">
+          <text id="122:305" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="122:306" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="122:307" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:308" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:309" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:154" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="140:155" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:156" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:157" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:310" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:311" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:312" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:313" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:315" name="AR camera view" x="16" y="100" width="380" height="611">
+        <frame id="122:316" name="Gripper state" x="57" y="12" width="266" height="53">
+          <text id="122:317" name="Gripper: open" x="66.5" y="4" width="133" height="24" />
+          <text id="122:318" name="Close: 1 pulse. Open: 2 pulses." x="32.5" y="32" width="201" height="17" />
+        </frame>
+        <frame id="122:323" name="spacer" x="189.5" y="73" width="1" height="188" />
+        <text id="122:324" name="add" x="166" y="269" width="48" height="58" />
+        <frame id="122:325" name="spacer" x="189.5" y="335" width="1" height="188" />
+        <frame id="122:326" name="Volume key hint" x="67" y="531" width="246" height="68">
+          <text id="122:327" name="volume_up" x="12" y="22" width="20" height="24" />
+          <text id="122:328" name="Hold vol+: move the arm Press vol−: toggle gripper Hold right edge: move the base" x="40" y="0" width="194" height="68" />
+        </frame>
+        <frame id="122:329" name="Base handle (right edge)" x="286" y="73" width="72" height="403">
+          <text id="122:330" name="open_with" x="23" y="170.5" width="28" height="34" />
+          <text id="122:331" name="Base" x="17.5" y="212.5" width="39" height="20" />
+        </frame>
+      </frame>
+      <frame id="122:332" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:333" name="Record" x="0" y="0" width="122" height="48">
+          <text id="122:334" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="122:335" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="122:336" name="Reset scene" x="130" y="0" width="121" height="48">
+          <text id="122:337" name="restart_alt" x="29" y="9.5" width="24" height="29" />
+          <text id="122:338" name="Reset" x="57" y="16" width="35" height="16" />
+        </frame>
+        <frame id="122:339" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="122:340" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="122:341" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:342" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:343" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:344" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:345" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:346" name="Android S4 E-stopped" x="7800" y="1100" width="412" height="915">
+    <frame id="122:347" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:348" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="144:148" name="Mode pill" x="12" y="11.5" width="93" height="25">
+          <text id="144:149" name="E-stopped" x="12" y="4" width="69" height="17" />
+        </frame>
+        <frame id="122:351" name="Volume key status" x="121" y="12" width="127" height="24" hidden="true">
+          <text id="122:352" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="122:353" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="122:354" name="Keep awake" x="256" y="12" width="90" height="24" hidden="true">
+          <text id="122:355" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:356" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="122:350" name="spacer" x="113" y="23.5" width="122" height="1" />
+        <frame id="144:150" name="Connection chip" x="243" y="0" width="125" height="48">
+          <ellipse id="144:151" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="144:152" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="144:153" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:357" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:358" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:359" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:360" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:362" name="E-stopped card" x="16" y="100" width="380" height="206">
+        <text id="122:363" name="front_hand" x="166" y="25" width="48" height="58" />
+        <text id="122:364" name="E-stopped" x="110" y="91" width="160" height="38" />
+        <text id="122:365" name="Arm stopped. All inputs are locked." x="60.5" y="137" width="259" height="19" />
+        <text id="122:366" name="Volume keys and on-screen controls are ignored." x="32" y="164" width="316" height="17" />
+      </frame>
+      <frame id="122:367" name="spacer" x="16" y="322" width="380" height="351" />
+      <frame id="122:368" name="Release (hold 1s)" x="16" y="689" width="380" height="56">
+        <ellipse id="122:369" name="Hold progress" x="90.5" y="16" width="24" height="24" />
+        <text id="122:370" name="lock_open" x="122.5" y="13.5" width="24" height="29" />
+        <text id="122:371" name="Hold 1s to release" x="154.5" y="18.5" width="135" height="19" />
+      </frame>
+      <text id="122:372" name="Release early to cancel. A short buzz confirms release." x="16" y="761" width="380" height="14" />
+    </frame>
+    <frame id="122:373" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:374" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:375" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:376" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:377" name="Android S5 Screen fallback" x="8320" y="1100" width="412" height="915">
+    <frame id="122:378" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:379" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="122:380" name="Mode pill" x="13" y="11.5" width="80" height="25">
+          <text id="122:381" name="Standby" x="12" y="4" width="56" height="17" />
+        </frame>
+        <frame id="122:382" name="spacer" x="101" y="23.5" width="133" height="1" />
+        <frame id="122:383" name="Volume key status" x="110" y="12" width="160" height="24" hidden="true">
+          <text id="122:384" name="volume_off" x="0" y="0" width="20" height="24" />
+          <text id="122:385" name="Volume keys unavailable" x="22" y="5" width="138" height="14" />
+        </frame>
+        <frame id="122:386" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:387" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:388" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:170" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="140:171" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:172" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:173" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:389" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:390" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:391" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:392" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:394" name="Hold pad" x="16" y="100" width="380" height="611">
+        <text id="122:395" name="touch_app" x="166" y="229" width="48" height="58" />
+        <text id="122:396" name="Hold here" x="132.5" y="295" width="115" height="29" />
+        <text id="122:397" name="Hold here: phone motion moves the arm. Release to stop." x="30" y="332" width="320" height="14" />
+        <text id="122:398" name="Gripper: open" x="17" y="354" width="346" height="28" />
+      </frame>
+      <frame id="122:399" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:400" name="Record" x="0" y="0" width="122" height="48">
+          <text id="122:401" name="fiber_manual_record" x="18" y="9.5" width="24" height="29" />
+          <text id="122:402" name="Record" x="50" y="14.5" width="54" height="19" />
+        </frame>
+        <frame id="122:403" name="Gripper toggle" x="130" y="0" width="121" height="48">
+          <text id="122:404" name="swap_horiz" x="22.5" y="9.5" width="24" height="29" />
+          <text id="122:405" name="Gripper" x="50.5" y="16" width="48" height="16" />
+        </frame>
+        <frame id="122:406" name="Settings" x="259" y="0" width="121" height="48">
+          <text id="122:407" name="settings" x="21" y="9.5" width="24" height="29" />
+          <text id="122:408" name="Settings" x="49" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:409" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:410" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:411" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:412" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:413" name="Android S5a Recording fallback" x="8840" y="1100" width="412" height="915">
+    <frame id="122:414" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:415" name="Status bar" x="16" y="36" width="380" height="48">
+        <frame id="122:416" name="Mode pill" x="13" y="11.5" width="108" height="25">
+          <ellipse id="122:417" name="Rec dot (fiber_manual_record filled)" x="12" y="6.5" width="12" height="12" />
+          <text id="122:418" name="Recording" x="28" y="4" width="68" height="17" />
+        </frame>
+        <frame id="122:419" name="spacer" x="129" y="23.5" width="105" height="1" />
+        <frame id="122:420" name="Volume key status" x="138" y="12" width="160" height="24" hidden="true">
+          <text id="122:421" name="volume_off" x="0" y="0" width="20" height="24" />
+          <text id="122:422" name="Volume keys unavailable" x="22" y="5" width="138" height="14" />
+        </frame>
+        <frame id="122:423" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:424" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:425" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:178" name="Connection chip" x="242" y="0" width="125" height="48">
+          <ellipse id="140:179" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:180" name="Connected" x="24" y="15.5" width="73" height="17" />
+          <text id="140:181" name="chevron_right" x="103" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:426" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:427" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:428" name="Connected" x="14" y="0" width="61" height="14" hidden="true" />
+        <frame id="122:429" name="spacer" x="81" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:431" name="Hold pad" x="16" y="100" width="380" height="611">
+        <frame id="122:432" name="Recording timer" x="93" y="189.5" width="194" height="71">
+          <ellipse id="122:433" name="Ellipse" x="0" y="25.5" width="20" height="20" />
+          <text id="122:434" name="00:12" x="32" y="0" width="162" height="71" />
+        </frame>
+        <text id="122:435" name="touch_app" x="166" y="268.5" width="48" height="58" />
+        <text id="122:436" name="Hold here" x="132.5" y="334.5" width="115" height="29" />
+        <text id="122:437" name="Hold here: phone motion moves the arm. Release to stop." x="30" y="371.5" width="320" height="14" />
+        <text id="122:438" name="Gripper: open / Stop recording hint" x="17" y="393.5" width="346" height="28" />
+      </frame>
+      <frame id="122:439" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:440" name="Record" x="0" y="0" width="174" height="48">
+          <ellipse id="139:141" name="Rec indicator" x="26" y="20" width="8" height="8" />
+          <text id="122:441" name="stop" x="36.5" y="9.5" width="24" height="29" hidden="true" />
+          <text id="122:442" name="Recording 0:12" x="42" y="15" width="106" height="18" />
+        </frame>
+        <frame id="122:443" name="Gripper toggle" x="182" y="0" width="95" height="48">
+          <text id="122:444" name="swap_horiz" x="9.5" y="9.5" width="24" height="29" />
+          <text id="122:445" name="Gripper" x="37.5" y="16" width="48" height="16" />
+        </frame>
+        <frame id="122:446" name="Settings" x="285" y="0" width="95" height="48">
+          <text id="122:447" name="settings" x="8" y="9.5" width="24" height="29" />
+          <text id="122:448" name="Settings" x="36" y="16" width="51" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:449" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:450" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:451" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:452" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:453" name="Android S6 Settings" x="9360" y="1100" width="412" height="915">
+    <frame id="122:454" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:455" name="Header" x="16" y="36" width="380" height="48">
+        <frame id="122:456" name="Back" x="0" y="0" width="84" height="48">
+          <text id="122:457" name="arrow_back" x="0" y="11" width="22" height="26" />
+          <text id="122:458" name="Back" x="30" y="14.5" width="38" height="19" />
+        </frame>
+        <frame id="122:459" name="spacer" x="92" y="23.5" width="65.5" height="1" />
+        <text id="122:460" name="Settings" x="165.5" y="12" width="81" height="24" />
+        <frame id="122:461" name="spacer" x="254.5" y="23.5" width="65.5" height="1" />
+        <frame id="122:462" name="Done" x="328" y="0" width="52" height="48">
+          <text id="122:463" name="Done" x="16" y="15.5" width="36" height="17" />
+        </frame>
+      </frame>
+      <frame id="122:464" name="Card" x="16" y="100" width="380" height="216">
+        <frame id="122:465" name="Frame" x="17" y="17" width="346" height="50">
+          <frame id="122:466" name="Frame" x="0" y="0" width="346" height="18">
+            <text id="122:467" name="Sensitivity" x="0" y="0.5" width="71" height="17" />
+            <text id="122:468" name="gain" x="79" y="1" width="29" height="16" />
+            <frame id="122:469" name="spacer" x="116" y="8.5" width="196" height="1" />
+            <text id="122:470" name="1.0" x="320" y="0" width="26" height="18" />
+          </frame>
+          <frame id="122:471" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="122:472" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="122:473" name="Rectangle" x="0" y="10" width="163" height="4" />
+            <ellipse id="122:474" name="Ellipse" x="151" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+        <frame id="122:475" name="Frame" x="17" y="83" width="346" height="50">
+          <frame id="122:476" name="Frame" x="0" y="0" width="346" height="18">
+            <text id="122:477" name="Deadband" x="0" y="0.5" width="69" height="17" />
+            <text id="122:478" name="deadband" x="77" y="1" width="58" height="16" />
+            <frame id="122:479" name="spacer" x="143" y="8.5" width="178" height="1" />
+            <text id="122:480" name="2°" x="329" y="0" width="17" height="18" />
+          </frame>
+          <frame id="122:481" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="122:482" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="122:483" name="Rectangle" x="0" y="10" width="65.19999694824219" height="4" />
+            <ellipse id="122:484" name="Ellipse" x="53.20000076293945" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+        <frame id="122:485" name="Frame" x="17" y="149" width="346" height="50">
+          <frame id="122:486" name="Frame" x="0" y="0" width="346" height="18">
+            <text id="122:487" name="Smoothing" x="0" y="0.5" width="74" height="17" />
+            <text id="122:488" name="smoothing" x="82" y="1" width="65" height="16" />
+            <frame id="122:489" name="spacer" x="155" y="8.5" width="157" height="1" />
+            <text id="122:490" name="0.3" x="320" y="0" width="26" height="18" />
+          </frame>
+          <frame id="122:491" name="Slider" x="0" y="26" width="326" height="24">
+            <rounded-rectangle id="122:492" name="Rectangle" x="0" y="10" width="326" height="4" />
+            <rounded-rectangle id="122:493" name="Rectangle" x="0" y="10" width="97.80000305175781" height="4" />
+            <ellipse id="122:494" name="Ellipse" x="85.80000305175781" y="0" width="24" height="24" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="122:495" name="Card" x="16" y="332" width="380" height="193">
+        <text id="122:496" name="Debug log" x="17" y="17" width="79" height="19" />
+        <frame id="122:497" name="Frame" x="17" y="44" width="346" height="76">
+          <text id="122:498" name="12:01:03 → pose_start seq 41" x="12" y="12" width="202" height="16" />
+          <text id="122:499" name="12:01:03 ← pose_stop_requested" x="12" y="30" width="216" height="16" />
+          <text id="122:500" name="12:01:03 ← pose_stopped" x="12" y="48" width="166" height="16" />
+        </frame>
+        <frame id="122:501" name="Frame" x="17" y="128" width="346" height="48">
+          <frame id="122:502" name="Send hello" x="0" y="0" width="169" height="48">
+            <text id="122:503" name="send" x="28" y="9.5" width="24" height="29" />
+            <text id="122:504" name="Send hello" x="60" y="14.5" width="81" height="19" />
+          </frame>
+          <frame id="122:505" name="Clear log" x="177" y="0" width="169" height="48">
+            <text id="122:506" name="delete_sweep" x="34.5" y="9.5" width="24" height="29" />
+            <text id="122:507" name="Clear log" x="66.5" y="14.5" width="68" height="19" />
+          </frame>
+        </frame>
+      </frame>
+      <frame id="122:508" name="Card extras" x="16" y="541" width="380" height="144">
+        <frame id="122:512" name="Replay tutorial" x="17" y="5" width="346" height="48">
+          <text id="122:513" name="Replay tutorial" x="0" y="16" width="92" height="16" />
+          <text id="122:514" name="&gt;" x="338" y="16" width="8" height="16" />
+        </frame>
+        <frame id="122:515" name="Developer mode" x="17" y="53" width="346" height="48">
+          <text id="122:516" name="Developer mode" x="0" y="16" width="103" height="16" />
+          <text id="122:517" name="Off" x="327" y="16" width="19" height="16" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:518" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:519" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:520" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:521" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <frame id="122:522" name="Android S7 Errors" x="9880" y="1100" width="412" height="915">
+    <frame id="122:523" name="Body" x="0" y="0" width="412" height="791">
+      <frame id="122:524" name="Status bar" x="16" y="36" width="380" height="48">
+        <text id="122:525" name="Disconnected" x="13" y="15.5" width="93" height="17" hidden="true" />
+        <frame id="122:526" name="spacer" x="13" y="23.5" width="203" height="1" />
+        <frame id="122:527" name="Volume key status" x="123" y="12" width="127" height="24" hidden="true">
+          <text id="122:528" name="volume_up" x="0" y="0" width="20" height="24" />
+          <text id="122:529" name="Volume keys ready" x="22" y="5" width="105" height="14" />
+        </frame>
+        <frame id="122:530" name="Keep awake" x="255" y="12" width="90" height="24" hidden="true">
+          <text id="122:531" name="light_mode" x="0" y="0" width="20" height="24" />
+          <text id="122:532" name="Keep awake" x="22" y="5" width="68" height="14" />
+        </frame>
+        <frame id="140:186" name="Connection chip" x="224" y="0" width="143" height="48">
+          <ellipse id="140:187" name="Status dot" x="8" y="19" width="10" height="10" />
+          <text id="140:188" name="Disconnected" x="24" y="15.5" width="91" height="17" />
+          <text id="140:189" name="chevron_right" x="121" y="13" width="18" height="22" />
+        </frame>
+      </frame>
+      <frame id="122:533" name="Connection" x="16" y="100" width="380" height="14" hidden="true">
+        <ellipse id="122:534" name="Ellipse" x="0" y="3" width="8" height="8" />
+        <text id="122:535" name="Disconnected" x="14" y="0" width="76" height="14" hidden="true" />
+        <frame id="122:536" name="spacer" x="96" y="6.5" width="366" height="1" />
+      </frame>
+      <frame id="122:538" name="Connection lost" x="16" y="100" width="380" height="83">
+        <text id="122:539" name="wifi_off" x="17" y="17" width="24" height="29" />
+        <frame id="122:540" name="Frame" x="53" y="17" width="270" height="49">
+          <text id="122:541" name="Connection lost" x="0" y="0" width="108" height="17" />
+          <text id="122:542" name="Arm stopped by heartbeat timeout. Reconnecting…" x="0" y="21" width="270" height="28" />
+        </frame>
+      </frame>
+      <frame id="122:543" name="Heartbeat timed out" x="16" y="199" width="380" height="63">
+        <text id="122:544" name="timer_off" x="17" y="17" width="24" height="29" />
+        <frame id="122:545" name="Frame" x="53" y="17" width="270" height="28">
+          <text id="122:547" name="No update for 750 ms. This command stopped. Release and try again." x="0" y="0" width="270" height="28" />
+        </frame>
+      </frame>
+      <frame id="122:548" name="Command rejected busy" x="16" y="278" width="380" height="69">
+        <text id="122:549" name="block" x="17" y="17" width="24" height="29" />
+        <frame id="122:550" name="Frame" x="53" y="17" width="270" height="35">
+          <text id="122:551" name="Command rejected: busy" x="0" y="0" width="172" height="17" />
+          <text id="122:552" name="Another device is controlling the robot" x="0" y="21" width="270" height="14" />
+        </frame>
+      </frame>
+      <frame id="122:553" name="spacer" x="16" y="363" width="380" height="348" />
+      <frame id="122:554" name="Frame" x="16" y="727" width="380" height="48">
+        <frame id="122:555" name="Reconnect" x="0" y="0" width="185" height="48">
+          <text id="122:556" name="refresh" x="36" y="9.5" width="24" height="29" />
+          <text id="122:557" name="Reconnect" x="68" y="14.5" width="81" height="19" />
+        </frame>
+        <frame id="122:558" name="Back to connect" x="193" y="0" width="187" height="48">
+          <text id="122:559" name="arrow_back" x="16.5" y="9.5" width="24" height="29" />
+          <text id="122:560" name="Back to connect" x="48.5" y="14.5" width="122" height="19" />
+        </frame>
+      </frame>
+    </frame>
+    <frame id="122:561" name="E-stop" x="16" y="807" width="380" height="84">
+      <frame id="122:562" name="E-stop button" x="6" y="6" width="368" height="72">
+        <text id="122:563" name="front_hand" x="134.5" y="19" width="28" height="34" />
+        <text id="122:564" name="STOP" x="170.5" y="21.5" width="63" height="29" />
+      </frame>
+    </frame>
+  </frame>
+  <symbol id="147:134" name="Keyboard / Shared / Android" x="500" y="2200" width="412" height="232" />
+</canvas>
+
+IMPORTANT: After you call this tool, you MUST call get_design_context if trying to implement the design, since this tool only returns metadata. If you do not call get_design_context, the agent will not be able to implement the design.
