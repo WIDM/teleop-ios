@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 /// P5 and P7: connection sheet over the standby view. Latency is shown only here.
 struct ConnectionDetailsScreen: View {

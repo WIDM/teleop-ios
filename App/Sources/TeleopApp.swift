@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 @main
 struct TeleopApp: App {

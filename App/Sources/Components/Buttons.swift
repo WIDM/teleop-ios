@@ -71,7 +71,9 @@ struct HoldButton: View {
     let titleKey: LocalizedStringKey
     var fill: Color = TeleopColors.emergency
     var border: Color? = nil
+    var borderWidth: CGFloat = 3
     var foreground: Color = .white
+    var progress: Color = Color.white.opacity(0.35)
     var height: CGFloat = TeleopMetrics.touch
     let action: () -> Void
 
@@ -82,7 +84,7 @@ struct HoldButton: View {
             RoundedRectangle(cornerRadius: TeleopMetrics.corner).fill(fill)
             GeometryReader { proxy in
                 Rectangle()
-                    .fill(Color.white.opacity(0.35))
+                    .fill(progress)
                     .frame(width: proxy.size.width * (pressing ? 1 : 0))
                     .animation(pressing ? .linear(duration: 1) : .easeOut(duration: 0.15), value: pressing)
             }
@@ -95,7 +97,7 @@ struct HoldButton: View {
         .frame(height: height)
         .overlay(
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
-                .strokeBorder(border ?? .clear, lineWidth: 3)
+                .strokeBorder(border ?? .clear, lineWidth: borderWidth)
         )
         .contentShape(RoundedRectangle(cornerRadius: TeleopMetrics.corner))
         .gesture(

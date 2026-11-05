@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 struct PermissionsScreen: View {
     let model: AppModel

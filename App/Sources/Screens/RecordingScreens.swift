@@ -24,7 +24,7 @@ struct RecordingScreen: View {
                 }
                 .overlay(alignment: .bottom) {
                     if fallback {
-                        Text("fallback.hint")
+                        Text("fallback.hold_hint")
                             .font(.system(size: 14))
                             .foregroundStyle(TeleopColors.textSecondary)
                             .padding(.bottom, 16)
@@ -166,24 +166,31 @@ struct FallbackControlScreen: View {
                 connected: state.connected,
                 heartbeatOk: state.heartbeatOk
             ) { model.send(.openConnection) }
-            Text("fallback.title")
-                .font(.system(size: 22, weight: .semibold))
-                .padding(.top, 16)
-            Text("fallback.hint")
-                .font(.system(size: 14))
-                .foregroundStyle(TeleopColors.textSecondary)
+            VStack(spacing: 8) {
+                Image(systemName: "hand.tap").font(.system(size: 44))
+                Text("fallback.hold_here").font(.system(size: 22, weight: .semibold))
+                Text("fallback.hold_hint")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TeleopColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                Text(LocalizedStringKey(state.gripper == .open ? "control.gripper_open" : "control.gripper_closed"))
+                    .font(.system(size: 14))
+                    .padding(.top, 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+            .padding(.top, 16)
             HStack(spacing: 8) {
                 Button { model.send(.startFallbackRecording) } label: { Text("control.record") }
                     .buttonStyle(FilledButtonStyle())
                     .accessibilityIdentifier("fallback.record")
-                Button { model.send(.toggleGripper) } label: { Text("fallback.toggle") }
+                Button { model.send(.toggleGripper) } label: { Text("control.gripper") }
                     .buttonStyle(OutlineButtonStyle())
                     .accessibilityIdentifier("fallback.toggle")
                 Button { model.send(.openSettings) } label: { Text("control.settings") }
                     .buttonStyle(OutlineButtonStyle())
             }
-            .padding(.top, 16)
-            Spacer()
+            .padding(.vertical, 16)
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
