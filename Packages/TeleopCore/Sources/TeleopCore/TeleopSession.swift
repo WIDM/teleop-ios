@@ -154,9 +154,15 @@ public struct TeleopSession: Equatable, Sendable {
         case .startFallbackRecording:
             go(.s5a)
         case .toggleGripper:
+            guard canControl else { return }
             state.toggleGripper()
             pendingHaptics.append(.play(state.gripper == .closed ? .gripperClosed : .gripperOpened))
         }
+    }
+
+    /// Control actions (gripper, motion) are refused while E-stopped, disconnected or latency-blocked.
+    private var canControl: Bool {
+        state.connected && !state.emergencyStop && !state.commandsBlocked
     }
 
     private mutating func go(_ route: Route) {
