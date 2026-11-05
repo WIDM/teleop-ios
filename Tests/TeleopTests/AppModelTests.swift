@@ -13,8 +13,38 @@ final class AppModelTests: XCTestCase {
         let model = AppModel(start: .p4, haptics: spy)
         model.send(.stop)
         model.send(.releaseStop)
-        XCTAssertEqual(spy.commands, [.play(.emergencyLoop), .cancel])
+        XCTAssertEqual(spy.commands, [.play(.emergencyLoop), .cancel, .play(.stopReleased)])
         XCTAssertEqual(model.session.route, .p4)
+    }
+
+    func testBlockedGripperToggleReachesHapticsAsThreeShort() {
+        let spy = SpyHaptics()
+        let model = AppModel(start: .s5, haptics: spy)
+        model.session.state.markConnected()
+        model.send(.simulateHighLatency)
+        model.send(.openFallback)
+        model.send(.toggleGripper)
+        XCTAssertEqual(spy.commands, [.play(.commandBlocked)])
+    }
+
+    func testHoldAreaStartsAndStopsArm() {
+        let model = AppModel(start: .s5, haptics: SpyHaptics())
+        model.session.state.markConnected()
+        model.send(.holdArmStart)
+        XCTAssertTrue(model.session.state.armMoving)
+        model.send(.holdArmEnd)
+        XCTAssertFalse(model.session.state.armMoving)
+    }
+
+    func testSettingsSurviveLeavingS6() {
+        let model = AppModel(start: .p4, haptics: SpyHaptics())
+        model.send(.openSettings)
+        model.session.state.setDeadband(degrees: 6)
+        model.session.state.setSmoothing(0.9)
+        model.send(.settingsDone)
+        model.send(.openSettings)
+        XCTAssertEqual(model.session.state.deadbandDegrees, 6)
+        XCTAssertEqual(model.session.state.smoothing, 0.9)
     }
 
     func testS1ConnectReturnsToP5() {
