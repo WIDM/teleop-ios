@@ -108,3 +108,38 @@ struct HoldButton: View {
         .accessibilityAddTraits(.isButton)
     }
 }
+
+/// Press = start moving the arm, release = stop. Same session path as holding vol+ (`holdArmStart` / `holdArmEnd`).
+private struct ArmHoldModifier: ViewModifier {
+    let model: AppModel
+    @State private var pressing = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !pressing else { return }
+                        pressing = true
+                        model.send(.holdArmStart)
+                    }
+                    .onEnded { _ in
+                        pressing = false
+                        model.send(.holdArmEnd)
+                    }
+            )
+            .onDisappear {
+                guard pressing else { return }
+                pressing = false
+                model.send(.holdArmEnd)
+            }
+            .accessibilityAddTraits(.isButton)
+    }
+}
+
+extension View {
+    func armHold(model: AppModel) -> some View {
+        modifier(ArmHoldModifier(model: model))
+    }
+}

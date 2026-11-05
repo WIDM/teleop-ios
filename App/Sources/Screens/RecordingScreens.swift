@@ -1,7 +1,7 @@
 import SwiftUI
 import TeleopCore
 
-/// S3a, and S5a when `fallback` is set.
+/// S3a, and S5a when `fallback` is set. S5a is the hold pad too: press moves the arm, release stops.
 struct RecordingScreen: View {
     let model: AppModel
     let fallback: Bool
@@ -12,25 +12,11 @@ struct RecordingScreen: View {
             ControlStatusBar(
                 modeKey: "control.recording",
                 connected: state.connected,
-                heartbeatOk: state.heartbeatOk
+                heartbeatOk: state.heartbeatOk,
+                recording: true
             ) { model.send(.openConnection) }
-            RoundedRectangle(cornerRadius: TeleopMetrics.corner)
-                .fill(TeleopColors.card)
-                .overlay(alignment: .top) { gripperLabel(state).padding(.top, 12) }
-                .overlay {
-                    Text(state.recordingTimeLabel)
-                        .font(.system(size: 72, weight: .semibold, design: .monospaced))
-                        .accessibilityIdentifier("recording.timer")
-                }
-                .overlay(alignment: .bottom) {
-                    if fallback {
-                        Text("fallback.hold_hint")
-                            .font(.system(size: 14))
-                            .foregroundStyle(TeleopColors.textSecondary)
-                            .padding(.bottom, 16)
-                    }
-                }
-            HStack {
+            timerCard(state)
+            HStack(spacing: 8) {
                 Button { model.send(.stopRecording) } label: {
                     HStack(spacing: 8) {
                         BlinkingDot()
@@ -46,8 +32,10 @@ struct RecordingScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("recording.stop")
-                Button {} label: { Text("control.reset") }.buttonStyle(TextActionStyle())
-                Button { model.send(.openSettings) } label: { Text("control.settings") }.buttonStyle(TextActionStyle())
+                Button {} label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
+                    .buttonStyle(OutlineButtonStyle())
+                Button { model.send(.openSettings) } label: { Label("control.settings", systemImage: "gearshape") }
+                    .buttonStyle(OutlineButtonStyle())
             }
             StopButton { model.send(.stop) }
         }
@@ -55,13 +43,34 @@ struct RecordingScreen: View {
         .onAppear { model.send(.recordingAppeared) }
     }
 
-    private func gripperLabel(_ state: FakeTeleopState) -> some View {
-        VStack(spacing: 2) {
-            Text(LocalizedStringKey(state.gripper == .open ? "control.gripper_open" : "control.gripper_closed"))
-                .font(.system(size: 20, weight: .semibold))
-            Text("control.gripper_pulse_hint")
-                .font(.system(size: 14))
-                .foregroundStyle(TeleopColors.textSecondary)
+    @ViewBuilder
+    private func timerCard(_ state: FakeTeleopState) -> some View {
+        let card = RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+            .fill(fallback ? TeleopColors.card : TeleopColors.camera)
+            .overlay(alignment: .top) { GripperCard(gripper: state.gripper, fullWidth: true).padding(12) }
+            .overlay {
+                HStack(spacing: 12) {
+                    Circle().fill(fallback ? TeleopColors.recording : Color.white).frame(width: 18, height: 18)
+                    Text(state.recordingTimeLabel)
+                        .font(.system(size: 72, weight: .semibold, design: .monospaced))
+                        .accessibilityIdentifier("recording.timer")
+                }
+                .foregroundStyle(fallback ? TeleopColors.textPrimary : Color.white)
+            }
+            .overlay(alignment: .bottom) {
+                if fallback {
+                    Text("fallback.hold_hint")
+                        .font(.system(size: 14))
+                        .foregroundStyle(TeleopColors.textSecondary)
+                        .padding(.bottom, 16)
+                } else {
+                    VolumeHintBox(textKey: "recording.volume_hint").padding(12)
+                }
+            }
+        if fallback {
+            card.armHold(model: model).accessibilityIdentifier("fallback.hold_recording")
+        } else {
+            card
         }
     }
 }
@@ -139,6 +148,8 @@ struct BaseTeleopScreen: View {
                     )
                     .padding(.vertical, 56)
                 }
+                .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
+                .overlay(alignment: .bottom) { VolumeHintBox(textKey: "base.volume_hint").padding(.bottom, 16) }
             HStack {
                 Button { model.send(.openRecording) } label: { Text("control.record") }
                     .buttonStyle(TextActionStyle(color: TeleopColors.primary))
@@ -177,8 +188,18 @@ struct FallbackControlScreen: View {
                     .font(.system(size: 14))
                     .padding(.top, 8)
             }
+            .foregroundStyle(TeleopColors.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+            .background(
+                TeleopColors.primary.opacity(state.armMoving ? 0.2 : 0.08),
+                in: RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+                    .strokeBorder(TeleopColors.primary.opacity(0.35), lineWidth: 1)
+            )
+            .armHold(model: model)
+            .accessibilityIdentifier("fallback.hold")
             .padding(.top, 16)
             HStack(spacing: 8) {
                 Button { model.send(.startFallbackRecording) } label: { Text("control.record") }

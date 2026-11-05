@@ -7,10 +7,9 @@ struct ModeSelectScreen: View {
     var body: some View {
         let mode = model.session.state.mode
         VStack(alignment: .leading, spacing: 0) {
-            ConnectionChip(connected: false)
             Text("mode.choose")
                 .font(.system(size: 28, weight: .bold))
-                .padding(.top, 24)
+                .padding(.top, 48)
             Text("mode.hint")
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)

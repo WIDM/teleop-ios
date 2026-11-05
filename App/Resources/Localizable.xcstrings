@@ -11,6 +11,16 @@
         }
       }
     },
+    "base.volume_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold vol+: move the arm\nPress vol−: toggle gripper\nHold right edge: move the base"
+          }
+        }
+      }
+    },
     "cloud.enter_standby": {
       "localizations": {
         "en": {
@@ -541,6 +551,26 @@
         }
       }
     },
+    "debug.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo shortcuts for the prototype. Not part of the Figma layout."
+          }
+        }
+      }
+    },
+    "debug.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debug"
+          }
+        }
+      }
+    },
     "demo.simulate_fail": {
       "localizations": {
         "en": {
@@ -837,6 +867,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Save or discard this take? The arm stays still until you choose."
+          }
+        }
+      }
+    },
+    "recording.volume_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold vol+: move arm with the phone, release to stop\nPress vol−: toggle gripper (after releasing vol+)"
           }
         }
       }

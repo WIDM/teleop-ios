@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 struct ConnectionChip: View {
     var connected: Bool
@@ -48,14 +49,18 @@ struct ConnectionChip: View {
 
 struct ModePill: View {
     let textKey: LocalizedStringKey
+    var color: Color = TeleopColors.primary
+    var showsDot = false
 
     var body: some View {
-        Text(textKey)
-            .font(.system(size: 14))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .background(TeleopColors.primary, in: Capsule())
+        HStack(spacing: 6) {
+            if showsDot { Circle().fill(.white).frame(width: 10, height: 10) }
+            Text(textKey).font(.system(size: 14))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(color, in: Capsule())
     }
 }
 
@@ -64,17 +69,72 @@ struct ControlStatusBar: View {
     var connected: Bool
     var amber = false
     var heartbeatOk = true
+    var recording = false
+    var onModeLongPress: (() -> Void)? = nil
     let onConnectionTap: () -> Void
 
     var body: some View {
         HStack {
-            ModePill(textKey: modeKey)
+            pill
             Spacer()
             ConnectionChip(connected: connected, amber: amber, heartbeatOk: heartbeatOk, onTap: onConnectionTap)
         }
         .frame(minHeight: TeleopMetrics.touch)
         .padding(.horizontal, 8)
         .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+    }
+
+    @ViewBuilder
+    private var pill: some View {
+        let base = ModePill(
+            textKey: modeKey,
+            color: recording ? TeleopColors.recording : TeleopColors.primary,
+            showsDot: recording
+        )
+        if let onModeLongPress {
+            base
+                .contentShape(Rectangle())
+                .onLongPressGesture(minimumDuration: 1, perform: onModeLongPress)
+                .accessibilityIdentifier("status.mode_pill")
+        } else {
+            base
+        }
+    }
+}
+
+struct GripperCard: View {
+    let gripper: GripperState
+    var fullWidth = false
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(LocalizedStringKey(gripper == .open ? "control.gripper_open" : "control.gripper_closed"))
+                .font(.system(size: 20, weight: .semibold))
+            Text("control.gripper_pulse_hint")
+                .font(.system(size: 14))
+                .foregroundStyle(TeleopColors.textSecondary)
+        }
+        .foregroundStyle(TeleopColors.textPrimary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+        .background(TeleopColors.gripperCard, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+    }
+}
+
+struct VolumeHintBox: View {
+    let textKey: LocalizedStringKey
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "speaker.wave.2.fill")
+            Text(textKey)
+                .font(.system(size: 13))
+                .multilineTextAlignment(.leading)
+        }
+        .foregroundStyle(TeleopColors.textSecondary)
+        .padding(12)
+        .background(TeleopColors.card.opacity(0.92), in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
     }
 }
 

@@ -3,8 +3,6 @@ import TeleopCore
 
 struct SettingsScreen: View {
     @Bindable var model: AppModel
-    @State private var deadbandDegrees = 2.0
-    @State private var smoothing = 0.3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,11 +22,19 @@ struct SettingsScreen: View {
                           value: $model.session.state.sensitivity, range: 0...2,
                           label: String(format: "%.1f", model.session.state.sensitivity))
                 sliderRow("settings.deadband", tag: "settings.deadband_tag",
-                          value: $deadbandDegrees, range: 0...10,
-                          label: String(format: "%.0f°", deadbandDegrees))
+                          value: Binding(
+                              get: { model.session.state.deadbandDegrees },
+                              set: { model.session.state.setDeadband(degrees: $0) }
+                          ),
+                          range: FakeTeleopState.deadbandRange,
+                          label: String(format: "%.0f°", model.session.state.deadbandDegrees))
                 sliderRow("settings.smoothing", tag: "settings.smoothing_tag",
-                          value: $smoothing, range: 0...1,
-                          label: String(format: "%.1f", smoothing))
+                          value: Binding(
+                              get: { model.session.state.smoothing },
+                              set: { model.session.state.setSmoothing($0) }
+                          ),
+                          range: FakeTeleopState.smoothingRange,
+                          label: String(format: "%.1f", model.session.state.smoothing))
             }
             .card()
             .padding(.top, 8)
