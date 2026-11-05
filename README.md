@@ -1,6 +1,6 @@
 # Teleop iOS app (App/ + Packages/ layout)
 
-SwiftUI app (iOS 17+) for the phone-teleoperation thesis project. 20 Mockup v2 iOS screens (frame 402x874), fake state only, mirroring `../android-app`.
+SwiftUI app (iOS 17+) for the phone-teleoperation thesis project. 20 Mockup v2 iOS screens (frame 402x874), fake state only. The Android counterpart lives in its own repository.
 
 ## Layout
 
@@ -14,7 +14,7 @@ App/Resources/              Localizable.xcstrings, InfoPlist.xcstrings
 Tests/TeleopTests/          app unit tests
 Tests/TeleopUITests/        XCUITest that walks P1 -> ... -> S1 -> P5 and attaches screenshots
 scripts/check-strings.py    every string key used in views exists in the catalog, and none is unused
-.github/workflows/ios.yml   macOS CI
+.github/workflows/ios.yml   macOS CI (source copy in ci/ios.yml)
 ```
 
 ## Build on a Mac
@@ -23,7 +23,6 @@ Requires Xcode 16+ and XcodeGen.
 
 ```bash
 brew install xcodegen
-cd ios-app
 xcodegen generate
 open Teleop.xcodeproj
 ```

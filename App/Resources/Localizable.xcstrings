@@ -411,6 +411,16 @@
         }
       }
     },
+    "control.gripper": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gripper"
+          }
+        }
+      }
+    },
     "control.gripper_aim": {
       "localizations": {
         "en": {
@@ -631,12 +641,22 @@
         }
       }
     },
-    "fallback.hint": {
+    "fallback.hold_here": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volume keys unavailable. Use the on-screen buttons."
+            "value": "Hold here"
+          }
+        }
+      }
+    },
+    "fallback.hold_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold here: phone motion moves the arm. Release to stop."
           }
         }
       }
@@ -647,16 +667,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "On-screen controls"
-          }
-        }
-      }
-    },
-    "fallback.toggle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle"
           }
         }
       }
@@ -851,6 +861,16 @@
         }
       }
     },
+    "settings.deadband_tag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deadband"
+          }
+        }
+      }
+    },
     "settings.debug_log": {
       "localizations": {
         "en": {
@@ -867,6 +887,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Developer mode"
+          }
+        }
+      }
+    },
+    "settings.gain_tag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gain"
           }
         }
       }
@@ -911,6 +941,16 @@
         }
       }
     },
+    "settings.smoothing_tag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "smoothing"
+          }
+        }
+      }
+    },
     "status.connected": {
       "localizations": {
         "en": {
@@ -946,17 +986,17 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Emergency stop is active"
+            "value": "E-stopped"
           }
         }
       }
     },
-    "stop.hold_hint": {
+    "stop.inputs_ignored": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold the button for 1 second to release."
+            "value": "Volume keys and on-screen controls are ignored."
           }
         }
       }
@@ -971,12 +1011,32 @@
         }
       }
     },
+    "stop.locked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arm stopped. All inputs are locked."
+          }
+        }
+      }
+    },
+    "stop.release_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release early to cancel. A short buzz confirms release."
+          }
+        }
+      }
+    },
     "stop.release_hold": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Release (hold 1s)"
+            "value": "Hold 1s to release"
           }
         }
       }

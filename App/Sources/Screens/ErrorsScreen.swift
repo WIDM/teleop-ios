@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 /// S7. Red only for the lost connection; other messages use an amber border.
 struct ErrorsScreen: View {

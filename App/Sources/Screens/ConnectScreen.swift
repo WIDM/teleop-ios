@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 /// S1. Back and Connect return to P5; Disconnect goes to S7.
 struct ConnectScreen: View {

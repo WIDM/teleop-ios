@@ -1,8 +1,9 @@
 import SwiftUI
+import TeleopCore
 
 struct SettingsScreen: View {
     @Bindable var model: AppModel
-    @State private var deadband = 0.2
+    @State private var deadbandDegrees = 2.0
     @State private var smoothing = 0.3
 
     var body: some View {
@@ -18,23 +19,29 @@ struct SettingsScreen: View {
                     .buttonStyle(TextActionStyle(color: TeleopColors.primary))
                     .accessibilityIdentifier("settings.done")
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("settings.sensitivity")
-                Slider(value: $model.session.state.sensitivity, in: 0.1...2)
-                Text("settings.deadband")
-                Slider(value: $deadband, in: 0...1)
-                Text("settings.smoothing")
-                Slider(value: $smoothing, in: 0...1)
+            VStack(alignment: .leading, spacing: 12) {
+                sliderRow("settings.sensitivity", tag: "settings.gain_tag",
+                          value: $model.session.state.sensitivity, range: 0...2,
+                          label: String(format: "%.1f", model.session.state.sensitivity))
+                sliderRow("settings.deadband", tag: "settings.deadband_tag",
+                          value: $deadbandDegrees, range: 0...10,
+                          label: String(format: "%.0f°", deadbandDegrees))
+                sliderRow("settings.smoothing", tag: "settings.smoothing_tag",
+                          value: $smoothing, range: 0...1,
+                          label: String(format: "%.1f", smoothing))
             }
             .card()
             .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("settings.debug_log")
-                Text(verbatim: "12:01:03 pose_start seq 41")
+                Text(verbatim: "12:01:03 → pose_start seq 41")
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(TeleopColors.textSecondary)
-                Text(verbatim: "12:01:03 pose_stop_requested")
+                Text(verbatim: "12:01:03 ← pose_stop_requested")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(TeleopColors.textSecondary)
+                Text(verbatim: "12:01:03 ← pose_stopped")
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(TeleopColors.textSecondary)
                 HStack(spacing: 8) {
@@ -79,5 +86,20 @@ struct SettingsScreen: View {
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
+    }
+
+    private func sliderRow(
+        _ title: LocalizedStringKey, tag: LocalizedStringKey,
+        value: Binding<Double>, range: ClosedRange<Double>, label: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(title).font(.system(size: 15))
+                Text(tag).font(.system(size: 12)).foregroundStyle(TeleopColors.textSecondary)
+                Spacer()
+                Text(verbatim: label).font(.system(size: 15, design: .monospaced))
+            }
+            Slider(value: value, in: range)
+        }
     }
 }

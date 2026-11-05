@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 /// T1 to T3: tip cards over a dimmed standby view. STOP stays above the scrim.
 struct TutorialScreen: View {
