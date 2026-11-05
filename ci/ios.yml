@@ -74,18 +74,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ios-app/build/xcodebuild.log
+          path: build/xcodebuild.log
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: ios-app/build/screenshots
+          path: build/screenshots
 
       - name: Upload result bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcresult
-          path: ios-app/build/Teleop.xcresult
+          path: build/Teleop.xcresult
