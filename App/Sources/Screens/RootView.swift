@@ -3,6 +3,7 @@ import TeleopCore
 
 struct RootView: View {
     let model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -10,6 +11,10 @@ struct RootView: View {
             screen(for: model.session.route)
         }
         .foregroundStyle(TeleopColors.textPrimary)
+        .onChange(of: scenePhase) { _, phase in
+            // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
+            if phase != .active, model.session.state.armMoving { model.send(.holdArmEnd) }
+        }
         .task(id: model.session.state.isRecording) {
             guard model.session.state.isRecording else { return }
             while !Task.isCancelled {

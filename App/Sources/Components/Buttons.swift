@@ -110,31 +110,32 @@ struct HoldButton: View {
 }
 
 /// Press = start moving the arm, release = stop. Same session path as holding vol+ (`holdArmStart` / `holdArmEnd`).
+/// `@GestureState` resets when the system cancels the gesture (call, Control Center), so that reset also sends `holdArmEnd`.
 private struct ArmHoldModifier: ViewModifier {
     let model: AppModel
-    @State private var pressing = false
+    @GestureState private var pressing = false
 
     func body(content: Content) -> some View {
         content
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
+                    .updating($pressing) { _, state, _ in state = true }
                     .onChanged { _ in
-                        guard !pressing else { return }
-                        pressing = true
+                        guard !model.session.state.armMoving else { return }
                         model.send(.holdArmStart)
                     }
-                    .onEnded { _ in
-                        pressing = false
-                        model.send(.holdArmEnd)
-                    }
+                    .onEnded { _ in model.send(.holdArmEnd) }
             )
+            .onChange(of: pressing) { _, isPressing in
+                if !isPressing { model.send(.holdArmEnd) }
+            }
             .onDisappear {
-                guard pressing else { return }
-                pressing = false
+                guard model.session.state.armMoving else { return }
                 model.send(.holdArmEnd)
             }
             .accessibilityAddTraits(.isButton)
+            .accessibilityValue(model.session.state.armMoving ? "moving" : "stopped")
     }
 }
 
