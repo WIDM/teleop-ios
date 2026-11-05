@@ -37,6 +37,8 @@ public enum TeleopAction: Equatable, Sendable {
     case openFallback
     case startFallbackRecording
     case toggleGripper
+    case holdArmStart
+    case holdArmEnd
 }
 
 /// Navigation plus fake state, driven only through `perform`.
@@ -127,11 +129,14 @@ public struct TeleopSession: Equatable, Sendable {
             navigator.back()
         case .stop:
             state.emergencyStop = true
+            state.armMoving = false
             pendingHaptics.append(.play(.emergencyLoop))
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
+            // H15: the long buzz ends and one short buzz confirms the release.
             pendingHaptics.append(.cancel)
+            pendingHaptics.append(.play(.stopReleased))
             go(.p4)
         case .openSettings:
             go(.s6)
@@ -158,10 +163,30 @@ public struct TeleopSession: Equatable, Sendable {
         case .startFallbackRecording:
             go(.s5a)
         case .toggleGripper:
-            guard canControl else { return }
+            guard acceptsControl else { return }
+            // H8: the arm is moving, so the gripper cannot toggle.
+            guard canControl, !state.armMoving else {
+                pendingHaptics.append(.play(.commandBlocked))
+                return
+            }
             state.toggleGripper()
             pendingHaptics.append(.play(state.gripper == .closed ? .gripperClosed : .gripperOpened))
+        case .holdArmStart:
+            guard acceptsControl else { return }
+            guard canControl else {
+                pendingHaptics.append(.play(.commandBlocked))
+                return
+            }
+            state.armMoving = true
+        case .holdArmEnd:
+            // Release always stops, even if the session got blocked while held.
+            state.armMoving = false
         }
+    }
+
+    /// Inputs are ignored outright while E-stopped or disconnected: no motion, no haptic.
+    private var acceptsControl: Bool {
+        state.connected && !state.emergencyStop
     }
 
     /// Control actions (gripper, motion) are refused while E-stopped, disconnected or latency-blocked.

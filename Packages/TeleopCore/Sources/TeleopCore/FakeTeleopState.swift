@@ -19,6 +19,10 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var recordingElapsedSec = 0
     public var developerMode = false
     public var sensitivity = 1.0
+    public private(set) var deadbandDegrees = 2.0
+    public private(set) var smoothing = 0.3
+    /// True while the arm hold (vol+ or the on-screen hold area) is pressed.
+    public var armMoving = false
     public var serverInputError = false
 
     public init() {}
@@ -26,6 +30,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public static let highLatencyMs = 420
     public static let normalLatencyMs = 80
     public static let amberLatencyMs = 150
+    public static let deadbandRange = 0.0...10.0
+    public static let smoothingRange = 0.0...1.0
 
     public var latencyIsAmber: Bool {
         commandsBlocked || latencyMs >= Self.amberLatencyMs
@@ -65,6 +71,14 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func simulateNormalLatency() {
         latencyMs = Self.normalLatencyMs
         commandsBlocked = false
+    }
+
+    public mutating func setDeadband(degrees: Double) {
+        deadbandDegrees = min(max(degrees, Self.deadbandRange.lowerBound), Self.deadbandRange.upperBound)
+    }
+
+    public mutating func setSmoothing(_ value: Double) {
+        smoothing = min(max(value, Self.smoothingRange.lowerBound), Self.smoothingRange.upperBound)
     }
 
     public mutating func toggleGripper() {
