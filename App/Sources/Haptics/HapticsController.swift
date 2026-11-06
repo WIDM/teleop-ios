@@ -1,3 +1,5 @@
+// xcode: set sdk=iOS
+
 import CoreHaptics
 import TeleopCore
 
