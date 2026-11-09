@@ -75,6 +75,13 @@ public struct FakeTeleopState: Equatable, Sendable {
         commandsBlocked = false
     }
 
+    /// Reset scene: arm stopped, gripper back to open, latency block cleared. Recording keeps running.
+    public mutating func resetScene() {
+        armMoving = false
+        gripper = .open
+        simulateNormalLatency()
+    }
+
     public mutating func setDeadband(degrees: Double) {
         deadbandDegrees = min(max(degrees, Self.deadbandRange.lowerBound), Self.deadbandRange.upperBound)
     }

@@ -39,6 +39,7 @@ public enum TeleopAction: Equatable, Sendable {
     case toggleGripper
     case holdArmStart
     case holdArmEnd
+    case resetScene
 }
 
 /// Navigation plus fake state, driven only through `perform`.
@@ -183,6 +184,11 @@ public struct TeleopSession: Equatable, Sendable {
         case .holdArmEnd:
             // Release always stops, even if the session got blocked while held.
             state.armMoving = false
+        case .resetScene:
+            // Not refused while latency-blocked: clearing that block is part of the reset (P6 -> P4).
+            guard acceptsControl else { return }
+            state.resetScene()
+            if route == .p6 { go(.p4) }
         }
     }
 

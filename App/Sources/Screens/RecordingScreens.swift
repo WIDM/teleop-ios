@@ -39,8 +39,9 @@ struct RecordingScreen: View {
                         .buttonStyle(OutlineButtonStyle())
                         .accessibilityIdentifier("fallback.toggle")
                 } else {
-                    Button {} label: { compactLabel("control.reset", systemImage: "arrow.counterclockwise") }
+                    Button { model.send(.resetScene) } label: { compactLabel("control.reset", systemImage: "arrow.counterclockwise") }
                         .buttonStyle(OutlineButtonStyle())
+                        .accessibilityIdentifier("recording.reset")
                 }
                 Button { model.send(.openSettings) } label: { compactLabel("control.settings", systemImage: "gearshape") }
                     .buttonStyle(OutlineButtonStyle())
@@ -48,6 +49,7 @@ struct RecordingScreen: View {
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
+        .volumeKeys(model: model)
         .onAppear { model.send(.recordingAppeared) }
     }
 
@@ -206,14 +208,16 @@ struct BaseTeleopScreen: View {
                 RecordButton(isRecording: state.isRecording, elapsed: state.recordingTimeLabel) {
                     model.send(.openRecording)
                 }
-                Button {} label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
+                Button { model.send(.resetScene) } label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
                     .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("base.reset")
                 Button { model.send(.openSettings) } label: { Label("control.settings", systemImage: "gearshape") }
                     .buttonStyle(OutlineButtonStyle())
             }
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
+        .volumeKeys(model: model)
     }
 }
 

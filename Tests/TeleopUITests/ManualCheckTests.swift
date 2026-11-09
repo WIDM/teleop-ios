@@ -125,14 +125,11 @@ final class ManualCheckTests: XCTestCase {
         expect("permissions.continue")
     }
 
-    // Spec gap found by hand on 2026-11-09. A strict expected failure: it turns red once the gap is fixed,
-    // so the marker has to be removed then.
-
     /// docs/figma-map.md P6: "tap Reset scene -> P4."
     func testResetFromHighLatencyReturnsToStandby() {
         simulateHighLatency()
-        app.buttons["Reset"].tap()
-        XCTExpectFailure("The Reset button has no action.")
+        element("standby.reset").tap()
         XCTAssertTrue(element("standby.blocked_banner").waitForNonExistence(timeout: 3))
+        expect("standby.settings")
     }
 }

@@ -59,8 +59,9 @@ struct StandbyScreen: View {
                 RecordButton(isRecording: state.isRecording, elapsed: state.recordingTimeLabel) {
                     model.send(.openRecording)
                 }
-                Button {} label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
+                Button { model.send(.resetScene) } label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
                     .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("standby.reset")
                 Button { model.send(.openSettings) } label: { Label("control.settings", systemImage: "gearshape") }
                     .buttonStyle(OutlineButtonStyle())
                     .accessibilityIdentifier("standby.settings")
@@ -72,6 +73,7 @@ struct StandbyScreen: View {
         }
         .padding(.horizontal, TeleopMetrics.margin)
         .padding(.vertical, 12)
+        .volumeKeys(model: model, enabled: showStop)
         .sheet(isPresented: $showDebug) { debugSheet }
     }
 

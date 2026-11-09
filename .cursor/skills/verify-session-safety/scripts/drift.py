@@ -42,6 +42,7 @@ for name in sorted(stored - key_fields - excluded):
 
 
 HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
+KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "toggleGripper"}
 ROOT_VIEW_ACTIONS = {"holdArmEnd", "recordingTick"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
@@ -52,6 +53,7 @@ def sends(text):
     found = set(re.findall(r"(?:send|perform)\(\.(\w+)", text))
     found |= set(re.findall(r"debugButton\(.*, \.(\w+)\)", text))
     found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
+    found |= set(re.findall(r"return \[\.(\w+)\]", text))
     return found
 
 
@@ -64,6 +66,8 @@ for path in APP.rglob("*.swift"):
         struct_sends[match.group(1)] = sends(match.group(0))
         if ".armHold(model:" in match.group(0):
             struct_sends[match.group(1)] |= HOLD_ACTIONS
+        if ".volumeKeys(model:" in match.group(0):
+            struct_sends[match.group(1)] |= KEY_ACTIONS
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
@@ -97,8 +101,13 @@ for screen, names in sorted(listed_by_struct.items()):
     for name in sorted(struct_sends.get(screen, set()) - names):
         problems.append(f"{screen} sends {name}, but no ui-map row for it lists it")
 
-# Only RootView and ArmHoldModifier may send actions without being a mapped screen.
-allowed = {"RootView": ROOT_VIEW_ACTIONS, "ArmHoldModifier": HOLD_ACTIONS}
+# Only these structs may send actions without being a mapped screen.
+allowed = {
+    "RootView": ROOT_VIEW_ACTIONS,
+    "ArmHoldModifier": HOLD_ACTIONS,
+    "VolumeKeyMapper": KEY_ACTIONS,
+    "VolumeKeyModifier": {"holdArmEnd"},
+}
 for name, expected in allowed.items():
     if struct_sends.get(name) != expected:
         problems.append(

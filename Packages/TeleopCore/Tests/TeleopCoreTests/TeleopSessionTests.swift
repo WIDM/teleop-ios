@@ -315,4 +315,53 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(state.deadbandDegrees, 10)
         XCTAssertEqual(state.smoothing, 0)
     }
+
+    func testResetFromHighLatencyReturnsToStandbyUnblocked() {
+        var s = TeleopSession(start: .p4)
+        s.state.markConnected()
+        s.perform(.simulateHighLatency)
+        XCTAssertEqual(s.route, .p6)
+        s.perform(.resetScene)
+        XCTAssertEqual(s.route, .p4)
+        XCTAssertFalse(s.state.commandsBlocked)
+        XCTAssertEqual(s.state.latencyMs, FakeTeleopState.normalLatencyMs)
+    }
+
+    func testResetStopsArmAndOpensGripperWithoutHaptics() {
+        var s = connectedFallback()
+        s.perform(.toggleGripper)
+        s.perform(.holdArmStart)
+        _ = s.drainHaptics()
+        s.perform(.resetScene)
+        XCTAssertFalse(s.state.armMoving)
+        XCTAssertEqual(s.state.gripper, .open)
+        XCTAssertEqual(s.route, .s5)
+        XCTAssertTrue(s.drainHaptics().isEmpty)
+    }
+
+    func testResetKeepsRecordingRunning() {
+        var s = TeleopSession(start: .p4)
+        s.state.markConnected()
+        s.perform(.openRecording)
+        s.perform(.recordingAppeared)
+        XCTAssertTrue(s.state.isRecording)
+        s.perform(.resetScene)
+        XCTAssertTrue(s.state.isRecording)
+        XCTAssertEqual(s.route, .s3a)
+    }
+
+    func testResetIgnoredWhenEStoppedOrDisconnected() {
+        var stopped = TeleopSession(start: .p4)
+        stopped.state.markConnected()
+        stopped.perform(.toggleGripper)
+        stopped.perform(.stop)
+        stopped.perform(.resetScene)
+        XCTAssertEqual(stopped.state.gripper, .closed)
+        XCTAssertEqual(stopped.route, .s4)
+
+        var offline = TeleopSession(start: .p4)
+        offline.state.gripper = .closed
+        offline.perform(.resetScene)
+        XCTAssertEqual(offline.state.gripper, .closed)
+    }
 }

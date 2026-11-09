@@ -23,6 +23,7 @@ let actionTable: [(String, TeleopAction)] = [
     ("changeServer", .changeServer),
     ("simulateHighLatency", .simulateHighLatency),
     ("simulateNormalLatency", .simulateNormalLatency),
+    ("resetScene", .resetScene),
     ("connect", .connect),
     ("disconnect", .disconnect),
     ("s1Back", .s1Back),
@@ -75,7 +76,7 @@ let properties: [Property] = [
     Property(id: "S1", promise: "E-stop stays latched until releaseStop.", harm: "The arm could accept commands after STOP without a deliberate release."),
     Property(id: "S2", promise: "The arm starts moving only on holdArmStart while connected, not E-stopped and not latency-blocked.", harm: "The arm could move when the operator was told it cannot."),
     Property(id: "S3", promise: "The arm is never moving while E-stopped.", harm: "STOP would not stop the arm."),
-    Property(id: "S4", promise: "The gripper changes only on toggleGripper while connected, not E-stopped, not blocked and not moving.", harm: "The gripper could drop or grab something unexpectedly."),
+    Property(id: "S4", promise: "The gripper changes only on toggleGripper while connected, not E-stopped, not blocked and not moving, or opens on resetScene while connected and not E-stopped.", harm: "The gripper could drop or grab something unexpectedly."),
     Property(id: "S5", promise: "holdArmEnd always leaves the arm stopped.", harm: "Releasing the control would not stop the arm."),
     Property(id: "S6", promise: "The arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
     Property(id: "S7", promise: "stop from any state ends E-stopped on S4 with the arm stopped.", harm: "STOP could fail in some state."),
@@ -247,7 +248,8 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     }
     if b.emergencyStop, b.armMoving { out.append(("S3", "E-stop latched while armMoving is true")) }
     if a.gripper != b.gripper,
-       !(step.action == "toggleGripper" && linkOk(a) && !a.emergencyStop && !a.armMoving) {
+       !(step.action == "toggleGripper" && linkOk(a) && !a.emergencyStop && !a.armMoving),
+       !(step.action == "resetScene" && a.connected && !a.emergencyStop && b.gripper == .open) {
         out.append(("S4", "gripper changed by \(step.action)"))
     }
     if step.action == "holdArmEnd", b.armMoving { out.append(("S5", "armMoving still true after holdArmEnd")) }

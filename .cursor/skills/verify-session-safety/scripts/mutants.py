@@ -59,6 +59,21 @@ VARIANTS = [
         ["FAIL S4"],
     ),
     (
+        "reset ignores E-stop",
+        [
+            (
+                "guard acceptsControl else { return }\n            state.resetScene()",
+                "state.resetScene()",
+            )
+        ],
+        ["FAIL S4"],
+    ),
+    (
+        "reset closes the gripper",
+        [("        gripper = .open\n        simulateNormalLatency()", "        gripper = .closed\n        simulateNormalLatency()")],
+        ["FAIL S4"],
+    ),
+    (
         "hold end does nothing",
         [
             (
