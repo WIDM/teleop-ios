@@ -226,6 +226,42 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertFalse(s.state.armMoving)
     }
 
+    func testHighLatencyWhileHeldStopsArm() {
+        var s = connectedFallback()
+        s.perform(.holdArmStart)
+        s.perform(.simulateHighLatency)
+        XCTAssertFalse(s.state.armMoving)
+    }
+
+    func testDisconnectWhileHeldStopsArm() {
+        var s = connectedFallback()
+        s.perform(.holdArmStart)
+        s.perform(.disconnect)
+        XCTAssertFalse(s.state.armMoving)
+    }
+
+    func testHighLatencyWhileEStoppedKeepsS4Visible() {
+        var s = connectedFallback()
+        s.perform(.stop)
+        s.perform(.openConnection)
+        s.perform(.simulateHighLatency)
+        XCTAssertEqual(s.route, .s4)
+        XCTAssertTrue(s.state.emergencyStop)
+        XCTAssertTrue(s.state.commandsBlocked)
+    }
+
+    func testStopWhileEStoppedDoesNotRestartLongBuzz() {
+        var s = connectedFallback()
+        s.perform(.stop)
+        XCTAssertEqual(s.drainHaptics(), [.play(.emergencyLoop)])
+        s.perform(.openConnection)
+        s.perform(.stop)
+        XCTAssertEqual(s.route, .s4)
+        XCTAssertEqual(s.drainHaptics(), [])
+        s.perform(.releaseStop)
+        XCTAssertEqual(s.drainHaptics(), [.cancel, .play(.stopReleased)])
+    }
+
     func testStopClearsArmHold() {
         var s = connectedFallback()
         s.perform(.holdArmStart)

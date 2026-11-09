@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prove the checker can fail: break a throwaway copy of TeleopCore and expect each result.
 
-Variants prefixed "fix" repair a known finding and expect STALE, which proves that property can pass.
+A few variants expect PASS, proving a harmless variation is not reported.
 The repository's own source files are never changed.
 """
 
@@ -14,7 +14,11 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parents[1]
 ROOT = SKILL.parents[2]
-SESSION = "Sources/TeleopCore/TeleopSession.swift"
+SOURCES = [
+    "Sources/TeleopCore/TeleopSession.swift",
+    "Sources/TeleopCore/FakeTeleopState.swift",
+]
+ONE_BUZZ = "if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }"
 
 HOLD_GUARDS = """guard acceptsControl else { return }
             guard canControl else {
@@ -43,8 +47,8 @@ VARIANTS = [
         "stop leaves the arm moving",
         [
             (
-                "state.armMoving = false\n            pendingHaptics.append(.play(.emergencyLoop))",
-                "pendingHaptics.append(.play(.emergencyLoop))",
+                "state.emergencyStop = true\n            state.armMoving = false\n",
+                "state.emergencyStop = true\n",
             )
         ],
         ["FAIL S3"],
@@ -68,8 +72,8 @@ VARIANTS = [
         "stop does not open S4",
         [
             (
-                "pendingHaptics.append(.play(.emergencyLoop))\n            go(.s4)",
-                "pendingHaptics.append(.play(.emergencyLoop))",
+                "state.armMoving = false\n            go(.s4)",
+                "state.armMoving = false",
             )
         ],
         ["FAIL S7"],
@@ -100,74 +104,54 @@ VARIANTS = [
         ["FAIL U3"],
     ),
     (
-        "fix S6: losing the link stops the arm",
+        "disconnect leaves the arm moving",
         [
             (
-                "state.simulateHighLatency()\n",
-                "state.simulateHighLatency()\n            state.armMoving = false\n",
-            ),
-            (
-                "state.markDisconnected()\n",
-                "state.markDisconnected()\n            state.armMoving = false\n",
-            ),
-        ],
-        ["STALE S6"],
-    ),
-    (
-        "fix S8 and U6: one buzz only",
-        [
-            (
-                "pendingHaptics.append(.play(.emergencyLoop))",
-                "if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }",
-            ),
-            (
-                "state.emergencyStop = true\n            state.armMoving = false\n",
-                "state.armMoving = false\n",
-            ),
-            (
-                "go(.s4)\n        case .releaseStop",
-                "state.emergencyStop = true\n            go(.s4)\n        case .releaseStop",
-            ),
-        ],
-        ["STALE S8", "STALE U6"],
-    ),
-    (
-        "fix U1: latency row keeps S4",
-        [
-            (
-                "state.simulateHighLatency()\n            go(.p6)",
-                "state.simulateHighLatency()\n            go(state.emergencyStop ? .s4 : .p6)",
+                "heartbeatOk = false\n        armMoving = false\n",
+                "heartbeatOk = false\n",
             )
         ],
-        ["STALE U1"],
+        ["FAIL S6"],
+    ),
+    (
+        "high latency leaves the arm moving",
+        [
+            (
+                "commandsBlocked = true\n        armMoving = false\n",
+                "commandsBlocked = true\n",
+            )
+        ],
+        ["FAIL S6"],
+    ),
+    (
+        "second stop restarts the buzz",
+        [(ONE_BUZZ, "pendingHaptics.append(.play(.emergencyLoop))")],
+        ["FAIL S8", "FAIL U6"],
+    ),
+    (
+        "latency row hides S4",
+        [("go(state.emergencyStop ? .s4 : .p6)", "go(.p6)")],
+        ["FAIL U1"],
     ),
     (
         "stop cancels before restarting the buzz",
         [
             (
-                "pendingHaptics.append(.play(.emergencyLoop))",
+                ONE_BUZZ,
                 "pendingHaptics.append(.cancel)\n            pendingHaptics.append(.play(.emergencyLoop))",
             )
         ],
-        ["STALE S8", "STALE U6"],
+        ["PASS S8", "PASS U6"],
     ),
     (
         "first stop starts two buzzes in one step",
         [
             (
-                "pendingHaptics.append(.play(.emergencyLoop))",
+                ONE_BUZZ,
                 "if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)); pendingHaptics.append(.play(.emergencyLoop)) }",
-            ),
-            (
-                "state.emergencyStop = true\n            state.armMoving = false\n",
-                "state.armMoving = false\n",
-            ),
-            (
-                "go(.s4)\n        case .releaseStop",
-                "state.emergencyStop = true\n            go(.s4)\n        case .releaseStop",
-            ),
+            )
         ],
-        ["KNOWN S8", "KNOWN U6"],
+        ["FAIL S8", "FAIL U6"],
     ),
     (
         "recording tick on settings opens S4",
@@ -252,15 +236,15 @@ def main():
 
     for label, edits, expected in VARIANTS:
         fresh_core()
-        path = core / SESSION
-        text = path.read_text()
         for old, new in edits:
-            if old not in text:
+            path = next(
+                (core / s for s in SOURCES if old in (core / s).read_text()), None
+            )
+            if path is None:
                 sys.exit(
                     f"Variant '{label}' no longer applies: {old!r} not found. Update scripts/mutants.py."
                 )
-            text = text.replace(old, new, 1)
-        path.write_text(text)
+            path.write_text(path.read_text().replace(old, new, 1))
         run(label, SKILL / "ui-map.tsv", expected)
 
     fresh_core()

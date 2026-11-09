@@ -111,7 +111,8 @@ public struct TeleopSession: Equatable, Sendable {
             go(.s1)
         case .simulateHighLatency:
             state.simulateHighLatency()
-            go(.p6)
+            // E-stop latched: S4 must never be hidden.
+            go(state.emergencyStop ? .s4 : .p6)
         case .simulateNormalLatency:
             state.simulateNormalLatency()
             go(.p4)
@@ -128,9 +129,10 @@ public struct TeleopSession: Equatable, Sendable {
         case .back:
             navigator.back()
         case .stop:
+            // Already latched means the long buzz is playing; a second loop could outlive the release.
+            if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }
             state.emergencyStop = true
             state.armMoving = false
-            pendingHaptics.append(.play(.emergencyLoop))
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false

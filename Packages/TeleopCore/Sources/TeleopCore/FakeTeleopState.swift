@@ -49,6 +49,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func markDisconnected() {
         connected = false
         heartbeatOk = false
+        armMoving = false
     }
 
     public mutating func simulateCloudPass() {
@@ -66,6 +67,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func simulateHighLatency() {
         latencyMs = Self.highLatencyMs
         commandsBlocked = true
+        armMoving = false
     }
 
     public mutating func simulateNormalLatency() {
