@@ -11,6 +11,15 @@ struct RootView: View {
             screen(for: model.session.route)
         }
         .foregroundStyle(TeleopColors.textPrimary)
+        .overlay(alignment: .topLeading) {
+            if let log = model.hapticLog {
+                Text(verbatim: "log:" + log.joined(separator: ","))
+                    .font(.system(size: 1))
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("test.haptics")
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
             if phase != .active, model.session.state.armMoving { model.send(.holdArmEnd) }

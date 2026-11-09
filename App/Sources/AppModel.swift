@@ -6,6 +6,8 @@ import TeleopCore
 final class AppModel {
     var session: TeleopSession
     @ObservationIgnored private let haptics: HapticsPlaying
+    /// UI tests only: `-recordHaptics YES` shows requested haptics to XCUITest, which cannot feel them.
+    private(set) var hapticLog: [String]? = UserDefaults.standard.bool(forKey: "recordHaptics") ? [] : nil
 
     init(start: Route = .p1, haptics: HapticsPlaying = HapticsController()) {
         session = TeleopSession(start: start)
@@ -19,6 +21,14 @@ final class AppModel {
         session.perform(action)
         for command in session.drainHaptics() {
             haptics.run(command)
+            hapticLog?.append(Self.logName(command))
+        }
+    }
+
+    private static func logName(_ command: HapticCommand) -> String {
+        switch command {
+        case .play(let cue): return "\(cue)"
+        case .cancel: return "cancel"
         }
     }
 

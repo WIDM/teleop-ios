@@ -115,10 +115,12 @@ struct HoldButton: View {
 }
 
 /// Press = start moving the arm, release = stop. Same session path as holding vol+ (`holdArmStart` / `holdArmEnd`).
-/// `@GestureState` resets when the system cancels the gesture (call, Control Center), so that reset also sends `holdArmEnd`.
+/// One press sends one `holdArmStart`, so finger drift cannot repeat a blocked cue or restart an arm that was auto-stopped.
+/// `@GestureState` also resets when the system cancels the gesture (call, Control Center), so that sends `holdArmEnd` too.
 private struct ArmHoldModifier: ViewModifier {
     let model: AppModel
     @GestureState private var pressing = false
+    @State private var startSent = false
 
     func body(content: Content) -> some View {
         content
@@ -127,13 +129,19 @@ private struct ArmHoldModifier: ViewModifier {
                 DragGesture(minimumDistance: 0)
                     .updating($pressing) { _, state, _ in state = true }
                     .onChanged { _ in
-                        guard !model.session.state.armMoving else { return }
+                        guard !startSent else { return }
+                        startSent = true
                         model.send(.holdArmStart)
                     }
-                    .onEnded { _ in model.send(.holdArmEnd) }
+                    .onEnded { _ in
+                        startSent = false
+                        model.send(.holdArmEnd)
+                    }
             )
             .onChange(of: pressing) { _, isPressing in
-                if !isPressing { model.send(.holdArmEnd) }
+                guard !isPressing else { return }
+                startSent = false
+                model.send(.holdArmEnd)
             }
             .onDisappear {
                 guard model.session.state.armMoving else { return }
