@@ -20,7 +20,7 @@ All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1,
 - No swipe-back gesture; navigation is a custom stack driven by `BackStackRules`.
 - P7 uses the system keyboard, not the shared mock keyboard component.
 - Left/right arm switch, cloud banner and latency dot from visual-spec v1.5 are not in the Android reference, so not built.
-- Camera and motion permissions are declared but not requested; S2 only describes them.
+- Camera and motion prompts are shown from S2, but no camera or motion data is read yet, and a denial has no follow-up screen.
 - Figma could not be read (MCP needs authorization); screens follow the PNG shots and the Android code.
 
 ## Only verifiable on a Mac

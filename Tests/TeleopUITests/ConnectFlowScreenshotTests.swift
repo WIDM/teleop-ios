@@ -36,6 +36,7 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         expect("permissions.continue")
         shot("02-S2-permissions")
         tap("permissions.continue")
+        answerSystemPrompts(allow: true)
 
         expect("tutorial.skip")
         shot("03-T1-tutorial")

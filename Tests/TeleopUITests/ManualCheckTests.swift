@@ -103,20 +103,30 @@ final class ManualCheckTests: XCTestCase {
         XCTAssertEqual(haptics, ["commandBlocked"])
     }
 
-    // Spec gaps found by hand on 2026-11-09. Strict expected failures: they turn red once the gap is fixed,
-    // so the marker has to be removed then.
-
     /// docs/figma-map.md S2: "Continue opens the system permission prompts."
-    func testS2ContinueShowsCameraPrompt() {
+    func testS2ContinueShowsCameraPromptThenTutorial() {
+        openS2WithCameraUnanswered()
+        element("permissions.continue").tap()
+        XCTAssertGreaterThanOrEqual(answerSystemPrompts(allow: true), 1)
+        expect("tutorial.skip")
+    }
+
+    func testDenyingPromptsStillReachesTutorial() {
+        openS2WithCameraUnanswered()
+        element("permissions.continue").tap()
+        XCTAssertGreaterThanOrEqual(answerSystemPrompts(allow: false), 1)
+        expect("tutorial.skip")
+    }
+
+    private func openS2WithCameraUnanswered() {
         app.resetAuthorizationStatus(for: .camera)
         app.launchArguments = ["-startRoute", "s2_permissions", "-startConnected", "YES"]
         app.launch()
         expect("permissions.continue")
-        element("permissions.continue").tap()
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        XCTExpectFailure("S2 only describes the permissions; it never requests them.")
-        XCTAssertTrue(springboard.alerts.firstMatch.waitForExistence(timeout: 5))
     }
+
+    // Spec gap found by hand on 2026-11-09. A strict expected failure: it turns red once the gap is fixed,
+    // so the marker has to be removed then.
 
     /// docs/figma-map.md P6: "tap Reset scene -> P4."
     func testResetFromHighLatencyReturnsToStandby() {

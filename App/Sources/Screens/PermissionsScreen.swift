@@ -3,6 +3,8 @@ import TeleopCore
 
 struct PermissionsScreen: View {
     let model: AppModel
+    @State private var requesting = false
+    @State private var request: Task<Void, Never>?
 
     var body: some View {
         let state = model.session.state
@@ -23,14 +25,25 @@ struct PermissionsScreen: View {
             Text("permissions.hint")
                 .font(.system(size: 12))
                 .foregroundStyle(TeleopColors.textSecondary)
-            Button { model.send(.permissionsContinue) } label: { Text("common.continue") }
+            Button {
+                requesting = true
+                request = Task {
+                    await SystemPermissions.request()
+                    requesting = false
+                    // STOP or the connection chip may have left S2 while the prompts were up.
+                    guard !Task.isCancelled else { return }
+                    model.send(.permissionsContinue)
+                }
+            } label: { Text("common.continue") }
                 .buttonStyle(FilledButtonStyle())
+                .disabled(requesting)
                 .accessibilityIdentifier("permissions.continue")
                 .padding(.top, 8)
             StopButton { model.send(.stop) }
                 .padding(.top, 8)
         }
         .padding(TeleopMetrics.margin)
+        .onDisappear { request?.cancel() }
     }
 
     private func permissionCard(_ title: LocalizedStringKey, _ body: LocalizedStringKey, icon: String) -> some View {
