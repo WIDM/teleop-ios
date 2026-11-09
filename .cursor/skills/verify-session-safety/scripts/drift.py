@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Fail when the checker's action list or screen map no longer matches the code.
+
+Also warn when covered files changed after the sync commit recorded in SKILL.md.
+"""
+
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+SKILL = Path(__file__).resolve().parents[1]
+ROOT = SKILL.parents[2]
+# TELEOP_APP_SOURCES lets scripts/mutants.py point this check at a broken copy of the screens.
+APP = Path(os.environ.get("TELEOP_APP_SOURCES", ROOT / "App/Sources"))
+problems = []
+
+# Every TeleopAction case must be in the checker's action table.
+session = (
+    ROOT / "Packages/TeleopCore/Sources/TeleopCore/TeleopSession.swift"
+).read_text()
+enum_body = re.search(r"enum TeleopAction.*?\{(.*?)\n\}", session, re.S).group(1)
+enum_cases = set(re.findall(r"case (\w+)", enum_body))
+main = (SKILL / "checker/Sources/SafetyCheck/main.swift").read_text()
+table_cases = set(re.findall(r'\("\w+", \.(\w+)[(),]', main))
+for name in sorted(enum_cases ^ table_cases):
+    problems.append(f"TeleopAction case and checker table differ: {name}")
+
+# Every stored FakeTeleopState field must be in the state key or named as excluded.
+state_source = (
+    ROOT / "Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift"
+).read_text()
+stored = set(
+    re.findall(r"public (?:private\(set\) )?var (\w+)(?:: *[\w.]+)? *=", state_source)
+)
+key_body = re.search(r"struct StateKey: Hashable \{(.*?)\n\}", main, re.S).group(1)
+key_fields = set(re.findall(r"let (\w+):", key_body))
+excluded = set(re.search(r"// Not in key.*?: (.*)", main).group(1).split())
+for name in sorted(stored - key_fields - excluded):
+    problems.append(f"FakeTeleopState.{name} is not in StateKey or the excluded list")
+
+
+HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
+ROOT_VIEW_ACTIONS = {"holdArmEnd", "recordingTick"}
+STRUCT = re.compile(
+    r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
+)
+
+
+def sends(text):
+    found = set(re.findall(r"(?:send|perform)\(\.(\w+)", text))
+    found |= set(re.findall(r"debugButton\(.*, \.(\w+)\)", text))
+    found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
+    return found
+
+
+# Slice the app source by struct, so one screen's controls are never credited to another.
+struct_sends = {}
+outside_structs = {}
+for path in APP.rglob("*.swift"):
+    text = path.read_text()
+    for match in STRUCT.finditer(text):
+        struct_sends[match.group(1)] = sends(match.group(0))
+        if ".armHold(model:" in match.group(0):
+            struct_sends[match.group(1)] |= HOLD_ACTIONS
+    leftover = sends(STRUCT.sub("", text))
+    if leftover:
+        outside_structs[str(path.relative_to(APP))] = leftover
+for path, names in sorted(outside_structs.items()):
+    problems.append(f"{path} sends {sorted(names)} outside any struct")
+
+root_view = (APP / "Screens/RootView.swift").read_text()
+screen_of_route = dict(re.findall(r"case \.(\w+): (\w+)\(", root_view))
+
+listed_by_struct = {}
+map_routes = set()
+for line in (SKILL / "ui-map.tsv").read_text().splitlines():
+    if line.startswith("#") or not line.strip():
+        continue
+    route, screen, actions = line.split("\t")
+    map_routes.add(route)
+    if screen_of_route.get(route) != screen:
+        problems.append(
+            f"{route}: ui-map says {screen}, RootView shows {screen_of_route.get(route)}"
+        )
+    names = {re.sub(r"\d+$", "", a) for a in actions.split(",")}
+    for name in sorted(names - struct_sends.get(screen, set())):
+        problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
+    if "recordingTick" in names:
+        problems.append(f"{route}: recordingTick is global, remove it from ui-map")
+    listed_by_struct.setdefault(screen, set()).update(names)
+for route in sorted(set(screen_of_route) - map_routes):
+    problems.append(f"{route} is in RootView but not in ui-map")
+
+for screen, names in sorted(listed_by_struct.items()):
+    for name in sorted(struct_sends.get(screen, set()) - names):
+        problems.append(f"{screen} sends {name}, but no ui-map row for it lists it")
+
+# Only RootView and ArmHoldModifier may send actions without being a mapped screen.
+allowed = {"RootView": ROOT_VIEW_ACTIONS, "ArmHoldModifier": HOLD_ACTIONS}
+for name, expected in allowed.items():
+    if struct_sends.get(name) != expected:
+        problems.append(
+            f"{name} sends {sorted(struct_sends.get(name, set()))}, expected {sorted(expected)}"
+        )
+for name, names in sorted(struct_sends.items()):
+    if names and name not in listed_by_struct and name not in allowed:
+        problems.append(f"{name} sends {sorted(names)} but is not in ui-map.tsv")
+
+for problem in problems:
+    print(f"DRIFT {problem}")
+
+skill_text = (SKILL / "SKILL.md").read_text()
+sync = re.search(r"Sync commit: `([0-9a-f]+)`", skill_text).group(1)
+covered = re.findall(
+    r"^- `([^`]+)`", skill_text.split("## Coverage", 1)[1].split("\n## ", 1)[0], re.M
+)
+changed = subprocess.run(
+    ["git", "-C", str(ROOT), "diff", "--name-only", sync, "--", *covered],
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout.split()
+for path in changed:
+    print(
+        f"REVIEW {path} changed since sync commit {sync[:7]}. Confirm the checker still describes it."
+    )
+
+sys.exit(1 if problems else 0)

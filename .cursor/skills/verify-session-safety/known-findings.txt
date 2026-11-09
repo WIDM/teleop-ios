@@ -1,0 +1,6 @@
+# Property ids the current code breaks. One id per line, then a short reason.
+# Remove a line when the code is fixed. Do not add a line to make a new failure pass without reporting it.
+S6 armMoving stays true after disconnect or high latency while the arm is held
+S8 stop while already E-stopped starts a second long buzz
+U1 S4 > status chip > P5 > latency row opens P6 while E-stop is latched
+U6 S4 > status chip > P5 > STOP starts a second long buzz

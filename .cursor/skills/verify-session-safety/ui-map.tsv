@@ -1,0 +1,23 @@
+# route	screen struct	actions the screen itself can send
+# scripts/drift.py compares each row with RootView.screen(for:) and with the model.send calls in that struct.
+# recordingTick is not listed: RootView sends it on every route while recording, and main.swift adds it there.
+p1	ModeSelectScreen	selectCloud,selectOnSite,modeNext
+p2	CloudCheckPassScreen	cloudEnterStandby,back,cloudSimulateFail
+p3	CloudCheckFailScreen	cloudRecheck,cloudUseOnSite
+p4	StandbyScreen	openConnection,openBase,openRecording,openSettings,stop,simulateHighLatency,openFallback
+p5	ConnectionDetailsScreen	simulateHighLatency,changeServer,openKeyboard,closeConnection,stop
+p6	StandbyScreen	openConnection,openBase,openRecording,openSettings,stop,simulateNormalLatency,openFallback
+p7	ConnectionDetailsScreen	simulateHighLatency,keyboardDone,stop
+t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
+t2	TutorialScreen	stop,tutorialSkip,tutorialNext2
+t3	TutorialScreen	stop,back,tutorialSkip,tutorialNext3
+s1	ConnectScreen	openConnection,connect,disconnect,s1Back,stop
+s2	PermissionsScreen	openConnection,permissionsContinue,stop
+s3a	RecordingScreen	openConnection,stopRecording,openSettings,stop,recordingAppeared
+s3b	RecordEndScreen	openConnection,discardRecording,saveRecording,stop
+s3m	BaseTeleopScreen	openConnection,openRecording,releaseBase,openSettings,stop
+s4	EStopScreen	openConnection,releaseStop
+s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,startFallbackRecording,toggleGripper,openSettings,stop
+s5a	RecordingScreen	openConnection,stopRecording,openSettings,stop,recordingAppeared,holdArmStart,holdArmEnd
+s6	SettingsScreen	back,settingsDone,replayTutorial,stop
+s7	ErrorsScreen	openConnection,reconnect,backToConnect,stop
