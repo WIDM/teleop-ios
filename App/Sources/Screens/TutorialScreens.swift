@@ -62,11 +62,6 @@ struct TutorialScreen: View {
                 .accessibilityIdentifier("tutorial.next")
             }
             .padding(.top, 8)
-            if step == 3 {
-                Button { model.send(.tutorialSkip) } label: { Text("common.skip") }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("tutorial.skip")
-            }
         }
         .padding(20)
         .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: 16))

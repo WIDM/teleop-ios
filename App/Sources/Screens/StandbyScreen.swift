@@ -108,6 +108,7 @@ struct StandbyScreen: View {
 }
 
 struct BaseHandle: View {
+    var accessibilityId = "standby.base"
     let onTap: () -> Void
 
     var body: some View {
@@ -124,7 +125,7 @@ struct BaseHandle: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("standby.base")
+        .accessibilityIdentifier(accessibilityId)
     }
 }
 

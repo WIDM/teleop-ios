@@ -57,6 +57,14 @@ private struct CloudCheckScaffold: View {
             Text("cloud.title")
                 .font(.system(size: 28, weight: .bold))
                 .padding(.top, 48)
+                // Demo only, not in Figma: P3 has no real trigger until the robot link exists.
+                .onLongPressGesture(minimumDuration: 1) { demoFailAction?() }
+                .accessibilityActions {
+                    if let demoFailAction {
+                        Button("demo.simulate_fail", action: demoFailAction)
+                    }
+                }
+                .accessibilityIdentifier("cloud.title")
             Text(subtitle)
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)
@@ -72,12 +80,6 @@ private struct CloudCheckScaffold: View {
                     .padding(.top, 16)
             }
             Spacer()
-            if let demoFailAction {
-                Button(action: demoFailAction) { Text("demo.simulate_fail") }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("cloud.simulate_fail")
-                    .padding(.bottom, 8)
-            }
             Button(action: primary) { Text(primaryKey) }
                 .buttonStyle(FilledButtonStyle())
                 .accessibilityIdentifier("cloud.primary")

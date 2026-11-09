@@ -10,7 +10,7 @@ p6	StandbyScreen	openConnection,openBase,openRecording,openSettings,stop,simulat
 p7	ConnectionDetailsScreen	simulateHighLatency,keyboardDone,stop
 t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
 t2	TutorialScreen	stop,tutorialSkip,tutorialNext2
-t3	TutorialScreen	stop,back,tutorialSkip,tutorialNext3
+t3	TutorialScreen	stop,back,tutorialNext3
 s1	ConnectScreen	openConnection,connect,disconnect,s1Back,stop
 s2	PermissionsScreen	openConnection,permissionsContinue,stop
 s3a	RecordingScreen	openConnection,stopRecording,openSettings,stop,recordingAppeared
@@ -18,6 +18,6 @@ s3b	RecordEndScreen	openConnection,discardRecording,saveRecording,stop
 s3m	BaseTeleopScreen	openConnection,openRecording,releaseBase,openSettings,stop
 s4	EStopScreen	openConnection,releaseStop
 s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,startFallbackRecording,toggleGripper,openSettings,stop
-s5a	RecordingScreen	openConnection,stopRecording,openSettings,stop,recordingAppeared,holdArmStart,holdArmEnd
+s5a	RecordingScreen	openConnection,stopRecording,toggleGripper,openSettings,stop,recordingAppeared,holdArmStart,holdArmEnd
 s6	SettingsScreen	back,settingsDone,replayTutorial,stop
 s7	ErrorsScreen	openConnection,reconnect,backToConnect,stop

@@ -70,6 +70,7 @@ struct TextActionStyle: ButtonStyle {
 /// Needs a 1 second press, with a bar that fills while held.
 struct HoldButton: View {
     let titleKey: LocalizedStringKey
+    var systemImage: String? = nil
     var fill: Color = TeleopColors.emergency
     var border: Color? = nil
     var borderWidth: CGFloat = 3
@@ -90,10 +91,13 @@ struct HoldButton: View {
                     .animation(pressing ? .linear(duration: 1) : .easeOut(duration: 0.15), value: pressing)
             }
             .clipShape(RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            Text(titleKey)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(foreground)
-                .frame(maxWidth: .infinity)
+            HStack(spacing: 6) {
+                if let systemImage { Image(systemName: systemImage) }
+                Text(titleKey).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(foreground)
+            .frame(maxWidth: .infinity)
         }
         .frame(height: height)
         .overlay(

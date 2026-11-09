@@ -236,7 +236,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens standby after connecting"
+            "value": "Returns to connection details after connecting"
           }
         }
       }
@@ -691,6 +691,26 @@
         }
       }
     },
+    "fallback.only_when_unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown only when volume keys are unavailable"
+          }
+        }
+      }
+    },
+    "fallback.stop_recording_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop recording is bottom-left, same spot as Record"
+          }
+        }
+      }
+    },
     "fallback.title": {
       "localizations": {
         "en": {
@@ -1006,7 +1026,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disconnected — arm stopped"
+            "value": "Disconnected"
           }
         }
       }
