@@ -204,8 +204,14 @@ struct AimOrOffset: View {
                 MiniMap(guidance: guidance)
                 if guidance.target == .done {
                     Text("guide.done").font(.system(size: 15, weight: .semibold))
+                } else if guidance.readyToGrasp {
+                    Text("guide.ready_to_grasp")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(TeleopColors.statusGreen)
+                        .accessibilityIdentifier("guide.ready_to_grasp")
                 } else {
-                    Text("guide.map_caption").font(.system(size: 11)).opacity(0.7)
+                    Text(guidance.target == .goal ? "guide.map_caption_carry" : "guide.map_caption")
+                        .font(.system(size: 11)).opacity(0.8)
                 }
                 if model.catchingUp {
                     Text("control.catching_up")
@@ -238,8 +244,9 @@ struct AimOrOffset: View {
     }
 }
 
-/// Top-down picture of the task: white ring for the gripper, red square for the cube, dashed green square for
-/// the goal. Up is the operator's forward. The bar on the right is height: the ring comes down to the red mark.
+/// Top-down picture of the task: a ring where the jaws pinch, a red square for the cube, a dashed green square
+/// for the goal. Up is the operator's forward. The bar on the right is height. Ring on the red square in both,
+/// and the ring turns green: close the jaws.
 struct MiniMap: View {
     let guidance: Guidance
     private let side: CGFloat = 168
@@ -264,9 +271,12 @@ struct MiniMap: View {
                     with: .color(TeleopColors.emergency)
                 )
                 // The ring is a little wider than the cube, like open jaws around it.
+                // The ring is where the jaws pinch. It is a little wider than the cube, like open jaws around it,
+                // and turns green when closing now would take hold.
+                let jaws: Color = guidance.readyToGrasp ? TeleopColors.statusGreen : .white
                 let ring = rect(layout.arm, MiniMapLayout.cubeSize * 1.9)
-                context.stroke(Path(ellipseIn: ring), with: .color(.white), lineWidth: 2.5)
-                context.fill(Path(ellipseIn: CGRect(x: ring.midX - 2, y: ring.midY - 2, width: 4, height: 4)), with: .color(.white))
+                context.stroke(Path(ellipseIn: ring), with: .color(jaws), lineWidth: guidance.readyToGrasp ? 4 : 2.5)
+                context.fill(Path(ellipseIn: CGRect(x: ring.midX - 2, y: ring.midY - 2, width: 4, height: 4)), with: .color(jaws))
             }
             .frame(width: side, height: side)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
@@ -282,7 +292,10 @@ struct MiniMap: View {
                 let cubeY = CGFloat(layout.barOffset(layout.cube.z, height: height))
                 context.fill(Path(CGRect(x: mid - 6, y: cubeY - 5, width: 12, height: 10)), with: .color(TeleopColors.emergency))
                 let armY = CGFloat(layout.barOffset(layout.arm.z, height: height))
-                context.stroke(Path(ellipseIn: CGRect(x: mid - 8, y: armY - 8, width: 16, height: 16)), with: .color(.white), lineWidth: 2.5)
+                context.stroke(
+                    Path(ellipseIn: CGRect(x: mid - 8, y: armY - 8, width: 16, height: 16)),
+                    with: .color(guidance.readyToGrasp ? TeleopColors.statusGreen : .white), lineWidth: 2.5
+                )
             }
             .frame(width: barWidth, height: side)
         }

@@ -6,6 +6,24 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.8.0 (2026-11-11)
+
+The map pointed at the wrong place. Now the ring is where the jaws close.
+
+- Two things were wrong in how the app read the server's state, and together they put the cube about 8 cm
+  from where the map drew it. The point the server reports for the arm is the gripper link origin, while the
+  jaws pinch 6.6 cm ahead of it and 8.65 cm below. And the arm is reported in the robot base frame while the
+  cube and goal are in the world frame, with the base 5 cm above the world origin.
+- `RobotProfile` carries those two facts per robot setup (tool offset, base position). The SO-101 simulator
+  profile was measured by grasping the cube in Isaac Sim; the robot's USD model predicts 5.8 cm and 8.9 cm.
+- From the start pose the cube is nearly under the jaws: 1.6 cm right, 0.7 cm back, 2.1 cm down. Earlier
+  versions sent the operator 6 cm forward, onto the cube.
+- The ring turns green and the caption says "On the cube. Hold vol− to grasp." when the pinch point is within
+  6 mm of the cube across the table and 8 mm in height.
+- Known limit: in this simulator a grasp at the start wrist angle is fragile. Of about fifteen scripted
+  attempts around the measured pose one lifted the cube; the others pushed it or squeezed it out. The app has
+  no wrist control yet (the server's `wrist` control mode), which is the likely way to a square grasp.
+
 ## 0.7.0 (2026-11-10)
 
 A picture instead of numbers.

@@ -1238,13 +1238,45 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Seen from above. Up is forward. Bar: height."
+            "value": "Ring = where the jaws close. Move it onto the red square, here and on the bar."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "從上往下看。上方是你的前方。右邊直條是高度。"
+            "value": "白圈是夾爪夾的位置。把它移到紅色方塊上，左圖和右邊直條都要對到。"
+          }
+        }
+      }
+    },
+    "guide.map_caption_carry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holding the cube. Move it into the green square."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已夾住方塊。把它移進綠色框。"
+          }
+        }
+      }
+    },
+    "guide.ready_to_grasp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the cube. Hold vol− to grasp."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "對準了。按住音量－夾住。"
           }
         }
       }

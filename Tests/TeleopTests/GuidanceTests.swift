@@ -13,13 +13,6 @@ final class GuidanceTests: XCTestCase {
         XCTAssertLessThan(simd_distance(a, b), 0.0006, "\(a) vs \(b)", file: file, line: line)
     }
 
-    func testFromTheStartTheCubeIsRightForwardAndDown() {
-        let guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: .open)
-        XCTAssertEqual(guidance.target, .cube)
-        // 1.6 cm right (−X), 5.9 cm forward (−Y), 5.75 cm down.
-        assertClose(guidance.offset, SIMD3(0.016, 0.059, -0.0575))
-    }
-
     /// Measured in Isaac Sim on 2026-11-11: with the reported gripper point here, closing the jaws picked the
     /// cube up. The guidance must say the gripper is ON the cube at this pose, in all three directions.
     func testAtTheMeasuredGraspPoseTheGripperIsOnTheCube() {
@@ -40,21 +33,40 @@ final class GuidanceTests: XCTestCase {
         XCTAssertEqual(guidance.offset.z, -0.021, accuracy: 0.003)
     }
 
-    func testClosedGripperFarFromTheCubeStillPointsAtTheCube() {
-        XCTAssertEqual(Guidance.make(arm: arm, cube: cube, goal: goal, gripper: .closed).target, .cube)
+    /// The reported point that puts the jaws on the cube.
+    private let graspPose = SIMD3<Float>(0.005, -0.134, 0.139)
+
+    func testClosedGripperAwayFromTheCubeStillPointsAtTheCube() {
+        let away = graspPose + SIMD3(0.05, 0, 0.02)
+        XCTAssertEqual(Guidance.make(arm: away, cube: cube, goal: goal, gripper: .closed).target, .cube)
     }
 
     func testHoldingTheCubePointsAtTheGoalFromTheCube() {
-        let above = SIMD3<Float>(cube.x + 0.01, cube.y, 0.15)
-        let guidance = Guidance.make(arm: above, cube: cube, goal: goal, gripper: .closed)
+        let guidance = Guidance.make(arm: graspPose + SIMD3(0, 0, 0.03), cube: cube, goal: goal, gripper: .closed)
         XCTAssertEqual(guidance.target, .goal)
         // The goal is 7 cm toward +X, which is to the operator's left.
         assertClose(guidance.offset, SIMD3(-0.07, 0, 0.001))
     }
 
-    func testOpenGripperOverTheCubeIsNotHoldingIt() {
-        let above = SIMD3<Float>(cube.x, cube.y, 0.15)
-        XCTAssertEqual(Guidance.make(arm: above, cube: cube, goal: goal, gripper: .open).target, .cube)
+    func testOpenGripperOnTheCubeIsNotHoldingIt() {
+        XCTAssertEqual(Guidance.make(arm: graspPose, cube: cube, goal: goal, gripper: .open).target, .cube)
+    }
+
+    func testReadyToGraspOnlyWhenTheJawsAreAroundTheCubeAndOpen() {
+        XCTAssertTrue(Guidance.make(arm: graspPose, cube: cube, goal: goal, gripper: .open).readyToGrasp)
+        XCTAssertTrue(Guidance.make(arm: graspPose + SIMD3(0.004, 0, 0.005), cube: cube, goal: goal, gripper: .open).readyToGrasp)
+        XCTAssertFalse(Guidance.make(arm: graspPose + SIMD3(0.012, 0, 0), cube: cube, goal: goal, gripper: .open).readyToGrasp, "1.2 cm to the side")
+        XCTAssertFalse(Guidance.make(arm: graspPose + SIMD3(0, 0, 0.02), cube: cube, goal: goal, gripper: .open).readyToGrasp, "2 cm too high")
+        XCTAssertFalse(Guidance.make(arm: graspPose, cube: cube, goal: goal, gripper: .closed).readyToGrasp, "already closed")
+        XCTAssertFalse(Guidance.make(arm: arm, cube: cube, goal: goal, gripper: .open).readyToGrasp, "the start pose")
+    }
+
+    func testAnotherRobotProfileMovesTheToolPoint() {
+        // A gripper that pinches straight below the reported point, on a robot sitting on the world origin.
+        let straightDown = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: .zero)
+        let above = SIMD3<Float>(cube.x, cube.y, cube.z + 0.10)
+        let guidance = Guidance.make(arm: above, cube: cube, goal: goal, gripper: .open, profile: straightDown)
+        XCTAssertLessThan(simd_length(guidance.offset), 0.001)
     }
 
     func testCubeInsideTheGoalAreaIsDone() {
@@ -120,12 +132,13 @@ final class MiniMapLayoutTests: XCTestCase {
         MiniMapLayout(Guidance.make(arm: arm ?? self.arm, cube: cube, goal: goal, gripper: gripper))
     }
 
-    func testCubeIsDrawnAheadAndToTheRightOfTheGripper() {
+    func testFromTheStartTheCubeIsDrawnJustRightOfAndBehindTheJaws() {
         let map = layout()
-        let gripper = map.point(map.arm, side: side), red = map.point(map.cube, side: side)
-        // The cube is 1.6 cm to the operator's right and 5.9 cm forward: right of and above the ring.
-        XCTAssertGreaterThan(red.x, gripper.x)
-        XCTAssertLessThan(red.y, gripper.y)
+        let jaws = map.point(map.arm, side: side), red = map.point(map.cube, side: side)
+        // The cube is 1.6 cm to the operator's right and 0.7 cm back: right of and a little below the ring.
+        XCTAssertGreaterThan(red.x, jaws.x)
+        XCTAssertGreaterThan(red.y, jaws.y)
+        XCTAssertLessThan(simd_distance(red, jaws), 30, "they are close together from the start")
     }
 
     func testGoalIsDrawnToTheLeftOfTheCube() {
@@ -156,8 +169,8 @@ final class MiniMapLayoutTests: XCTestCase {
     }
 
     func testHeldCubeTravelsWithTheGripper() {
-        // Closed, and within the holding radius of where the server last saw the cube.
-        let map = layout(arm: SIMD3(cube.x + 0.02, cube.y, 0.15), gripper: .closed)
+        // Closed, with the jaws within the holding radius of where the server last saw the cube.
+        let map = layout(arm: SIMD3(cube.x + 0.02, -0.134, 0.17), gripper: .closed)
         XCTAssertEqual(map.cube.x, map.arm.x)
         XCTAssertEqual(map.cube.y, map.arm.y)
     }

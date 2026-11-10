@@ -1,28 +1,65 @@
 import simd
 import TeleopCore
 
+/// What the app has to know about one robot setup to put the arm and the things around it in one picture.
+/// The server's state does not carry these, so each setup the app drives needs a profile.
+struct RobotProfile: Equatable {
+    var name: String
+    /// From the point the server reports for the arm (the gripper link origin) to where the jaws pinch,
+    /// in the robot base frame, metres. Holds while the wrist joints stay put, as in translation mode.
+    var toolOffset: SIMD3<Float>
+    /// Where the robot base sits in the world frame, metres. The server reports the arm in the base frame
+    /// and objects in the world frame; this brings objects into the base frame.
+    var baseInWorld: SIMD3<Float>
+
+    /// The SO-101 in the S4 pick-and-place simulator. The tool offset was measured there on 2026-11-11 by
+    /// grasping the cube: 6.6 cm ahead of the reported point (−Y) and 8.65 cm below it. The robot's USD model
+    /// predicts 5.8 cm and 8.9 cm. The base height is ROBOT_BASE_POS_W in the simulator's source.
+    static let so101Simulator = RobotProfile(
+        name: "SO-101 (S4 simulator)",
+        toolOffset: SIMD3(0, -0.066, -0.0865),
+        baseInWorld: SIMD3(0, 0, 0.05)
+    )
+
+    /// How close the pinch point must be to an object's centre, across the table and in height, for closing
+    /// the jaws to take hold of it. In the simulator the window is a few millimetres either way.
+    var graspTolerance = SIMD2<Float>(0.006, 0.008)
+
+    /// Where the jaws pinch, robot base frame.
+    func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }
+    /// A world-frame position in the robot base frame.
+    func inBase(world: SIMD3<Float>) -> SIMD3<Float> { world - baseInWorld }
+}
+
 /// Where the thing to reach is, as the operator sees it, so the task does not have to be done by eye alone.
 struct Guidance: Equatable {
     enum Target: Equatable { case cube, goal, done }
 
     var target: Target
-    /// Metres right, forward and up from the gripper to the target. The server reports the gripper link's
-    /// origin, not the fingertips, so "up" is to the cube's centre from a point above the jaws.
+    /// Metres right, forward and up from where the jaws pinch to the target. Zero means: close the gripper.
     var offset: SIMD3<Float>
     /// Where things are, in metres as the operator sees them: x right, y forward, z up. For the map.
+    /// `arm` is where the jaws pinch, not the point the server reports.
     var arm = SIMD3<Float>.zero
     var cube = SIMD3<Float>.zero
     var goal = SIMD3<Float>.zero
     /// The arm stopped following in the direction it is being asked to go: it is at the edge of its range.
     var atEdge = false
+    /// The jaws are around the cube: closing them now takes hold of it.
+    var readyToGrasp = false
 
     /// How close, flat on the table, the gripper must be to the cube to count as holding it once closed.
     static let holdingRadius: Float = 0.03
     /// Half-size of the goal area on the table, as the server judges success.
     static let goalHalfExtent: Float = 0.025
 
-    /// All positions in the robot base frame, metres.
-    static func make(arm: SIMD3<Float>, cube: SIMD3<Float>, goal: SIMD3<Float>, gripper: GripperState?) -> Guidance {
+    /// Positions as the server reports them, metres: the arm in the robot base frame, cube and goal in the world.
+    static func make(
+        arm reported: SIMD3<Float>, cube worldCube: SIMD3<Float>, goal worldGoal: SIMD3<Float>,
+        gripper: GripperState?, profile: RobotProfile = .so101Simulator
+    ) -> Guidance {
+        let arm = profile.toolPoint(reported: reported)
+        let cube = profile.inBase(world: worldCube), goal = profile.inBase(world: worldGoal)
         let cubeToGoal = goal - cube
         let places = (operatorOffset(arm), operatorOffset(cube), operatorOffset(goal))
         if abs(cubeToGoal.x) <= goalHalfExtent, abs(cubeToGoal.y) <= goalHalfExtent {
@@ -32,9 +69,11 @@ struct Guidance: Equatable {
         let holding = gripper == .closed && simd_length(flat) <= holdingRadius
         // Carrying: steer the cube, which moves with the gripper, to the goal. Otherwise steer the gripper to the cube.
         let base = holding ? cubeToGoal : cube - arm
+        let ready = !holding && gripper != .closed
+            && simd_length(flat) <= profile.graspTolerance.x && abs(cube.z - arm.z) <= profile.graspTolerance.y
         return Guidance(
             target: holding ? .goal : .cube, offset: operatorOffset(base),
-            arm: places.0, cube: places.1, goal: places.2
+            arm: places.0, cube: places.1, goal: places.2, readyToGrasp: ready
         )
     }
 

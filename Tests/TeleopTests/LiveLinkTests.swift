@@ -457,20 +457,21 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertNil(model.guidance, "the first state had no positions")
         transport.server("state", sceneState)
         XCTAssertEqual(model.guidance?.target, .cube)
-        XCTAssertEqual(model.guidance!.offset.y, 0.059, accuracy: 0.001)
+        // From the start the cube is 0.7 cm behind where the jaws pinch.
+        XCTAssertEqual(model.guidance!.offset.y, -0.007, accuracy: 0.001)
     }
 
     func testGuidanceFollowsTheCommandDuringAHold() {
         bringUp()
         transport.server("state", sceneState)
         model.send(.holdArmStart)
-        // 3 cm forward: 5.9 cm to the cube becomes 2.9 cm.
+        // 3 cm forward: the cube goes from 0.7 cm behind the jaws to 3.7 cm behind.
         for step in 1...3 {
             position = SIMD3(0, 0, -0.01 * Float(step))
             tick()
         }
         XCTAssertTrue(model.session.state.armMoving)
-        XCTAssertEqual(model.guidance!.offset.y, 0.029, accuracy: 0.001)
+        XCTAssertEqual(model.guidance!.offset.y, -0.037, accuracy: 0.001)
         XCTAssertEqual(model.guidance!.offset.x, 0.016, accuracy: 0.001)
     }
 
