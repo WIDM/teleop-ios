@@ -27,6 +27,10 @@ Not checked yet: the phone itself driving Isaac Sim, and whether ARKit axes matc
 
 Checked by script against Isaac Sim (thomas-s4, 2026-11-10): connect, a 3 s hold, E-stop and release, scene reset, gripper jog open and close.
 
+## Tools
+
+- `scripts/analyze_holds.py --host user@host` reads the server's run log and network log and prints one row per hold (asked, arm moved, share reached, arm speed, edge hits, what ended it), then rule-of-thumb suggestions for sensitivity and smoothing. `--since HH:MM` limits it to later holds. Tests: `python3 -m unittest scripts/test_analyze_holds.py`.
+
 ## Not done
 
 - Icons are SF Symbols, not Material Symbols Rounded.
