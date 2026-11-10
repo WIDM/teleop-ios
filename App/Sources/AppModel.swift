@@ -31,6 +31,8 @@ final class AppModel {
             language.save()
         }
     }
+    /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
+    private(set) var holdOffset: SIMD3<Float>?
     /// Developer mode log: actions and haptics with times, newest last.
     private(set) var debugLog: [String] = []
 
@@ -52,6 +54,7 @@ final class AppModel {
         }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
+        link.onOffset = { [weak self] in self?.holdOffset = $0 }
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
@@ -89,6 +92,7 @@ final class AppModel {
         let wasMoving = before.armMoving
         session.perform(action)
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
+        if !session.state.armMoving { holdOffset = nil }
         // The recording clock and the latency probe tick every second; logging them would bury everything else.
         if action != .recordingTick, !Self.isLatency(action) { log("→ \(action)") }
         logPose(wasMoving: wasMoving)
@@ -116,9 +120,10 @@ final class AppModel {
                 session.pendingCue(.commandBlocked)
             }
         }
+        if before.gripperMoving != after.gripperMoving {
+            if let target = after.gripperMoving { link.startGripper(target) } else { link.stopGripper() }
+        }
         switch action {
-        case .toggleGripper where before.gripper != after.gripper:
-            link.gripper(after.gripper)
         case .resetScene where before.connected && !before.emergencyStop:
             link.resetScene()
         case .disconnect:

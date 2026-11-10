@@ -34,11 +34,7 @@ struct RecordingScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("recording.stop")
-                if fallback {
-                    Button { model.send(.toggleGripper) } label: { compactLabel("control.gripper", systemImage: "arrow.left.arrow.right") }
-                        .buttonStyle(OutlineButtonStyle())
-                        .accessibilityIdentifier("fallback.toggle")
-                } else {
+                if !fallback {
                     Button { model.send(.resetScene) } label: { compactLabel("control.reset", systemImage: "arrow.counterclockwise") }
                         .buttonStyle(OutlineButtonStyle())
                         .accessibilityIdentifier("recording.reset")
@@ -46,6 +42,7 @@ struct RecordingScreen: View {
                 Button { model.send(.openSettings) } label: { compactLabel("control.settings", systemImage: "gearshape") }
                     .buttonStyle(OutlineButtonStyle())
             }
+            if fallback { GripperHoldRow(model: model) }
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
@@ -91,6 +88,23 @@ struct RecordingScreen: View {
                     .foregroundStyle(Color.white)
                 }
                 .overlay(alignment: .bottom) { VolumeHintBox(textKey: "recording.volume_hint").padding(12) }
+                .overlay(alignment: .leading) {
+                    GripperOpenHandle(model: model)
+                        .frame(width: 72)
+                        .padding(.vertical, 150)
+                }
+        }
+    }
+}
+
+/// On-screen gripper controls for the fallback screens, where there are no volume keys.
+private struct GripperHoldRow: View {
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            GripperHoldButton(model: model, target: .closed)
+            GripperHoldButton(model: model, target: .open)
         }
     }
 }
@@ -192,18 +206,17 @@ struct BaseTeleopScreen: View {
             ) { model.send(.openConnection) }
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                 .fill(TeleopColors.camera)
-                .overlay {
-                    // Same crosshair and label as standby, so entering base mode does not look like a toggle.
-                    VStack(spacing: 4) {
-                        Image(systemName: "plus").font(.system(size: 40, weight: .light))
-                        Text("control.gripper_aim").font(.system(size: 14))
-                    }
-                    .foregroundStyle(.white)
-                }
+                // Same centre as standby, so entering base mode does not look like a toggle.
+                .overlay { AimOrOffset(model: model) }
                 .overlay(alignment: .trailing) {
                     BaseHandle(accessibilityId: "base.release") { model.send(.releaseBase) }
                         .frame(width: 72)
                         .padding(.vertical, 56)
+                }
+                .overlay(alignment: .leading) {
+                    GripperOpenHandle(model: model)
+                        .frame(width: 72)
+                        .padding(.vertical, 150)
                 }
                 .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
                 .overlay(alignment: .bottom) { VolumeHintBox(textKey: "base.volume_hint").padding(.bottom, 16) }
@@ -246,13 +259,12 @@ struct FallbackControlScreen: View {
                 Button { model.send(.startFallbackRecording) } label: { Text("control.record") }
                     .buttonStyle(FilledButtonStyle())
                     .accessibilityIdentifier("fallback.record")
-                Button { model.send(.toggleGripper) } label: { Text("control.gripper") }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("fallback.toggle")
                 Button { model.send(.openSettings) } label: { Text("control.settings") }
                     .buttonStyle(OutlineButtonStyle())
             }
-            .padding(.vertical, 16)
+            .padding(.top, 16)
+            GripperHoldRow(model: model)
+                .padding(.vertical, 8)
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)

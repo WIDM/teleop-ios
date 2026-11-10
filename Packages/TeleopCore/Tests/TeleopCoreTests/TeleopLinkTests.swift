@@ -44,6 +44,14 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(server("state", ["estop": true, "gripper": "open"]), .state(estop: true, gripper: .open))
     }
 
+    func testBothServerSpellingsOfAClosedGripperAreRead() {
+        link.hello()
+        _ = server("welcome")
+        XCTAssertEqual(server("state", ["estop": false, "gripper": "close"]), .up(estop: false, gripper: .closed))
+        XCTAssertEqual(server("state", ["estop": false, "gripper": "closed"]), .state(estop: false, gripper: .closed))
+        XCTAssertEqual(server("state", ["estop": false, "gripper": "moving"]), .state(estop: false, gripper: nil))
+    }
+
     func testStateBeforeWelcomeDoesNotMakeTheLinkReady() {
         XCTAssertNil(server("state", ["estop": false]))
         XCTAssertFalse(link.ready)
@@ -167,11 +175,58 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertNil(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "estop_reset"]))
     }
 
-    func testGripperUsesTheServerActionNames() {
+    func testGripperJogUsesTheServerActionNamesAndReplacesARunningJog() {
         bringUp()
-        link.gripper(.closed)
-        link.gripper(.open)
-        XCTAssertEqual(sent.suffix(2).map { ($0["payload"] as! [String: String])["action"] }, ["close", "open"])
+        link.gripperJogStart(.closed)
+        link.gripperJogStart(.open)
+        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
+        let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map { $0["payload"] as! [String: String] }
+        XCTAssertEqual(starts.map { $0["action"] }, ["close", "open"])
+        XCTAssertEqual(Set(starts[0].keys), ["action", "step"])
+    }
+
+    func testKeepaliveOnlyWhileTheGripperJogs() {
+        bringUp()
+        link.keepalive()
+        XCTAssertEqual(types, ["hello"])
+        link.gripperJogStart(.closed)
+        link.keepalive()
+        link.gripperJogStop()
+        link.keepalive()
+        link.gripperJogStop()
+        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "jog_keepalive", "gripper_jog_stop"])
+    }
+
+    func testArmHoldStopsTheGripperJogFirst() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        XCTAssertTrue(link.poseStart(params))
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_stop", "pose_start"])
+        XCTAssertFalse(link.gripperJogActive)
+    }
+
+    func testGripperJogIsRefusedDuringAnArmHold() {
+        bringUp()
+        link.poseStart(params)
+        link.gripperJogStart(.closed)
+        XCTAssertEqual(types.last, "pose_start")
+    }
+
+    func testRefusedGripperJogStopsKeepalives() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        let seq = sent.last!["seq"] as! Int
+        _ = server("ack", seq: seq, ["seq": seq, "status": "rejected", "reason": "busy"])
+        link.keepalive()
+        XCTAssertEqual(types.last, "gripper_jog_start")
+    }
+
+    func testEstopEndsTheGripperJog() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        link.estop()
+        link.keepalive()
+        XCTAssertEqual(types.last, "estop")
     }
 
     func testProbeMeasuresTheRoundTrip() {

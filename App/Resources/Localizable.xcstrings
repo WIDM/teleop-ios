@@ -22,13 +22,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move the arm\nPress vol−: toggle gripper\nHold right edge: move the base"
+            "value": "Hold vol+: move the arm\nHold vol−: close gripper. Hold left edge: open\nHold right edge: move the base"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：移動手臂\n按音量－：切換夾爪\n按住右側邊緣：移動底座"
+            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。按住左側邊緣：夾爪開\n按住右側邊緣：移動底座"
           }
         }
       }
@@ -641,18 +641,98 @@
         }
       }
     },
-    "control.gripper": {
+    "control.dir_back": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gripper"
+            "value": "Back"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "夾爪"
+            "value": "後"
+          }
+        }
+      }
+    },
+    "control.dir_down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Down"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下"
+          }
+        }
+      }
+    },
+    "control.dir_forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fwd"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前"
+          }
+        }
+      }
+    },
+    "control.dir_left": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左"
+          }
+        }
+      }
+    },
+    "control.dir_right": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右"
+          }
+        }
+      }
+    },
+    "control.dir_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
           }
         }
       }
@@ -689,6 +769,38 @@
         }
       }
     },
+    "control.gripper_hold_close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold: close"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住：關閉"
+          }
+        }
+      }
+    },
+    "control.gripper_hold_open": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold: open"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住：打開"
+          }
+        }
+      }
+    },
     "control.gripper_open": {
       "localizations": {
         "en": {
@@ -705,18 +817,34 @@
         }
       }
     },
-    "control.gripper_pulse_hint": {
+    "control.gripper_open_handle": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Close: 1 pulse. Open: 2 pulses."
+            "value": "Open"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關閉：震 1 下。打開：震 2 下。"
+            "value": "打開"
+          }
+        }
+      }
+    },
+    "control.gripper_pulse_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closing: 1 pulse. Opening: 2 pulses."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關：震 1 下。開：震 2 下。"
           }
         }
       }
@@ -838,13 +966,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move arm\nPress vol−: gripper\nHold right edge: move base"
+            "value": "Hold vol+: move arm\nHold vol−: close gripper. Hold left edge: open\nHold right edge: move base"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：移動手臂\n按音量－：夾爪\n按住右側邊緣：移動底座"
+            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。按住左側邊緣：夾爪開\n按住右側邊緣：移動底座"
           }
         }
       }
@@ -1398,13 +1526,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move arm with the phone, release to stop\nPress vol−: toggle gripper (after releasing vol+)"
+            "value": "Hold vol+: move arm with the phone, release to stop\nHold vol−: close gripper. Hold left edge: open (after releasing vol+)"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：手機帶動手臂，放開就停止\n按音量－：切換夾爪（先放開音量＋）"
+            "value": "按住音量＋：手機帶動手臂，放開就停止\n按住音量－：夾爪關。按住左側邊緣：夾爪開（先放開音量＋）"
           }
         }
       }
@@ -1729,6 +1857,22 @@
         }
       }
     },
+    "settings.version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %1$@ (build %2$@)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %1$@（build %2$@）"
+          }
+        }
+      }
+    },
     "status.connected": {
       "localizations": {
         "en": {
@@ -1926,13 +2070,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "One short pulse means closed. Two short pulses mean opened."
+            "value": "It moves only while held. Hold the left edge of the screen to open. One short pulse means closing, two mean opening."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "短震 1 下代表關閉，短震 2 下代表打開。"
+            "value": "按住才會動，放開就停。按住畫面左側邊緣是打開。短震 1 下代表正在關，短震 2 下代表正在開。"
           }
         }
       }
@@ -1942,13 +2086,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Press volume down for the gripper"
+            "value": "Hold volume down to close the gripper"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按音量－控制夾爪"
+            "value": "按住音量－關閉夾爪"
           }
         }
       }

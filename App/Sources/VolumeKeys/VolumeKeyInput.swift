@@ -62,6 +62,7 @@ private struct VolumeKeyModifier: ViewModifier {
                 // Same rule as the hold area: leaving the screen ends the hold, a new press is needed.
                 mapper = VolumeKeyMapper()
                 if model.session.state.armMoving { model.send(.holdArmEnd) }
+                if model.session.state.gripperMoving != nil { model.send(.gripperEnd) }
             }
     }
 }

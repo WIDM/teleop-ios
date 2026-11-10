@@ -54,9 +54,11 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S1 | E-stop stays latched until `releaseStop`. | Commands accepted after STOP with no deliberate release. |
 | S2 | The arm starts only on `holdArmStart` while connected, not E-stopped, not latency-blocked. | Motion when the operator was told it cannot move. |
 | S3 | The arm is never moving while E-stopped. | STOP does not stop the arm. |
-| S4 | The gripper changes only on `toggleGripper` while connected, not E-stopped, not blocked, not moving; or opens on `resetScene` while connected and not E-stopped (the scene reset puts objects back too); or takes the server's value when a live link comes up. | The gripper drops or grabs unexpectedly. |
+| S4 | The gripper changes only on `gripperStart` while connected, not E-stopped, not blocked, arm not moving; or opens on `resetScene` while connected and not E-stopped (the scene reset puts objects back too); or takes the server's value when a live link comes up. | The gripper drops or grabs unexpectedly. |
 | S5 | `holdArmEnd` always leaves the arm stopped. | Releasing the control does not stop the arm. |
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
+| S10, U7 | The gripper starts moving only on `gripperStart`, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving. | The gripper squeezes or drops something when the operator was told it cannot move. |
+| S11 | `gripperEnd` always leaves the gripper still. | Releasing the control does not stop the gripper. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
 | S8, U6 | The E-stop long buzz never starts while already playing. | `HapticsController.play` overwrites `loopPlayer` without stopping it, so an older buzz may survive release. |
 | S9 | The long buzz plays exactly while E-stop is latched. | The haptic signal disagrees with the safety state. |
@@ -115,8 +117,8 @@ Sync commit: `0a77752`
 - `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop, gripper and recording state.
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
-- `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`.
-- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− on P4, P6, S3a, S3m, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `GripperHoldModifier` and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`).
+- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− hold on P4, P6, S3a, S3m, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.

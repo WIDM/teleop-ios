@@ -177,6 +177,40 @@ extension View {
     }
 }
 
+/// Centre of the camera view. Idle: the crosshair and its label. During a live arm hold: how far the arm
+/// is being asked to move, so the operator can see which way the phone is taking it.
+struct AimOrOffset: View {
+    let model: AppModel
+
+    var body: some View {
+        if let offset = model.holdOffset {
+            VStack(alignment: .leading, spacing: 6) {
+                row(offset.x, positive: "control.dir_right", negative: "control.dir_left")
+                row(offset.y, positive: "control.dir_forward", negative: "control.dir_back")
+                row(offset.z, positive: "control.dir_up", negative: "control.dir_down")
+            }
+            .foregroundStyle(.white)
+            .accessibilityIdentifier("control.offset")
+        } else {
+            VStack(spacing: 4) {
+                Image(systemName: "plus").font(.system(size: 40, weight: .light))
+                Text("control.gripper_aim").font(.system(size: 14))
+            }
+            .foregroundStyle(.white)
+        }
+    }
+
+    private func row(_ meters: Float, positive: LocalizedStringKey, negative: LocalizedStringKey) -> some View {
+        HStack(spacing: 8) {
+            Text(meters >= 0 ? positive : negative)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, alignment: .leading)
+            Text(String(format: "%.1f cm", abs(meters) * 100))
+                .font(.system(size: 22, weight: .semibold, design: .monospaced))
+        }
+    }
+}
+
 struct ServerAddressField: View {
     let address: String
     let error: Bool

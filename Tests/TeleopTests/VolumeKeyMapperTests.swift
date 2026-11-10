@@ -19,11 +19,14 @@ final class VolumeKeyMapperTests: XCTestCase {
         XCTAssertFalse(mapper.upHeld)
     }
 
-    func testDownTogglesOnPressOnly() {
+    func testDownClosesWhileHeldAndStopsOnRelease() {
         var mapper = VolumeKeyMapper()
-        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [.toggleGripper])
-        XCTAssertEqual(mapper.actions(for: .down, phase: .ended), [])
-        XCTAssertEqual(mapper.actions(for: .down, phase: .cancelled), [])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [.gripperStart(.closed)])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [], "key repeat must not start again")
+        XCTAssertEqual(mapper.actions(for: .down, phase: .ended), [.gripperEnd])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [.gripperStart(.closed)])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .cancelled), [.gripperEnd])
+        XCTAssertFalse(mapper.downHeld)
     }
 
     /// Through the real session: vol+ moves the arm, vol− while held is refused with three short pulses.
@@ -38,9 +41,14 @@ final class VolumeKeyMapperTests: XCTestCase {
         XCTAssertTrue(model.session.state.armMoving)
         press(.down, .began)
         XCTAssertEqual(model.session.state.gripper, .open)
+        XCTAssertNil(model.session.state.gripperMoving)
+        press(.down, .ended)
         press(.up, .ended)
         XCTAssertFalse(model.session.state.armMoving)
         press(.down, .began)
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        press(.down, .ended)
+        XCTAssertNil(model.session.state.gripperMoving)
         XCTAssertEqual(model.session.state.gripper, .closed)
     }
 }

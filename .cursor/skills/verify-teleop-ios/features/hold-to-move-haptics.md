@@ -1,11 +1,11 @@
 # F4 Hold-to-move and haptic patterns
 
-Holding vol+ moves the arm and releasing stops it; vol- toggles the gripper; haptics confirm state without looking.
+Holding vol+ moves the arm and releasing stops it; holding vol- closes the gripper and holding the left edge opens it, both only while held; haptics confirm state without looking.
 
 ## Sub-features
 
 - F4.a vol+ down -> moving; vol+ up -> stop immediately.
-- F4.b vol- toggles gripper: close = 1 short pulse, open = 2 short pulses.
+- F4.b Gripper moves only while held: vol- (or the on-screen Close button on S5/S5a) closes, the left-edge Open handle (or the Open button on S5/S5a) opens. Start of closing = 1 short pulse, start of opening = 2 short pulses. Release stops it where it is.
 - F4.c Blocked command = 3 short pulses.
 - F4.d Short pulse 60 ms on / 120 ms gap; long buzz 400/200 repeating only for E-stop, disconnect, 750 ms watchdog.
 - F4.e S5 screen fallback: on-screen hold area behaves like vol+.
@@ -18,8 +18,8 @@ Holding vol+ moves the arm and releasing stops it; vol- toggles the gripper; hap
 
 Preconditions: baseline, connected, not E-stopped.
 
-- Logic: `swift test --filter HapticPatternTests` (timings) and `TeleopSessionTests` (`.toggleGripper` drains `.play(.gripperClosed)` then `.play(.gripperOpened)`).
-- UI: volume keys cannot be pressed by XCUITest; on CI only S5 fallback (`fallback.toggle`) is drivable. Real vol+/vol- needs a physical iPhone.
+- Logic: `swift test --filter HapticPatternTests` (timings) and `TeleopSessionTests` (`.gripperStart(.closed)` drains `.play(.gripperClosed)`, `.gripperStart(.open)` drains `.play(.gripperOpened)`, `.gripperEnd` stops).
+- UI: volume keys cannot be pressed by XCUITest; on CI the on-screen holds are drivable: `gripper.close` and `gripper.open` on S5/S5a, `gripper.open` on P4 (`StopFlowTests`). Real vol+/vol- needs a physical iPhone.
 
 ## Gotchas
 

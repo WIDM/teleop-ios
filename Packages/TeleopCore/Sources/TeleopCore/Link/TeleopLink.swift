@@ -9,6 +9,8 @@ public enum LinkEvent: Equatable, Sendable {
     case rejected(type: String, reason: String)
     /// The server refused or ended the hold that is active now.
     case holdRefused(reason: String)
+    /// The server refused or ended the gripper jog that is running now.
+    case gripperRefused(reason: String)
     case latency(ms: Int)
 }
 
@@ -48,6 +50,9 @@ public final class TeleopLink {
     public private(set) var ready = false
     /// True between an accepted `poseStart` and the stop that ends it.
     public private(set) var holdActive = false
+    /// True while a gripper jog is running. The server stops it 750 ms after the last `keepalive`.
+    public private(set) var gripperJogActive = false
+    private var gripperJogSeq: Int?
 
     /// - Parameters:
     ///   - send: writes one text frame.
@@ -65,6 +70,8 @@ public final class TeleopLink {
     @discardableResult
     public func poseStart(_ params: PoseParams) -> Bool {
         guard ready, !holdActive else { return false }
+        // The server runs one held control at a time.
+        gripperJogStop()
         holdActive = true
         holdSeq = emit("pose_start", [
             "frame": "webxr_local",
@@ -99,6 +106,8 @@ public final class TeleopLink {
     public func estop() {
         holdActive = false
         holdSeq = nil
+        gripperJogActive = false
+        gripperJogSeq = nil
         emit("estop", [:])
     }
 
@@ -106,11 +115,32 @@ public final class TeleopLink {
 
     public func resetScene() {
         poseStop()
+        gripperJogStop()
         emit("reset_scene", [:])
     }
 
-    public func gripper(_ target: GripperState) {
-        emit("gripper", ["action": target == .open ? "open" : "close"])
+    /// Starts moving the gripper toward `target`, replacing any jog already running.
+    /// The server's one-shot `gripper` message blocks every other command for tens of seconds in simulation,
+    /// so the jog messages are used instead. The jog never ends by itself: on contact the server only stops
+    /// squeezing harder. The owner sends `keepalive` and decides when to call `gripperJogStop`.
+    public func gripperJogStart(_ target: GripperState) {
+        guard ready, !holdActive else { return }
+        gripperJogStop()
+        gripperJogActive = true
+        gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
+    }
+
+    /// Must go out at least every 750 ms while a gripper jog runs; the server expects every 150 ms.
+    public func keepalive() {
+        guard gripperJogActive else { return }
+        emit("jog_keepalive", [:])
+    }
+
+    public func gripperJogStop() {
+        guard gripperJogActive else { return }
+        gripperJogActive = false
+        gripperJogSeq = nil
+        emit("gripper_jog_stop", [:])
     }
 
     /// Asks the server to echo one message, to time the round trip.
@@ -139,6 +169,8 @@ public final class TeleopLink {
         welcomed = false
         holdActive = false
         holdSeq = nil
+        gripperJogActive = false
+        gripperJogSeq = nil
         probes = [:]
         sentTypes = [:]
         lastHeardAt = nil
@@ -177,6 +209,12 @@ public final class TeleopLink {
                 holdSeq = nil
                 return .holdRefused(reason: reason)
             }
+            // Same rule for the gripper: only the running jog's refusal (busy, watchdog) ends it.
+            if sentType == "gripper_jog_start", seq == gripperJogSeq {
+                gripperJogActive = false
+                gripperJogSeq = nil
+                return .gripperRefused(reason: reason)
+            }
             return .rejected(type: sentType, reason: reason)
         default:
             return nil
@@ -186,7 +224,8 @@ public final class TeleopLink {
     private static func gripperState(_ text: String) -> GripperState? {
         switch text {
         case "open": return .open
-        case "closed": return .closed
+        // The server starts with "closed" and says "close" after a closing command.
+        case "closed", "close": return .closed
         default: return nil
         }
     }
@@ -198,7 +237,7 @@ public final class TeleopLink {
             "v": Self.protocolVersion, "type": type, "ts": now(), "seq": seq, "payload": payload,
         ]
         // pose_update and test get no ack; remembering them would only grow the table.
-        if type != "pose_update", type != "test" { sentTypes[seq] = type }
+        if type != "pose_update", type != "test", type != "jog_keepalive" { sentTypes[seq] = type }
         if sentTypes.count > 64, let oldest = sentTypes.keys.min() { sentTypes[oldest] = nil }
         if let data = try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys]),
            let text = String(data: data, encoding: .utf8) {

@@ -36,7 +36,9 @@ public enum TeleopAction: Equatable, Sendable {
     case releaseBase
     case openFallback
     case startFallbackRecording
-    case toggleGripper
+    /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
+    case gripperStart(GripperState)
+    case gripperEnd
     case holdArmStart
     case holdArmEnd
     case resetScene
@@ -148,6 +150,7 @@ public struct TeleopSession: Equatable, Sendable {
             if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }
             state.emergencyStop = true
             state.armMoving = false
+            state.stopGripper()
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
@@ -179,21 +182,29 @@ public struct TeleopSession: Equatable, Sendable {
             go(.s5)
         case .startFallbackRecording:
             go(.s5a)
-        case .toggleGripper:
+        case .gripperStart(let target):
             guard acceptsControl else { return }
-            // H8: the arm is moving, so the gripper cannot toggle.
+            // H8: the arm is moving, so the gripper cannot move.
             guard canControl, !state.armMoving else {
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
-            state.toggleGripper()
-            pendingHaptics.append(.play(state.gripper == .closed ? .gripperClosed : .gripperOpened))
+            // One cue per direction, so a key that repeats while held does not buzz again.
+            if state.gripperMoving != target {
+                pendingHaptics.append(.play(target == .closed ? .gripperClosed : .gripperOpened))
+            }
+            state.moveGripper(toward: target)
+        case .gripperEnd:
+            // Release always stops, even if the session got blocked while held.
+            state.stopGripper()
         case .holdArmStart:
             guard acceptsControl else { return }
             guard canControl else {
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
+            // The server runs one held control at a time: the arm takes over from the gripper.
+            state.stopGripper()
             state.armMoving = true
         case .holdArmEnd:
             // Release always stops, even if the session got blocked while held.
@@ -237,6 +248,7 @@ public struct TeleopSession: Equatable, Sendable {
             if confirmed {
                 state.commandsBlocked = true
                 state.armMoving = false
+                state.stopGripper()
                 if route == .p4 { go(.p6) }
             } else if !slow {
                 state.commandsBlocked = false

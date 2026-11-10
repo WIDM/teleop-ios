@@ -3,10 +3,12 @@ import TeleopCore
 enum VolumeKey { case up, down }
 enum VolumeKeyPhase { case began, ended, cancelled }
 
-/// Hold vol+ to move the arm, press vol− to toggle the gripper. One vol+ press gives one start,
-/// so a key that repeats while held cannot restart an arm that was stopped meanwhile.
+/// Hold vol+ to move the arm, hold vol− to close the gripper (opening is on screen). One press gives one start,
+/// so a key that repeats while held cannot restart something that was stopped meanwhile.
+/// iOS reports Camera Control and the Action button as vol−; they cannot be told apart.
 struct VolumeKeyMapper {
     private(set) var upHeld = false
+    private(set) var downHeld = false
 
     mutating func actions(for key: VolumeKey, phase: VolumeKeyPhase) -> [TeleopAction] {
         switch (key, phase) {
@@ -18,9 +20,12 @@ struct VolumeKeyMapper {
             upHeld = false
             return [.holdArmEnd]
         case (.down, .began):
-            return [.toggleGripper]
+            guard !downHeld else { return [] }
+            downHeld = true
+            return [.gripperStart(.closed)]
         case (.down, .ended), (.down, .cancelled):
-            return []
+            downHeld = false
+            return [.gripperEnd]
         }
     }
 }

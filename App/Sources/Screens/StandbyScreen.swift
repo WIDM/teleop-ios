@@ -26,13 +26,7 @@ struct StandbyScreen: View {
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                 .fill(TeleopColors.camera)
                 .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
-                .overlay {
-                    VStack(spacing: 4) {
-                        Image(systemName: "plus").font(.system(size: 40, weight: .light))
-                        Text("control.gripper_aim").font(.system(size: 14))
-                    }
-                    .foregroundStyle(.white)
-                }
+                .overlay { AimOrOffset(model: model) }
                 .overlay(alignment: .bottom) {
                     VolumeHintBox(textKey: "control.volume_hint") { model.send(.openFallback) }.padding(.bottom, 16)
                 }
@@ -40,6 +34,11 @@ struct StandbyScreen: View {
                     BaseHandle { model.send(.openBase) }
                         .frame(width: 72)
                         .padding(.vertical, 56)
+                }
+                .overlay(alignment: .leading) {
+                    GripperOpenHandle(model: model)
+                        .frame(width: 72)
+                        .padding(.vertical, 150)
                 }
                 .overlay(alignment: .top) {
                     if blocked {

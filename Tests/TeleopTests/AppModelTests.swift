@@ -17,13 +17,13 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.session.route, .p4)
     }
 
-    func testBlockedGripperToggleReachesHapticsAsThreeShort() {
+    func testBlockedGripperReachesHapticsAsThreeShort() {
         let spy = SpyHaptics()
         let model = AppModel(start: .s5, haptics: spy)
         model.session.state.markConnected()
         model.send(.simulateHighLatency)
         model.send(.openFallback)
-        model.send(.toggleGripper)
+        model.send(.gripperStart(.closed))
         XCTAssertEqual(spy.commands, [.play(.commandBlocked)])
     }
 

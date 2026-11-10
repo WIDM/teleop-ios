@@ -37,11 +37,15 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertTrue(s.physicalEstopOk)
     }
 
-    func testToggleGripper() {
+    func testGripperMovesTowardATargetUntilStopped() {
         var s = FakeTeleopState()
-        s.toggleGripper()
+        s.moveGripper(toward: .closed)
         XCTAssertEqual(s.gripper, .closed)
-        s.toggleGripper()
+        XCTAssertEqual(s.gripperMoving, .closed)
+        s.stopGripper()
+        XCTAssertNil(s.gripperMoving)
+        XCTAssertEqual(s.gripper, .closed)
+        s.moveGripper(toward: .open)
         XCTAssertEqual(s.gripper, .open)
     }
 

@@ -5,7 +5,7 @@ description: Verify the Teleop iOS app (WIDM/teleop-ios, SwiftUI, 20 Mockup v2 s
 
 # verify-teleop-ios
 
-What the app is: a phone app that teleoperates a robot arm. Hold vol+ to move, release to stop; vol- toggles the gripper; haptics report state (haptics-v1 H1-H15: short pulse 60 ms on / 120 ms gap, 1-3 pulses; long buzz 400 on / 200 off reserved for E-stop, disconnect and the 750 ms watchdog). STOP is reachable on every teleop screen; red is used only for STOP, E-stop (S4) and S7. All UI text is English. Current build is fake-state only (no robot link).
+What the app is: a phone app that teleoperates a robot arm. Hold vol+ to move, release to stop; hold vol- to close the gripper and hold the left edge of the camera view to open it (it moves only while held); haptics report state (haptics-v1 H1-H15: short pulse 60 ms on / 120 ms gap, 1-3 pulses; long buzz 400 on / 200 off reserved for E-stop, disconnect and the 750 ms watchdog). STOP is reachable on every teleop screen; red is used only for STOP, E-stop (S4) and S7. All UI text is English. Current build is fake-state only (no robot link).
 
 Sources of truth: Figma `inLwADDDptRo8qIw34DRqP`, page Mockup v2 `121:134`, 20 iOS frames at 402x874 (`scripts/frames.tsv`); per-page acceptance points in `docs/figma-map.md` (owned by the planner, do not edit here); navigation per visual spec v1.14: every status chip -> P5, S1 Connect -> P5, S1 Back -> P5, S1 Disconnect -> S7, S7 Reconnect -> S1, P5 Change server -> S1.
 
@@ -40,7 +40,7 @@ Known blocker: pushing `.github/workflows/` needs the gh `workflow` scope, which
 
 ## Drive
 
-- Logic: TeleopCore tests drive `TeleopSession.perform(_:)` with the real actions (`connect`, `s1Back`, `disconnect`, `reconnect`, `stop`, `releaseStop`, `toggleGripper`, ...) and assert route + drained haptics. Feature files list which test covers which behavior.
+- Logic: TeleopCore tests drive `TeleopSession.perform(_:)` with the real actions (`connect`, `s1Back`, `disconnect`, `reconnect`, `stop`, `releaseStop`, `gripperStart`, `gripperEnd`, ...) and assert route + drained haptics. Feature files list which test covers which behavior.
 - UI: XCUITest via accessibility identifiers (stable handles; never coordinates): `status.chip`, `connection.change_server`, `connect.connect`, `connect.back`, `connect.disconnect`, `errors.reconnect`, `errors.back_to_connect`, `stop`, `stop.release`, `mode.next`, `permissions.continue`, `tutorial.skip`, `standby.settings`. Screenshot names must contain the screen id token (`NN-<ID>-slug`) so the compare helper can pair them.
 - Figma page compare: export frames read-only (see `scripts/export-figma.md`) into `$EVIDENCE/figma/<ID>.png`, then
 

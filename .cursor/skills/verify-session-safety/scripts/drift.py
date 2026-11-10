@@ -42,7 +42,8 @@ for name in sorted(stored - key_fields - excluded):
 
 
 HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
-KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "toggleGripper"}
+KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
+GRIPPER_ACTIONS = {"gripperStart", "gripperEnd"}
 ROOT_VIEW_ACTIONS = {"holdArmEnd", "recordingTick"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
@@ -53,7 +54,7 @@ def sends(text):
     found = set(re.findall(r"(?:send|perform)\(\.(\w+)", text))
     found |= set(re.findall(r"debugButton\(.*, \.(\w+)\)", text))
     found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
-    found |= set(re.findall(r"return \[\.(\w+)\]", text))
+    found |= set(re.findall(r"return \[\.(\w+)[\](]", text))
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
     if "model.connect()" in text:
         found.add("connect")
@@ -76,6 +77,9 @@ for path in APP.rglob("*.swift"):
             struct_sends[match.group(1)] |= HOLD_ACTIONS
         if ".volumeKeys(model:" in match.group(0):
             struct_sends[match.group(1)] |= KEY_ACTIONS
+        # The gripper hold reaches a screen through these views.
+        if re.search(r"\.gripperHold\(model:|GripperOpenHandle\(|GripperHoldRow\(|GripperHoldButton\(", match.group(0)):
+            struct_sends[match.group(1)] |= GRIPPER_ACTIONS
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
@@ -83,7 +87,7 @@ for path in APP.rglob("*.swift"):
 allowed_outside = {
     # connect: the fake link's S1 Connect. holdArmEnd: a hold the link could not start. switchMode: the live-link switch.
     "AppModel.swift": {"connect", "holdArmEnd", "switchMode"},
-    "Link/LiveLinkController.swift": {"holdArmEnd", "linkUp", "linkLost", "linkLatency", "stop"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "linkUp", "linkLost", "linkLatency", "stop"},
 }
 for path, names in sorted(outside_structs.items()):
     if allowed_outside.get(path) != names:
@@ -107,7 +111,8 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
         problems.append(
             f"{route}: ui-map says {screen}, RootView shows {screen_of_route.get(route)}"
         )
-    names = {re.sub(r"\d+$", "", a) for a in actions.split(",")}
+    # tutorialNext1 -> tutorialNext, gripperStartClosed -> gripperStart: the table names one case per payload.
+    names = {re.sub(r"^(gripperStart)(Closed|Open)$", r"\1", re.sub(r"\d+$", "", a)) for a in actions.split(",")}
     for name in sorted(names - struct_sends.get(screen, set())):
         problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
     if "recordingTick" in names:
@@ -125,7 +130,11 @@ allowed = {
     "RootView": ROOT_VIEW_ACTIONS,
     "ArmHoldModifier": HOLD_ACTIONS,
     "VolumeKeyMapper": KEY_ACTIONS,
-    "VolumeKeyModifier": {"holdArmEnd"},
+    "VolumeKeyModifier": {"holdArmEnd", "gripperEnd"},
+    "GripperHoldModifier": GRIPPER_ACTIONS,
+    "GripperHoldButton": GRIPPER_ACTIONS,
+    "GripperOpenHandle": GRIPPER_ACTIONS,
+    "GripperHoldRow": GRIPPER_ACTIONS,
 }
 for name, expected in allowed.items():
     if struct_sends.get(name) != expected:

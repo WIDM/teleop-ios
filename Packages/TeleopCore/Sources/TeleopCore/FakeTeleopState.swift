@@ -23,6 +23,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public private(set) var smoothing = 0.3
     /// True while the arm hold (vol+ or the on-screen hold area) is pressed.
     public var armMoving = false
+    /// Direction the gripper is travelling while its control is held; nil when still.
+    public var gripperMoving: GripperState?
     public var serverInputError = false
     /// True when a real server drives the link. Then only `linkUp` marks the session connected.
     public var liveLink = false
@@ -54,6 +56,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         connected = false
         heartbeatOk = false
         armMoving = false
+        gripperMoving = nil
     }
 
     public mutating func simulateCloudPass() {
@@ -72,6 +75,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         latencyMs = Self.highLatencyMs
         commandsBlocked = true
         armMoving = false
+        gripperMoving = nil
     }
 
     public mutating func simulateNormalLatency() {
@@ -82,6 +86,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     /// Back to mode select: the link is dropped and nothing keeps moving or recording.
     public mutating func leaveSession() {
         armMoving = false
+        gripperMoving = nil
         isRecording = false
         connected = false
         heartbeatOk = true
@@ -91,6 +96,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     /// Reset scene: arm stopped, gripper back to open, latency block cleared. Recording keeps running.
     public mutating func resetScene() {
         armMoving = false
+        gripperMoving = nil
         gripper = .open
         simulateNormalLatency()
     }
@@ -103,9 +109,13 @@ public struct FakeTeleopState: Equatable, Sendable {
         smoothing = min(max(value, Self.smoothingRange.lowerBound), Self.smoothingRange.upperBound)
     }
 
-    public mutating func toggleGripper() {
-        gripper = gripper == .open ? .closed : .open
+    /// The gripper starts travelling toward `target` and keeps going until `stopGripper`.
+    public mutating func moveGripper(toward target: GripperState) {
+        gripperMoving = target
+        gripper = target
     }
+
+    public mutating func stopGripper() { gripperMoving = nil }
 
     public mutating func startRecording() {
         isRecording = true

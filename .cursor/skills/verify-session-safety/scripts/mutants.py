@@ -25,6 +25,8 @@ HOLD_GUARDS = """guard acceptsControl else { return }
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
+            // The server runs one held control at a time: the arm takes over from the gripper.
+            state.stopGripper()
             state.armMoving = true"""
 
 VARIANTS = [
@@ -103,6 +105,26 @@ VARIANTS = [
         "fake link accepts a server gripper",
         [("        case .linkUp(let gripper):\n            guard state.liveLink else { return }\n", "        case .linkUp(let gripper):\n")],
         ["FAIL S4"],
+    ),
+    (
+        "gripper end does nothing",
+        [("// Release always stops, even if the session got blocked while held.\n            state.stopGripper()", "break")],
+        ["FAIL S11"],
+    ),
+    (
+        "stop leaves the gripper moving",
+        [("state.armMoving = false\n            state.stopGripper()\n            go(.s4)", "state.armMoving = false\n            go(.s4)")],
+        ["FAIL S10", "FAIL U7"],
+    ),
+    (
+        "arm hold leaves the gripper moving",
+        [("            state.stopGripper()\n            state.armMoving = true", "            state.armMoving = true")],
+        ["FAIL S10", "FAIL U7"],
+    ),
+    (
+        "lost link leaves the gripper moving",
+        [("        armMoving = false\n        gripperMoving = nil\n    }\n\n    public mutating func simulateCloudPass", "        armMoving = false\n    }\n\n    public mutating func simulateCloudPass")],
+        ["FAIL S10"],
     ),
     (
         "hold end does nothing",

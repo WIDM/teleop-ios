@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 struct StopButton: View {
     var accessibilityId = "stop"
@@ -152,8 +153,100 @@ private struct ArmHoldModifier: ViewModifier {
     }
 }
 
+/// Press = the gripper travels toward `target`, release = it stops where it is. Same session path as holding vol−.
+/// One press sends one `gripperStart`, for the same reasons as the arm hold.
+private struct GripperHoldModifier: ViewModifier {
+    let model: AppModel
+    let target: GripperState
+    @GestureState private var pressing = false
+    @State private var startSent = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($pressing) { _, state, _ in state = true }
+                    .onChanged { _ in
+                        guard !startSent else { return }
+                        startSent = true
+                        model.send(.gripperStart(target))
+                    }
+                    .onEnded { _ in
+                        startSent = false
+                        model.send(.gripperEnd)
+                    }
+            )
+            .onChange(of: pressing) { _, isPressing in
+                guard !isPressing else { return }
+                startSent = false
+                model.send(.gripperEnd)
+            }
+            .onDisappear {
+                guard model.session.state.gripperMoving == target else { return }
+                model.send(.gripperEnd)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(model.session.state.gripperMoving == target ? "moving" : "stopped")
+    }
+}
+
+/// Hold-to-move gripper button for the on-screen controls.
+struct GripperHoldButton: View {
+    let model: AppModel
+    let target: GripperState
+
+    var body: some View {
+        let active = model.session.state.gripperMoving == target
+        Label(
+            target == .open ? "control.gripper_hold_open" : "control.gripper_hold_close",
+            systemImage: target == .open ? "arrow.left.and.right" : "arrow.right.and.line.vertical.and.arrow.left"
+        )
+        .font(.system(size: 16, weight: .semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .foregroundStyle(TeleopColors.textPrimary)
+        .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
+        .background(
+            active ? TeleopColors.primary.opacity(0.2) : TeleopColors.card,
+            in: RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+                .strokeBorder(TeleopColors.textPrimary.opacity(0.4), lineWidth: 1.5)
+        )
+        .gripperHold(model: model, target: target)
+        .accessibilityIdentifier(target == .open ? "gripper.open" : "gripper.close")
+    }
+}
+
+/// Left edge of the camera view: hold to open the gripper. Closing is on vol−, so only opening needs the screen.
+struct GripperOpenHandle: View {
+    let model: AppModel
+
+    var body: some View {
+        let active = model.session.state.gripperMoving == .open
+        VStack(spacing: 4) {
+            Image(systemName: "arrow.left.and.right").font(.system(size: 22))
+            Text("control.gripper_open_handle").font(.system(size: 17))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            active ? TeleopColors.primary : TeleopColors.basePanel,
+            in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
+        )
+        .gripperHold(model: model, target: .open)
+        .accessibilityIdentifier("gripper.open")
+    }
+}
+
 extension View {
     func armHold(model: AppModel) -> some View {
         modifier(ArmHoldModifier(model: model))
+    }
+
+    func gripperHold(model: AppModel, target: GripperState) -> some View {
+        modifier(GripperHoldModifier(model: model, target: target))
     }
 }

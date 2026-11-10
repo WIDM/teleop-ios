@@ -58,11 +58,12 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(s.drainHaptics(), [.cancel, .play(.stopReleased)])
     }
 
-    func testGripperToggleEmitsMatchingCue() {
+    func testGripperStartEmitsMatchingCue() {
         var s = TeleopSession(start: .s5)
         s.state.markConnected()
-        s.perform(.toggleGripper)
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
+        s.perform(.gripperEnd)
+        s.perform(.gripperStart(.open))
         XCTAssertEqual(s.drainHaptics(), [.play(.gripperClosed), .play(.gripperOpened)])
     }
 
@@ -74,7 +75,7 @@ final class TeleopSessionTests: XCTestCase {
         s.perform(.closeConnection)
         s.perform(.openFallback)
         _ = s.drainHaptics()
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
         XCTAssertTrue(s.drainHaptics().isEmpty)
     }
@@ -122,7 +123,7 @@ final class TeleopSessionTests: XCTestCase {
 
     func testGripperRefusedWhenDisconnected() {
         var s = TeleopSession(start: .s5)
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
         XCTAssertTrue(s.drainHaptics().isEmpty)
     }
@@ -132,7 +133,7 @@ final class TeleopSessionTests: XCTestCase {
         s.state.markConnected()
         s.perform(.simulateHighLatency)
         _ = s.drainHaptics()
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
         // H3: a refused command buzzes 3 short.
         XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
@@ -144,7 +145,7 @@ final class TeleopSessionTests: XCTestCase {
         s.perform(.stop)
         s.perform(.releaseStop)
         _ = s.drainHaptics()
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .closed)
     }
 
@@ -269,15 +270,65 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertFalse(s.state.armMoving)
     }
 
-    func testGripperToggleWhileArmHeldIsBlockedWithCue() {
+    func testGripperWhileArmHeldIsBlockedWithCue() {
         var s = connectedFallback()
         s.perform(.holdArmStart)
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
         XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
         s.perform(.holdArmEnd)
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .closed)
+    }
+
+    func testGripperMovesOnlyWhileHeld() {
+        var s = connectedFallback()
+        s.perform(.gripperStart(.closed))
+        XCTAssertEqual(s.state.gripperMoving, .closed)
+        XCTAssertEqual(s.state.gripper, .closed)
+        s.perform(.gripperEnd)
+        XCTAssertNil(s.state.gripperMoving)
+        XCTAssertEqual(s.state.gripper, .closed, "the label keeps the last direction")
+    }
+
+    func testRepeatedStartWhileHeldBuzzesOnce() {
+        var s = connectedFallback()
+        s.perform(.gripperStart(.closed))
+        s.perform(.gripperStart(.closed))
+        XCTAssertEqual(s.drainHaptics(), [.play(.gripperClosed)])
+    }
+
+    func testArmHoldTakesOverFromTheGripper() {
+        var s = connectedFallback()
+        s.perform(.gripperStart(.open))
+        s.perform(.holdArmStart)
+        XCTAssertNil(s.state.gripperMoving)
+        XCTAssertTrue(s.state.armMoving)
+    }
+
+    func testStopAndLatencyBlockAndDisconnectStopTheGripper() {
+        var stopped = connectedFallback()
+        stopped.perform(.gripperStart(.closed))
+        stopped.perform(.stop)
+        XCTAssertNil(stopped.state.gripperMoving)
+
+        var slow = connectedFallback()
+        slow.perform(.gripperStart(.closed))
+        slow.perform(.simulateHighLatency)
+        XCTAssertNil(slow.state.gripperMoving)
+
+        var offline = connectedFallback()
+        offline.perform(.gripperStart(.closed))
+        offline.perform(.disconnect)
+        XCTAssertNil(offline.state.gripperMoving)
+    }
+
+    func testGripperEndWorksEvenWhenBlocked() {
+        var s = connectedFallback()
+        s.perform(.gripperStart(.closed))
+        s.state.commandsBlocked = true
+        s.perform(.gripperEnd)
+        XCTAssertNil(s.state.gripperMoving)
     }
 
     func testBlockedGripperCueIsThreeShortPulses() {
@@ -329,7 +380,7 @@ final class TeleopSessionTests: XCTestCase {
 
     func testResetStopsArmAndOpensGripperWithoutHaptics() {
         var s = connectedFallback()
-        s.perform(.toggleGripper)
+        s.perform(.gripperStart(.closed))
         s.perform(.holdArmStart)
         _ = s.drainHaptics()
         s.perform(.resetScene)
@@ -353,7 +404,7 @@ final class TeleopSessionTests: XCTestCase {
     func testResetIgnoredWhenEStoppedOrDisconnected() {
         var stopped = TeleopSession(start: .p4)
         stopped.state.markConnected()
-        stopped.perform(.toggleGripper)
+        stopped.perform(.gripperStart(.closed))
         stopped.perform(.stop)
         stopped.perform(.resetScene)
         XCTAssertEqual(stopped.state.gripper, .closed)

@@ -95,8 +95,42 @@ final class StopFlowTests: XCTestCase {
         pad.press(forDuration: 2.0)
         XCTAssertEqual(duringPress, "moving")
         XCTAssertEqual(pad.value as? String, "stopped")
-        expect("fallback.toggle")
-        XCTAssertTrue(element("fallback.toggle").isHittable)
+        for id in ["gripper.close", "gripper.open"] {
+            expect(id)
+            XCTAssertTrue(element(id).isHittable, id)
+            XCTAssertEqual(element(id).value as? String, "stopped")
+        }
+    }
+
+    func testFallbackGripperButtonsMoveOnlyWhilePressed() {
+        relaunch(at: "s5_fallback")
+        for id in ["gripper.close", "gripper.open"] {
+            let button = element(id)
+            XCTAssertTrue(button.waitForExistence(timeout: 5), id)
+            XCTAssertEqual(button.value as? String, "stopped", id)
+            var duringPress: String?
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                duringPress = button.value as? String
+            }
+            button.press(forDuration: 2.0)
+            XCTAssertEqual(duringPress, "moving", id)
+            XCTAssertEqual(button.value as? String, "stopped", id)
+        }
+    }
+
+    func testStandbyOffersTheOpenHandle() {
+        relaunch(at: "p4_standby")
+        let handle = element("gripper.open")
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
+        XCTAssertTrue(handle.isHittable)
+        var duringPress: String?
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            duringPress = handle.value as? String
+        }
+        handle.press(forDuration: 2.0)
+        XCTAssertEqual(duringPress, "moving")
+        XCTAssertEqual(handle.value as? String, "stopped")
+        XCTAssertTrue(element("standby.base").isHittable, "the base handle must stay reachable")
     }
 
     func testTutorialLastStepHasNoSkip() {

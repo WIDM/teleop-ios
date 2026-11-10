@@ -12,6 +12,9 @@ final class LiveLinkController {
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
+    /// What the arm is being asked to do during a hold, as the operator sees it: metres right, forward and up.
+    /// Nil when the hold ends.
+    var onOffset: ((SIMD3<Float>?) -> Void)?
 
     private let makeTransport: (URL) -> LinkTransport
     private let pose: () -> simd_float4x4?
@@ -25,6 +28,12 @@ final class LiveLinkController {
     private var lastSample: (position: SIMD3<Float>, atMs: Int)?
     /// Set when estop_reset goes out. States sent before the server handled it still say estop, and must not re-latch.
     private var resetSentAtMs: Int?
+    /// The server ignores gain and smoothing in translation mode, so they are applied here.
+    private var holdParams = PoseParams(gain: 1, deadbandDegrees: 0, smoothing: 0)
+    private var smoothed = SIMD3<Float>.zero
+    /// The operator's right and forward at the start of the hold, both horizontal.
+    private var holdRight = SIMD3<Float>(1, 0, 0)
+    private var holdForward = SIMD3<Float>(0, 0, -1)
 
     init(
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
@@ -85,6 +94,7 @@ final class LiveLinkController {
         timer?.invalidate()
         timer = nil
         link?.poseStop()
+        link?.gripperJogStop()
         link?.transportClosed()
         transport?.close()
         transport = nil
@@ -103,6 +113,9 @@ final class LiveLinkController {
         guard link.poseStart(params) else { return false }
         holdStart = Self.position(start)
         lastSample = (Self.position(start), nowMs())
+        holdParams = params
+        smoothed = .zero
+        (holdRight, holdForward) = Self.operatorAxes(start)
         return true
     }
 
@@ -110,6 +123,7 @@ final class LiveLinkController {
         link?.poseStop()
         holdStart = nil
         lastSample = nil
+        onOffset?(nil)
     }
 
     func estop() {
@@ -123,7 +137,10 @@ final class LiveLinkController {
     }
 
     func resetScene() { link?.resetScene() }
-    func gripper(_ target: GripperState) { link?.gripper(target) }
+    /// The gripper travels toward `target` while its control is held. Holding past the end is harmless:
+    /// the server clamps at the joint limit and stops squeezing on contact.
+    func startGripper(_ target: GripperState) { link?.gripperJogStart(target) }
+    func stopGripper() { link?.gripperJogStop() }
 
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
@@ -139,6 +156,8 @@ final class LiveLinkController {
         }
         // Twice a second: the echo is the only thing the server sends during a hold, so it is also the heartbeat.
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
+        // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
+        if link.gripperJogActive, ticks % 4 == 0 { link.keepalive() }
         guard link.holdActive, let holdStart else { return }
         guard let current = pose().map(Self.position) else {
             onLog?("link: tracking lost, hold ended")
@@ -155,8 +174,13 @@ final class LiveLinkController {
             }
         }
         lastSample = (current, now)
-        let delta = current - holdStart
+        // Low-pass, then scale: smoothing 0 follows the hand exactly, higher values trade lag for a steadier arm.
+        let keep = Float(holdParams.smoothing)
+        smoothed = smoothed * keep + (current - holdStart) * (1 - keep)
+        let delta = Self.serverOffset(smoothed * Float(holdParams.gain), right: holdRight, forward: holdForward)
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
+        // serverOffset negates all three, so this is right, forward, up again.
+        onOffset?(-delta)
     }
 
     private func handle(_ text: String) {
@@ -180,6 +204,9 @@ final class LiveLinkController {
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
             if type == "estop_reset" { resetSentAtMs = nil }
+        case .gripperRefused(let reason):
+            onLog?("link: gripper refused: \(reason)")
+            onAction?(.gripperEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
             holdStart = nil
@@ -192,6 +219,26 @@ final class LiveLinkController {
         closeQuietly()
         onLog?("link: lost (\(why))")
         onAction?(.linkLost)
+    }
+
+    /// Right and forward as the operator holding the phone sees them, flattened to the floor.
+    /// Upright phone: the camera looks forward. Phone lying flat: its top edge points forward.
+    /// Adding both directions before flattening covers either grip and everything between.
+    static func operatorAxes(_ camera: simd_float4x4) -> (right: SIMD3<Float>, forward: SIMD3<Float>) {
+        let view = -SIMD3(camera.columns.2.x, camera.columns.2.y, camera.columns.2.z)
+        let top = SIMD3(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z)
+        var forward = view + top
+        forward.y = 0
+        forward = simd_length(forward) > 0.01 ? simd_normalize(forward) : SIMD3(0, 0, -1)
+        return (simd_cross(forward, SIMD3(0, 1, 0)), forward)
+    }
+
+    /// World offset (ARKit: y up) to the offset the server expects.
+    /// The server was calibrated on a WebXR phone (mapping `phone_axes_20261025_v1`): it turns what it receives
+    /// into robot-base motion as [x, y, −z], and wants right → −X, forward → −Y (onto the table), up → +Z.
+    /// So right, forward and up each go out negated on x, y and z.
+    static func serverOffset(_ world: SIMD3<Float>, right: SIMD3<Float>, forward: SIMD3<Float>) -> SIMD3<Float> {
+        SIMD3(-simd_dot(world, right), -simd_dot(world, forward), -world.y)
     }
 
     private static func position(_ transform: simd_float4x4) -> SIMD3<Float> {

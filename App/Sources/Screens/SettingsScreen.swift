@@ -156,6 +156,13 @@ struct SettingsScreen: View {
                 .padding(.top, 12)
             }
 
+            // Which build is on the phone: installs happen often, and the icon does not change.
+            Text(String(format: L10n.string("settings.version"), Self.version, Self.build))
+                .font(.system(size: 12))
+                .foregroundStyle(TeleopColors.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
+                .accessibilityIdentifier("settings.version")
             }
             .scrollIndicators(.hidden)
             StopButton { model.send(.stop) }
@@ -177,4 +184,7 @@ struct SettingsScreen: View {
             Slider(value: value, in: range)
         }
     }
+
+    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    private static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 }
