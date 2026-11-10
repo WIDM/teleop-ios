@@ -110,28 +110,39 @@ final class ServerMotionTests: XCTestCase {
         ))
     }
 
-    /// Moves the arm by a robot-base offset and waits for it to get there. Returns what the arm really did.
+    /// Moves the arm to a robot-base position, in as many holds as it takes, checking where the arm really is
+    /// between holds. The server reports no position during a hold, so this is how an operator has to work too.
     @discardableResult
-    private func moveArm(base delta: SIMD3<Float>, _ name: String) -> SIMD3<Float> {
+    private func moveArm(to target: SIMD3<Float>, _ name: String) -> Bool {
+        let started = Date()
+        var holds = 0
         pump(0.6)
-        guard let before = model.link.armPosition else { return .zero }
-        // Operator frame: right is −X, forward is −Y, up is +Z. An upright phone: right +x, up +y, forward −z.
-        let hand = SIMD3(-delta.x, delta.z, delta.y)
-        let distance = simd_length(delta)
-        position = .zero
-        pump(0.3)
-        model.send(.holdArmStart)
-        XCTAssertTrue(model.session.state.armMoving, "\(name): hold did not start. log: \(model.debugLog.suffix(4))")
-        move(to: hand, in: max(Double(distance) / 0.15, 0.4))
-        // The arm manages about 1 to 2 cm/s in this simulator.
-        pump(Double(distance) / 0.010 + 2.5)
-        model.send(.holdArmEnd)
-        pump(1.2)
-        let moved = (model.link.armPosition ?? before) - before
-        print(String(format: "PICK move %@: asked (%.1f, %.1f, %.1f) cm, arm moved (%.1f, %.1f, %.1f) cm, estop %@",
-                     name, delta.x * 100, delta.y * 100, delta.z * 100, moved.x * 100, moved.y * 100, moved.z * 100,
+        while holds < 10 {
+            guard let arm = model.link.armPosition else { return false }
+            let remaining = target - arm
+            if simd_length(remaining) < 0.004 { break }
+            // Operator frame: right is −X, forward is −Y, up is +Z. An upright phone: right +x, up +y, forward −z.
+            let hand = SIMD3(-remaining.x, remaining.z, remaining.y)
+            position = .zero
+            pump(0.3)
+            model.send(.holdArmStart)
+            guard model.session.state.armMoving else {
+                print("PICK \(name): hold did not start. log: \(model.debugLog.suffix(3))")
+                return false
+            }
+            move(to: hand, in: max(Double(simd_length(remaining)) / 0.15, 0.4))
+            pump(5)
+            model.send(.holdArmEnd)
+            pump(1.2)
+            holds += 1
+            if model.session.state.emergencyStop { break }
+        }
+        let arm = model.link.armPosition ?? target
+        let off = simd_distance(arm, target)
+        print(String(format: "PICK %@: %d holds, %.0f s, ended %.1f cm from target, arm at (%.1f, %.1f, %.1f) cm, estop %@",
+                     name, holds, Date().timeIntervalSince(started), off * 100, arm.x * 100, arm.y * 100, arm.z * 100,
                      model.session.state.emergencyStop ? "YES" : "no"))
-        return moved
+        return off < 0.006
     }
 
     private func gripper(_ target: GripperState, seconds: Double) {
@@ -152,19 +163,22 @@ final class ServerMotionTests: XCTestCase {
                      armStart.x * 100, armStart.y * 100, armStart.z * 100, cubeStart.x * 100, cubeStart.y * 100,
                      cubeStart.z * 100, goal.x * 100, goal.y * 100, goal.z * 100))
         gripper(.open, seconds: 5)
-        moveArm(base: SIMD3(cubeStart.x - armStart.x, cubeStart.y - armStart.y, 0), "over the cube")
+        moveArm(to: SIMD3(cubeStart.x, cubeStart.y, armStart.z), "over the cube")
 
         var graspHeight: Float?
         for height: Float in [0.05, 0.04, 0.03, 0.02, 0.012] {
-            guard let arm = model.link.armPosition else { break }
-            moveArm(base: SIMD3(cubeStart.x - arm.x, cubeStart.y - arm.y, cubeStart.z + height - arm.z),
-                    String(format: "down to %.1f cm above the cube centre", height * 100))
+            let reached = moveArm(to: SIMD3(cubeStart.x, cubeStart.y, cubeStart.z + height),
+                                  String(format: "down to %.1f cm above the cube centre", height * 100))
+            guard reached else {
+                print(String(format: "PICK try %.1f cm: the arm could not get that low", height * 100))
+                continue
+            }
             gripper(.closed, seconds: 8)
-            moveArm(base: SIMD3(0, 0, 0.03), "lift 3 cm")
+            moveArm(to: SIMD3(cubeStart.x, cubeStart.y, cubeStart.z + height + 0.03), "lift 3 cm")
             pump(1.0)
             let lifted = (model.link.cubePosition ?? cubeStart).z - cubeStart.z
             print(String(format: "PICK try %.1f cm: cube rose %.1f cm", height * 100, lifted * 100))
-            if lifted > 0.01 {
+            if lifted > 0.015 {
                 graspHeight = height
                 break
             }
@@ -175,11 +189,11 @@ final class ServerMotionTests: XCTestCase {
             XCTFail("the cube was never lifted")
             return
         }
-        guard let arm = model.link.armPosition else { return }
-        moveArm(base: SIMD3(goal.x - cubeStart.x, goal.y - cubeStart.y, 0), "to the goal")
-        moveArm(base: SIMD3(0, 0, cubeStart.z + graspHeight + 0.004 - (model.link.armPosition ?? arm).z), "down onto the goal")
+        let carryZ = cubeStart.z + graspHeight + 0.03
+        moveArm(to: SIMD3(goal.x, goal.y, carryZ), "to the goal")
+        moveArm(to: SIMD3(goal.x, goal.y, cubeStart.z + graspHeight + 0.004), "down onto the goal")
         gripper(.open, seconds: 5)
-        moveArm(base: SIMD3(0, 0, 0.03), "lift away")
+        moveArm(to: SIMD3(goal.x, goal.y, carryZ), "lift away")
         pump(4)
         let cubeEnd = model.link.cubePosition ?? cubeStart
         let inGoal = abs(cubeEnd.x - goal.x) <= 0.025 && abs(cubeEnd.y - goal.y) <= 0.025
