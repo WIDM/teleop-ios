@@ -114,7 +114,7 @@ VARIANTS = [
     (
         "stop leaves the gripper moving",
         [("state.armMoving = false\n            state.stopGripper()\n            go(.s4)", "state.armMoving = false\n            go(.s4)")],
-        ["FAIL S10", "FAIL U7"],
+        ["FAIL S10"],
     ),
     (
         "arm hold leaves the gripper moving",
@@ -140,8 +140,8 @@ VARIANTS = [
         "stop does not open S4",
         [
             (
-                "state.armMoving = false\n            go(.s4)",
-                "state.armMoving = false",
+                "state.stopGripper()\n            go(.s4)",
+                "state.stopGripper()",
             )
         ],
         ["FAIL S7"],

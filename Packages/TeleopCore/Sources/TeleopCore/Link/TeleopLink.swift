@@ -46,6 +46,8 @@ public final class TeleopLink {
     private var lastHeardAt: Int?
     private var holdSeq: Int?
 
+    /// Arm tip position from the newest `state`, in metres. The server sends none during a hold.
+    public private(set) var lastEndEffector: [Double]?
     /// True after `welcome` and a first `state`.
     public private(set) var ready = false
     /// True between an accepted `poseStart` and the stop that ends it.
@@ -189,6 +191,7 @@ public final class TeleopLink {
             return nil
         case "state":
             guard welcomed else { return nil }
+            if let position = payload["ee_pos"] as? [Double], position.count == 3 { lastEndEffector = position }
             let estop = payload["estop"] as? Bool ?? false
             let gripper = (payload["gripper"] as? String).flatMap(Self.gripperState)
             if !ready {

@@ -352,6 +352,129 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertNil(model.holdOffset)
     }
 
+    private func lastOffset() -> SIMD3<Float> {
+        let update = transport.sent.last { $0["type"] as? String == "pose_update" }!["payload"] as! [String: Any]
+        let p = update["p_rel_m"] as! [Double]
+        return SIMD3(Float(p[0]), Float(p[1]), Float(p[2]))
+    }
+
+    func testCommandNeverLeadsTheEstimatedArmByMoreThanTheLeash() {
+        bringUp()
+        model.send(.holdArmStart)
+        // 20 cm to the right in a third of a second: far more than the arm can do.
+        for step in 1...10 {
+            position = SIMD3(0.02 * Float(step), 0, 0)
+            tick()
+        }
+        XCTAssertTrue(model.session.state.armMoving, "a fast hand must not end the hold")
+        XCTAssertTrue(model.catchingUp)
+        let armCouldHaveGone = LiveLinkController.initialArmSpeed * 0.33
+        XCTAssertLessThanOrEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters + armCouldHaveGone + 0.001)
+        XCTAssertLessThan(lastOffset().x, 0, "still heading the way the hand went")
+    }
+
+    func testCommandCatchesUpAtArmSpeedWhileTheHandWaits() {
+        bringUp()
+        model.send(.holdArmStart)
+        for step in 1...10 {
+            position = SIMD3(0.02 * Float(step), 0, 0)
+            tick()
+        }
+        let early = simd_length(lastOffset())
+        // Hand still for 3 s. The command creeps on at the assumed arm speed, about 4.5 cm.
+        run(ticks: 90)
+        let later = simd_length(lastOffset())
+        XCTAssertEqual(later - early, LiveLinkController.initialArmSpeed * 2.97, accuracy: 0.003)
+        XCTAssertTrue(model.catchingUp)
+        // Another 6 s and it has arrived at the hand.
+        run(ticks: 180)
+        XCTAssertEqual(simd_length(lastOffset()), 0.2, accuracy: 0.002)
+        XCTAssertFalse(model.catchingUp)
+    }
+
+    func testSmallMovesPassStraightThrough() {
+        bringUp()
+        model.send(.holdArmStart)
+        position = SIMD3(0.02, 0, 0)
+        tick()
+        XCTAssertEqual(simd_length(lastOffset()), 0.02, accuracy: 0.0001)
+        XCTAssertFalse(model.catchingUp)
+    }
+
+    /// A hold of 20 cm right over 10 s with the hand ahead all the way, then the server reports where the arm ended.
+    private func holdThenReport(armMovedCm: Double) {
+        bringUp()
+        transport.server("state", ["estop": false, "ee_pos": [0.0, 0.0, 0.1]])
+        model.send(.holdArmStart)
+        for step in 1...10 {
+            position = SIMD3(0.02 * Float(step), 0, 0)
+            tick()
+        }
+        run(ticks: 300)
+        model.send(.holdArmEnd)
+        // The server maps what it was sent as [x, y, −z]; right is −X.
+        transport.server("state", ["estop": false, "ee_pos": [-armMovedCm / 100, 0.0, 0.1]])
+    }
+
+    func testArmFasterThanAssumedRaisesTheSpeedEstimate() {
+        holdThenReport(armMovedCm: 20)
+        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed * 1.3, accuracy: 0.0005)
+        XCTAssertTrue(model.debugLog.contains { $0.contains("speed now") })
+    }
+
+    func testArmSlowerThanAssumedLowersTheSpeedEstimate() {
+        holdThenReport(armMovedCm: 5)
+        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed * 0.7, accuracy: 0.0005)
+    }
+
+    func testArmAsFastAsAssumedKeepsTheEstimate() {
+        // 10.3 s at 1.5 cm/s is about 15.5 cm.
+        holdThenReport(armMovedCm: 15.5)
+        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed, accuracy: 0.0008)
+    }
+
+    func testTinyHoldsDoNotChangeTheSpeedEstimate() {
+        bringUp()
+        transport.server("state", ["estop": false, "ee_pos": [0.0, 0.0, 0.1]])
+        model.send(.holdArmStart)
+        position = SIMD3(0.01, 0, 0)
+        run(ticks: 30)
+        model.send(.holdArmEnd)
+        transport.server("state", ["estop": false, "ee_pos": [0.3, 0.0, 0.1]])
+        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed)
+    }
+
+    func testStopCauseSaysWhoStopped() {
+        bringUp()
+        XCTAssertNil(model.stopCause)
+        model.send(.stop)
+        XCTAssertEqual(model.stopCause, .button)
+        model.send(.releaseStop)
+        XCTAssertNil(model.stopCause)
+    }
+
+    func testServerStopAfterTheArmFellBehindSaysSo() {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
+        transport.server("ack", seq: start, ["seq": start, "status": "rejected", "reason": "pose_tracking_safety_stop"])
+        transport.server("state", ["estop": true])
+        XCTAssertEqual(model.session.route, .s4)
+        XCTAssertEqual(model.stopCause, .armBehind)
+        XCTAssertTrue(model.stopCause!.text.contains("10 cm"))
+    }
+
+    func testServerAlreadyStoppedOnConnectSaysSo() {
+        bringUp(estop: true)
+        XCTAssertEqual(model.stopCause, .onConnect)
+    }
+
+    func testServerStopWithNoKnownReasonIsStillNamed() {
+        bringUp()
+        transport.server("state", ["estop": true])
+        XCTAssertEqual(model.stopCause, .server("unknown"))
+    }
+
     func testSensitivityScalesThePhoneOffset() {
         bringUp()
         model.session.state.sensitivity = 0.5

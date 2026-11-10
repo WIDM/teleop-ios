@@ -188,6 +188,12 @@ struct AimOrOffset: View {
                 row(offset.x, positive: "control.dir_right", negative: "control.dir_left")
                 row(offset.y, positive: "control.dir_forward", negative: "control.dir_back")
                 row(offset.z, positive: "control.dir_up", negative: "control.dir_down")
+                if model.catchingUp {
+                    Text("control.catching_up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TeleopColors.statusAmber)
+                        .accessibilityIdentifier("control.catching_up")
+                }
             }
             .foregroundStyle(.white)
             .accessibilityIdentifier("control.offset")

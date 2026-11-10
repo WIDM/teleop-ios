@@ -9,6 +9,7 @@ final class AppModel {
     @ObservationIgnored private let haptics: HapticsPlaying
     @ObservationIgnored private let pose: () -> simd_float4x4?
     @ObservationIgnored private var holdStartPose: simd_float4x4?
+    @ObservationIgnored private var pendingServerCause: StopCause?
     @ObservationIgnored let link: LiveLinkController
     /// Real server instead of the built-in fake. Changing it returns to mode select, so no session spans both.
     var liveLink: Bool {
@@ -33,6 +34,10 @@ final class AppModel {
     }
     /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
     private(set) var holdOffset: SIMD3<Float>?
+    /// True while the command is held back so the arm can catch up with the phone.
+    private(set) var catchingUp = false
+    /// Why E-stop is latched, for S4. Nil when not latched.
+    private(set) var stopCause: StopCause?
     /// Developer mode log: actions and haptics with times, newest last.
     private(set) var debugLog: [String] = []
 
@@ -55,6 +60,11 @@ final class AppModel {
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onOffset = { [weak self] in self?.holdOffset = $0 }
+        link.onCatchingUp = { [weak self] in
+            // Set only on a change: this runs 30 times a second and every write redraws the readout.
+            if self?.catchingUp != $0 { self?.catchingUp = $0 }
+        }
+        link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
@@ -93,6 +103,12 @@ final class AppModel {
         session.perform(action)
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
         if !session.state.armMoving { holdOffset = nil }
+        if !before.emergencyStop, session.state.emergencyStop {
+            stopCause = fromServer ? (pendingServerCause ?? .server("unknown")) : .button
+        } else if !session.state.emergencyStop {
+            stopCause = nil
+        }
+        pendingServerCause = nil
         // The recording clock and the latency probe tick every second; logging them would bury everything else.
         if action != .recordingTick, !Self.isLatency(action) { log("→ \(action)") }
         logPose(wasMoving: wasMoving)
@@ -176,5 +192,33 @@ final class AppModel {
 
     static func startRoute(from defaults: UserDefaults = .standard) -> Route {
         defaults.string(forKey: "startRoute").flatMap(Route.init(rawValue:)) ?? .p1
+    }
+}
+
+/// What latched E-stop, shown on S4 so a stop the operator did not ask for is not a mystery.
+enum StopCause: Equatable {
+    /// STOP was pressed on the phone.
+    case button
+    /// The server stopped because the arm fell too far behind the commanded position.
+    case armBehind
+    /// The server was already stopped when the link came up, as it is after a connection dropped mid-command.
+    case onConnect
+    case server(String)
+
+    init(serverReason: String) {
+        switch serverReason {
+        case "pose_tracking_safety_stop", "tracking_safety_stop": self = .armBehind
+        case "on_connect": self = .onConnect
+        default: self = .server(serverReason)
+        }
+    }
+
+    var text: String {
+        switch self {
+        case .button: return L10n.string("stop.cause_button")
+        case .armBehind: return L10n.string("stop.cause_arm_behind")
+        case .onConnect: return L10n.string("stop.cause_on_connect")
+        case .server(let reason): return String(format: L10n.string("stop.cause_server"), reason)
+        }
     }
 }

@@ -641,6 +641,22 @@
         }
       }
     },
+    "control.catching_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arm is catching up. Slow down."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂追趕中，請放慢。"
+          }
+        }
+      }
+    },
     "control.dir_back": {
       "localizations": {
         "en": {
@@ -1862,13 +1878,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %1$@ (build %2$@)"
+            "value": "Version %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "版本 %1$@（build %2$@）"
+            "value": "版本 %@"
           }
         }
       }
@@ -1933,6 +1949,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "已急停"
+          }
+        }
+      }
+    },
+    "stop.cause_arm_behind": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot stopped itself: the arm fell more than 10 cm behind the phone. Move slower."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人自己急停：手臂落後手機超過 10 公分。請放慢移動。"
+          }
+        }
+      }
+    },
+    "stop.cause_button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You pressed STOP."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你按了 STOP。"
+          }
+        }
+      }
+    },
+    "stop.cause_on_connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot was already stopped when the app connected, usually after a dropped connection."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連上時機器人已經在急停，通常是先前連線中斷造成的。"
+          }
+        }
+      }
+    },
+    "stop.cause_server": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot stopped itself (%@)."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人自己急停（%@）。"
           }
         }
       }

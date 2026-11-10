@@ -32,6 +32,14 @@ struct EStopScreen: View {
                 Text("stop.inputs_ignored")
                     .font(.system(size: 14))
                     .foregroundStyle(TeleopColors.textSecondary)
+                if let cause = model.stopCause {
+                    Text(cause.text)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TeleopColors.textPrimary)
+                        .padding(.top, 6)
+                        .padding(.horizontal, 12)
+                        .accessibilityIdentifier("stop.cause")
+                }
             }
             .foregroundStyle(TeleopColors.emergency)
             .multilineTextAlignment(.center)
