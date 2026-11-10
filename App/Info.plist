@@ -20,8 +20,15 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera tracks the phone pose and detects volume-key hold and release.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The app connects to the teleop server on your network.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Motion sensors map phone rotation to wrist orientation.</string>
 	<key>UILaunchScreen</key>

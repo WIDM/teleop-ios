@@ -28,6 +28,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
             if phase != .active, model.session.state.armMoving { model.send(.holdArmEnd) }
+            model.foregroundChanged()
             // Camera access granted in the Settings app only shows up on return.
             if phase == .active { PoseTracker.shared.setActive(Self.tracksPose(model.session.route)) }
         }

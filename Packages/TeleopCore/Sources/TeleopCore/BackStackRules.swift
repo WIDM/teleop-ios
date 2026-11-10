@@ -20,6 +20,9 @@ public enum BackStackRules {
         }
     }
 
+    /// Screens that drive the robot. Losing a live link here opens S7.
+    public static let controlRoutes: Set<Route> = [.p4, .p6, .s3a, .s3b, .s3m, .s5, .s5a]
+
     public static func handlesBack(_ route: Route) -> Bool {
         previous(of: route) != nil
     }
@@ -33,17 +36,17 @@ public enum BackStackRules {
         .t1: [.t2, .p4, .p5, .s3a, .s6, .s4],
         .t2: [.t3, .p4, .p5, .s4],
         .t3: [.p4, .p5, .s4],
-        .p4: [.p5, .s3a, .s3m, .s5, .s6, .s4],
+        .p4: [.p5, .s3a, .s3m, .s5, .s6, .s4, .s7],
         .p5: [.p4, .p6, .p7, .s1, .s3a, .s6, .s4],
-        .p6: [.p5, .p4, .s3a, .s6, .s4],
+        .p6: [.p5, .p4, .s3a, .s6, .s4, .s7],
         .p7: [.p5, .p4, .s3a, .s6, .s4],
         .s1: [.p5, .s7, .p1, .s4],
-        .s3a: [.s3b, .p5, .s6, .s4],
-        .s3b: [.p4, .p5, .s4],
-        .s3m: [.p4, .p5, .s3a, .s6, .s4],
+        .s3a: [.s3b, .p5, .s6, .s4, .s7],
+        .s3b: [.p4, .p5, .s4, .s7],
+        .s3m: [.p4, .p5, .s3a, .s6, .s4, .s7],
         .s4: [.p4, .p5],
-        .s5: [.s5a, .p5, .s6, .s4],
-        .s5a: [.s3b, .p5, .s6, .s4],
+        .s5: [.s5a, .p5, .s6, .s4, .s7],
+        .s5a: [.s3b, .p5, .s6, .s4, .s7],
         .s6: [.p4, .t1, .s4, .p1],
         .s7: [.s1, .p5, .s4],
     ]

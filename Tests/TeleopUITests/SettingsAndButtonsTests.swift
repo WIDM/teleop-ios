@@ -7,7 +7,7 @@ final class SettingsAndButtonsTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-appLanguage", "en", "-startRoute", "p4_standby", "-startConnected", "YES", "-recordHaptics", "YES"]
+        app.launchArguments += ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "p4_standby", "-startConnected", "YES", "-recordHaptics", "YES"]
         app.launch()
     }
 

@@ -54,7 +54,7 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S1 | E-stop stays latched until `releaseStop`. | Commands accepted after STOP with no deliberate release. |
 | S2 | The arm starts only on `holdArmStart` while connected, not E-stopped, not latency-blocked. | Motion when the operator was told it cannot move. |
 | S3 | The arm is never moving while E-stopped. | STOP does not stop the arm. |
-| S4 | The gripper changes only on `toggleGripper` while connected, not E-stopped, not blocked, not moving; or opens on `resetScene` while connected and not E-stopped (the scene reset puts objects back too). | The gripper drops or grabs unexpectedly. |
+| S4 | The gripper changes only on `toggleGripper` while connected, not E-stopped, not blocked, not moving; or opens on `resetScene` while connected and not E-stopped (the scene reset puts objects back too); or takes the server's value when a live link comes up. | The gripper drops or grabs unexpectedly. |
 | S5 | `holdArmEnd` always leaves the arm stopped. | Releasing the control does not stop the arm. |
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
@@ -83,7 +83,7 @@ Left out:
 
 - Settings sliders (`setDeadband`, `setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
-- Volume keys, a real robot link and the 750 ms watchdog. They do not exist in this fake-state build. When they arrive, add their paths to `ui-map.tsv` and re-check S6.
+- The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`) or a refused hold (`holdArmEnd`) from any route on a live link. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
 - Launch arguments for UI tests (`-startRoute`, `-startConnected`).
 
 A pass covers the session rules under these limits, not the robot.
@@ -117,5 +117,6 @@ Sync commit: `ed4acbc`
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
 - `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`.
 - `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− on P4, P6, S3a, S3m, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.

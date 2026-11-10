@@ -1569,6 +1569,38 @@
         }
       }
     },
+    "settings.live_link": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Real server"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接真實伺服器"
+          }
+        }
+      }
+    },
+    "settings.live_link_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off uses the built-in demo. Changing this returns to mode select."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉時使用內建示範。切換後會回到選擇模式。"
+          }
+        }
+      }
+    },
     "settings.log_empty": {
       "localizations": {
         "en": {

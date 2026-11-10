@@ -87,6 +87,17 @@ struct SettingsScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.replay_tutorial")
                 Divider()
+                Toggle(isOn: $model.liveLink) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("settings.live_link")
+                        Text("settings.live_link_hint")
+                            .font(.system(size: 12))
+                            .foregroundStyle(TeleopColors.textSecondary)
+                    }
+                }
+                .frame(minHeight: TeleopMetrics.touch)
+                .accessibilityIdentifier("settings.live_link")
+                Divider()
                 Toggle(isOn: $model.session.state.developerMode) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("settings.developer_mode")

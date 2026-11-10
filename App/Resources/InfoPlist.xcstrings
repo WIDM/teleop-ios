@@ -48,6 +48,22 @@
           }
         }
       }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app connects to the teleop server on your network."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 需要連到你網路上的遙操作伺服器。"
+          }
+        }
+      }
     }
   },
   "sourceLanguage": "en",

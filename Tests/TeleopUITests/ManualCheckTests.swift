@@ -8,7 +8,7 @@ final class ManualCheckTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-appLanguage", "en", "-startRoute", "p4_standby", "-startConnected", "YES", "-recordHaptics", "YES"]
+        app.launchArguments += ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "p4_standby", "-startConnected", "YES", "-recordHaptics", "YES"]
         app.launch()
     }
 
@@ -120,7 +120,7 @@ final class ManualCheckTests: XCTestCase {
 
     private func openS2WithCameraUnanswered() {
         app.resetAuthorizationStatus(for: .camera)
-        app.launchArguments = ["-appLanguage", "en", "-startRoute", "s2_permissions", "-startConnected", "YES"]
+        app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "s2_permissions", "-startConnected", "YES"]
         app.launch()
         expect("permissions.continue")
     }

@@ -12,6 +12,19 @@ All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1,
 - STOP release (S4) and Discard (S3b) need a 1 second hold, with a fill bar.
 - `.github/workflows/ios.yml`: string check, core tests, XcodeGen, `xcodebuild test` on an iPhone simulator, screenshots of P1 to P5/S1/S7 from the UI test (exported from the xcresult), artifacts: xcodebuild log, screenshots, xcresult.
 
+## Real server link
+
+Settings > Real server (off by default) swaps the built-in demo for a WebSocket to the teleop server (hold protocol, envelope v1).
+
+- S1 takes the address (`host:port`, default port 8765). `hello`, then `welcome` and a first `state`, mark the session connected.
+- Holding vol+ or the hold pad sends `pose_start`, then the phone's ARKit offset from the start of the hold at 30 Hz as `pose_update` (translation mode), then `pose_stop`. The hold ends on release, lost tracking, moving faster than 0.8 m/s, backgrounding, a rejected start, E-stop or a lost link.
+- STOP sends `estop`, release sends `estop_reset`, Reset sends `reset_scene`, vol− sends `gripper`.
+- A server E-stop latches the app on S4. A closed socket, or 2 s with no message at all, marks the link lost (the server is quiet during a hold, so the app's twice-a-second `test` echo is the heartbeat): S7 from a control screen, S4 stays if latched.
+- Round trip is measured twice a second with `test`; 400 ms or more blocks commands (P6).
+- Checked on the simulator against `teleop-app/stub_server.py` (`StubServerTests`, skipped when the stub is not running).
+
+Not checked yet: a real iPhone over Tailscale, Leo's Bridge, Isaac Sim, and whether ARKit axes match the WebXR axes the server was calibrated for. The stub accepts `gripper_set`, not Leo's `gripper`, so the gripper message is untested against a server.
+
 ## Not done
 
 - Icons are SF Symbols, not Material Symbols Rounded.
@@ -21,7 +34,6 @@ All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1,
 - P7 uses the system keyboard, not the shared mock keyboard component.
 - Left/right arm switch, cloud banner and latency dot from visual-spec v1.5 are not in the Android reference, so not built.
 - Camera and motion prompts are shown from S2, and a denial has no follow-up screen.
-- ARKit world tracking runs on control screens (P4, P6, S3a, S3m, S5, S5a); each hold logs how far the phone moved (developer mode). Pose is not sent anywhere until the real link exists.
 - Volume keys: Camera Control and the Action button also arrive as vol−, since capture events do not name the button.
 - Figma could not be read (MCP needs authorization); screens follow the PNG shots and the Android code.
 

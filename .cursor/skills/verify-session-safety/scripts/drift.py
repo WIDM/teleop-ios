@@ -54,6 +54,14 @@ def sends(text):
     found |= set(re.findall(r"debugButton\(.*, \.(\w+)\)", text))
     found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
     found |= set(re.findall(r"return \[\.(\w+)\]", text))
+    # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
+    if "model.connect()" in text:
+        found.add("connect")
+    # The Settings switch: AppModel.liveLink sends switchMode, then flips the flag.
+    if "$model.liveLink" in text:
+        found.add("toggleLiveLink")
+    # LiveLinkController reports what the server did.
+    found |= set(re.findall(r"onAction\?\(\.(\w+)", text))
     return found
 
 
@@ -71,8 +79,19 @@ for path in APP.rglob("*.swift"):
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
+# Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
+allowed_outside = {
+    # connect: the fake link's S1 Connect. holdArmEnd: a hold the link could not start. switchMode: the live-link switch.
+    "AppModel.swift": {"connect", "holdArmEnd", "switchMode"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "linkUp", "linkLost", "linkLatency", "stop"},
+}
 for path, names in sorted(outside_structs.items()):
-    problems.append(f"{path} sends {sorted(names)} outside any struct")
+    if allowed_outside.get(path) != names:
+        problems.append(
+            f"{path} sends {sorted(names)} outside any struct, expected {sorted(allowed_outside.get(path, set()))}"
+        )
+for path in sorted(set(allowed_outside) - set(outside_structs)):
+    problems.append(f"{path} no longer sends actions; remove it from allowed_outside")
 
 root_view = (APP / "Screens/RootView.swift").read_text()
 screen_of_route = dict(re.findall(r"case \.(\w+): (\w+)\(", root_view))

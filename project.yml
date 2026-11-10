@@ -31,6 +31,10 @@ targets:
           - arm64
         NSCameraUsageDescription: The camera tracks the phone pose and detects volume-key hold and release.
         NSMotionUsageDescription: Motion sensors map phone rotation to wrist orientation.
+        NSLocalNetworkUsageDescription: The app connects to the teleop server on your network.
+        # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app

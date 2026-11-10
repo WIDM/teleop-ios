@@ -7,6 +7,7 @@ struct ConnectScreen: View {
 
     var body: some View {
         let state = model.session.state
+        @Bindable var model = model
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer()
@@ -25,14 +26,32 @@ struct ConnectScreen: View {
                 Text("connection.server_address")
                     .font(.system(size: 14))
                     .foregroundStyle(TeleopColors.textSecondary)
-                ServerAddressField(address: state.serverAddress, error: state.serverInputError)
+                if state.liveLink {
+                    // The real server address is typed here; the fake link only shows a sample.
+                    TextField("192.168.0.10:8765", text: $model.session.state.serverAddress)
+                        .font(.system(size: 16, design: .monospaced))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.numbersAndPunctuation)
+                        .submitLabel(.go)
+                        .onSubmit { model.connect() }
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: TeleopMetrics.touch)
+                        .background(
+                            (state.serverInputError ? TeleopColors.statusAmber.opacity(0.15) : TeleopColors.textSecondary.opacity(0.08)),
+                            in: RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+                        )
+                        .accessibilityIdentifier("connect.address_field")
+                } else {
+                    ServerAddressField(address: state.serverAddress, error: state.serverInputError)
+                }
                 if state.serverInputError {
                     Text("connect.input_error")
                         .font(.system(size: 12))
                         .foregroundStyle(TeleopColors.statusAmber)
                 }
                 HStack(spacing: 8) {
-                    Button { model.send(.connect) } label: {
+                    Button { model.connect() } label: {
                         Label("connect.connect", systemImage: "link")
                     }
                     .buttonStyle(FilledButtonStyle())

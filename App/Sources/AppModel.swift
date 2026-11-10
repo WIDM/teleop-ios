@@ -9,6 +9,20 @@ final class AppModel {
     @ObservationIgnored private let haptics: HapticsPlaying
     @ObservationIgnored private let pose: () -> simd_float4x4?
     @ObservationIgnored private var holdStartPose: simd_float4x4?
+    @ObservationIgnored let link: LiveLinkController
+    /// Real server instead of the built-in fake. Changing it returns to mode select, so no session spans both.
+    var liveLink: Bool {
+        get { session.state.liveLink }
+        set {
+            guard newValue != session.state.liveLink, !session.state.emergencyStop else { return }
+            link.closeQuietly()
+            send(.switchMode)
+            session.state.liveLink = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.liveLinkKey)
+        }
+    }
+    static let liveLinkKey = "liveLink"
+    static let serverAddressKey = "serverAddress"
     /// UI tests only: `-recordHaptics YES` shows requested haptics to XCUITest, which cannot feel them.
     private(set) var hapticLog: [String]? = UserDefaults.standard.bool(forKey: "recordHaptics") ? [] : nil
     var language: AppLanguage = L10n.language {
@@ -23,27 +37,105 @@ final class AppModel {
     init(
         start: Route = .p1,
         haptics: HapticsPlaying = HapticsController(),
-        pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current }
+        pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
+        liveLink: Bool = UserDefaults.standard.bool(forKey: AppModel.liveLinkKey),
+        makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
+        nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
     ) {
         session = TeleopSession(start: start)
         self.haptics = haptics
         self.pose = pose
+        link = LiveLinkController(makeTransport: makeTransport, pose: pose, nowMs: nowMs)
+        session.state.liveLink = liveLink
+        if liveLink, let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+            session.state.serverAddress = saved
+        }
+        link.onAction = { [weak self] in self?.fromServer($0) }
+        link.onLog = { [weak self] in self?.log($0) }
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
     }
 
     func send(_ action: TeleopAction) {
-        let wasMoving = session.state.armMoving
+        perform(action, fromServer: false)
+    }
+
+    func foregroundChanged() { link.foregroundChanged() }
+
+    /// S1 Connect. Fake link: connected at once. Live link: opens the socket; `linkUp` or `linkLost` follows.
+    func connect() {
+        guard session.state.liveLink else {
+            send(.connect)
+            return
+        }
+        let address = session.state.serverAddress
+        if link.connect(to: address) {
+            session.state.serverInputError = false
+            UserDefaults.standard.set(address, forKey: Self.serverAddressKey)
+        } else {
+            session.state.serverInputError = true
+        }
+    }
+
+    /// Server-side changes. A server E-stop latches here too, but is not echoed back.
+    private func fromServer(_ action: TeleopAction) {
+        if action == .stop, session.state.emergencyStop { return }
+        perform(action, fromServer: true)
+    }
+
+    private func perform(_ action: TeleopAction, fromServer: Bool) {
+        let before = session.state
+        let wasMoving = before.armMoving
         session.perform(action)
-        // The recording clock ticks every second; logging it would bury everything else.
-        if action != .recordingTick { log("→ \(action)") }
+        if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
+        // The recording clock and the latency probe tick every second; logging them would bury everything else.
+        if action != .recordingTick, !Self.isLatency(action) { log("→ \(action)") }
         logPose(wasMoving: wasMoving)
         for command in session.drainHaptics() {
             haptics.run(command)
             hapticLog?.append(Self.logName(command))
             log("~ \(Self.logName(command))")
         }
+    }
+
+    /// Mirrors what the session just decided onto the wire. The session decides; the link only follows.
+    private func driveLink(_ action: TeleopAction, before: FakeTeleopState, fromServer: Bool) {
+        let after = session.state
+        // E-stop goes out first. A server-side E-stop is not echoed, but our own hold still has to end.
+        if !before.emergencyStop, after.emergencyStop, !fromServer { link.estop() }
+        if before.armMoving, !after.armMoving { link.endHold() }
+        if before.emergencyStop, !after.emergencyStop { link.estopReset() }
+        if !before.armMoving, after.armMoving {
+            let params = PoseParams(
+                gain: after.sensitivity, deadbandDegrees: after.deadbandDegrees, smoothing: after.smoothing
+            )
+            if !link.startHold(params) {
+                log("link: hold not started (no tracking or link)")
+                session.perform(.holdArmEnd)
+                session.pendingCue(.commandBlocked)
+            }
+        }
+        switch action {
+        case .toggleGripper where before.gripper != after.gripper:
+            link.gripper(after.gripper)
+        case .resetScene where before.connected && !before.emergencyStop:
+            link.resetScene()
+        case .disconnect:
+            link.closeQuietly()
+        case .switchMode where session.route == .p1:
+            link.closeQuietly()
+        case .modeNext, .cloudUseOnSite, .cloudEnterStandby:
+            // Entering a session: try the saved server so standby is ready when the user gets there.
+            if !after.connected, !link.isOpen { link.connect(to: after.serverAddress) }
+        default:
+            break
+        }
+    }
+
+    private static func isLatency(_ action: TeleopAction) -> Bool {
+        if case .linkLatency = action { return true }
+        return false
     }
 
     func log(_ line: String) {

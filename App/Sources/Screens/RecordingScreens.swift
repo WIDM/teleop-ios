@@ -193,9 +193,12 @@ struct BaseTeleopScreen: View {
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                 .fill(TeleopColors.camera)
                 .overlay {
-                    Image(systemName: "plus")
-                        .font(.system(size: 40, weight: .light))
-                        .foregroundStyle(.white)
+                    // Same crosshair and label as standby, so entering base mode does not look like a toggle.
+                    VStack(spacing: 4) {
+                        Image(systemName: "plus").font(.system(size: 40, weight: .light))
+                        Text("control.gripper_aim").font(.system(size: 14))
+                    }
+                    .foregroundStyle(.white)
                 }
                 .overlay(alignment: .trailing) {
                     BaseHandle(accessibilityId: "base.release") { model.send(.releaseBase) }

@@ -2,7 +2,7 @@ public enum TeleopMode: Sendable { case onSite, cloud }
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
 
-/// Fake UI state only; no networking.
+/// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
     public var mode: TeleopMode = .onSite
     public var connected = false
@@ -24,12 +24,16 @@ public struct FakeTeleopState: Equatable, Sendable {
     /// True while the arm hold (vol+ or the on-screen hold area) is pressed.
     public var armMoving = false
     public var serverInputError = false
+    /// True when a real server drives the link. Then only `linkUp` marks the session connected.
+    public var liveLink = false
 
     public init() {}
 
     public static let highLatencyMs = 420
     public static let normalLatencyMs = 80
     public static let amberLatencyMs = 150
+    /// Round trip at or above this blocks commands.
+    public static let blockLatencyMs = 400
     public static let deadbandRange = 0.0...10.0
     public static let smoothingRange = 0.0...1.0
 

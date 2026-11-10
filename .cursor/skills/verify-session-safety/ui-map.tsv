@@ -19,5 +19,5 @@ s3m	BaseTeleopScreen	openConnection,openRecording,releaseBase,openSettings,stop,
 s4	EStopScreen	openConnection,releaseStop,stop
 s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,startFallbackRecording,toggleGripper,openSettings,stop
 s5a	RecordingScreen	openConnection,stopRecording,toggleGripper,openSettings,stop,recordingAppeared,holdArmStart,holdArmEnd
-s6	SettingsScreen	back,settingsDone,replayTutorial,stop,switchMode
+s6	SettingsScreen	back,settingsDone,replayTutorial,stop,switchMode,toggleLiveLink
 s7	ErrorsScreen	openConnection,reconnect,backToConnect,stop

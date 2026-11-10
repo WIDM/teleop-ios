@@ -32,8 +32,8 @@ VARIANTS = [
         "connect clears E-stop",
         [
             (
-                "case .connect:\n            state.markConnected()",
-                "case .connect:\n            state.markConnected()\n            state.emergencyStop = false",
+                "guard !state.liveLink else { return }\n            state.markConnected()",
+                "guard !state.liveLink else { return }\n            state.markConnected()\n            state.emergencyStop = false",
             )
         ],
         ["FAIL S1"],
@@ -77,6 +77,32 @@ VARIANTS = [
         "switch mode leaves the arm moving",
         [("    public mutating func leaveSession() {\n        armMoving = false\n", "    public mutating func leaveSession() {\n")],
         ["FAIL S6"],
+    ),
+    (
+        # Harmless: U1 allows S7 while latched, because S7 leads back to S4.
+        "lost link opens S7 even while E-stopped",
+        [("} else if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) {", "} else {")],
+        ["PASS U1", "PASS U3"],
+    ),
+    (
+        "lost link leaves the arm moving",
+        [("        connected = false\n        heartbeatOk = false\n        armMoving = false\n", "        connected = false\n        heartbeatOk = false\n")],
+        ["FAIL S6"],
+    ),
+    (
+        "slow link leaves the arm moving",
+        [("                state.commandsBlocked = true\n                state.armMoving = false\n", "                state.commandsBlocked = true\n")],
+        ["FAIL S6"],
+    ),
+    (
+        "link up clears E-stop",
+        [("            state.serverInputError = false\n            if let gripper", "            state.serverInputError = false\n            state.emergencyStop = false\n            if let gripper")],
+        ["FAIL S1"],
+    ),
+    (
+        "fake link accepts a server gripper",
+        [("        case .linkUp(let gripper):\n            guard state.liveLink else { return }\n", "        case .linkUp(let gripper):\n")],
+        ["FAIL S4"],
     ),
     (
         "hold end does nothing",

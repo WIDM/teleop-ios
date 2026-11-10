@@ -41,6 +41,12 @@ public enum TeleopAction: Equatable, Sendable {
     case holdArmEnd
     case resetScene
     case switchMode
+    /// Live link only: the server welcomed us and sent its state.
+    case linkUp(gripper: GripperState?)
+    /// Live link only: the socket closed, failed to open, or the server went quiet.
+    case linkLost
+    /// Live link only: measured round trip in milliseconds.
+    case linkLatency(ms: Int)
 }
 
 /// Navigation plus fake state, driven only through `perform`.
@@ -63,15 +69,20 @@ public struct TeleopSession: Equatable, Sendable {
         return pendingHaptics
     }
 
+    /// For a refusal decided outside the session, such as a hold with no tracked phone pose.
+    public mutating func pendingCue(_ cue: HapticCue) {
+        pendingHaptics.append(.play(cue))
+    }
+
     public mutating func perform(_ action: TeleopAction) {
         switch action {
         case .modeNext:
             switch state.mode {
             case .cloud:
-                state.simulateCloudPass()
+                cloudPass()
                 go(.p2)
             case .onSite:
-                state.markConnected()
+                assumeConnected()
                 go(.s2)
             }
         case .cloudEnterStandby:
@@ -80,11 +91,11 @@ public struct TeleopSession: Equatable, Sendable {
             state.simulateCloudFail()
             go(.p3)
         case .cloudRecheck:
-            state.simulateCloudPass()
+            cloudPass()
             go(.p2)
         case .cloudUseOnSite:
             state.selectOnSite()
-            state.markConnected()
+            assumeConnected()
             go(.s2)
         case .permissionsContinue:
             go(state.tutorialDone ? .p4 : .t1)
@@ -119,6 +130,8 @@ public struct TeleopSession: Equatable, Sendable {
             state.simulateNormalLatency()
             go(.p4)
         case .connect:
+            // Live link: the app opens the socket and `linkUp` reports success.
+            guard !state.liveLink else { return }
             state.markConnected()
             go(.p5)
         case .disconnect:
@@ -196,7 +209,51 @@ public struct TeleopSession: Equatable, Sendable {
             state.leaveSession()
             connectionOrigin = nil
             navigator = TeleopNavigator(start: .p1)
+        case .linkUp(let gripper):
+            guard state.liveLink else { return }
+            state.markConnected()
+            state.heartbeatOk = true
+            state.serverInputError = false
+            if let gripper { state.gripper = gripper }
+            if route == .s1 { go(.p5) }
+        case .linkLost:
+            guard state.liveLink else { return }
+            let wasConnected = state.connected
+            state.markDisconnected()
+            state.commandsBlocked = false
+            if !wasConnected {
+                // A failed attempt: say so on the connect screen, go nowhere.
+                if route == .s1 { state.serverInputError = true }
+            } else if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) {
+                // E-stop latched: S4 must never be hidden.
+                go(.s7)
+            }
+        case .linkLatency(let ms):
+            guard state.liveLink, state.connected else { return }
+            // One slow sample is noise (a stalled radio, the app waking up). Two in a row is a slow link.
+            let slow = ms >= FakeTeleopState.blockLatencyMs
+            let confirmed = slow && (state.commandsBlocked || state.latencyMs >= FakeTeleopState.blockLatencyMs)
+            state.latencyMs = ms
+            if confirmed {
+                state.commandsBlocked = true
+                state.armMoving = false
+                if route == .p4 { go(.p6) }
+            } else if !slow {
+                state.commandsBlocked = false
+                if route == .p6 { go(.p4) }
+            }
         }
+    }
+
+    /// Fake link: reaching a control screen means connected. Live link: only `linkUp` does that.
+    private mutating func assumeConnected() {
+        if !state.liveLink { state.markConnected() }
+    }
+
+    private mutating func cloudPass() {
+        let wasConnected = state.connected
+        state.simulateCloudPass()
+        if state.liveLink { state.connected = wasConnected }
     }
 
     /// Inputs are ignored outright while E-stopped or disconnected: no motion, no haptic.

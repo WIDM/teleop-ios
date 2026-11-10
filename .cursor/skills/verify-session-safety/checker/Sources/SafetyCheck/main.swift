@@ -49,10 +49,21 @@ let actionTable: [(String, TeleopAction)] = [
     ("toggleGripper", .toggleGripper),
     ("holdArmStart", .holdArmStart),
     ("holdArmEnd", .holdArmEnd),
+    ("linkUpOpen", .linkUp(gripper: .open)),
+    ("linkUpClosed", .linkUp(gripper: .closed)),
+    ("linkUpUnknown", .linkUp(gripper: nil)),
+    ("linkLost", .linkLost),
+    ("linkLatencyNormal", .linkLatency(ms: 80)),
+    ("linkLatencyAmber", .linkLatency(ms: 200)),
+    ("linkLatencyBlocked", .linkLatency(ms: 420)),
 ]
+// What the server can cause at any moment on a live link: LiveLinkController reports these from any route.
+// A server-side E-stop arrives as stop; a rejected or untracked hold as holdArmEnd.
+let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
 // ModeSelectScreen changes the mode directly on the state, not through perform.
-let stateCalls = ["selectCloud", "selectOnSite"]
+// toggleLiveLink is the Settings switch: AppModel.liveLink sends switchMode, then flips the flag.
+let stateCalls = ["selectCloud", "selectOnSite", "toggleLiveLink"]
 let recordingTickBound = 2
 
 struct Node {
@@ -77,7 +88,7 @@ let properties: [Property] = [
     Property(id: "S1", promise: "E-stop stays latched until releaseStop.", harm: "The arm could accept commands after STOP without a deliberate release."),
     Property(id: "S2", promise: "The arm starts moving only on holdArmStart while connected, not E-stopped and not latency-blocked.", harm: "The arm could move when the operator was told it cannot."),
     Property(id: "S3", promise: "The arm is never moving while E-stopped.", harm: "STOP would not stop the arm."),
-    Property(id: "S4", promise: "The gripper changes only on toggleGripper while connected, not E-stopped, not blocked and not moving, or opens on resetScene while connected and not E-stopped.", harm: "The gripper could drop or grab something unexpectedly."),
+    Property(id: "S4", promise: "The gripper changes only on toggleGripper while connected, not E-stopped, not blocked and not moving, or opens on resetScene while connected and not E-stopped, or takes the server's value when a live link comes up.", harm: "The gripper could drop or grab something unexpectedly."),
     Property(id: "S5", promise: "holdArmEnd always leaves the arm stopped.", harm: "Releasing the control would not stop the arm."),
     Property(id: "S6", promise: "The arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
     Property(id: "S7", promise: "stop from any state ends E-stopped on S4 with the arm stopped.", harm: "STOP could fail in some state."),
@@ -97,6 +108,10 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
     switch name {
     case "selectCloud": session.state.selectCloud()
     case "selectOnSite": session.state.selectOnSite()
+    case "toggleLiveLink":
+        if session.state.emergencyStop { return nil }
+        session.perform(.switchMode)
+        session.state.liveLink.toggle()
     default: session.perform(actionsByName[name]!)
     }
     // ArmHoldModifier.onDisappear sends holdArmEnd when the hold area leaves the screen.
@@ -135,6 +150,7 @@ struct StateKey: Hashable {
     let developerMode: Bool
     let armMoving: Bool
     let serverInputError: Bool
+    let liveLink: Bool
     let route: Route
     let origin: Route?
     let loopPlaying: Bool
@@ -159,6 +175,7 @@ func key(_ node: Node) -> StateKey {
         developerMode: s.developerMode,
         armMoving: s.armMoving,
         serverInputError: s.serverInputError,
+        liveLink: s.liveLink,
         route: node.session.route,
         origin: origin,
         loopPlaying: node.loopPlaying
@@ -250,7 +267,8 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     if b.emergencyStop, b.armMoving { out.append(("S3", "E-stop latched while armMoving is true")) }
     if a.gripper != b.gripper,
        !(step.action == "toggleGripper" && linkOk(a) && !a.emergencyStop && !a.armMoving),
-       !(step.action == "resetScene" && a.connected && !a.emergencyStop && b.gripper == .open) {
+       !(step.action == "resetScene" && a.connected && !a.emergencyStop && b.gripper == .open),
+       !(step.action.hasPrefix("linkUp") && a.liveLink) {
         out.append(("S4", "gripper changed by \(step.action)"))
     }
     if step.action == "holdArmEnd", b.armMoving { out.append(("S5", "armMoving still true after holdArmEnd")) }
@@ -321,6 +339,7 @@ func shippedActions(_ node: Node) -> [String] {
     var names = uiMap[node.session.route]!
     if node.session.state.isRecording { names.append("recordingTick") }
     if node.session.state.armMoving, !names.contains("holdArmEnd") { names.append("holdArmEnd") }
+    if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
     return names
 }
 var uiRun = explore(actions: shippedActions, shippedUI: true, check: uiChecks)
