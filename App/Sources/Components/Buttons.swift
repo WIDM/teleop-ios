@@ -215,6 +215,9 @@ struct GripperHoldButton: View {
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                 .strokeBorder(TeleopColors.textPrimary.opacity(0.4), lineWidth: 1.5)
         )
+        // One element for the whole button: iOS 18 otherwise exposes the icon as a second, untappable one.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(target == .open ? "control.gripper_hold_open" : "control.gripper_hold_close"))
         .gripperHold(model: model, target: target)
         .accessibilityIdentifier(target == .open ? "gripper.open" : "gripper.close")
     }
