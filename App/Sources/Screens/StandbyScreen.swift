@@ -33,7 +33,9 @@ struct StandbyScreen: View {
                     }
                     .foregroundStyle(.white)
                 }
-                .overlay(alignment: .bottom) { VolumeHintBox(textKey: "control.volume_hint").padding(.bottom, 16) }
+                .overlay(alignment: .bottom) {
+                    VolumeHintBox(textKey: "control.volume_hint") { model.send(.openFallback) }.padding(.bottom, 16)
+                }
                 .overlay(alignment: .trailing) {
                     BaseHandle { model.send(.openBase) }
                         .frame(width: 72)
@@ -141,7 +143,7 @@ struct RecordButton: View {
             if isRecording {
                 HStack(spacing: 8) {
                     BlinkingDot()
-                    Text(String(format: String(localized: "control.recording_time"), elapsed))
+                    Text(String(format: L10n.string("control.recording_time"), elapsed))
                         .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
                 }

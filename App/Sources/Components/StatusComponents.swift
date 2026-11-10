@@ -124,8 +124,19 @@ struct GripperCard: View {
 
 struct VolumeHintBox: View {
     let textKey: LocalizedStringKey
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
+        if let onTap {
+            Button(action: onTap) { content }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("volume_hint")
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: 8) {
             Image(systemName: "speaker.wave.2.fill")
             Text(textKey)

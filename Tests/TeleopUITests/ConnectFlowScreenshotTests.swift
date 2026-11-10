@@ -6,6 +6,7 @@ final class ConnectFlowScreenshotTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchArguments += ["-appLanguage", "en"]
         app.launch()
     }
 

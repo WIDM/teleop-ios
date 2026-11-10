@@ -74,6 +74,11 @@ VARIANTS = [
         ["FAIL S4"],
     ),
     (
+        "switch mode leaves the arm moving",
+        [("    public mutating func leaveSession() {\n        armMoving = false\n", "    public mutating func leaveSession() {\n")],
+        ["FAIL S6"],
+    ),
+    (
         "hold end does nothing",
         [
             (

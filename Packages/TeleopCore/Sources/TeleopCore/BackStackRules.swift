@@ -44,7 +44,7 @@ public enum BackStackRules {
         .s4: [.p4, .p5],
         .s5: [.s5a, .p5, .s6, .s4],
         .s5a: [.s3b, .p5, .s6, .s4],
-        .s6: [.p4, .t1, .s4],
+        .s6: [.p4, .t1, .s4, .p1],
         .s7: [.s1, .p5, .s4],
     ]
 

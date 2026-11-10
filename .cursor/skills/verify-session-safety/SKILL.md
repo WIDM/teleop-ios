@@ -116,6 +116,6 @@ Sync commit: `96a1d17`
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
 - `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`.
-- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− on P4, P6, S3a, S3m, S5a).
+- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− on P4, P6, S3a, S3m, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.

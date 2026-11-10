@@ -40,7 +40,7 @@ struct TutorialScreen: View {
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(String(format: String(localized: "tutorial.step_of"), step))
+            Text(String(format: L10n.string("tutorial.step_of"), step))
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)
             Text(titleKey).font(.system(size: 20, weight: .semibold))

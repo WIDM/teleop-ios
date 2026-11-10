@@ -8,6 +8,12 @@
             "state": "translated",
             "value": "Teleop"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teleop"
+          }
         }
       }
     },
@@ -18,6 +24,12 @@
             "state": "translated",
             "value": "The camera tracks the phone pose and detects volume-key hold and release."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相機用來追蹤手機姿態，並偵測按住與放開音量鍵。"
+          }
         }
       }
     },
@@ -27,6 +39,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Motion sensors map phone rotation to wrist orientation."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動作感測器把手機旋轉對應到手腕方向。"
           }
         }
       }

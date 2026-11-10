@@ -364,4 +364,39 @@ final class TeleopSessionTests: XCTestCase {
         offline.perform(.resetScene)
         XCTAssertEqual(offline.state.gripper, .closed)
     }
+
+    func testSwitchModeReturnsToModeSelectDisconnected() {
+        var s = TeleopSession(start: .p4)
+        s.state.markConnected()
+        s.perform(.openRecording)
+        s.perform(.recordingAppeared)
+        s.perform(.holdArmStart)
+        s.perform(.openSettings)
+        s.perform(.switchMode)
+        XCTAssertEqual(s.route, .p1)
+        XCTAssertFalse(s.state.connected)
+        XCTAssertFalse(s.state.armMoving)
+        XCTAssertFalse(s.state.isRecording)
+        s.perform(.back)
+        XCTAssertEqual(s.route, .p1)
+    }
+
+    func testSwitchModeThenCloudRunsSafetyCheck() {
+        var s = TeleopSession(start: .s6)
+        s.state.markConnected()
+        s.perform(.switchMode)
+        s.state.selectCloud()
+        s.perform(.modeNext)
+        XCTAssertEqual(s.route, .p2)
+        XCTAssertTrue(s.state.connected)
+    }
+
+    func testSwitchModeIgnoredWhileEStopped() {
+        var s = TeleopSession(start: .s6)
+        s.state.markConnected()
+        s.perform(.stop)
+        s.perform(.switchMode)
+        XCTAssertEqual(s.route, .s4)
+        XCTAssertTrue(s.state.emergencyStop)
+    }
 }

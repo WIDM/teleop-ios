@@ -24,6 +24,7 @@ let actionTable: [(String, TeleopAction)] = [
     ("simulateHighLatency", .simulateHighLatency),
     ("simulateNormalLatency", .simulateNormalLatency),
     ("resetScene", .resetScene),
+    ("switchMode", .switchMode),
     ("connect", .connect),
     ("disconnect", .disconnect),
     ("s1Back", .s1Back),

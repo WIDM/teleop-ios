@@ -21,7 +21,7 @@ All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1,
 - P7 uses the system keyboard, not the shared mock keyboard component.
 - Left/right arm switch, cloud banner and latency dot from visual-spec v1.5 are not in the Android reference, so not built.
 - Camera and motion prompts are shown from S2, and a denial has no follow-up screen.
-- No ARKit pose tracking yet (S2 says the camera tracks the phone pose for AR). Volume keys run their own camera session for now; it should move to the ARKit session.
+- ARKit world tracking runs on control screens (P4, P6, S3a, S3m, S5, S5a); each hold logs how far the phone moved (developer mode). Pose is not sent anywhere until the real link exists.
 - Volume keys: Camera Control and the Action button also arrive as vol−, since capture events do not name the button.
 - Figma could not be read (MCP needs authorization); screens follow the PNG shots and the Android code.
 

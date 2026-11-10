@@ -20,7 +20,7 @@ struct RecordingScreen: View {
                 Button { model.send(.stopRecording) } label: {
                     HStack(spacing: 8) {
                         BlinkingDot()
-                        Text(String(format: String(localized: "control.recording_time"), state.recordingTimeLabel))
+                        Text(String(format: L10n.string("control.recording_time"), state.recordingTimeLabel))
                             .font(.system(size: 16, weight: .semibold))
                             .monospacedDigit()
                             .lineLimit(1)

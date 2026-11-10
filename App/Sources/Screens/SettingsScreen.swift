@@ -17,6 +17,7 @@ struct SettingsScreen: View {
                     .buttonStyle(TextActionStyle(color: TeleopColors.primary))
                     .accessibilityIdentifier("settings.done")
             }
+            ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 sliderRow("settings.sensitivity", tag: "settings.gain_tag",
                           value: $model.session.state.sensitivity, range: 0...2,
@@ -39,27 +40,41 @@ struct SettingsScreen: View {
             .card()
             .padding(.top, 8)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("settings.debug_log")
-                Text(verbatim: "12:01:03 → pose_start seq 41")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                Text(verbatim: "12:01:03 ← pose_stop_requested")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                Text(verbatim: "12:01:03 ← pose_stopped")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                HStack(spacing: 8) {
-                    Button {} label: { Text("settings.send_hello") }.buttonStyle(OutlineButtonStyle())
-                    Button {} label: { Text("settings.clear_log") }.buttonStyle(OutlineButtonStyle())
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("settings.language")
+                    Spacer()
+                    Picker("settings.language", selection: $model.language) {
+                        ForEach(AppLanguage.allCases, id: \.self) { language in
+                            if let name = language.nativeName {
+                                Text(verbatim: name).tag(language)
+                            } else {
+                                Text("settings.language_system").tag(language)
+                            }
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("settings.language")
                 }
-                .padding(.top, 8)
-            }
-            .card()
-            .padding(.top, 12)
-
-            VStack(spacing: 0) {
+                .frame(minHeight: TeleopMetrics.touch)
+                Divider()
+                Button { model.send(.switchMode) } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("settings.switch_mode")
+                            Text("settings.switch_mode_hint")
+                                .font(.system(size: 12))
+                                .foregroundStyle(TeleopColors.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(TeleopColors.chevronMuted)
+                    }
+                    .frame(minHeight: TeleopMetrics.touch)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.switch_mode")
+                Divider()
                 Button { model.send(.replayTutorial) } label: {
                     HStack {
                         Text("settings.replay_tutorial")
@@ -71,24 +86,67 @@ struct SettingsScreen: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings.replay_tutorial")
-                Button { model.session.state.developerMode.toggle() } label: {
-                    HStack {
+                Divider()
+                Toggle(isOn: $model.session.state.developerMode) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("settings.developer_mode")
-                        Spacer()
-                        Text(LocalizedStringKey(model.session.state.developerMode ? "common.on" : "common.off"))
+                        Text("settings.developer_hint")
+                            .font(.system(size: 12))
                             .foregroundStyle(TeleopColors.textSecondary)
                     }
-                    .frame(minHeight: TeleopMetrics.touch)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .frame(minHeight: TeleopMetrics.touch)
                 .accessibilityIdentifier("settings.developer_mode")
             }
             .padding(.horizontal, 16)
             .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
             .padding(.top, 12)
 
-            Spacer()
+            // Raw protocol lines stay out of the normal UI (S6 rule); developer mode shows them.
+            if model.session.state.developerMode {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("settings.debug_log")
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 2) {
+                                if model.debugLog.isEmpty {
+                                    Text("settings.log_empty")
+                                } else {
+                                    ForEach(Array(model.debugLog.enumerated()), id: \.offset) { index, line in
+                                        Text(verbatim: line).id(index)
+                                    }
+                                }
+                            }
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(TeleopColors.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("settings.log")
+                        }
+                        .frame(height: 96)
+                        .onChange(of: model.debugLog.count) { _, count in
+                            if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Button {
+                            model.log("→ hello")
+                            model.log("· " + L10n.string("settings.hello_offline"))
+                        } label: { Text("settings.send_hello") }
+                            .buttonStyle(OutlineButtonStyle())
+                            .accessibilityIdentifier("settings.send_hello")
+                        Button { model.clearLog() } label: { Text("settings.clear_log") }
+                            .buttonStyle(OutlineButtonStyle())
+                            .accessibilityIdentifier("settings.clear_log")
+                    }
+                    .padding(.top, 8)
+                }
+                .card()
+                .padding(.top, 12)
+            }
+
+            }
+            .scrollIndicators(.hidden)
             StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)

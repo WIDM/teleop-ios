@@ -40,6 +40,7 @@ public enum TeleopAction: Equatable, Sendable {
     case holdArmStart
     case holdArmEnd
     case resetScene
+    case switchMode
 }
 
 /// Navigation plus fake state, driven only through `perform`.
@@ -189,6 +190,12 @@ public struct TeleopSession: Equatable, Sendable {
             guard acceptsControl else { return }
             state.resetScene()
             if route == .p6 { go(.p4) }
+        case .switchMode:
+            // Never while E-stopped: P1 would hide S4.
+            guard !state.emergencyStop else { return }
+            state.leaveSession()
+            connectionOrigin = nil
+            navigator = TeleopNavigator(start: .p1)
         }
     }
 

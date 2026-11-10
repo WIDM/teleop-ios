@@ -10,6 +10,9 @@ struct RootView: View {
             TeleopColors.background.ignoresSafeArea()
             screen(for: model.session.route)
         }
+        .environment(\.locale, model.language.locale)
+        // Rebuild every screen on a language change, so format strings looked up at runtime follow too.
+        .id(model.language)
         .foregroundStyle(TeleopColors.textPrimary)
         .overlay(alignment: .topLeading) {
             if let log = model.hapticLog {
@@ -20,9 +23,13 @@ struct RootView: View {
                     .accessibilityIdentifier("test.haptics")
             }
         }
+        .onAppear { PoseTracker.shared.setActive(Self.tracksPose(model.session.route)) }
+        .onChange(of: model.session.route) { _, route in PoseTracker.shared.setActive(Self.tracksPose(route)) }
         .onChange(of: scenePhase) { _, phase in
             // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
             if phase != .active, model.session.state.armMoving { model.send(.holdArmEnd) }
+            // Camera access granted in the Settings app only shows up on return.
+            if phase == .active { PoseTracker.shared.setActive(Self.tracksPose(model.session.route)) }
         }
         .task(id: model.session.state.isRecording) {
             guard model.session.state.isRecording else { return }
@@ -32,6 +39,11 @@ struct RootView: View {
                 model.send(.recordingTick)
             }
         }
+    }
+
+    /// Control screens track the phone. That also keeps the camera in use for the volume keys.
+    private static func tracksPose(_ route: Route) -> Bool {
+        [.p4, .p6, .s3a, .s3m, .s5, .s5a].contains(route)
     }
 
     @ViewBuilder

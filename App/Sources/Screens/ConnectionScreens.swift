@@ -32,8 +32,8 @@ struct ConnectionDetailsScreen: View {
                         dot: state.heartbeatOk ? TeleopColors.statusGreen : TeleopColors.statusAmber,
                         label: "connection.heartbeat",
                         value: state.heartbeatOk
-                            ? String(localized: "connection.heartbeat_ok")
-                            : String(localized: "connection.heartbeat_missing")
+                            ? L10n.string("connection.heartbeat_ok")
+                            : L10n.string("connection.heartbeat_missing")
                     )
                     Text("connection.server_address")
                         .font(.system(size: 14))
@@ -115,8 +115,8 @@ struct ConnectionDetailsScreen: View {
 
     private func latencyText(_ state: FakeTeleopState) -> String {
         let format = state.latencyIsAmber
-            ? String(localized: "connection.latency_high")
-            : String(localized: "connection.latency_normal")
+            ? L10n.string("connection.latency_high")
+            : L10n.string("connection.latency_normal")
         return String(format: format, state.latencyMs)
     }
 

@@ -60,7 +60,8 @@ struct EStopScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 12)
                 .padding(.bottom, 16)
-            StopButton {}
+            // Already latched; the session ignores a second stop, so this is a no-op that still answers the tap.
+            StopButton { model.send(.stop) }
         }
         .padding(TeleopMetrics.margin)
     }

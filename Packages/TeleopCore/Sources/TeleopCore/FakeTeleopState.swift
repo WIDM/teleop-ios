@@ -75,6 +75,15 @@ public struct FakeTeleopState: Equatable, Sendable {
         commandsBlocked = false
     }
 
+    /// Back to mode select: the link is dropped and nothing keeps moving or recording.
+    public mutating func leaveSession() {
+        armMoving = false
+        isRecording = false
+        connected = false
+        heartbeatOk = true
+        simulateNormalLatency()
+    }
+
     /// Reset scene: arm stopped, gripper back to open, latency block cleared. Recording keeps running.
     public mutating func resetScene() {
         armMoving = false

@@ -8,6 +8,12 @@
             "state": "translated",
             "value": "Teleop"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teleop"
+          }
         }
       }
     },
@@ -17,6 +23,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hold vol+: move the arm\nPress vol−: toggle gripper\nHold right edge: move the base"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住音量＋：移動手臂\n按音量－：切換夾爪\n按住右側邊緣：移動底座"
           }
         }
       }
@@ -28,6 +40,12 @@
             "state": "translated",
             "value": "Enter standby"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進入待命"
+          }
         }
       }
     },
@@ -37,6 +55,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fail"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未通過"
           }
         }
       }
@@ -48,6 +72,12 @@
             "state": "translated",
             "value": "Check the robot power and network, or ask someone on site to check the e-stop."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請檢查機器人的電源與網路，或請現場人員確認急停按鈕。"
+          }
         }
       }
     },
@@ -57,6 +87,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "One check failed. Standby is locked."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有一項檢查未通過，待命已鎖定。"
           }
         }
       }
@@ -68,6 +104,12 @@
             "state": "translated",
             "value": "Both checks must pass before standby."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "兩項檢查都通過才能進入待命。"
+          }
         }
       }
     },
@@ -77,6 +119,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pass"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通過"
           }
         }
       }
@@ -88,6 +136,12 @@
             "state": "translated",
             "value": "Physical e-stop"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "實體急停"
+          }
         }
       }
     },
@@ -97,6 +151,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connected and not pressed"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已連線，未按下"
           }
         }
       }
@@ -108,6 +168,12 @@
             "state": "translated",
             "value": "Recheck"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新檢查"
+          }
         }
       }
     },
@@ -117,6 +183,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cloud safety check"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲端安全檢查"
           }
         }
       }
@@ -128,6 +200,12 @@
             "state": "translated",
             "value": "Use on-site mode"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用地端模式"
+          }
         }
       }
     },
@@ -137,6 +215,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Back"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
           }
         }
       }
@@ -148,6 +232,12 @@
             "state": "translated",
             "value": "Continue"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "繼續"
+          }
         }
       }
     },
@@ -157,6 +247,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Done"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
           }
         }
       }
@@ -168,25 +264,11 @@
             "state": "translated",
             "value": "Next"
           }
-        }
-      }
-    },
-    "common.off": {
-      "localizations": {
-        "en": {
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Off"
-          }
-        }
-      }
-    },
-    "common.on": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On"
+            "value": "下一步"
           }
         }
       }
@@ -198,6 +280,12 @@
             "state": "translated",
             "value": "Skip"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略過"
+          }
         }
       }
     },
@@ -207,6 +295,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Start"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始"
           }
         }
       }
@@ -218,6 +312,12 @@
             "state": "translated",
             "value": "Connect"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線"
+          }
         }
       }
     },
@@ -227,6 +327,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disconnect"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中斷連線"
           }
         }
       }
@@ -238,6 +344,12 @@
             "state": "translated",
             "value": "Returns to connection details after connecting"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線後會回到連線資訊"
+          }
         }
       }
     },
@@ -247,6 +359,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Check the address format"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請檢查位址格式"
           }
         }
       }
@@ -258,6 +376,12 @@
             "state": "translated",
             "value": "Recent"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近使用"
+          }
         }
       }
     },
@@ -267,6 +391,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Personal hotspot"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個人熱點"
           }
         }
       }
@@ -278,6 +408,12 @@
             "state": "translated",
             "value": "lab Wi-Fi"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "實驗室 Wi-Fi"
+          }
         }
       }
     },
@@ -288,12 +424,24 @@
             "state": "translated",
             "value": "Connect to the robot"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線到機器人"
+          }
         }
       }
     },
     "connect.title": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teleop"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Teleop"
@@ -308,6 +456,12 @@
             "state": "translated",
             "value": "New commands blocked. Latency is high."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "延遲過高，暫停接受新指令。"
+          }
         }
       }
     },
@@ -317,6 +471,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Change server"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更換伺服器"
           }
         }
       }
@@ -328,6 +488,12 @@
             "state": "translated",
             "value": "Close"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉"
+          }
         }
       }
     },
@@ -337,6 +503,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Robot heartbeat"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人心跳"
           }
         }
       }
@@ -348,6 +520,12 @@
             "state": "translated",
             "value": "No heartbeat from the robot"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收不到機器人心跳"
+          }
         }
       }
     },
@@ -357,6 +535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Received just now"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剛剛收到"
           }
         }
       }
@@ -368,6 +552,12 @@
             "state": "translated",
             "value": "Latency"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "延遲"
+          }
         }
       }
     },
@@ -377,6 +567,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld ms, high"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms，偏高"
           }
         }
       }
@@ -388,6 +584,12 @@
             "state": "translated",
             "value": "%lld ms, normal"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms，正常"
+          }
         }
       }
     },
@@ -397,6 +599,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Server address"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器位址"
           }
         }
       }
@@ -408,6 +616,12 @@
             "state": "translated",
             "value": "Connection"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線"
+          }
         }
       }
     },
@@ -417,6 +631,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Base"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "底座"
           }
         }
       }
@@ -428,6 +648,12 @@
             "state": "translated",
             "value": "Gripper"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪"
+          }
         }
       }
     },
@@ -437,6 +663,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gripper aim"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪瞄準"
           }
         }
       }
@@ -448,6 +680,12 @@
             "state": "translated",
             "value": "Gripper: closed"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪：關閉"
+          }
         }
       }
     },
@@ -457,6 +695,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gripper: open"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪：打開"
           }
         }
       }
@@ -468,6 +712,12 @@
             "state": "translated",
             "value": "Close: 1 pulse. Open: 2 pulses."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉：震 1 下。打開：震 2 下。"
+          }
         }
       }
     },
@@ -477,6 +727,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Record"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製"
           }
         }
       }
@@ -488,6 +744,12 @@
             "state": "translated",
             "value": "Recording"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製中"
+          }
         }
       }
     },
@@ -497,6 +759,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製中 %@"
           }
         }
       }
@@ -508,6 +776,12 @@
             "state": "translated",
             "value": "Reset"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置"
+          }
         }
       }
     },
@@ -517,6 +791,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Settings"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
           }
         }
       }
@@ -528,6 +808,12 @@
             "state": "translated",
             "value": "Setup"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定中"
+          }
         }
       }
     },
@@ -537,6 +823,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Standby"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待命"
           }
         }
       }
@@ -548,6 +840,12 @@
             "state": "translated",
             "value": "Hold vol+: move arm\nPress vol−: gripper\nHold right edge: move base"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住音量＋：移動手臂\n按音量－：夾爪\n按住右側邊緣：移動底座"
+          }
         }
       }
     },
@@ -557,6 +855,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Demo shortcuts for the prototype. Not part of the Figma layout."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原型用的示範捷徑，不在 Figma 版面裡。"
           }
         }
       }
@@ -568,6 +872,12 @@
             "state": "translated",
             "value": "Debug"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除錯"
+          }
         }
       }
     },
@@ -577,6 +887,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Simulate fail"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬檢查失敗"
           }
         }
       }
@@ -588,6 +904,12 @@
             "state": "translated",
             "value": "Simulate high latency"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬高延遲"
+          }
         }
       }
     },
@@ -597,6 +919,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Simulate normal latency"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬正常延遲"
           }
         }
       }
@@ -608,6 +936,12 @@
             "state": "translated",
             "value": "Back to connect"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到連線"
+          }
         }
       }
     },
@@ -617,6 +951,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connection lost"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線中斷"
           }
         }
       }
@@ -628,6 +968,12 @@
             "state": "translated",
             "value": "Arm stopped by heartbeat timeout. Reconnecting…"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心跳逾時，手臂已停止。重新連線中…"
+          }
         }
       }
     },
@@ -637,6 +983,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No update for 750 ms. This command stopped. Release and try again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "750 ms 沒有更新，這個指令已停止。請放開後再試一次。"
           }
         }
       }
@@ -648,6 +1000,12 @@
             "state": "translated",
             "value": "Reconnect"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新連線"
+          }
         }
       }
     },
@@ -657,6 +1015,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Command rejected: busy"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指令被拒絕：忙碌中"
           }
         }
       }
@@ -668,6 +1032,12 @@
             "state": "translated",
             "value": "Another device is controlling the robot"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一台裝置正在控制機器人"
+          }
         }
       }
     },
@@ -677,6 +1047,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hold here"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住這裡"
           }
         }
       }
@@ -688,6 +1064,12 @@
             "state": "translated",
             "value": "Hold here: phone motion moves the arm. Release to stop."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住這裡：手機移動會帶動手臂。放開就停止。"
+          }
         }
       }
     },
@@ -697,6 +1079,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shown only when volume keys are unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只在音量鍵無法使用時顯示"
           }
         }
       }
@@ -708,6 +1096,12 @@
             "state": "translated",
             "value": "Stop recording is bottom-left, same spot as Record"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止錄製在左下角，和錄製按鈕同一個位置"
+          }
         }
       }
     },
@@ -717,6 +1111,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "On-screen controls"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "螢幕操作"
           }
         }
       }
@@ -728,6 +1128,12 @@
             "state": "translated",
             "value": "Done"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
         }
       }
     },
@@ -737,6 +1143,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choose a mode"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇模式"
           }
         }
       }
@@ -748,6 +1160,12 @@
             "state": "translated",
             "value": "Cloud mode"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲端模式"
+          }
         }
       }
     },
@@ -757,6 +1175,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connect remotely. Two safety checks must pass first: robot heartbeat and physical e-stop."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遠端連線。須先通過兩項安全檢查：機器人心跳與實體急停。"
           }
         }
       }
@@ -768,6 +1192,12 @@
             "state": "translated",
             "value": "Pick once per launch. You can change it in Settings."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次啟動選一次，之後可在設定中更改。"
+          }
         }
       }
     },
@@ -777,6 +1207,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "On-site mode"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地端模式"
           }
         }
       }
@@ -788,6 +1224,12 @@
             "state": "translated",
             "value": "Phone and robot share the lab Wi-Fi."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手機和機器人連同一個實驗室 Wi-Fi。"
+          }
         }
       }
     },
@@ -797,6 +1239,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Selected"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已選擇"
           }
         }
       }
@@ -808,6 +1256,12 @@
             "state": "translated",
             "value": "Camera"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相機"
+          }
         }
       }
     },
@@ -817,6 +1271,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tracks phone pose for AR. On iOS the camera must stay on so volume-key hold and release are detected."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用來追蹤手機姿態（AR）。iOS 上相機必須保持開啟，才能偵測按住與放開音量鍵。"
           }
         }
       }
@@ -828,6 +1288,12 @@
             "state": "translated",
             "value": "Continue opens the system permission prompts."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按「繼續」會跳出系統的權限詢問。"
+          }
         }
       }
     },
@@ -837,6 +1303,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Motion sensors"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動作感測器"
           }
         }
       }
@@ -848,6 +1320,12 @@
             "state": "translated",
             "value": "Reads phone rotation and maps it to wrist orientation."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取手機旋轉，對應到手腕方向。"
+          }
         }
       }
     },
@@ -857,6 +1335,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Two permissions are required"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要兩項權限"
           }
         }
       }
@@ -868,6 +1352,12 @@
             "state": "translated",
             "value": "Discard (hold 1s)"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捨棄（按住 1 秒）"
+          }
         }
       }
     },
@@ -877,6 +1367,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Save"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存"
           }
         }
       }
@@ -888,6 +1384,12 @@
             "state": "translated",
             "value": "Save or discard this take? The arm stays still until you choose."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要儲存還是捨棄這段錄製？選好之前手臂不會動。"
+          }
         }
       }
     },
@@ -897,6 +1399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hold vol+: move arm with the phone, release to stop\nPress vol−: toggle gripper (after releasing vol+)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住音量＋：手機帶動手臂，放開就停止\n按音量－：切換夾爪（先放開音量＋）"
           }
         }
       }
@@ -908,6 +1416,12 @@
             "state": "translated",
             "value": "Clear log"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除紀錄"
+          }
         }
       }
     },
@@ -918,12 +1432,24 @@
             "state": "translated",
             "value": "Deadband"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "死區"
+          }
         }
       }
     },
     "settings.deadband_tag": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deadband"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "deadband"
@@ -938,6 +1464,28 @@
             "state": "translated",
             "value": "Debug log"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除錯紀錄"
+          }
+        }
+      }
+    },
+    "settings.developer_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the debug log."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示除錯紀錄。"
+          }
         }
       }
     },
@@ -947,6 +1495,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Developer mode"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者模式"
           }
         }
       }
@@ -958,6 +1512,76 @@
             "state": "translated",
             "value": "gain"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gain"
+          }
+        }
+      }
+    },
+    "settings.hello_offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hello not sent: this build has no server link yet"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hello 未送出：這個版本還沒接上伺服器"
+          }
+        }
+      }
+    },
+    "settings.language": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言"
+          }
+        }
+      }
+    },
+    "settings.language_system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨系統"
+          }
+        }
+      }
+    },
+    "settings.log_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No events yet."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有紀錄。"
+          }
         }
       }
     },
@@ -967,6 +1591,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Replay tutorial"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重看教學"
           }
         }
       }
@@ -978,6 +1608,12 @@
             "state": "translated",
             "value": "Send hello"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送出 hello"
+          }
         }
       }
     },
@@ -987,6 +1623,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sensitivity"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "靈敏度"
           }
         }
       }
@@ -998,6 +1640,12 @@
             "state": "translated",
             "value": "Smoothing"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平滑"
+          }
         }
       }
     },
@@ -1007,6 +1655,44 @@
           "stringUnit": {
             "state": "translated",
             "value": "smoothing"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "smoothing"
+          }
+        }
+      }
+    },
+    "settings.switch_mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch mode"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換模式"
+          }
+        }
+      }
+    },
+    "settings.switch_mode_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnects and returns to mode select."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "會中斷連線，回到選擇模式。"
           }
         }
       }
@@ -1018,6 +1704,12 @@
             "state": "translated",
             "value": "Connected"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已連線"
+          }
         }
       }
     },
@@ -1027,6 +1719,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disconnected"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已中斷"
           }
         }
       }
@@ -1038,6 +1736,12 @@
             "state": "translated",
             "value": "Not connected"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未連線"
+          }
         }
       }
     },
@@ -1047,6 +1751,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "E-stopped"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已急停"
           }
         }
       }
@@ -1058,6 +1768,12 @@
             "state": "translated",
             "value": "Volume keys and on-screen controls are ignored."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量鍵和螢幕操作都會被忽略。"
+          }
         }
       }
     },
@@ -1067,6 +1783,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "STOP"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
           }
         }
       }
@@ -1078,6 +1800,12 @@
             "state": "translated",
             "value": "Arm stopped. All inputs are locked."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂已停止，所有輸入都已鎖定。"
+          }
         }
       }
     },
@@ -1087,6 +1815,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Release early to cancel. A short buzz confirms release."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提早放開就取消。短震一下代表已解除。"
           }
         }
       }
@@ -1098,6 +1832,12 @@
             "state": "translated",
             "value": "Hold 1s to release"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住 1 秒解除"
+          }
         }
       }
     },
@@ -1107,6 +1847,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Step %lld of 3"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 步，共 3 步"
           }
         }
       }
@@ -1118,6 +1864,12 @@
             "state": "translated",
             "value": "The arm follows your phone only while the button is held. Release to stop."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有按住按鍵時，手臂才會跟著手機動。放開就停止。"
+          }
         }
       }
     },
@@ -1127,6 +1879,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hold volume up to move the arm"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住音量＋移動手臂"
           }
         }
       }
@@ -1138,6 +1896,12 @@
             "state": "translated",
             "value": "One short pulse means closed. Two short pulses mean opened."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "短震 1 下代表關閉，短震 2 下代表打開。"
+          }
         }
       }
     },
@@ -1147,6 +1911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Press volume down for the gripper"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按音量－控制夾爪"
           }
         }
       }
@@ -1158,6 +1928,12 @@
             "state": "translated",
             "value": "Tap it at any time to stop the robot at once."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨時按下，機器人就會立刻停止。"
+          }
         }
       }
     },
@@ -1167,6 +1943,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The red STOP button is always here"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紅色的停止按鈕一直都在這裡"
           }
         }
       }

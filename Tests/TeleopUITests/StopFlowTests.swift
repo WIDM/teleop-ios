@@ -6,7 +6,7 @@ final class StopFlowTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-startRoute", "p4_standby"]
+        app.launchArguments += ["-appLanguage", "en", "-startRoute", "p4_standby"]
         app.launch()
     }
 
@@ -60,7 +60,7 @@ final class StopFlowTests: XCTestCase {
 
     func testFallbackHoldAreaMovesWhilePressedAndStopsOnRelease() {
         app.terminate()
-        app.launchArguments = ["-startRoute", "s5_fallback", "-startConnected", "YES"]
+        app.launchArguments = ["-appLanguage", "en", "-startRoute", "s5_fallback", "-startConnected", "YES"]
         app.launch()
         let pad = element("fallback.hold")
         XCTAssertTrue(pad.waitForExistence(timeout: 5))
@@ -78,7 +78,7 @@ final class StopFlowTests: XCTestCase {
 
     private func relaunch(at route: String) {
         app.terminate()
-        app.launchArguments = ["-startRoute", route, "-startConnected", "YES"]
+        app.launchArguments = ["-appLanguage", "en", "-startRoute", route, "-startConnected", "YES"]
         app.launch()
     }
 
