@@ -1,3 +1,4 @@
+import simd
 import SwiftUI
 import TeleopCore
 
@@ -177,42 +178,92 @@ extension View {
     }
 }
 
-/// Centre of the camera view. Idle: the crosshair and its label. During a live arm hold: how far the arm
-/// is being asked to move, so the operator can see which way the phone is taking it.
+/// Centre of the camera view. It answers, in this order: is the phone held right, where is the arm being
+/// sent (during a live hold), and where is the thing to reach. With none of those it is the plain crosshair.
 struct AimOrOffset: View {
     let model: AppModel
 
     var body: some View {
-        if let offset = model.holdOffset {
-            VStack(alignment: .leading, spacing: 6) {
-                row(offset.x, positive: "control.dir_right", negative: "control.dir_left")
-                row(offset.y, positive: "control.dir_forward", negative: "control.dir_back")
-                row(offset.z, positive: "control.dir_up", negative: "control.dir_down")
-                if model.catchingUp {
-                    Text("control.catching_up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TeleopColors.statusAmber)
-                        .accessibilityIdentifier("control.catching_up")
-                }
-            }
-            .foregroundStyle(.white)
-            .accessibilityIdentifier("control.offset")
-        } else {
-            VStack(spacing: 4) {
-                Image(systemName: "plus").font(.system(size: 40, weight: .light))
-                Text("control.gripper_aim").font(.system(size: 14))
-            }
-            .foregroundStyle(.white)
+        // The posture is read from ARKit, which SwiftUI does not observe, so look a few times a second.
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            content(posture: model.phonePosture)
         }
     }
 
-    private func row(_ meters: Float, positive: LocalizedStringKey, negative: LocalizedStringKey) -> some View {
+    @ViewBuilder
+    private func content(posture: PhonePosture) -> some View {
+        if posture == .tilted {
+            VStack(spacing: 8) {
+                Image(systemName: "iphone.gen3").font(.system(size: 56, weight: .light))
+                Text("guide.hold_upright").font(.system(size: 26, weight: .bold))
+                Text("guide.hold_upright_hint").font(.system(size: 14))
+            }
+            .multilineTextAlignment(.center)
+            .foregroundStyle(TeleopColors.statusAmber)
+            .padding(.horizontal, 8)
+            .accessibilityIdentifier("guide.hold_upright")
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                if let offset = model.holdOffset {
+                    rows(offset, size: 22)
+                    if model.catchingUp {
+                        Text("control.catching_up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TeleopColors.statusAmber)
+                            .accessibilityIdentifier("control.catching_up")
+                    }
+                }
+                if let guidance = model.guidance {
+                    guide(guidance, compact: model.holdOffset != nil)
+                } else if model.holdOffset == nil {
+                    VStack(spacing: 4) {
+                        Image(systemName: "plus").font(.system(size: 40, weight: .light))
+                        Text("control.gripper_aim").font(.system(size: 14))
+                    }
+                }
+            }
+            .foregroundStyle(.white)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("control.centre")
+        }
+    }
+
+    @ViewBuilder
+    private func guide(_ guidance: Guidance, compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch guidance.target {
+            case .done:
+                Text("guide.done").font(.system(size: 17, weight: .semibold))
+            case .cube, .goal:
+                Text(guidance.target == .cube ? "guide.cube" : "guide.goal")
+                    .font(.system(size: compact ? 13 : 15, weight: .semibold))
+                    .foregroundStyle(TeleopColors.statusGreen)
+                rows(guidance.offset, size: compact ? 15 : 22)
+            }
+            if guidance.atEdge {
+                Text("guide.edge")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TeleopColors.statusAmber)
+            }
+        }
+        .padding(.top, compact ? 6 : 0)
+        .accessibilityIdentifier("guide.target")
+    }
+
+    @ViewBuilder
+    private func rows(_ offset: SIMD3<Float>, size: CGFloat) -> some View {
+        row(offset.x, positive: "control.dir_right", negative: "control.dir_left", size: size)
+        row(offset.y, positive: "control.dir_forward", negative: "control.dir_back", size: size)
+        row(offset.z, positive: "control.dir_up", negative: "control.dir_down", size: size)
+    }
+
+    private func row(_ meters: Float, positive: LocalizedStringKey, negative: LocalizedStringKey, size: CGFloat) -> some View {
         HStack(spacing: 8) {
             Text(meters >= 0 ? positive : negative)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: size * 0.78, weight: .semibold))
                 .frame(width: 44, alignment: .leading)
             Text(String(format: "%.1f cm", abs(meters) * 100))
-                .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                .font(.system(size: size, weight: .semibold, design: .monospaced))
         }
     }
 }

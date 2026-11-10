@@ -22,13 +22,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move the arm\nHold vol−: close gripper. Hold left edge: open\nHold right edge: move the base"
+            "value": "Hold vol+: move the arm\nHold vol−: close. Left edge: open\nHold right edge: move the base"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。按住左側邊緣：夾爪開\n按住右側邊緣：移動底座"
+            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。左側：夾爪開\n按住右側邊緣：移動底座"
           }
         }
       }
@@ -982,13 +982,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move arm\nHold vol−: close gripper. Hold left edge: open\nHold right edge: move base"
+            "value": "Hold vol+: move arm\nHold vol−: close. Left edge: open\nHold right edge: move base"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。按住左側邊緣：夾爪開\n按住右側邊緣：移動底座"
+            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。左側：夾爪開\n按住右側邊緣：移動底座"
           }
         }
       }
@@ -1261,6 +1261,102 @@
           "stringUnit": {
             "state": "translated",
             "value": "螢幕操作"
+          }
+        }
+      }
+    },
+    "guide.cube": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cube is"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方塊在"
+          }
+        }
+      }
+    },
+    "guide.done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The cube is in the goal."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方塊已在目標區。"
+          }
+        }
+      }
+    },
+    "guide.edge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The arm is at the edge of its range this way."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂到活動範圍邊界了，這個方向不能再走。"
+          }
+        }
+      }
+    },
+    "guide.goal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal is"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標區在"
+          }
+        }
+      }
+    },
+    "guide.hold_upright": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold the phone upright"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請把手機拿正"
+          }
+        }
+      }
+    },
+    "guide.hold_upright_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top edge up, screen facing you, back camera toward the robot view."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頂端朝上、螢幕朝自己、背面鏡頭朝向機器人畫面。"
           }
         }
       }
@@ -1542,13 +1638,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move arm with the phone, release to stop\nHold vol−: close gripper. Hold left edge: open (after releasing vol+)"
+            "value": "Hold vol+: move arm with the phone, release to stop\nHold vol−: close. Left edge: open (release vol+ first)"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：手機帶動手臂，放開就停止\n按住音量－：夾爪關。按住左側邊緣：夾爪開（先放開音量＋）"
+            "value": "按住音量＋：手機帶動手臂，放開就停止\n按住音量－：夾爪關。左側：夾爪開（先放開音量＋）"
           }
         }
       }

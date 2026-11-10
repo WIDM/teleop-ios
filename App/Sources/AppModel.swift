@@ -34,6 +34,8 @@ final class AppModel {
     }
     /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
     private(set) var holdOffset: SIMD3<Float>?
+    /// Live link only: where the cube or the goal is from the gripper.
+    private(set) var guidance: Guidance?
     /// True while the command is held back so the arm can catch up with the phone.
     private(set) var catchingUp = false
     /// Why E-stop is latched, for S4. Nil when not latched.
@@ -64,6 +66,9 @@ final class AppModel {
             // Set only on a change: this runs 30 times a second and every write redraws the readout.
             if self?.catchingUp != $0 { self?.catchingUp = $0 }
         }
+        link.onGuidance = { [weak self] in
+            if self?.guidance != $0 { self?.guidance = $0 }
+        }
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
@@ -75,6 +80,9 @@ final class AppModel {
     }
 
     func foregroundChanged() { link.foregroundChanged() }
+
+    /// How the phone is being held right now, from the same pose the arm follows.
+    var phonePosture: PhonePosture { PhonePosture.of(pose()) }
 
     /// S1 Connect. Fake link: connected at once. Live link: opens the socket; `linkUp` or `linkLost` follows.
     func connect() {

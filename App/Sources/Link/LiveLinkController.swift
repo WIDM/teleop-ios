@@ -9,12 +9,15 @@ final class LiveLinkController {
     static let maxSpeedMetersPerSecond: Float = 0.8
     static let connectTimeout: TimeInterval = 5
     static let defaultPort = 8765
-    /// The server E-stops when the position it is asked for is more than 10 cm ahead of the arm
-    /// (`pose_tracking_safety_stop`). The command is kept this close to where the arm is estimated to be.
+    /// The server E-stops when the position it is asked for is more than 10 cm from where the arm is
+    /// (`pose_tracking_safety_stop`). A server hold is relative to the arm's position when it started, so no
+    /// single server hold ever asks for more than this. That holds however slow or stuck the arm is.
     static let maxLeadMeters: Float = 0.08
-    /// Arm speed assumed until a hold has been measured. In Isaac Sim on 2026-11-10 the arm did 1 to 2.4 cm/s.
-    static let initialArmSpeed: Float = 0.015
-    static let armSpeedRange: ClosedRange<Float> = 0.005...0.5
+    /// The server reports no arm position during a hold. When the hand wants more than the limit, the server
+    /// hold is ended and restarted this often, which is the only way to learn how far the arm really got.
+    static let resyncAfterMs = 1500
+    /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
+    static let resyncTimeoutMs = 1500
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -23,10 +26,10 @@ final class LiveLinkController {
     var onOffset: ((SIMD3<Float>?) -> Void)?
     /// True while the command is being held back so the arm can catch up.
     var onCatchingUp: ((Bool) -> Void)?
+    /// Where the cube or the goal is from the gripper; nil when the server has not said.
+    var onGuidance: ((Guidance?) -> Void)?
     /// Why the server E-stopped, just before the `stop` action is reported.
     var onServerStop: ((String) -> Void)?
-    /// Metres per second the arm is believed to manage. Corrected after each hold from where the arm really ended.
-    private(set) var armSpeed = LiveLinkController.initialArmSpeed
 
     private let makeTransport: (URL) -> LinkTransport
     private let pose: () -> simd_float4x4?
@@ -43,13 +46,16 @@ final class LiveLinkController {
     /// The server ignores gain and smoothing in translation mode, so they are applied here.
     private var holdParams = PoseParams(gain: 1, deadbandDegrees: 0, smoothing: 0)
     private var smoothed = SIMD3<Float>.zero
-    /// Where the arm is estimated to be, and what was last asked of it, both as offsets from the hold start.
-    private var armEstimate = SIMD3<Float>.zero
-    private var lastCommand = SIMD3<Float>.zero
-    private var lastCommandMs = 0
-    private var armAtHoldStart: SIMD3<Float>?
-    /// Set when a hold ends: the next `state` says how far the arm really went.
-    private var pendingMeasure: (start: SIMD3<Float>, estimated: Float)?
+    /// How far the arm really moved in earlier server holds of this press, in the frame offsets are sent in.
+    private var armProgress = SIMD3<Float>.zero
+    /// Arm position (robot base) when the current server hold started; nil if the server has not reported one.
+    private var armAtSegmentStart: SIMD3<Float>?
+    private var segmentStartedMs = 0
+    /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
+    /// the server confirms the old one finished; the next `state` after that carries the arm position.
+    private var resync: (sinceMs: Int, stopped: Bool)?
+    /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
+    private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
@@ -66,6 +72,8 @@ final class LiveLinkController {
     }
 
     var isOpen: Bool { transport != nil }
+    /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
+    var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
 
     /// "host", "host:port" or a full ws:// URL. Nil when it cannot be a server address.
     static func url(from address: String) -> URL? {
@@ -122,10 +130,11 @@ final class LiveLinkController {
         holdStart = nil
         lastSample = nil
         resetSentAtMs = nil
-        pendingMeasure = nil
         lastRefusal = nil
-        armAtHoldStart = nil
-        armSpeed = Self.initialArmSpeed
+        armAtSegmentStart = nil
+        resync = nil
+        atEdge = false
+        onGuidance?(nil)
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -140,11 +149,11 @@ final class LiveLinkController {
         holdParams = params
         smoothed = .zero
         (holdRight, holdForward) = Self.operatorAxes(start)
-        armEstimate = .zero
-        lastCommand = .zero
-        lastCommandMs = nowMs()
-        pendingMeasure = nil
-        armAtHoldStart = link.lastEndEffector.map { SIMD3(Float($0[0]), Float($0[1]), Float($0[2])) }
+        armProgress = .zero
+        resync = nil
+        atEdge = false
+        segmentStartedMs = nowMs()
+        armAtSegmentStart = Self.vector(link.lastEndEffector)
         return true
     }
 
@@ -154,26 +163,40 @@ final class LiveLinkController {
     }
 
     private func holdEnded() {
-        if holdStart != nil, let start = armAtHoldStart, simd_length(armEstimate) > 0.02 {
-            pendingMeasure = (start, simd_length(armEstimate))
-        }
         holdStart = nil
         lastSample = nil
-        armAtHoldStart = nil
+        armAtSegmentStart = nil
+        resync = nil
         onOffset?(nil)
         onCatchingUp?(false)
     }
 
-    /// Compares where the arm was thought to end with where the server says it is, and corrects the speed.
-    /// One hold changes it by 30% at most, so a hold that ran into the workspace edge cannot wreck the estimate.
-    private func measureArm() {
-        guard let pending = pendingMeasure, let now = link?.lastEndEffector else { return }
-        pendingMeasure = nil
-        let travelled = simd_distance(SIMD3(Float(now[0]), Float(now[1]), Float(now[2])), pending.start)
-        let ratio = min(max(travelled / pending.estimated, 0.7), 1.3)
-        armSpeed = min(max(armSpeed * ratio, Self.armSpeedRange.lowerBound), Self.armSpeedRange.upperBound)
-        onLog?(String(format: "link: arm went %.1f cm, estimated %.1f; speed now %.1f cm/s",
-                      travelled * 100, pending.estimated * 100, armSpeed * 100))
+    /// Ends the server hold without ending the operator's, to find out where the arm is.
+    private func beginResync() {
+        link?.poseStop()
+        resync = (nowMs(), false)
+    }
+
+    /// The old server hold has finished and the server has said where the arm is: start the next one from there.
+    private func finishResync() {
+        guard let link, holdStart != nil else { return }
+        let now = Self.vector(link.lastEndEffector)
+        if let now, let before = armAtSegmentStart {
+            // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
+            let moved = now - before
+            armProgress += SIMD3(moved.x, moved.y, -moved.z)
+            // Asked for the full limit for a second and a half and went nowhere: the server is clamping it.
+            atEdge = simd_length(moved) < 0.005
+        }
+        resync = nil
+        guard link.poseStart(holdParams) else {
+            onLog?("link: could not continue the hold after a resync")
+            holdEnded()
+            onAction?(.holdArmEnd)
+            return
+        }
+        armAtSegmentStart = now
+        segmentStartedMs = nowMs()
     }
 
     func estop() {
@@ -208,6 +231,12 @@ final class LiveLinkController {
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
         if link.gripperJogActive, ticks % 4 == 0 { link.keepalive() }
+        if let resync, holdStart != nil, nowMs() - resync.sinceMs > Self.resyncTimeoutMs {
+            onLog?("link: server did not finish the hold during a resync, hold ended")
+            holdEnded()
+            onAction?(.holdArmEnd)
+            return
+        }
         guard link.holdActive, let holdStart else { return }
         guard let current = pose().map(Self.position) else {
             onLog?("link: tracking lost, hold ended")
@@ -228,19 +257,19 @@ final class LiveLinkController {
         let keep = Float(holdParams.smoothing)
         smoothed = smoothed * keep + (current - holdStart) * (1 - keep)
         let wanted = Self.serverOffset(smoothed * Float(holdParams.gain), right: holdRight, forward: holdForward)
-        // The arm is assumed to have chased the last command at its estimated speed since then.
-        armEstimate = Self.step(armEstimate, toward: lastCommand, by: armSpeed * Float(max(now - lastCommandMs, 0)) / 1000)
-        // The hand may run ahead freely up to the leash; past it the command waits for the arm.
-        let lead = wanted - armEstimate
-        let distance = simd_length(lead)
+        // What is still to do, measured from where the arm was when this server hold started.
+        let remaining = wanted - armProgress
+        let distance = simd_length(remaining)
         let catchingUp = distance > Self.maxLeadMeters
-        let delta = catchingUp ? armEstimate + lead / distance * Self.maxLeadMeters : wanted
-        lastCommand = delta
-        lastCommandMs = now
+        let delta = catchingUp ? remaining / distance * Self.maxLeadMeters : remaining
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         // serverOffset negates all three, so this is right, forward, up again.
-        onOffset?(-delta)
+        onOffset?(-(armProgress + delta))
         onCatchingUp?(catchingUp)
+        // No arm position arrives during a hold, so guide from where the arm is being sent.
+        if let start = armAtSegmentStart { publishGuidance(arm: start + SIMD3(delta.x, delta.y, -delta.z)) }
+        // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
+        if catchingUp, now - segmentStartedMs >= Self.resyncAfterMs { beginResync() }
     }
 
     private func handle(_ text: String) {
@@ -249,12 +278,16 @@ final class LiveLinkController {
         case .up(let estop, let gripper):
             onLog?("link: up")
             onAction?(.linkUp(gripper: gripper))
+            if let arm = armPosition { publishGuidance(arm: arm) }
             if estop {
                 onServerStop?("on_connect")
                 onAction?(.stop)
             }
+        case .holdStopped:
+            if resync != nil { resync?.stopped = true }
         case .state(let estop, _):
-            measureArm()
+            if let resync, resync.stopped, !estop { finishResync() }
+            if holdStart == nil, let arm = armPosition { publishGuidance(arm: arm) }
             if !estop {
                 resetSentAtMs = nil
             } else if let sent = resetSentAtMs, nowMs() - sent < 2000 {
@@ -311,11 +344,18 @@ final class LiveLinkController {
         SIMD3(-simd_dot(world, right), -simd_dot(world, forward), -world.y)
     }
 
-    /// `from` moved toward `target` by at most `distance`.
-    static func step(_ from: SIMD3<Float>, toward target: SIMD3<Float>, by distance: Float) -> SIMD3<Float> {
-        let gap = target - from
-        let length = simd_length(gap)
-        return length <= distance || length == 0 ? target : from + gap / length * distance
+    private func publishGuidance(arm: SIMD3<Float>) {
+        guard let link, let cube = Self.vector(link.lastObject), let goal = Self.vector(link.lastGoal) else {
+            onGuidance?(nil)
+            return
+        }
+        var guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: link.lastGripper)
+        guidance.atEdge = atEdge && holdStart != nil
+        onGuidance?(guidance)
+    }
+
+    private static func vector(_ values: [Double]?) -> SIMD3<Float>? {
+        values.map { SIMD3(Float($0[0]), Float($0[1]), Float($0[2])) }
     }
 
     private static func position(_ transform: simd_float4x4) -> SIMD3<Float> {

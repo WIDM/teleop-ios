@@ -9,6 +9,8 @@ public enum LinkEvent: Equatable, Sendable {
     case rejected(type: String, reason: String)
     /// The server refused or ended the hold that is active now.
     case holdRefused(reason: String)
+    /// The server finished the hold that `poseStop` ended; a new one can start.
+    case holdStopped
     /// The server refused or ended the gripper jog that is running now.
     case gripperRefused(reason: String)
     case latency(ms: Int)
@@ -45,9 +47,16 @@ public final class TeleopLink {
     private var probes: [Int: Int] = [:]
     private var lastHeardAt: Int?
     private var holdSeq: Int?
+    /// The hold `poseStop` just ended, until the server confirms it has finished.
+    private var stoppingSeq: Int?
 
     /// Arm tip position from the newest `state`, in metres. The server sends none during a hold.
     public private(set) var lastEndEffector: [Double]?
+    /// Task object and goal positions from the newest `state`, in metres in the robot base frame.
+    public private(set) var lastObject: [Double]?
+    public private(set) var lastGoal: [Double]?
+    /// Gripper as the newest `state` named it.
+    public private(set) var lastGripper: GripperState?
     /// True after `welcome` and a first `state`.
     public private(set) var ready = false
     /// True between an accepted `poseStart` and the stop that ends it.
@@ -101,6 +110,7 @@ public final class TeleopLink {
     public func poseStop() {
         guard holdActive else { return }
         holdActive = false
+        stoppingSeq = holdSeq
         holdSeq = nil
         emit("pose_stop", [:])
     }
@@ -171,6 +181,7 @@ public final class TeleopLink {
         welcomed = false
         holdActive = false
         holdSeq = nil
+        stoppingSeq = nil
         gripperJogActive = false
         gripperJogSeq = nil
         probes = [:]
@@ -192,6 +203,9 @@ public final class TeleopLink {
         case "state":
             guard welcomed else { return nil }
             if let position = payload["ee_pos"] as? [Double], position.count == 3 { lastEndEffector = position }
+            if let position = payload["object_pos"] as? [Double], position.count == 3 { lastObject = position }
+            if let position = payload["goal_pos"] as? [Double], position.count == 3 { lastGoal = position }
+            if let name = payload["gripper"] as? String, let parsed = Self.gripperState(name) { lastGripper = parsed }
             let estop = payload["estop"] as? Bool ?? false
             let gripper = (payload["gripper"] as? String).flatMap(Self.gripperState)
             if !ready {
@@ -204,7 +218,9 @@ public final class TeleopLink {
             return .latency(ms: max(0, now() - sent))
         case "ack":
             guard let seq = payload["seq"] as? Int, let sentType = sentTypes.removeValue(forKey: seq) else { return nil }
-            guard payload["status"] as? String == "rejected" else { return nil }
+            let finishedStop = seq == stoppingSeq
+            if finishedStop { stoppingSeq = nil }
+            guard payload["status"] as? String == "rejected" else { return finishedStop ? .holdStopped : nil }
             let reason = payload["reason"] as? String ?? ""
             // Only the current hold's refusal ends it. A late refusal of an earlier press must not cancel this one.
             if sentType == "pose_start", seq == holdSeq {

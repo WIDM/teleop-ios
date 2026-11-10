@@ -6,6 +6,24 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.5.0 (2026-11-10)
+
+Guidance for the pick-and-place task, and no more safety stops from a fast hand.
+
+- The centre of the camera view says where the cube is from the gripper, in cm right or left, forward or
+  back, up or down. Once the gripper is closed on the cube it says where the goal is. It updates during a
+  hold from where the arm is being sent.
+- "Hold the phone upright" replaces everything in the centre when the phone is tilted more than 35 degrees.
+- One server hold never asks for more than 8 cm. When the hand wants more, the app ends the server hold,
+  reads the arm's real position, and starts the next one from there, about every 1.5 s. This replaces the
+  arm-speed estimate of 0.4.0, which still tripped the server when the arm was stuck.
+- "The arm is at the edge of its range this way" appears when the arm did not move during one of those
+  stretches. The simulator limits the arm to 8 cm either way from where it started on each axis.
+- Shorter hints ("Hold vol−: close. Left edge: open"), and the Open handle sits 20 pt lower so the latency
+  banner does not cover it.
+- `ServerMotionTests` drives the real app code with scripted phone motion against the server:
+  `TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -only-testing:TeleopTests/ServerMotionTests`.
+
 ## 0.4.0 (2026-11-10)
 
 Why E-stop happens, and fewer of them.

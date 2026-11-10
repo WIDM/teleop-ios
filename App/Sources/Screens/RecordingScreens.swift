@@ -89,9 +89,11 @@ struct RecordingScreen: View {
                 }
                 .overlay(alignment: .bottom) { VolumeHintBox(textKey: "recording.volume_hint").padding(12) }
                 .overlay(alignment: .leading) {
+                    // Lower than centre: the latency banner sits across the top of the view.
                     GripperOpenHandle(model: model)
                         .frame(width: 72)
-                        .padding(.vertical, 150)
+                        .padding(.top, 170)
+                        .padding(.bottom, 130)
                 }
         }
     }
@@ -214,9 +216,11 @@ struct BaseTeleopScreen: View {
                         .padding(.vertical, 56)
                 }
                 .overlay(alignment: .leading) {
+                    // Lower than centre: the latency banner sits across the top of the view.
                     GripperOpenHandle(model: model)
                         .frame(width: 72)
-                        .padding(.vertical, 150)
+                        .padding(.top, 170)
+                        .padding(.bottom, 130)
                 }
                 .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
                 .overlay(alignment: .bottom) { VolumeHintBox(textKey: "base.volume_hint").padding(.bottom, 16) }

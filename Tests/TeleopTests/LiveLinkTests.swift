@@ -358,38 +358,40 @@ final class LiveLinkTests: XCTestCase {
         return SIMD3(Float(p[0]), Float(p[1]), Float(p[2]))
     }
 
-    func testCommandNeverLeadsTheEstimatedArmByMoreThanTheLeash() {
-        bringUp()
-        model.send(.holdArmStart)
-        // 20 cm to the right in a third of a second: far more than the arm can do.
-        for step in 1...10 {
-            position = SIMD3(0.02 * Float(step), 0, 0)
-            tick()
-        }
-        XCTAssertTrue(model.session.state.armMoving, "a fast hand must not end the hold")
-        XCTAssertTrue(model.catchingUp)
-        let armCouldHaveGone = LiveLinkController.initialArmSpeed * 0.33
-        XCTAssertLessThanOrEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters + armCouldHaveGone + 0.001)
-        XCTAssertLessThan(lastOffset().x, 0, "still heading the way the hand went")
+    /// The server's replies when a hold is stopped: the stop's ack, the start's final ack, then a state.
+    private func serverFinishesHold(armAt position: [Double]) {
+        let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
+        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "pose_stopped"])
+        transport.server("state", ["estop": false, "ee_pos": position])
     }
 
-    func testCommandCatchesUpAtArmSpeedWhileTheHandWaits() {
+    /// Hand 20 cm to the right in a third of a second, with the arm reported at the origin beforehand.
+    private func sweepRight() {
         bringUp()
+        transport.server("state", ["estop": false, "ee_pos": [0.0, 0.0, 0.1]])
         model.send(.holdArmStart)
         for step in 1...10 {
             position = SIMD3(0.02 * Float(step), 0, 0)
             tick()
         }
-        let early = simd_length(lastOffset())
-        // Hand still for 3 s. The command creeps on at the assumed arm speed, about 4.5 cm.
-        run(ticks: 90)
-        let later = simd_length(lastOffset())
-        XCTAssertEqual(later - early, LiveLinkController.initialArmSpeed * 2.97, accuracy: 0.003)
+    }
+
+    func testNoServerHoldEverAsksForMoreThanTheLimit() {
+        sweepRight()
+        XCTAssertTrue(model.session.state.armMoving, "a fast hand must not end the hold")
         XCTAssertTrue(model.catchingUp)
-        // Another 6 s and it has arrived at the hand.
-        run(ticks: 180)
-        XCTAssertEqual(simd_length(lastOffset()), 0.2, accuracy: 0.002)
-        XCTAssertFalse(model.catchingUp)
+        XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+        XCTAssertLessThan(lastOffset().x, 0, "still heading the way the hand went")
+        // However long the hand waits, the same server hold never asks for more.
+        for _ in 0..<40 { tick() }
+        var farthest = 0.0
+        for message in transport.sent where message["type"] as? String == "pose_update" {
+            let payload = message["payload"] as! [String: Any]
+            let p = payload["p_rel_m"] as! [Double]
+            let x: Double = p[0], y: Double = p[1], z: Double = p[2]
+            farthest = max(farthest, (x * x + y * y + z * z).squareRoot())
+        }
+        XCTAssertLessThanOrEqual(farthest, Double(LiveLinkController.maxLeadMeters) + 0.0005)
     }
 
     func testSmallMovesPassStraightThrough() {
@@ -399,49 +401,142 @@ final class LiveLinkTests: XCTestCase {
         tick()
         XCTAssertEqual(simd_length(lastOffset()), 0.02, accuracy: 0.0001)
         XCTAssertFalse(model.catchingUp)
+        run(ticks: 90)
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1, "no resync while the hand is within reach")
     }
 
-    /// A hold of 20 cm right over 10 s with the hand ahead all the way, then the server reports where the arm ended.
-    private func holdThenReport(armMovedCm: Double) {
+    func testHandBeyondTheLimitResyncsWithTheRealArmAndGoesOn() {
+        sweepRight()
+        // 1.5 s of catching up, then the app ends the server hold to ask where the arm is.
+        run(ticks: 50)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop")
+        XCTAssertTrue(model.session.state.armMoving, "the operator's hold goes on")
+        let updatesBefore = transport.types.filter { $0 == "pose_update" }.count
+        run(ticks: 5)
+        XCTAssertEqual(transport.types.filter { $0 == "pose_update" }.count, updatesBefore, "nothing is asked while waiting")
+
+        // The arm got 3 cm to the right (−X in the robot base).
+        serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
+        XCTAssertEqual(transport.types.last, "pose_start")
+        tick()
+        // 17 cm still to go, so the new hold asks for the limit again, measured from the arm's new position.
+        XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+        // The readout shows the whole move so far: 3 cm done plus 8 cm asked.
+        XCTAssertEqual(model.holdOffset!.x, 0.11, accuracy: 0.001)
+    }
+
+    func testLastStretchIsAskedExactly() {
+        sweepRight()
+        run(ticks: 50)
+        // The arm is already 15 cm along; 5 cm are left, inside the limit.
+        serverFinishesHold(armAt: [-0.15, 0.0, 0.1])
+        tick()
+        XCTAssertEqual(lastOffset().x, -0.05, accuracy: 0.0005)
+        XCTAssertFalse(model.catchingUp)
+        run(ticks: 90)
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "no further resync once within reach")
+    }
+
+    func testArmStuckAtTheEdgeNeverAccumulatesALead() {
+        sweepRight()
+        for _ in 0..<3 {
+            run(ticks: 50)
+            // The arm has not moved at all.
+            serverFinishesHold(armAt: [0.0, 0.0, 0.1])
+            tick()
+            XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+        }
+        XCTAssertTrue(model.session.state.armMoving)
+    }
+
+    private let sceneState: [String: Any] = [
+        "estop": false, "gripper": "open", "ee_pos": [0.021, -0.141, 0.160],
+        "object_pos": [0.005, -0.200, 0.1025], "goal_pos": [0.075, -0.200, 0.1035],
+    ]
+
+    func testGuidanceAppearsOnceTheServerSaysWhereThingsAre() {
         bringUp()
-        transport.server("state", ["estop": false, "ee_pos": [0.0, 0.0, 0.1]])
+        XCTAssertNil(model.guidance, "the first state had no positions")
+        transport.server("state", sceneState)
+        XCTAssertEqual(model.guidance?.target, .cube)
+        XCTAssertEqual(model.guidance!.offset.y, 0.059, accuracy: 0.001)
+    }
+
+    func testGuidanceFollowsTheCommandDuringAHold() {
+        bringUp()
+        transport.server("state", sceneState)
+        model.send(.holdArmStart)
+        // 3 cm forward: 5.9 cm to the cube becomes 2.9 cm.
+        for step in 1...3 {
+            position = SIMD3(0, 0, -0.01 * Float(step))
+            tick()
+        }
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertEqual(model.guidance!.offset.y, 0.029, accuracy: 0.001)
+        XCTAssertEqual(model.guidance!.offset.x, 0.016, accuracy: 0.001)
+    }
+
+    func testArmThatDoesNotMoveIsReportedAtTheEdge() {
+        bringUp()
+        transport.server("state", sceneState)
         model.send(.holdArmStart)
         for step in 1...10 {
             position = SIMD3(0.02 * Float(step), 0, 0)
             tick()
         }
-        run(ticks: 300)
+        run(ticks: 50)
+        XCTAssertFalse(model.guidance?.atEdge ?? false)
+        // The server finished the hold and the arm is where it started.
+        let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
+        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "pose_stopped"])
+        transport.server("state", sceneState)
+        tick()
+        XCTAssertTrue(model.guidance!.atEdge)
         model.send(.holdArmEnd)
-        // The server maps what it was sent as [x, y, −z]; right is −X.
-        transport.server("state", ["estop": false, "ee_pos": [-armMovedCm / 100, 0.0, 0.1]])
+        transport.server("state", sceneState)
+        XCTAssertFalse(model.guidance!.atEdge, "the warning belongs to the hold that hit the edge")
     }
 
-    func testArmFasterThanAssumedRaisesTheSpeedEstimate() {
-        holdThenReport(armMovedCm: 20)
-        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed * 1.3, accuracy: 0.0005)
-        XCTAssertTrue(model.debugLog.contains { $0.contains("speed now") })
-    }
-
-    func testArmSlowerThanAssumedLowersTheSpeedEstimate() {
-        holdThenReport(armMovedCm: 5)
-        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed * 0.7, accuracy: 0.0005)
-    }
-
-    func testArmAsFastAsAssumedKeepsTheEstimate() {
-        // 10.3 s at 1.5 cm/s is about 15.5 cm.
-        holdThenReport(armMovedCm: 15.5)
-        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed, accuracy: 0.0008)
-    }
-
-    func testTinyHoldsDoNotChangeTheSpeedEstimate() {
+    func testGuidanceGoesWhenTheLinkDoes() {
         bringUp()
-        transport.server("state", ["estop": false, "ee_pos": [0.0, 0.0, 0.1]])
-        model.send(.holdArmStart)
-        position = SIMD3(0.01, 0, 0)
-        run(ticks: 30)
+        transport.server("state", sceneState)
+        model.send(.switchMode)
+        XCTAssertNil(model.guidance)
+    }
+
+    func testStateBeforeTheServerFinishedDoesNotRestartTheHold() {
+        sweepRight()
+        run(ticks: 50)
+        transport.server("state", ["estop": false, "ee_pos": [-0.01, 0.0, 0.1]])
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1)
+        serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2)
+    }
+
+    func testServerThatNeverFinishesEndsTheOperatorsHold() {
+        sweepRight()
+        run(ticks: 50)
+        run(ticks: 50)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(model.debugLog.contains { $0.contains("resync") })
+    }
+
+    func testReleaseDuringAResyncEndsCleanly() {
+        sweepRight()
+        run(ticks: 50)
         model.send(.holdArmEnd)
-        transport.server("state", ["estop": false, "ee_pos": [0.3, 0.0, 0.1]])
-        XCTAssertEqual(model.link.armSpeed, LiveLinkController.initialArmSpeed)
+        serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1, "a released hold must not restart")
+        XCTAssertNil(model.holdOffset)
+    }
+
+    func testStopDuringAResyncStaysStopped() {
+        sweepRight()
+        run(ticks: 50)
+        model.send(.stop)
+        serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1)
+        XCTAssertEqual(model.session.route, .s4)
     }
 
     func testStopCauseSaysWhoStopped() {
