@@ -74,6 +74,9 @@ final class LiveLinkController {
     var isOpen: Bool { transport != nil }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
     var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
+    /// Task object and goal from the server's newest state, robot base frame.
+    var cubePosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
+    var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
 
     /// "host", "host:port" or a full ws:// URL. Nil when it cannot be a server address.
     static func url(from address: String) -> URL? {
