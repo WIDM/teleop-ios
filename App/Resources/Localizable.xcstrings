@@ -1350,13 +1350,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Top edge up, screen facing you, back camera toward the robot view."
+            "value": "Not sideways, and the screen toward you, not the floor. Leaning back is fine."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "頂端朝上、螢幕朝自己、背面鏡頭朝向機器人畫面。"
+            "value": "不要橫拿，螢幕朝自己、不要朝地板。往後仰沒關係。"
           }
         }
       }

@@ -6,6 +6,13 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.5.1 (2026-11-10)
+
+- "Hold the phone upright" was nearly impossible to clear: it fired past 35 degrees of any tilt, and a phone
+  held to be read leans back 40 to 60 degrees. It now fires only for what breaks the direction mapping:
+  sideways by more than 40 degrees, the screen turned toward the floor by more than 30, or upside down.
+  Leaning back is fine all the way to flat.
+
 ## 0.5.0 (2026-11-10)
 
 Guidance for the pick-and-place task, and no more safety stops from a fast hand.

@@ -36,21 +36,30 @@ struct Guidance: Equatable {
     }
 }
 
-/// Whether the phone is held the way the direction mapping is easiest to follow: upright, screen to the operator.
+/// Whether the phone is held so that right, forward and up mean what the operator expects.
+/// Leaning back is fine, all the way to lying flat with the screen up: the direction mapping covers that.
+/// What breaks it is holding the phone sideways, or with the screen turned toward the floor.
 enum PhonePosture: Equatable {
     case upright
-    /// Lying back, face down, or turned on its side.
+    /// Sideways, screen toward the floor, or upside down.
     case tilted
     /// ARKit has no pose yet.
     case unknown
 
-    /// Upright within this many degrees: the top edge points at the ceiling.
-    static let toleranceDegrees: Float = 35
+    /// The side edge may dip this far from level before it counts as sideways.
+    static let sidewaysDegrees: Float = 40
+    /// The back camera may point this far above level before the screen counts as facing the floor.
+    static let faceDownDegrees: Float = 30
 
     static func of(_ camera: simd_float4x4?) -> PhonePosture {
         guard let camera else { return .unknown }
-        // Column 1 is the direction of the phone's top edge in the world; world up is +y.
+        // Columns 0 and 1 are the phone's right and top edges in the world; the camera looks along −column 2.
+        let right = simd_normalize(SIMD3(camera.columns.0.x, camera.columns.0.y, camera.columns.0.z))
         let top = simd_normalize(SIMD3(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z))
-        return top.y >= cos(toleranceDegrees * .pi / 180) ? .upright : .tilted
+        let view = -simd_normalize(SIMD3(camera.columns.2.x, camera.columns.2.y, camera.columns.2.z))
+        let sideways = abs(right.y) > sin(sidewaysDegrees * .pi / 180)
+        let faceDown = view.y > sin(faceDownDegrees * .pi / 180)
+        let upsideDown = top.y < -0.3
+        return sideways || faceDown || upsideDown ? .tilted : .upright
     }
 }

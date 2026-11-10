@@ -44,21 +44,42 @@ final class GuidanceTests: XCTestCase {
         XCTAssertEqual(Guidance.make(arm: arm, cube: justOutside, goal: goal, gripper: .open).target, .cube)
     }
 
-    func testUprightPhoneIsUpright() {
-        XCTAssertEqual(PhonePosture.of(matrix_identity_float4x4), .upright)
-        let turned = simd_float4x4(simd_quatf(angle: 2, axis: SIMD3(0, 1, 0)))
-        XCTAssertEqual(PhonePosture.of(turned), .upright, "facing another way is still upright")
-        let leaning = simd_float4x4(simd_quatf(angle: -30 * .pi / 180, axis: SIMD3(1, 0, 0)))
-        XCTAssertEqual(PhonePosture.of(leaning), .upright, "a natural lean back is fine")
+    private func pitchedBack(_ degrees: Float) -> simd_float4x4 {
+        simd_float4x4(simd_quatf(angle: -degrees * .pi / 180, axis: SIMD3(1, 0, 0)))
     }
 
-    func testFlatSidewaysOrNoPoseIsNotUpright() {
-        let flat = simd_float4x4(simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0)))
-        XCTAssertEqual(PhonePosture.of(flat), .tilted)
-        let sideways = simd_float4x4(simd_quatf(angle: .pi / 2, axis: SIMD3(0, 0, 1)))
-        XCTAssertEqual(PhonePosture.of(sideways), .tilted)
-        let leaningFar = simd_float4x4(simd_quatf(angle: -50 * .pi / 180, axis: SIMD3(1, 0, 0)))
-        XCTAssertEqual(PhonePosture.of(leaningFar), .tilted)
+    private func rolled(_ degrees: Float) -> simd_float4x4 {
+        simd_float4x4(simd_quatf(angle: degrees * .pi / 180, axis: SIMD3(0, 0, 1)))
+    }
+
+    func testUprightPhoneIsFine() {
+        XCTAssertEqual(PhonePosture.of(matrix_identity_float4x4), .upright)
+        let turned = simd_float4x4(simd_quatf(angle: 2, axis: SIMD3(0, 1, 0)))
+        XCTAssertEqual(PhonePosture.of(turned), .upright, "facing another way is still fine")
+    }
+
+    func testLeaningBackIsFineAllTheWayToFlat() {
+        for degrees: Float in [30, 45, 60, 75, 90] {
+            XCTAssertEqual(PhonePosture.of(pitchedBack(degrees)), .upright, "\(degrees) degrees back")
+        }
+    }
+
+    func testSmallRollIsFineButSidewaysIsNot() {
+        XCTAssertEqual(PhonePosture.of(rolled(25)), .upright)
+        XCTAssertEqual(PhonePosture.of(rolled(-25)), .upright)
+        XCTAssertEqual(PhonePosture.of(rolled(60)), .tilted)
+        XCTAssertEqual(PhonePosture.of(rolled(90)), .tilted)
+        XCTAssertEqual(PhonePosture.of(rolled(-90)), .tilted)
+    }
+
+    func testScreenTowardTheFloorIsNotFine() {
+        XCTAssertEqual(PhonePosture.of(pitchedBack(-20)), .upright, "a slight forward lean is fine")
+        XCTAssertEqual(PhonePosture.of(pitchedBack(-50)), .tilted)
+        XCTAssertEqual(PhonePosture.of(pitchedBack(-90)), .tilted)
+    }
+
+    func testUpsideDownOrNoPoseIsNotFine() {
+        XCTAssertEqual(PhonePosture.of(rolled(180)), .tilted)
         XCTAssertEqual(PhonePosture.of(nil), .unknown)
     }
 }
