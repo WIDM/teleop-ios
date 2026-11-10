@@ -32,6 +32,14 @@ struct RootView: View {
             // Camera access granted in the Settings app only shows up on return.
             if phase == .active { PoseTracker.shared.setActive(Self.tracksPose(model.session.route)) }
         }
+        .task(id: Self.tracksPose(model.session.route)) {
+            // ARKit is not something SwiftUI observes, so the posture is polled while a control screen is up.
+            guard Self.tracksPose(model.session.route) else { return }
+            while !Task.isCancelled {
+                model.refreshPosture()
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
         .task(id: model.session.state.isRecording) {
             guard model.session.state.isRecording else { return }
             while !Task.isCancelled {

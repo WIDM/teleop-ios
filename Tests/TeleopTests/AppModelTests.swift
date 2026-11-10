@@ -2,7 +2,7 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
-private final class SpyHaptics: HapticsPlaying {
+final class SpyHaptics: HapticsPlaying {
     var commands: [HapticCommand] = []
     func run(_ command: HapticCommand) { commands.append(command) }
 }

@@ -6,6 +6,18 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.6.0 (2026-11-10)
+
+Directions were skewed by 45 degrees; now they are straight.
+
+- ARKit's camera axes are fixed to the sensor, which sits landscape. The app had read them as if they were
+  the edges of a portrait phone, so with the phone upright "forward" pointed 45 degrees to the right of
+  where the operator faced. Right, forward and up now come from the phone's real edges (`PhoneAxes`).
+- The same mistake had the upright prompt backwards in 0.5.1: it showed for an upright phone and cleared
+  for a flat one. It now shows only when the phone is sideways, facing the floor or upside down.
+- The prompt is felt as well as seen: two short buzzes when the phone goes wrong, one when it is right
+  again, with a 10 degree margin so it does not chatter at the limit. Silent while E-stop is latched.
+
 ## 0.5.1 (2026-11-10)
 
 - "Hold the phone upright" was nearly impossible to clear: it fired past 35 degrees of any tilt, and a phone

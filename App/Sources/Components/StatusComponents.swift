@@ -184,10 +184,7 @@ struct AimOrOffset: View {
     let model: AppModel
 
     var body: some View {
-        // The posture is read from ARKit, which SwiftUI does not observe, so look a few times a second.
-        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-            content(posture: model.phonePosture)
-        }
+        content(posture: model.posture)
     }
 
     @ViewBuilder

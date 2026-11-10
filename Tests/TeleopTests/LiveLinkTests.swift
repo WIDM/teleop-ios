@@ -40,9 +40,7 @@ final class LiveLinkTests: XCTestCase {
             haptics: NoHaptics(),
             pose: { [unowned self] in
                 position.map { p in
-                    var m = matrix_identity_float4x4
-                    m.columns.3 = SIMD4(p.x, p.y, p.z, 1)
-                    return m
+                    return TestPose.portrait(at: p)
                 }
             },
             liveLink: true,
@@ -605,15 +603,15 @@ final class LiveLinkTests: XCTestCase {
     }
 
     func testUprightPhoneMovesTheArmTheWayTheHandMoves() {
-        let upright = matrix_identity_float4x4
+        let upright = TestPose.portrait
         assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: upright), SIMD3(-0.1, 0, 0))   // right → −X
         assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: upright), SIMD3(0, -0.1, 0))  // forward → −Y
         assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: upright), SIMD3(0, 0, 0.1))    // up → +Z
     }
 
     func testTurningAroundTurnsRightAndForwardWithTheOperator() {
-        // Facing world +x: the camera's −z points along +x.
-        let turned = simd_float4x4(simd_quatf(angle: -.pi / 2, axis: SIMD3(0, 1, 0)))
+        // Facing world +x.
+        let turned = TestPose.portrait(turned: -90, about: SIMD3(0, 1, 0))
         assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: turned), SIMD3(0, -0.1, 0))    // now forward
         assertClose(baseMotion(SIMD3(0, 0, 0.1), camera: turned), SIMD3(-0.1, 0, 0))    // now right
         assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: turned), SIMD3(0, 0, 0.1))     // up is always up
@@ -621,16 +619,28 @@ final class LiveLinkTests: XCTestCase {
 
     func testPhoneLyingFlatUsesItsTopEdgeAsForward() {
         // Screen up, camera looking at the floor, top edge toward world −z.
-        let flat = simd_float4x4(simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0)))
+        let flat = TestPose.portrait(turned: -90, about: SIMD3(1, 0, 0))
         assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: flat), SIMD3(0, -0.1, 0))     // forward
         assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: flat), SIMD3(-0.1, 0, 0))      // right
         assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: flat), SIMD3(0, 0, 0.1))       // up
     }
 
-    func testTiltedPhoneStillKeepsUpVertical() {
-        let tilted = simd_float4x4(simd_quatf(angle: -.pi / 4, axis: SIMD3(1, 0, 0)))
-        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: tilted), SIMD3(0, 0, 0.1))
-        assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: tilted), SIMD3(0, -0.1, 0))
+    func testLeaningBackKeepsForwardStraightAhead() {
+        for degrees: Float in [20, 45, 70] {
+            let leaning = TestPose.portrait(turned: -degrees, about: SIMD3(1, 0, 0))
+            assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: leaning), SIMD3(0, -0.1, 0))
+            assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: leaning), SIMD3(-0.1, 0, 0))
+            assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: leaning), SIMD3(0, 0, 0.1))
+        }
+    }
+
+    /// The bug this guards against: reading ARKit's sensor axes as if the phone were held landscape,
+    /// which skewed forward by 45 degrees for an upright phone.
+    func testRawCameraAxesAreNotMistakenForThePhonesEdges() {
+        let axes = PhoneAxes(TestPose.portrait)
+        assertClose(axes.top, SIMD3(0, 1, 0))
+        assertClose(axes.right, SIMD3(1, 0, 0))
+        assertClose(axes.view, SIMD3(0, 0, -1))
     }
 
     func testResetSceneIsSent() {

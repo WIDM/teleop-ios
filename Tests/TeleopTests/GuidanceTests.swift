@@ -45,17 +45,16 @@ final class GuidanceTests: XCTestCase {
     }
 
     private func pitchedBack(_ degrees: Float) -> simd_float4x4 {
-        simd_float4x4(simd_quatf(angle: -degrees * .pi / 180, axis: SIMD3(1, 0, 0)))
+        TestPose.portrait(turned: -degrees, about: SIMD3(1, 0, 0))
     }
 
     private func rolled(_ degrees: Float) -> simd_float4x4 {
-        simd_float4x4(simd_quatf(angle: degrees * .pi / 180, axis: SIMD3(0, 0, 1)))
+        TestPose.portrait(turned: degrees, about: SIMD3(0, 0, 1))
     }
 
     func testUprightPhoneIsFine() {
-        XCTAssertEqual(PhonePosture.of(matrix_identity_float4x4), .upright)
-        let turned = simd_float4x4(simd_quatf(angle: 2, axis: SIMD3(0, 1, 0)))
-        XCTAssertEqual(PhonePosture.of(turned), .upright, "facing another way is still fine")
+        XCTAssertEqual(PhonePosture.of(TestPose.portrait), .upright)
+        XCTAssertEqual(PhonePosture.of(TestPose.portrait(turned: 115, about: SIMD3(0, 1, 0))), .upright, "facing another way is still fine")
     }
 
     func testLeaningBackIsFineAllTheWayToFlat() {
@@ -81,5 +80,63 @@ final class GuidanceTests: XCTestCase {
     func testUpsideDownOrNoPoseIsNotFine() {
         XCTAssertEqual(PhonePosture.of(rolled(180)), .tilted)
         XCTAssertEqual(PhonePosture.of(nil), .unknown)
+    }
+
+    func testComingBackNeedsAMarginSoItDoesNotFlicker() {
+        // 35 degrees of roll is inside the 40 degree limit, but not yet 10 degrees inside it.
+        XCTAssertEqual(PhonePosture.of(rolled(35)), .upright)
+        XCTAssertEqual(PhonePosture.of(rolled(35), previous: .tilted), .tilted)
+        XCTAssertEqual(PhonePosture.of(rolled(25), previous: .tilted), .upright)
+    }
+}
+
+final class PostureHapticsTests: XCTestCase {
+    private var camera: simd_float4x4? = TestPose.portrait
+    private var spy: SpyHaptics!
+    private var model: AppModel!
+
+    override func setUp() {
+        camera = TestPose.portrait
+        spy = SpyHaptics()
+        model = AppModel(start: .p4, haptics: spy, pose: { [unowned self] in camera }, liveLink: false)
+    }
+
+    private var sideways: simd_float4x4 { TestPose.portrait(turned: 90, about: SIMD3(0, 0, 1)) }
+
+    func testFirstReadingIsSilent() {
+        model.refreshPosture()
+        XCTAssertEqual(model.posture, .upright)
+        XCTAssertEqual(spy.commands, [])
+    }
+
+    func testTwoBuzzesWhenItGoesWrongOneWhenItComesBack() {
+        model.refreshPosture()
+        camera = sideways
+        model.refreshPosture()
+        model.refreshPosture()
+        XCTAssertEqual(model.posture, .tilted)
+        XCTAssertEqual(spy.commands, [.play(.postureOff)], "once per change, not once per reading")
+        camera = TestPose.portrait
+        model.refreshPosture()
+        XCTAssertEqual(spy.commands, [.play(.postureOff), .play(.postureOk)])
+    }
+
+    func testLosingAndRegainingTrackingIsSilent() {
+        model.refreshPosture()
+        camera = nil
+        model.refreshPosture()
+        camera = TestPose.portrait
+        model.refreshPosture()
+        XCTAssertEqual(spy.commands, [])
+    }
+
+    func testNoPostureBuzzOverTheEStopBuzz() {
+        model.refreshPosture()
+        model.session.state.markConnected()
+        model.send(.stop)
+        camera = sideways
+        model.refreshPosture()
+        XCTAssertEqual(model.posture, .tilted)
+        XCTAssertEqual(spy.commands, [.play(.emergencyLoop)])
     }
 }

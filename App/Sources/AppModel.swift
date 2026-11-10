@@ -34,6 +34,8 @@ final class AppModel {
     }
     /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
     private(set) var holdOffset: SIMD3<Float>?
+    /// How the phone is held, as of the last `refreshPosture`.
+    private(set) var posture: PhonePosture = .unknown
     /// Live link only: where the cube or the goal is from the gripper.
     private(set) var guidance: Guidance?
     /// True while the command is held back so the arm can catch up with the phone.
@@ -81,8 +83,20 @@ final class AppModel {
 
     func foregroundChanged() { link.foregroundChanged() }
 
-    /// How the phone is being held right now, from the same pose the arm follows.
-    var phonePosture: PhonePosture { PhonePosture.of(pose()) }
+    /// Reads how the phone is held, from the same pose the arm follows. Called a few times a second on
+    /// control screens. A change between held right and not is felt: one short buzz for right, two for not.
+    func refreshPosture() {
+        let now = PhonePosture.of(pose(), previous: posture)
+        guard now != posture else { return }
+        let before = posture
+        posture = now
+        // The E-stop buzz owns the haptics while latched, and gaining or losing tracking is not a posture change.
+        guard !session.state.emergencyStop, before != .unknown, now != .unknown else { return }
+        let command = HapticCommand.play(now == .upright ? .postureOk : .postureOff)
+        haptics.run(command)
+        hapticLog?.append(Self.logName(command))
+        log("~ \(Self.logName(command))")
+    }
 
     /// S1 Connect. Fake link: connected at once. Live link: opens the socket; `linkUp` or `linkLost` follows.
     func connect() {

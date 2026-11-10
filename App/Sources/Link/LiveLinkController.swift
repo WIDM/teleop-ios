@@ -328,9 +328,8 @@ final class LiveLinkController {
     /// Upright phone: the camera looks forward. Phone lying flat: its top edge points forward.
     /// Adding both directions before flattening covers either grip and everything between.
     static func operatorAxes(_ camera: simd_float4x4) -> (right: SIMD3<Float>, forward: SIMD3<Float>) {
-        let view = -SIMD3(camera.columns.2.x, camera.columns.2.y, camera.columns.2.z)
-        let top = SIMD3(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z)
-        var forward = view + top
+        let axes = PhoneAxes(camera)
+        var forward = axes.view + axes.top
         forward.y = 0
         forward = simd_length(forward) > 0.01 ? simd_normalize(forward) : SIMD3(0, 0, -1)
         return (simd_cross(forward, SIMD3(0, 1, 0)), forward)

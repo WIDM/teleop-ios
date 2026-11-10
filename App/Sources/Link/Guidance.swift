@@ -36,6 +36,22 @@ struct Guidance: Equatable {
     }
 }
 
+/// The phone's own directions in the world, for a phone held in portrait.
+/// ARKit's camera axes are fixed to the sensor, which sits landscape: +x runs along the long edge toward the
+/// bottom of a portrait phone, +y toward its right edge, +z out of the screen.
+struct PhoneAxes {
+    let right: SIMD3<Float>
+    let top: SIMD3<Float>
+    /// Where the back camera looks.
+    let view: SIMD3<Float>
+
+    init(_ camera: simd_float4x4) {
+        right = simd_normalize(SIMD3(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z))
+        top = -simd_normalize(SIMD3(camera.columns.0.x, camera.columns.0.y, camera.columns.0.z))
+        view = -simd_normalize(SIMD3(camera.columns.2.x, camera.columns.2.y, camera.columns.2.z))
+    }
+}
+
 /// Whether the phone is held so that right, forward and up mean what the operator expects.
 /// Leaning back is fine, all the way to lying flat with the screen up: the direction mapping covers that.
 /// What breaks it is holding the phone sideways, or with the screen turned toward the floor.
@@ -50,16 +66,17 @@ enum PhonePosture: Equatable {
     static let sidewaysDegrees: Float = 40
     /// The back camera may point this far above level before the screen counts as facing the floor.
     static let faceDownDegrees: Float = 30
+    /// Once tilted, the phone must come back this much inside a limit to count as upright again,
+    /// so a hand hovering at the limit does not flicker (and buzz) back and forth.
+    static let returnMarginDegrees: Float = 10
 
-    static func of(_ camera: simd_float4x4?) -> PhonePosture {
+    static func of(_ camera: simd_float4x4?, previous: PhonePosture = .unknown) -> PhonePosture {
         guard let camera else { return .unknown }
-        // Columns 0 and 1 are the phone's right and top edges in the world; the camera looks along −column 2.
-        let right = simd_normalize(SIMD3(camera.columns.0.x, camera.columns.0.y, camera.columns.0.z))
-        let top = simd_normalize(SIMD3(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z))
-        let view = -simd_normalize(SIMD3(camera.columns.2.x, camera.columns.2.y, camera.columns.2.z))
-        let sideways = abs(right.y) > sin(sidewaysDegrees * .pi / 180)
-        let faceDown = view.y > sin(faceDownDegrees * .pi / 180)
-        let upsideDown = top.y < -0.3
+        let axes = PhoneAxes(camera)
+        let margin = previous == .tilted ? returnMarginDegrees : 0
+        let sideways = abs(axes.right.y) > sin((sidewaysDegrees - margin) * .pi / 180)
+        let faceDown = axes.view.y > sin((faceDownDegrees - margin) * .pi / 180)
+        let upsideDown = axes.top.y < (previous == .tilted ? -0.15 : -0.3)
         return sideways || faceDown || upsideDown ? .tilted : .upright
     }
 }

@@ -13,9 +13,7 @@ final class StubServerTests: XCTestCase {
             start: .s1,
             haptics: NoHaptics(),
             pose: { [unowned self] in
-                var m = matrix_identity_float4x4
-                m.columns.3 = SIMD4(position.x, position.y, position.z, 1)
-                return m
+                return TestPose.portrait(at: position)
             },
             liveLink: true
         )

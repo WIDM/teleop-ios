@@ -38,6 +38,9 @@ public enum HapticCue: CaseIterable, Sendable {
     case commandBlocked
     case stopReleased
     case emergencyLoop
+    /// The phone is held right again (1 short) or no longer is (2 short). Same patterns as the gripper cues.
+    case postureOk
+    case postureOff
 
     public var pattern: HapticPattern {
         switch self {
@@ -46,6 +49,8 @@ public enum HapticCue: CaseIterable, Sendable {
         case .commandBlocked: return HapticPattern.shortBuzz(count: 3)!
         case .stopReleased: return HapticPattern.shortBuzz(count: 1)!
         case .emergencyLoop: return HapticPattern.longBuzz
+        case .postureOk: return HapticPattern.shortBuzz(count: 1)!
+        case .postureOff: return HapticPattern.shortBuzz(count: 2)!
         }
     }
 }
