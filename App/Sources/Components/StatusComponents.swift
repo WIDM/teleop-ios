@@ -199,69 +199,94 @@ struct AimOrOffset: View {
             .foregroundStyle(TeleopColors.statusAmber)
             .padding(.horizontal, 8)
             .accessibilityIdentifier("guide.hold_upright")
+        } else if let guidance = model.guidance {
+            VStack(spacing: 6) {
+                MiniMap(guidance: guidance)
+                if guidance.target == .done {
+                    Text("guide.done").font(.system(size: 15, weight: .semibold))
+                } else {
+                    Text("guide.map_caption").font(.system(size: 11)).opacity(0.7)
+                }
+                if model.catchingUp {
+                    Text("control.catching_up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TeleopColors.statusAmber)
+                        .accessibilityIdentifier("control.catching_up")
+                }
+                if guidance.atEdge {
+                    Text("guide.edge")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TeleopColors.statusAmber)
+                }
+            }
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.white)
+            // No wider than the map and its bar, so the text wraps instead of running under the side handles.
+            .frame(width: 198)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("control.centre")
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                if let offset = model.holdOffset {
-                    rows(offset, size: 22)
-                    if model.catchingUp {
-                        Text("control.catching_up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(TeleopColors.statusAmber)
-                            .accessibilityIdentifier("control.catching_up")
-                    }
-                }
-                if let guidance = model.guidance {
-                    guide(guidance, compact: model.holdOffset != nil)
-                } else if model.holdOffset == nil {
-                    VStack(spacing: 4) {
-                        Image(systemName: "plus").font(.system(size: 40, weight: .light))
-                        Text("control.gripper_aim").font(.system(size: 14))
-                    }
-                }
+            VStack(spacing: 4) {
+                Image(systemName: "plus").font(.system(size: 40, weight: .light))
+                Text("control.gripper_aim").font(.system(size: 14))
             }
             .foregroundStyle(.white)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("control.centre")
         }
     }
+}
 
-    @ViewBuilder
-    private func guide(_ guidance: Guidance, compact: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            switch guidance.target {
-            case .done:
-                Text("guide.done").font(.system(size: 17, weight: .semibold))
-            case .cube, .goal:
-                Text(guidance.target == .cube ? "guide.cube" : "guide.goal")
-                    .font(.system(size: compact ? 13 : 15, weight: .semibold))
-                    .foregroundStyle(TeleopColors.statusGreen)
-                rows(guidance.offset, size: compact ? 15 : 22)
-            }
-            if guidance.atEdge {
-                Text("guide.edge")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TeleopColors.statusAmber)
-            }
-        }
-        .padding(.top, compact ? 6 : 0)
-        .accessibilityIdentifier("guide.target")
-    }
+/// Top-down picture of the task: white ring for the gripper, red square for the cube, dashed green square for
+/// the goal. Up is the operator's forward. The bar on the right is height: the ring comes down to the red mark.
+struct MiniMap: View {
+    let guidance: Guidance
+    private let side: CGFloat = 168
+    private let barWidth: CGFloat = 22
 
-    @ViewBuilder
-    private func rows(_ offset: SIMD3<Float>, size: CGFloat) -> some View {
-        row(offset.x, positive: "control.dir_right", negative: "control.dir_left", size: size)
-        row(offset.y, positive: "control.dir_forward", negative: "control.dir_back", size: size)
-        row(offset.z, positive: "control.dir_up", negative: "control.dir_down", size: size)
-    }
-
-    private func row(_ meters: Float, positive: LocalizedStringKey, negative: LocalizedStringKey, size: CGFloat) -> some View {
+    var body: some View {
+        let layout = MiniMapLayout(guidance)
         HStack(spacing: 8) {
-            Text(meters >= 0 ? positive : negative)
-                .font(.system(size: size * 0.78, weight: .semibold))
-                .frame(width: 44, alignment: .leading)
-            Text(String(format: "%.1f cm", abs(meters) * 100))
-                .font(.system(size: size, weight: .semibold, design: .monospaced))
+            Canvas { context, _ in
+                let side = Float(self.side)
+                func rect(_ place: SIMD3<Float>, _ meters: Float) -> CGRect {
+                    let centre = layout.point(place, side: side)
+                    let edge = CGFloat(layout.length(meters, side: side))
+                    return CGRect(x: CGFloat(centre.x) - edge / 2, y: CGFloat(centre.y) - edge / 2, width: edge, height: edge)
+                }
+                context.stroke(
+                    Path(roundedRect: rect(layout.goal, MiniMapLayout.goalSize), cornerRadius: 3),
+                    with: .color(TeleopColors.statusGreen), style: StrokeStyle(lineWidth: 2, dash: [5, 4])
+                )
+                context.fill(
+                    Path(roundedRect: rect(layout.cube, MiniMapLayout.cubeSize), cornerRadius: 2),
+                    with: .color(TeleopColors.emergency)
+                )
+                // The ring is a little wider than the cube, like open jaws around it.
+                let ring = rect(layout.arm, MiniMapLayout.cubeSize * 1.9)
+                context.stroke(Path(ellipseIn: ring), with: .color(.white), lineWidth: 2.5)
+                context.fill(Path(ellipseIn: CGRect(x: ring.midX - 2, y: ring.midY - 2, width: 4, height: 4)), with: .color(.white))
+            }
+            .frame(width: side, height: side)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+
+            Canvas { context, size in
+                let height = Float(size.height)
+                let mid = size.width / 2
+                context.stroke(
+                    Path { $0.move(to: CGPoint(x: mid, y: 0)); $0.addLine(to: CGPoint(x: mid, y: size.height)) },
+                    with: .color(.white.opacity(0.3)), lineWidth: 2
+                )
+                let cubeY = CGFloat(layout.barOffset(layout.cube.z, height: height))
+                context.fill(Path(CGRect(x: mid - 6, y: cubeY - 5, width: 12, height: 10)), with: .color(TeleopColors.emergency))
+                let armY = CGFloat(layout.barOffset(layout.arm.z, height: height))
+                context.stroke(Path(ellipseIn: CGRect(x: mid - 8, y: armY - 8, width: 16, height: 16)), with: .color(.white), lineWidth: 2.5)
+            }
+            .frame(width: barWidth, height: side)
         }
+        .accessibilityIdentifier("guide.map")
     }
 }
 

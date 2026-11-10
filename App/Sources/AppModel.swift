@@ -75,6 +75,13 @@ final class AppModel {
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
+        // UI tests and screenshots only: `-demoGuidance YES` shows the task map without a server.
+        if UserDefaults.standard.bool(forKey: "demoGuidance") {
+            guidance = Guidance.make(
+                arm: SIMD3(0.021, -0.141, 0.160), cube: SIMD3(0.005, -0.200, 0.1025),
+                goal: SIMD3(0.075, -0.200, 0.1035), gripper: .open
+            )
+        }
     }
 
     func send(_ action: TeleopAction) {

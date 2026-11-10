@@ -6,6 +6,17 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.7.0 (2026-11-10)
+
+A picture instead of numbers.
+
+- The centre of the camera view is a top-down map of the task: a white ring for the gripper, a red square
+  for the cube, a dashed green square for the goal. Up on the map is the operator's forward. A bar beside
+  it shows height: the ring comes down toward the red mark. The map zooms to keep all three in view, and a
+  held cube travels with the ring.
+- The numeric offsets of 0.5.0 are gone from the screen. Nobody read them while moving the phone.
+- `-demoGuidance YES` shows the map without a server, for screenshots and UI tests.
+
 ## 0.6.0 (2026-11-10)
 
 Directions were skewed by 45 degrees; now they are straight.

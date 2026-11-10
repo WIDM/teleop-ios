@@ -90,6 +90,71 @@ final class GuidanceTests: XCTestCase {
     }
 }
 
+final class MiniMapLayoutTests: XCTestCase {
+    private let arm = SIMD3<Float>(0.021, -0.141, 0.160)
+    private let cube = SIMD3<Float>(0.005, -0.200, 0.1025)
+    private let goal = SIMD3<Float>(0.075, -0.200, 0.1035)
+    private let side: Float = 168
+
+    private func layout(arm: SIMD3<Float>? = nil, gripper: GripperState = .open) -> MiniMapLayout {
+        MiniMapLayout(Guidance.make(arm: arm ?? self.arm, cube: cube, goal: goal, gripper: gripper))
+    }
+
+    func testCubeIsDrawnAheadAndToTheRightOfTheGripper() {
+        let map = layout()
+        let gripper = map.point(map.arm, side: side), red = map.point(map.cube, side: side)
+        // The cube is 1.6 cm to the operator's right and 5.9 cm forward: right of and above the ring.
+        XCTAssertGreaterThan(red.x, gripper.x)
+        XCTAssertLessThan(red.y, gripper.y)
+    }
+
+    func testGoalIsDrawnToTheLeftOfTheCube() {
+        let map = layout()
+        XCTAssertLessThan(map.point(map.goal, side: side).x, map.point(map.cube, side: side).x)
+        XCTAssertEqual(map.point(map.goal, side: side).y, map.point(map.cube, side: side).y, accuracy: 0.5)
+    }
+
+    func testEverythingStaysInsideTheMapWithRoomToSpare() {
+        for arm in [self.arm, SIMD3<Float>(-0.06, -0.06, 0.24), SIMD3<Float>(0.10, -0.22, 0.08)] {
+            let map = layout(arm: arm)
+            for place in [map.arm, map.cube, map.goal] {
+                let point = map.point(place, side: side)
+                let room = map.length(MiniMapLayout.margin, side: side) - 0.5
+                XCTAssertGreaterThanOrEqual(point.x, room)
+                XCTAssertLessThanOrEqual(point.x, side - room)
+                XCTAssertGreaterThanOrEqual(point.y, room)
+                XCTAssertLessThanOrEqual(point.y, side - room)
+            }
+        }
+    }
+
+    func testMovingTheGripperForwardMovesTheRingUpTheMap() {
+        let before = layout(), after = layout(arm: arm + SIMD3(0, -0.02, 0))
+        // Same zoom, because the cube and goal still bound the picture.
+        XCTAssertEqual(before.span, after.span, accuracy: 0.0001)
+        XCTAssertLessThan(after.point(after.arm, side: side).y, before.point(before.arm, side: side).y)
+    }
+
+    func testHeldCubeTravelsWithTheGripper() {
+        // Closed, and within the holding radius of where the server last saw the cube.
+        let map = layout(arm: SIMD3(cube.x + 0.02, cube.y, 0.15), gripper: .closed)
+        XCTAssertEqual(map.cube.x, map.arm.x)
+        XCTAssertEqual(map.cube.y, map.arm.y)
+    }
+
+    func testHeightBarPutsTheGripperAboveTheCubeAndClampsAtTheEnds() {
+        let map = layout()
+        XCTAssertLessThan(map.barOffset(map.arm.z, height: 168), map.barOffset(map.cube.z, height: 168))
+        XCTAssertEqual(map.barOffset(10, height: 168), 0)
+        XCTAssertEqual(map.barOffset(-10, height: 168), 168)
+    }
+
+    func testSmallSceneIsNotBlownUp() {
+        let near = MiniMapLayout(Guidance.make(arm: cube + SIMD3(0.01, 0, 0.05), cube: cube, goal: cube + SIMD3(0.03, 0, 0), gripper: .open))
+        XCTAssertEqual(near.span, MiniMapLayout.minimumSpan, accuracy: 0.0001)
+    }
+}
+
 final class PostureHapticsTests: XCTestCase {
     private var camera: simd_float4x4? = TestPose.portrait
     private var spy: SpyHaptics!

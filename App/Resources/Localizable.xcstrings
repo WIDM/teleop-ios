@@ -657,102 +657,6 @@
         }
       }
     },
-    "control.dir_back": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "後"
-          }
-        }
-      }
-    },
-    "control.dir_down": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Down"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下"
-          }
-        }
-      }
-    },
-    "control.dir_forward": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fwd"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前"
-          }
-        }
-      }
-    },
-    "control.dir_left": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Left"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左"
-          }
-        }
-      }
-    },
-    "control.dir_right": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Right"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右"
-          }
-        }
-      }
-    },
-    "control.dir_up": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Up"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上"
-          }
-        }
-      }
-    },
     "control.gripper_aim": {
       "localizations": {
         "en": {
@@ -1265,22 +1169,6 @@
         }
       }
     },
-    "guide.cube": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cube is"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "方塊在"
-          }
-        }
-      }
-    },
     "guide.done": {
       "localizations": {
         "en": {
@@ -1313,22 +1201,6 @@
         }
       }
     },
-    "guide.goal": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Goal is"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目標區在"
-          }
-        }
-      }
-    },
     "guide.hold_upright": {
       "localizations": {
         "en": {
@@ -1357,6 +1229,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "不要橫拿，螢幕朝自己、不要朝地板。往後仰沒關係。"
+          }
+        }
+      }
+    },
+    "guide.map_caption": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seen from above. Up is forward. Bar: height."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從上往下看。上方是你的前方。右邊直條是高度。"
           }
         }
       }

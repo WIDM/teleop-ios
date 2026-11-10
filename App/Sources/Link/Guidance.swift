@@ -9,6 +9,10 @@ struct Guidance: Equatable {
     /// Metres right, forward and up from the gripper to the target. The server reports the gripper link's
     /// origin, not the fingertips, so "up" is to the cube's centre from a point above the jaws.
     var offset: SIMD3<Float>
+    /// Where things are, in metres as the operator sees them: x right, y forward, z up. For the map.
+    var arm = SIMD3<Float>.zero
+    var cube = SIMD3<Float>.zero
+    var goal = SIMD3<Float>.zero
     /// The arm stopped following in the direction it is being asked to go: it is at the edge of its range.
     var atEdge = false
 
@@ -20,19 +24,72 @@ struct Guidance: Equatable {
     /// All positions in the robot base frame, metres.
     static func make(arm: SIMD3<Float>, cube: SIMD3<Float>, goal: SIMD3<Float>, gripper: GripperState?) -> Guidance {
         let cubeToGoal = goal - cube
+        let places = (operatorOffset(arm), operatorOffset(cube), operatorOffset(goal))
         if abs(cubeToGoal.x) <= goalHalfExtent, abs(cubeToGoal.y) <= goalHalfExtent {
-            return Guidance(target: .done, offset: .zero)
+            return Guidance(target: .done, offset: .zero, arm: places.0, cube: places.1, goal: places.2)
         }
         let flat = SIMD2(cube.x - arm.x, cube.y - arm.y)
         let holding = gripper == .closed && simd_length(flat) <= holdingRadius
         // Carrying: steer the cube, which moves with the gripper, to the goal. Otherwise steer the gripper to the cube.
         let base = holding ? cubeToGoal : cube - arm
-        return Guidance(target: holding ? .goal : .cube, offset: operatorOffset(base))
+        return Guidance(
+            target: holding ? .goal : .cube, offset: operatorOffset(base),
+            arm: places.0, cube: places.1, goal: places.2
+        )
     }
 
     /// Robot base to operator directions. The server maps right → −X, forward → −Y, up → +Z.
     static func operatorOffset(_ base: SIMD3<Float>) -> SIMD3<Float> {
         SIMD3(-base.x, -base.y, base.z)
+    }
+}
+
+/// Where to draw the gripper, the cube and the goal on a square top-down map, and on the height bar beside it.
+/// Up on the map is forward for the operator, right is right. The map zooms to keep all three in view.
+struct MiniMapLayout: Equatable {
+    /// Edge of the cube and of the goal area, metres.
+    static let cubeSize: Float = 0.025
+    static let goalSize: Float = 0.05
+    /// The map never shows less than this across, so small moves do not look huge.
+    static let minimumSpan: Float = 0.14
+    /// Room kept around the outermost thing.
+    static let margin: Float = 0.03
+    /// Height the bar covers above the cube's resting height.
+    static let barHeight: Float = 0.14
+
+    let centre: SIMD2<Float>
+    let span: Float
+    let floor: Float
+    let arm: SIMD3<Float>
+    let cube: SIMD3<Float>
+    let goal: SIMD3<Float>
+
+    init(_ guidance: Guidance) {
+        arm = guidance.arm
+        goal = guidance.goal
+        // A held cube travels with the gripper; the server's last word on it is from before the hold.
+        cube = guidance.target == .goal ? SIMD3(guidance.arm.x, guidance.arm.y, guidance.cube.z) : guidance.cube
+        let xs = [arm.x, cube.x, goal.x], ys = [arm.y, cube.y, goal.y]
+        centre = SIMD2((xs.min()! + xs.max()!) / 2, (ys.min()! + ys.max()!) / 2)
+        span = max(xs.max()! - xs.min()!, ys.max()! - ys.min()!, Self.minimumSpan - 2 * Self.margin) + 2 * Self.margin
+        floor = min(guidance.cube.z, guidance.goal.z) - Self.cubeSize / 2
+    }
+
+    /// Position on a map `side` points square, origin top-left.
+    func point(_ place: SIMD3<Float>, side: Float) -> SIMD2<Float> {
+        SIMD2(
+            (place.x - centre.x) / span * side + side / 2,
+            // Forward is up, and screen y grows downward.
+            side / 2 - (place.y - centre.y) / span * side
+        )
+    }
+
+    func length(_ meters: Float, side: Float) -> Float { meters / span * side }
+
+    /// Distance down from the top of a bar `height` points tall; clamped so a marker never leaves the bar.
+    func barOffset(_ z: Float, height: Float) -> Float {
+        let share = min(max((z - floor) / Self.barHeight, 0), 1)
+        return height * (1 - share)
     }
 }
 
