@@ -20,6 +20,26 @@ final class GuidanceTests: XCTestCase {
         assertClose(guidance.offset, SIMD3(0.016, 0.059, -0.0575))
     }
 
+    /// Measured in Isaac Sim on 2026-11-11: with the reported gripper point here, closing the jaws picked the
+    /// cube up. The guidance must say the gripper is ON the cube at this pose, in all three directions.
+    func testAtTheMeasuredGraspPoseTheGripperIsOnTheCube() {
+        let graspPose = SIMD3<Float>(0.005, -0.134, 0.139)
+        let guidance = Guidance.make(arm: graspPose, cube: cube, goal: goal, gripper: .open)
+        XCTAssertEqual(guidance.target, .cube)
+        XCTAssertLessThan(simd_length(guidance.offset), 0.006, "offset \(guidance.offset * 100) cm")
+        let map = MiniMapLayout(guidance)
+        XCTAssertLessThan(simd_distance(map.point(map.arm, side: 168), map.point(map.cube, side: 168)), 6, "ring is not on the cube")
+        XCTAssertEqual(map.barOffset(map.arm.z, height: 168), map.barOffset(map.cube.z, height: 168), accuracy: 8)
+    }
+
+    /// From the start pose the cube is nearly under the jaws: about 1.6 cm right, under 1 cm back, 2 cm down.
+    func testFromTheStartTheCubeIsAlmostUnderTheJaws() {
+        let guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: .open)
+        XCTAssertEqual(guidance.offset.x, 0.016, accuracy: 0.002)
+        XCTAssertEqual(guidance.offset.y, -0.007, accuracy: 0.003)
+        XCTAssertEqual(guidance.offset.z, -0.021, accuracy: 0.003)
+    }
+
     func testClosedGripperFarFromTheCubeStillPointsAtTheCube() {
         XCTAssertEqual(Guidance.make(arm: arm, cube: cube, goal: goal, gripper: .closed).target, .cube)
     }

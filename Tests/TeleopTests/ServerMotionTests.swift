@@ -173,7 +173,7 @@ final class ServerMotionTests: XCTestCase {
                 print(String(format: "PICK try %.1f cm: the arm could not get that low", height * 100))
                 continue
             }
-            gripper(.closed, seconds: 8)
+            gripper(.closed, seconds: 12)
             moveArm(to: SIMD3(cubeStart.x, cubeStart.y, cubeStart.z + height + 0.03), "lift 3 cm")
             pump(1.0)
             let lifted = (model.link.cubePosition ?? cubeStart).z - cubeStart.z
