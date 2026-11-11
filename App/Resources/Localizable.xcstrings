@@ -657,6 +657,22 @@
         }
       }
     },
+    "detail.tap_to_connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap here to choose a server"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點這裡選擇伺服器"
+          }
+        }
+      }
+    },
     "guide.from_above": {
       "localizations": {
         "en": {

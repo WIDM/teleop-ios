@@ -1,16 +1,17 @@
 # route	screen struct	actions the screen itself can send
 # scripts/drift.py compares each row with RootView.screen(for:) and with the model.send calls in that struct.
 # The operating screen draws every operating route. Its touches and pad go through the input rules, which can send
-# any control, STOP, Settings and the reset; Release, keep scene shows only while stopped, which can be on any of them.
-p4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
-p5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
-p6	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
-p7	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+# any control, STOP, Settings and the reset; Release, keep scene shows only while stopped, which can be on any of them,
+# and the not-connected word opens Connect.
+p4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
+p5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
+p6	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
+p7	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
 t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
 t2	TutorialScreen	stop,tutorialSkip,tutorialNext2
 t3	TutorialScreen	stop,back,tutorialNext3
 s1	ConnectScreen	connect,s1Back,stop,toggleLiveLink
 s2	PermissionsScreen	permissionsContinue,stop
-s4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
-s5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+s4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
+s5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop,changeServer
 s6	SettingsScreen	settingsDone,stop,connect,disconnect,changeServer,toggleLiveLink

@@ -20,7 +20,9 @@ enum OperatingWords {
     private static func stateLook(_ display: OperatingDisplay) -> Look {
         switch display.state {
         case .notConnected(let reason):
-            return Look(word: L10n.string("state.not_connected"), details: reason.map { [$0] } ?? [], colour: TeleopColors.stateGrey)
+            // The word opens Connect (§7.2), and says so.
+            let details = (reason.map { [$0] } ?? []) + [L10n.string("detail.tap_to_connect")]
+            return Look(word: L10n.string("state.not_connected"), details: details, colour: TeleopColors.stateGrey)
         case .connecting(let address):
             return Look(word: L10n.string("state.connecting"), details: address.isEmpty ? [] : [address], colour: TeleopColors.stateGrey)
         case .ready:

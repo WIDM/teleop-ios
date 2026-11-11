@@ -138,7 +138,8 @@ final class OperatingScreenTests: XCTestCase {
     func testNotConnected() {
         let app = render("not_connected")
         XCTAssertFalse(exists(app, "guide"), "no arm, no guide")
-        XCTAssertTrue(app.staticTexts["No answer from 192.168.0.10:8765."].exists, "the reason")
+        XCTAssertTrue(app.staticTexts["Tap here to choose a server"].exists)
+        XCTAssertTrue(exists(app, "operating.connect"), "the word opens Connect")
         XCTAssertEqual(app.element("operating.link").label, "No link")
     }
 

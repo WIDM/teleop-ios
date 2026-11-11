@@ -12,7 +12,8 @@ enum OperatingFixtures {
     static let all: [String: OperatingDisplay] = {
         var all: [String: OperatingDisplay] = [:]
         // Phone modes.
-        all["not_connected"] = display(.notConnected(reason: "No answer from 192.168.0.10:8765."), link: false, arm: nil, recorder: .unknown)
+        // The model reports no reason yet, so neither does the fixture.
+        all["not_connected"] = display(.notConnected(reason: nil), link: false, arm: nil, recorder: .unknown)
         all["connecting"] = display(.connecting(address: "192.168.0.10:8765"), link: false, arm: nil, recorder: .unknown)
         all["ready"] = display(.ready, arm: task(), recorder: armed)
         all["ready_hotel"] = display(.ready, arm: hotel(), recorder: notRecording)

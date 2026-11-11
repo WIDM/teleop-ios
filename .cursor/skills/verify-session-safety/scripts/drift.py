@@ -50,8 +50,8 @@ ROOT_VIEW_ACTIONS = {"holdArmEnd"}
 # so it can cause whatever those send; the top band's reset reaches the session through AppModel.runReset.
 TOUCH_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings", "resetScene"}
 BUTTON_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
-# Release, keep scene: the one control the operating screen sends itself.
-RELEASE_ACTIONS = {"releaseStop"}
+# What the operating screen sends itself: Release, keep scene, and the not-connected word, which opens Connect.
+OWN_ACTIONS = {"releaseStop", "changeServer"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
 )
@@ -84,11 +84,11 @@ for path in APP.rglob("*.swift"):
             struct_sends[match.group(1)] |= TOUCH_ACTIONS
         if "model.buttonDown(" in match.group(0):
             struct_sends[match.group(1)] |= BUTTON_ACTIONS
-        # The operating screen's touch surface, pad and release button reach it through these views.
+        # The operating screen's touch surface, pad and own controls reach it through these views.
         if "OperatingSurface(" in match.group(0):
-            struct_sends[match.group(1)] |= TOUCH_ACTIONS | BUTTON_ACTIONS | RELEASE_ACTIONS
+            struct_sends[match.group(1)] |= TOUCH_ACTIONS | BUTTON_ACTIONS | OWN_ACTIONS
         if "OperatingControls(" in match.group(0):
-            struct_sends[match.group(1)] |= BUTTON_ACTIONS | RELEASE_ACTIONS
+            struct_sends[match.group(1)] |= BUTTON_ACTIONS | OWN_ACTIONS
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
@@ -150,8 +150,8 @@ for screen, names in sorted(listed_by_struct.items()):
 allowed = {
     "RootView": ROOT_VIEW_ACTIONS,
     "VolumeKeyModifier": set(),
-    "OperatingSurface": TOUCH_ACTIONS | BUTTON_ACTIONS | RELEASE_ACTIONS,
-    "OperatingControls": BUTTON_ACTIONS | RELEASE_ACTIONS,
+    "OperatingSurface": TOUCH_ACTIONS | BUTTON_ACTIONS | OWN_ACTIONS,
+    "OperatingControls": BUTTON_ACTIONS | OWN_ACTIONS,
 }
 for name, expected in allowed.items():
     if struct_sends.get(name) != expected:

@@ -64,8 +64,25 @@ final class ConnectFlowTests: XCTestCase {
         ]
         app.launch()
         expect(app, "connect.failure", timeout: 8)
+        // The link gives no reason of its own yet: the screen says only what it knows.
+        XCTAssertEqual(app.element("connect.failure").label, "Could not connect to that address.")
         expect(app, "connect.practice")
         XCTAssertEqual(app.element("connect.practice").label, "Practice without a robot")
         attachScreenshot("connect-failed")
+    }
+
+    /// A later launch whose saved server does not answer lands on Not connected; tapping the word opens Connect (§7.2).
+    func testTheNotConnectedWordOpensConnect() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby", "-firstRunDone", "YES",
+            "-controlMode", "screenTurns",
+        ]
+        app.launch()
+        expectLabel(app.element("operating.state"), "Not connected", timeout: 8)
+        XCTAssertTrue(app.staticTexts["Tap here to choose a server"].exists)
+        attachScreenshot("not-connected")
+        app.element("operating.connect").tap()
+        expect(app, "connect.address_field")
     }
 }

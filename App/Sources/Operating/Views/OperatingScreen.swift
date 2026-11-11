@@ -81,9 +81,24 @@ private struct OperatingSurface: View {
             TouchLayer { sample, time in model.touch(sample, at: time) }
             OperatingDrawing(display: display, layout: layout, look: look, scale: scale, profile: model.profile)
                 .allowsHitTesting(false)
-            OperatingControls(model: model, display: display, layout: layout, scale: scale)
+        }
+        .overlayPreferenceValue(StateWordsBounds.self) { words in
+            GeometryReader { proxy in
+                OperatingControls(
+                    model: model, display: display, layout: layout, scale: scale, words: words.map { proxy[$0] }
+                )
+            }
         }
         .frame(width: layout.width, height: layout.height, alignment: .topLeading)
+    }
+}
+
+/// Where the state word and its detail lines are drawn, so the not-connected word can open Connect (§7.2).
+private struct StateWordsBounds: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 
@@ -341,6 +356,7 @@ private struct StateWords: View {
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
         .foregroundStyle(look.darkText ? TeleopColors.textPrimary : .white)
+        .anchorPreference(key: StateWordsBounds.self, value: .bounds) { $0 }
     }
 }
 
@@ -453,17 +469,28 @@ private struct BottomBandLabel: View {
     }
 }
 
-/// The controls that take their own touches: the button pad in buttons mode, and the release button in the stopped
-/// state when the stop exits offer it.
+/// The controls that take their own touches: the button pad in buttons mode, the release button in the stopped
+/// state when the stop exits offer it, and the not-connected word, which opens Connect (§7.2).
 private struct OperatingControls: View {
     let model: AppModel
     let display: OperatingDisplay
     let layout: SurfaceLayout
     let scale: Double
+    /// Where the state words are drawn, in this view's coordinates.
+    let words: CGRect?
 
     var body: some View {
         let cs = layout.controlSurface
         ZStack(alignment: .topLeading) {
+            if case .notConnected = display.state, let words {
+                // With no link every other touch is refused, so the word is the one thing worth tapping.
+                let height = max(60, words.height + 16)
+                Button { model.send(.changeServer) } label: { Color.clear.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("detail.tap_to_connect"))
+                    .accessibilityIdentifier("operating.connect")
+                    .place(SurfaceLayout.Rect(x: cs.x + 16, y: words.midY - height / 2, width: cs.width - 32, height: height))
+            }
             if display.mode == .buttons {
                 let strip = OperatingDrawing.strip(display, layout: layout, scale: scale)
                 ButtonPadView(
