@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "9E8D7C6B-5A49-4382-9170-6F5E4D3C2B1A",
+      "name" : "Live",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "ServerMotionTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "4CF114B66C1C65C7C850F42D",
+        "name" : "TeleopTests"
+      }
+    }
+  ],
+  "version" : 1
+}

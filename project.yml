@@ -82,6 +82,9 @@ schemes:
       config: Debug
     test:
       config: Debug
-      targets:
-        - TeleopTests
-        - TeleopUITests
+      # Default: everything but the live tests. Live: only ServerMotionTests, which drive the lab simulator
+      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1.
+      testPlans:
+        - path: TestPlans/Default.xctestplan
+          defaultPlan: true
+        - path: TestPlans/Live.xctestplan
