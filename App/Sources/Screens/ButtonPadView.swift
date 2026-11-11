@@ -155,7 +155,6 @@ private struct SpeedSwitch: View {
             segment(.fine)
             segment(.coarse)
         }
-        .padding(3)
         .frame(width: rect.width, height: rect.height)
         .background(TeleopColors.gripperCard, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
         .accessibilityElement(children: .ignore)
@@ -169,6 +168,7 @@ private struct SpeedSwitch: View {
         .position(x: rect.midX, y: rect.midY)
     }
 
+    /// Each half answers taps over its full size; the selected fill is inset inside it.
     private func segment(_ choice: ButtonSpeed) -> some View {
         let selected = choice == speed
         return ButtonPadView.speedName(choice)
@@ -178,8 +178,9 @@ private struct SpeedSwitch: View {
             .foregroundStyle(selected ? Color.white : TeleopColors.textPrimary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                selected ? TeleopColors.primary : Color.clear,
-                in: RoundedRectangle(cornerRadius: TeleopMetrics.corner - 3)
+                RoundedRectangle(cornerRadius: TeleopMetrics.corner - 3)
+                    .fill(selected ? TeleopColors.primary : Color.clear)
+                    .padding(3)
             )
             .contentShape(Rectangle())
             .onTapGesture { onSpeed(choice) }
