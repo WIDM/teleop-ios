@@ -178,6 +178,17 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(AppModel.opensSavedServerAtLaunch(environment: [:]))
     }
 
+    /// The UI tests' `-quietCues YES` and the unit-test host play nothing on the device; an app launched by a person
+    /// plays its cues.
+    func testCuesPlayOnTheDeviceOnlyOutsideTheTests() {
+        let defaults = UserDefaults(suiteName: "AppModelTests.quietCues")!
+        defer { defaults.removePersistentDomain(forName: "AppModelTests.quietCues") }
+        XCTAssertTrue(AppModel.playsCuesOnTheDevice(defaults, environment: [:]))
+        XCTAssertFalse(AppModel.playsCuesOnTheDevice(defaults), "this process is the unit-test host")
+        defaults.set(true, forKey: AppModel.quietCuesKey)
+        XCTAssertFalse(AppModel.playsCuesOnTheDevice(defaults, environment: [:]))
+    }
+
     func testReachingStandbyEndsTheFirstRun() {
         let saved = UserDefaults.standard.object(forKey: AppModel.firstRunDoneKey)
         defer { UserDefaults.standard.set(saved, forKey: AppModel.firstRunDoneKey) }

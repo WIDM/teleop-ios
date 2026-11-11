@@ -125,12 +125,13 @@ final class AppModel {
     }
 
     /// - Parameters:
-    ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
+    ///   - haptics, sounds, speech: nil plays them on the device, except in the unit-test host and under the UI tests'
+    ///     `-quietCues YES`, which stay silent.
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
     ///   - clientName: how the app names itself to the server; the bundle's version and build unless a test passes one.
     init(
         start: Route = .s2,
-        haptics: HapticsPlaying = HapticsController(),
+        haptics: HapticsPlaying? = nil,
         sounds: SoundPlaying? = nil,
         speech: SpeechPlaying? = nil,
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
@@ -163,9 +164,9 @@ final class AppModel {
             stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
             address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
         )
-        let audible = Self.opensSavedServerAtLaunch()
+        let audible = Self.playsCuesOnTheDevice()
         cues = CuePlayer(
-            haptics: haptics, sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
+            haptics: haptics ?? (audible ? HapticsController() : NoHaptics()), sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
             speech: speech ?? (audible ? SpeechPlayer() : NoSpeech()), nowMs: nowMs
         )
         self.pose = pose
@@ -428,6 +429,17 @@ final class AppModel {
     func trySavedServer() {
         guard session.state.liveLink, !session.state.connected, !link.isOpen else { return }
         _ = link.connect(to: session.state.serverAddress)
+    }
+
+    /// UI tests only: `-quietCues YES` plays no sound, speech or haptics, which the simulator would put through the
+    /// computer's speakers. The cue log still records every cue.
+    static let quietCuesKey = "quietCues"
+
+    /// Haptics, sounds and speech play on the device: not in the unit-test host, and not under `-quietCues YES`.
+    static func playsCuesOnTheDevice(
+        _ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        opensSavedServerAtLaunch(environment: environment) && !defaults.bool(forKey: quietCuesKey)
     }
 
     /// False when the app is only the host process of the unit tests. That launch reads whatever Real server
