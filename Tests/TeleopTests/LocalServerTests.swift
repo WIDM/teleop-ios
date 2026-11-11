@@ -10,11 +10,8 @@ import XCTest
 final class LocalServerTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var position = SIMD3<Float>.zero
-    private var savedLiveLink: Any?
 
     override func setUpWithError() throws {
-        // Turning the Settings switch saves it, and these tests run inside the app: remember what the simulator had.
-        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
         server = LocalTeleopServer()
         try server.start()
     }
@@ -22,7 +19,6 @@ final class LocalServerTests: XCTestCase {
     override func tearDown() {
         server.stop()
         server = nil
-        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
         super.tearDown()
     }
 

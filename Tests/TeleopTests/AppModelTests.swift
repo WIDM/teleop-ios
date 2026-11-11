@@ -138,7 +138,7 @@ final class AppModelTests: XCTestCase {
     }
 
     func testHoldAreaStartsAndStopsArm() {
-        let model = AppModel(start: .s5, haptics: SpyHaptics())
+        let model = AppModel(start: .s5, haptics: SpyHaptics(), liveLink: false)
         model.session.state.markConnected()
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)
@@ -156,7 +156,7 @@ final class AppModelTests: XCTestCase {
     }
 
     func testS1ConnectReturnsToP5() {
-        let model = AppModel(start: .s1, haptics: SpyHaptics())
+        let model = AppModel(start: .s1, haptics: SpyHaptics(), liveLink: false)
         model.send(.connect)
         XCTAssertEqual(model.session.route, .p5)
         XCTAssertTrue(model.session.state.connected)

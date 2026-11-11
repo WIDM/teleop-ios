@@ -89,7 +89,7 @@ Left out:
 
 - Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier` and `HeldControlModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
-- Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`, used by `HeldControlModifier` and `VolumeKeyMapper`). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
+- Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`, used by `HeldControlModifier`; the input rules send a stop only for the hold they started). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
 - The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`), a refused hold (`holdArmEnd`, `wristEnd`) or a confirmed scene reset (`sceneResetDone`) from any route on a live link. `sceneResetDone` is offered in every state, more often than a server can send it, which only makes the check stricter. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
 - Launch arguments for UI tests (`-startRoute`, `-startConnected`, `-startBlocked`, `-startConnectionLost`, `-firstRunDone`).
 
@@ -123,7 +123,8 @@ Sync commit: `4d86bab`
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
 - `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `HeldControlModifier` (gripper and jaw turn) and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`, `JawTurnHandle`, `LeftHandles`).
-- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− hold on P4 and P6). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/VolumeKeys`: `VolumeKeyModifier` hands the keys' raw events to the model and sends no actions itself; the screens that attach it (P4 and P6) are credited with what the keys can do (`KEY_ACTIONS` in `drift.py`). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/Operating/OperatingController.swift`: the input rules' commands (`allowed_outside` in `drift.py`). It ends every hold when the operating screen goes away, which `perform` in `main.swift` models for the wrist hold. STOP, the reset and the gear come only from touches on the bands; no shipped screen feeds touches yet, so no ui-map row lists them.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.
