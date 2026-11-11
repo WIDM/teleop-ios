@@ -45,6 +45,8 @@ final class OperatorFrameTests: XCTestCase {
 
     /// The phone's mapping (LiveLinkController.serverOffset) sends right, forward and up each negated. The same
     /// offset must come out of the shared mapping, so a button and the phone move the arm the same way.
+    /// Its signs are copied here by hand: serverOffset is in the app target, out of this package's reach, so a
+    /// change there does not fail this test until the phone path calls `linkOffset`.
     func testOperatorOffsetMatchesThePhoneMapping() {
         let offset = OperatorFrame.linkOffset(right: 0.01, forward: 0.02, up: 0.03)
         XCTAssertEqual(offset, SIMD3(-0.01, -0.02, -0.03))

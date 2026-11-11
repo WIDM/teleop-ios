@@ -34,8 +34,9 @@ public enum BaseAxis: String, Sendable { case x, y, z }
 
 /// Converts between the operator's frame, the robot base frame and the frame the link's translation hold is sent in.
 public enum OperatorFrame {
-    /// Metres right, forward and up as the operator sees them, as an offset for the link's translation hold.
-    /// The phone's motion and the buttons' ramps both end up here.
+    /// Metres right, forward and up as the operator sees them, as an offset for the link's translation hold, taken
+    /// from the axis table. For input that comes in the operator's frame, such as the phone's motion, so that it
+    /// moves the arm the way the buttons do; the buttons' ramps use `linkVector` directly.
     public static func linkOffset(right: Double, forward: Double, up: Double) -> SIMD3<Double> {
         OperatorDirection.right.linkVector * right
             + OperatorDirection.forward.linkVector * forward
