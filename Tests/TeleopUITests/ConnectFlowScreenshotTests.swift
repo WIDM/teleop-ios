@@ -73,6 +73,31 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         shot("09-P5-final")
     }
 
+    func testTutorialWalksThroughAllThreeSteps() {
+        tap("permissions.continue")
+        answerSystemPrompts(allow: true)
+        tap("tutorial.next")
+        tap("tutorial.next")
+        tap("tutorial.back")
+        expect("tutorial.skip")
+        tap("tutorial.next")
+        expect("tutorial.back")
+        tap("tutorial.next")
+        expect("standby.settings")
+    }
+
+    func testConnectionSheetOpensTheKeyboardAndCloses() {
+        app.terminate()
+        app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-firstRunDone", "YES"]
+        app.launch()
+        tap("status.chip")
+        tap("connection.address")
+        expect("connection.address_field")
+        tap("keyboard.done")
+        tap("connection.close")
+        expect("standby.settings")
+    }
+
     func testLaterLaunchOpensOnStandby() {
         app.terminate()
         app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-firstRunDone", "YES"]
