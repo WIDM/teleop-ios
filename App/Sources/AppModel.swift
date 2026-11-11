@@ -166,7 +166,8 @@ final class AppModel {
         )
         let audible = Self.playsCuesOnTheDevice()
         cues = CuePlayer(
-            haptics: haptics ?? (audible ? HapticsController() : NoHaptics()), sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
+            haptics: haptics ?? (audible ? HapticsController() : NoHaptics()),
+            sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
             speech: speech ?? (audible ? SpeechPlayer() : NoSpeech()), nowMs: nowMs
         )
         self.pose = pose
@@ -425,7 +426,7 @@ final class AppModel {
     var cueLog: [CueLogEntry] { cues.log }
 
     /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
-    /// screen. Called at launch and when the Settings switch turns the real server on.
+    /// screen. Called at launch and when practice ends.
     func trySavedServer() {
         guard session.state.liveLink, !session.state.connected, !link.isOpen else { return }
         _ = link.connect(to: session.state.serverAddress)
