@@ -141,20 +141,43 @@ public struct InputArbiter: Sendable {
         handle([event], at: time, facts: facts)
     }
 
-    /// Events that happened at the same instant. Attitude samples are judged before touches (A-6t).
+    /// Events that happened at the same instant, applied in the order given, except that an attitude sample is judged
+    /// before the touch moves given ahead of it (A-6t). Timers that ran out before this instant fire first; a timer
+    /// that runs out at this very instant fires after the events, so a lift, a palm, a swipe or `endAllHolds` at the
+    /// deadline still counts.
     public mutating func handle(_ events: [InputEvent], at time: TimeInterval, facts: InputFacts) -> [InputCommand] {
         out = []
         self.facts = facts
-        advance(to: max(time, now))
-        for event in events.filter(Self.isAttitude) + events.filter({ !Self.isAttitude($0) }) {
+        let time = max(time, now)
+        advance(to: time, firingTies: false)
+        for event in Self.ordered(events) {
             apply(event)
         }
+        advance(to: time, firingTies: true)
         return out
     }
 
-    private static func isAttitude(_ event: InputEvent) -> Bool {
-        if case .attitude = event { return true }
-        return false
+    /// Moves each attitude sample ahead of the touch moves (and ticks, which do nothing) just before it.
+    private static func ordered(_ events: [InputEvent]) -> [InputEvent] {
+        var result: [InputEvent] = []
+        for event in events {
+            guard case .attitude = event else {
+                result.append(event)
+                continue
+            }
+            var index = result.endIndex
+            while index > result.startIndex, Self.yieldsToAttitude(result[index - 1]) { index -= 1 }
+            result.insert(event, at: index)
+        }
+        return result
+    }
+
+    private static func yieldsToAttitude(_ event: InputEvent) -> Bool {
+        switch event {
+        case .touch(let sample): return sample.phase == .moved
+        case .tick: return true
+        default: return false
+        }
     }
 
     private mutating func apply(_ event: InputEvent) {
@@ -493,9 +516,10 @@ public struct InputArbiter: Sendable {
         return best
     }
 
-    /// Runs every timer that has run out by `time`, each at its own moment.
-    private mutating func advance(to time: TimeInterval) {
-        while let next = earliestDeadline(), next.at <= time + Self.slack {
+    /// Runs every timer that has run out before `time` (and, with `firingTies`, at `time`), each at its own moment.
+    private mutating func advance(to time: TimeInterval, firingTies: Bool) {
+        let limit = firingTies ? time + Self.slack : time - Self.slack
+        while let next = earliestDeadline(), firingTies ? next.at <= limit : next.at < limit {
             now = max(now, next.at)
             fire(next.timer, for: next.id)
         }
