@@ -24,6 +24,12 @@ final class LocalTeleopServerTests: XCTestCase {
         XCTAssertEqual(server.address, "127.0.0.1:\(server.port)")
     }
 
+    func testItRefusesConnectionsToThisMachinesOtherAddresses() throws {
+        guard let other = otherIPv4Address() else { throw XCTSkip("this machine has no IPv4 address besides loopback") }
+        XCTAssertTrue(connects(to: "127.0.0.1", port: server.port), "the check cannot see a listening port")
+        XCTAssertFalse(connects(to: other, port: server.port), "the server also listens on \(other)")
+    }
+
     func testHelloIsAnsweredAndIdleStatesFollow() throws {
         let client = try SocketClient(port: server.port)
         client.send(#"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"test"}}"#)
@@ -55,6 +61,40 @@ final class LocalTeleopServerTests: XCTestCase {
         XCTAssertTrue(eventually(within: 3) { abs(movedZ() + 0.02) <= 0.002 }, "the arm moved \(movedZ()) m along z; phone z is robot −z")
         client.close()
         XCTAssertTrue(eventually(within: 3) { self.server.inspect { $0.state["estop"] } == true }, "no E-stop after the close")
+    }
+}
+
+/// An IPv4 address of a network interface that is up and is not loopback, such as the Wi-Fi or Ethernet one.
+private func otherIPv4Address() -> String? {
+    var list: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&list) == 0, let first = list else { return nil }
+    defer { freeifaddrs(list) }
+    for entry in sequence(first: first, next: { $0.pointee.ifa_next }) {
+        let flags = Int32(entry.pointee.ifa_flags)
+        guard let address = entry.pointee.ifa_addr, address.pointee.sa_family == sa_family_t(AF_INET),
+              flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0 else { continue }
+        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+            return String(cString: host)
+        }
+    }
+    return nil
+}
+
+/// Whether a plain TCP connection to `host` (dotted IPv4) and `port` is accepted.
+private func connects(to host: String, port: UInt16) -> Bool {
+    let socket = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+    guard socket >= 0 else { return false }
+    defer { Darwin.close(socket) }
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = port.bigEndian
+    guard inet_pton(AF_INET, host, &address.sin_addr) == 1 else { return false }
+    return withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            Darwin.connect(socket, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+        }
     }
 }
 
