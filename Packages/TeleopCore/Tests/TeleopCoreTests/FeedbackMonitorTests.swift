@@ -208,6 +208,42 @@ final class FeedbackMonitorTests: XCTestCase {
         XCTAssertEqual(events, [.limit(.blocked)])
     }
 
+    /// Arm at `arm` from 0 to 1.5 s, states every 100 ms, commanded point `short` metres ahead of it.
+    private func blockedEvents(short: Double, crawlMetresPerSecond: Double = 0, stillFromMs: Int = 0, until end: Int = 1500) -> [Int] {
+        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+        let start = SIMD3(0.02, -0.14, 0.133)
+        monitor.startSent(.pose, restart: false, at: 0)
+        var raised: [Int] = []
+        for t in stride(from: 100, through: end, by: 100) {
+            // Before `stillFromMs` the arm moves 5 mm every state; after it, it crawls.
+            let moving = Double(min(t, stillFromMs)) / 100 * 0.005
+            let crawl = Double(max(0, t - stillFromMs)) / 1000 * crawlMetresPerSecond
+            let arm = start + SIMD3(0, 0, -(moving + crawl))
+            monitor.commanded(arm + SIMD3(0, 0, -short))
+            if monitor.observe(state(.poseTracking, arm: arm), at: t).contains(.limit(.blocked)) { raised.append(t) }
+        }
+        return raised
+    }
+
+    /// The three numbers of the blocked rule, each just inside and just outside: at least 10 mm short, moved less
+    /// than 2 mm, over 1.0 s.
+    func testTheBlockedRuleNeedsTenMillimetresShort() {
+        XCTAssertEqual(blockedEvents(short: 0.009), [])
+        XCTAssertEqual(blockedEvents(short: 0.011).count, 1)
+    }
+
+    func testTheBlockedRuleNeedsLessThanTwoMillimetresOfMotionInASecond() {
+        XCTAssertEqual(blockedEvents(short: 0.03, crawlMetresPerSecond: 0.0015, until: 2500).count, 1)
+        XCTAssertEqual(blockedEvents(short: 0.03, crawlMetresPerSecond: 0.0025, until: 2500), [])
+    }
+
+    func testTheBlockedRuleNeedsAFullSecondStill() {
+        let raised = blockedEvents(short: 0.03, stillFromMs: 1000, until: 2500)
+        XCTAssertEqual(raised.count, 1)
+        XCTAssertGreaterThan(raised.first ?? 0, 1900, "only 0.9 s still")
+        XCTAssertLessThanOrEqual(raised.first ?? .max, 2100, "1.1 s still")
+    }
+
     func testAMovingArmOrOneThatHasArrivedIsNotBlocked() {
         monitor.startSent(.pose, restart: false, at: 0)
         var events: [FeedbackEvent] = []
