@@ -199,6 +199,16 @@ VARIANTS = [
         ["FAIL S12", "FAIL U8"],
     ),
     (
+        "a STOP leaves an earlier reset able to release it",
+        [("            state.resetClearsStop = false\n            state.emergencyStop = true", "            state.emergencyStop = true")],
+        ["FAIL S1"],
+    ),
+    (
+        "any confirmed reset releases the stop",
+        [("guard state.emergencyStop, state.resetClearsStop else { return }", "guard state.emergencyStop else { return }")],
+        ["FAIL S1"],
+    ),
+    (
         "confirmed reset leaves the buzz playing",
         [("            // The long buzz ends. \"Ready.\" comes from the server's new episode, not from here.\n            pendingHaptics.append(.cancel)\n", "")],
         ["FAIL S9"],

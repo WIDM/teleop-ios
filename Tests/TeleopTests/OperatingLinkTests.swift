@@ -336,6 +336,55 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.session.route, .p4)
     }
 
+    /// I-3: STOP pressed while the reset asked for in the stop state is in flight still goes out (the server clears
+    /// its own stop when the reset arrives), and the reset's ok no longer releases the stop.
+    func testAStopDuringTheResetFromTheStopStateGoesOutAndStaysLatched() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let bottom = layout.bottomBand.y + 20
+        let top = layout.topBand.maxY - 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        transport.server("state", ["estop": true])
+        touch(2, .began, x: 200, y: top)
+        step(65)
+        XCTAssertTrue(transport.types.contains("reset_scene"))
+        touch(2, .ended, x: 200, y: top)
+        let reset = seq(of: "reset_scene")
+        let estops = transport.types.filter { $0 == "estop" }.count
+        step()
+        touch(4, .began, x: 200, y: bottom)
+        touch(4, .ended, x: 200, y: bottom)
+        XCTAssertEqual(transport.types.filter { $0 == "estop" }.count, estops + 1, "the second STOP goes out")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
+        XCTAssertTrue(model.session.state.emergencyStop)
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertFalse(transport.types.contains("estop_reset"))
+    }
+
+    /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.
+    func testTheOkOfAResetAskedForBeforeTheStopReleasesNothing() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let top = layout.topBand.maxY - 20
+        touch(2, .began, x: 200, y: top)
+        step(65)
+        XCTAssertTrue(transport.types.contains("reset_scene"))
+        touch(2, .ended, x: 200, y: top)
+        let reset = seq(of: "reset_scene")
+        step()
+        touch(4, .began, x: 200, y: layout.bottomBand.y + 20)
+        touch(4, .ended, x: 200, y: layout.bottomBand.y + 20)
+        XCTAssertTrue(model.session.state.emergencyStop)
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
+        XCTAssertTrue(model.session.state.emergencyStop)
+        XCTAssertEqual(model.session.route, .s4)
+    }
+
     func testTheModeCannotChangeWhileAHoldIsEngaged() {
         bringUp(.screenTurns)
         step()

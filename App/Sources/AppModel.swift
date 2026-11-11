@@ -383,18 +383,22 @@ final class AppModel {
     }
 
     /// The top band was held 2 s (§6.4): reset the scene. In the stop state the server's reset clears the stop
-    /// once it confirms it (`sceneResetDone`); the practice link resets at once.
+    /// once it confirms it (`sceneResetDone`), unless STOP is pressed again first; the practice link resets at once.
     func runReset() {
         let s = session.state
         guard s.liveLink else {
-            if !s.emergencyStop { send(.resetScene) }
+            send(.resetScene)
             perform(.sceneResetDone, fromServer: false)
             controller.sceneReset()
             raise(.ready)
             return
         }
         if s.emergencyStop {
-            if !link.resetScene() { raise(.notReset) }
+            if link.resetScene() {
+                perform(.resetScene, fromServer: false)
+            } else {
+                raise(.notReset)
+            }
         } else {
             send(.resetScene)
         }
@@ -685,8 +689,9 @@ final class AppModel {
     /// Mirrors what the session just decided onto the wire. The session decides; the link only follows.
     private func driveLink(_ action: TeleopAction, before: FakeTeleopState, fromServer: Bool) {
         let after = session.state
-        // E-stop goes out first. A server-side E-stop is not echoed, but our own hold still has to end.
-        if !before.emergencyStop, after.emergencyStop, !fromServer { stopReached = link.estop() }
+        // E-stop goes out first, on every STOP (I-3): with the stop already latched, a reset asked for from it may
+        // have cleared the server's stop. A server-side E-stop is not echoed, but our own hold still has to end.
+        if action == .stop, !fromServer { stopReached = link.estop() }
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }

@@ -31,8 +31,9 @@ public enum TeleopAction: Equatable, Sendable {
     case holdArmStart
     case holdArmEnd
     case resetScene
-    /// The server confirmed a scene reset (`ok scene_reset`), or the practice link ran one. A reset clears an
-    /// emergency stop (specification §6.5), so this is the eyes-free way out of the stop state.
+    /// The server confirmed a scene reset (`ok scene_reset`), or the practice link ran one. A reset asked for in the
+    /// stop state (`resetScene` while E-stopped) clears the stop (specification §6.5), so this is the eyes-free way
+    /// out of it; a STOP pressed after the request keeps the stop latched.
     case sceneResetDone
     /// The Settings switch between the demo and a real server: the old link is dropped with anything held, and the
     /// new one starts. Sent after `liveLink` has changed.
@@ -115,6 +116,8 @@ public struct TeleopSession: Equatable, Sendable {
         case .stop:
             // Already latched means the long buzz is playing; a second loop could outlive the release.
             if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }
+            // A reset asked for before this STOP must not release it.
+            state.resetClearsStop = false
             state.emergencyStop = true
             state.armMoving = false
             state.stopGripper()
@@ -123,6 +126,7 @@ public struct TeleopSession: Equatable, Sendable {
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
+            state.resetClearsStop = false
             // H15: the long buzz ends and one short buzz confirms the release.
             pendingHaptics.append(.cancel)
             pendingHaptics.append(.play(.stopReleased))
@@ -195,13 +199,21 @@ public struct TeleopSession: Equatable, Sendable {
             // Release always stops, even if the session got blocked while held.
             state.armMoving = false
         case .resetScene:
+            // While E-stopped nothing changes until the server confirms the reset, and that confirmation releases the
+            // stop (§6.5).
+            if state.emergencyStop {
+                if state.connected { state.resetClearsStop = true }
+                return
+            }
             // Not refused while latency-blocked: clearing that block is part of the reset (P6 -> P4).
             guard acceptsControl else { return }
             state.resetScene()
             if route == .p6 { go(.p4) }
         case .sceneResetDone:
-            guard state.emergencyStop else { return }
+            // Only the reset asked for in the stop state, with no STOP since, releases it.
+            guard state.emergencyStop, state.resetClearsStop else { return }
             state.emergencyStop = false
+            state.resetClearsStop = false
             // The long buzz ends. "Ready." comes from the server's new episode, not from here.
             pendingHaptics.append(.cancel)
             // As a release does: S4 shows only while the stop is latched, and a connection screen opened from S4

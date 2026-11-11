@@ -20,6 +20,9 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var serverAddress = ""
     public var tutorialDone = false
     public var emergencyStop = false
+    /// A scene reset was asked for while E-stopped, and no STOP has come since: the server's confirmation of it
+    /// (`sceneResetDone`) releases the stop (§6.5). A reset asked for before a STOP never does.
+    public var resetClearsStop = false
     public var developerMode = false
     public var sensitivity = 1.0
     public private(set) var smoothing = 0.3
@@ -56,6 +59,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     }
 
     public mutating func markDisconnected() {
+        // The answer to a reset asked for on this connection cannot come on the next one.
+        resetClearsStop = false
         connected = false
         armMoving = false
         gripperMoving = nil

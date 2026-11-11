@@ -626,11 +626,53 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(s, before)
     }
 
+    /// A reset releases only the stop it was asked for in: a STOP after the request, a request before the stop, no
+    /// request at all, or a lost link in between all leave the stop latched.
+    func testOnlyAResetAskedForInTheStopStateReleasesIt() {
+        var stopAgain = TeleopSession(start: .p4)
+        stopAgain.state.markConnected()
+        stopAgain.perform(.stop)
+        stopAgain.perform(.resetScene)
+        stopAgain.perform(.stop)
+        stopAgain.perform(.sceneResetDone)
+        XCTAssertTrue(stopAgain.state.emergencyStop, "STOP after the request")
+
+        var askedBefore = TeleopSession(start: .p4)
+        askedBefore.state.markConnected()
+        askedBefore.perform(.resetScene)
+        askedBefore.perform(.stop)
+        askedBefore.perform(.sceneResetDone)
+        XCTAssertTrue(askedBefore.state.emergencyStop, "request before the stop")
+
+        var unasked = TeleopSession(start: .p4)
+        unasked.state.markConnected()
+        unasked.perform(.stop)
+        unasked.perform(.sceneResetDone)
+        XCTAssertTrue(unasked.state.emergencyStop, "no request")
+
+        var state = FakeTeleopState()
+        state.liveLink = true
+        var lost = TeleopSession(state: state, start: .p4)
+        lost.perform(.linkUp(gripper: .open))
+        lost.perform(.stop)
+        lost.perform(.resetScene)
+        lost.perform(.linkLost)
+        lost.perform(.linkUp(gripper: .open))
+        lost.perform(.sceneResetDone)
+        XCTAssertTrue(lost.state.emergencyStop, "the link was lost after the request")
+
+        var offline = disconnected(at: .p4)
+        offline.perform(.stop)
+        offline.perform(.resetScene)
+        XCTAssertFalse(offline.state.resetClearsStop, "with no link no reset was asked for")
+    }
+
     /// Found by the safety checker: staying on P5 would let Close lead back to S4 with no stop latched.
     func testAConfirmedResetOnAConnectionScreenGoesToStandby() {
         var s = TeleopSession(start: .p4)
         s.state.markConnected()
         s.perform(.stop)
+        s.perform(.resetScene)
         s.perform(.openConnection)
         s.perform(.sceneResetDone)
         XCTAssertFalse(s.state.emergencyStop)

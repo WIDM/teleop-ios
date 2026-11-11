@@ -53,7 +53,8 @@ let actionTable: [(String, TeleopAction)] = [
 // A server-side E-stop arrives as stop; a rejected or untracked hold as holdArmEnd.
 // A refused gripper jog arrives as gripperEnd, a refused jaw turn as turnEnd and a refused wrist hold as wristEnd;
 // shippedActions already adds them while the control is held. The server's answer to a scene reset arrives as
-// sceneResetDone; it is offered in every state, more often than a server can send it.
+// sceneResetDone; it is offered in every state, more often than a server can send it, so S1 also checks that the
+// session lets only the answer to a reset asked for in the stop state release it.
 let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop", "sceneResetDone"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
 // toggleLiveLink is the Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
@@ -85,7 +86,7 @@ struct Property {
 }
 
 let properties: [Property] = [
-    Property(id: "S1", promise: "E-stop stays latched until releaseStop or a scene reset the server confirmed (sceneResetDone).", harm: "The arm could accept commands after STOP without a deliberate release."),
+    Property(id: "S1", promise: "E-stop stays latched until releaseStop, or until the server confirms (sceneResetDone) a reset asked for in the stop state (resetScene while E-stopped and connected) with no stop since.", harm: "The arm could accept commands after STOP without a deliberate release."),
     Property(id: "S2", promise: "The arm starts moving only on holdArmStart while connected, not E-stopped and not latency-blocked.", harm: "The arm could move when the operator was told it cannot."),
     Property(id: "S3", promise: "The arm is never moving while E-stopped.", harm: "STOP would not stop the arm."),
     Property(id: "S4", promise: "The gripper changes only on gripperStart while connected, not E-stopped, not blocked and the arm not moving, or opens on resetScene while connected and not E-stopped, or takes the server's value when a live link comes up.", harm: "The gripper could drop or grab something unexpectedly."),
@@ -159,6 +160,7 @@ struct StateKey: Hashable {
     let arm: ArmSide
     let tutorialDone: Bool
     let emergencyStop: Bool
+    let resetClearsStop: Bool
     let developerMode: Bool
     let armMoving: Bool
     let gripperMoving: GripperState?
@@ -183,6 +185,7 @@ func key(_ node: Node) -> StateKey {
         arm: s.arm,
         tutorialDone: s.tutorialDone,
         emergencyStop: s.emergencyStop,
+        resetClearsStop: s.resetClearsStop,
         developerMode: s.developerMode,
         armMoving: s.armMoving,
         gripperMoving: s.gripperMoving,
@@ -282,8 +285,15 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     let a = step.before.session.state
     let b = step.after.session.state
     var out: [(String, String)] = []
-    if a.emergencyStop, !b.emergencyStop, step.action != "releaseStop", step.action != "sceneResetDone" {
-        out.append(("S1", "E-stop cleared by \(step.action)"))
+    if a.emergencyStop, !b.emergencyStop,
+       !(step.action == "releaseStop" || (step.action == "sceneResetDone" && a.resetClearsStop)) {
+        out.append(("S1", "E-stop cleared by \(step.action) (reset asked for in the stop state: \(a.resetClearsStop))"))
+    }
+    if !a.resetClearsStop, b.resetClearsStop, !(step.action == "resetScene" && a.emergencyStop && a.connected) {
+        out.append(("S1", "a reset that may release the stop was recorded by \(step.action)"))
+    }
+    if b.resetClearsStop, !b.emergencyStop || step.action == "stop" {
+        out.append(("S1", "a reset may still release the stop after \(step.action) (eStop=\(b.emergencyStop))"))
     }
     if !a.armMoving, b.armMoving, !(step.action == "holdArmStart" && linkOk(a) && !a.emergencyStop) {
         out.append(("S2", "arm started by \(step.action): connected=\(a.connected) blocked=\(a.commandsBlocked) eStop=\(a.emergencyStop)"))
