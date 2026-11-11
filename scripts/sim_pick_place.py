@@ -11,9 +11,14 @@ Each run resets the scene, opens the gripper, moves the reported gripper point t
 cube, closes, lifts, carries to the goal, lowers and opens. A run counts as placed when the server itself
 reports the task done (it resets the cube when that happens).
 
+The script cannot see how the jaws are turned (the server reports no joint angles), so it has to be told how
+the scene starts them: --scene-starts side for the development simulator, whose start pose has had the jaws
+side by side since 2026-11-11, or --scene-starts front for the server as published. It turns the wrist by
+the difference before the grasp.
+
 Usage:
   scripts/sim_pick_place.py --jaws side --runs 5
-  scripts/sim_pick_place.py --jaws front --runs 5 --url ws://127.0.0.1:8765
+  scripts/sim_pick_place.py --jaws front --runs 5 --scene-starts side --url ws://127.0.0.1:8765
 
 The offsets below were measured on 2026-11-11 for the S4 scene (cube 2.5 cm at 20 cm from the base). They
 are positions of the point the server reports (the gripper link origin), not of the jaw tips.
@@ -137,7 +142,7 @@ def cm(vector):
     return [round(value * 100, 1) for value in vector]
 
 
-async def run(arm, jaws, number):
+async def run(arm, jaws, scene_starts, number):
     await arm.reset()
     started, cube0, episode0 = time.time(), arm.cube(), arm.state.get("episode")
     goal = arm.state.get("goal_pos") or [0.075, -0.2, cube0[2]]
@@ -146,7 +151,7 @@ async def run(arm, jaws, number):
 
     await arm.grip("open", 4, "coarse")
     await arm.axis_to("z", arm.point()[2] + 0.02)
-    await arm.roll(ROLL_DEGREES[jaws])
+    await arm.roll(ROLL_DEGREES[jaws] - ROLL_DEGREES[scene_starts])
     await arm.move_to(target[0], target[1], target[2] + 0.03)
     reached = await arm.move_to(*target)
     at = arm.point()
@@ -188,13 +193,15 @@ async def run(arm, jaws, number):
 async def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--jaws", choices=sorted(GRASP_OFFSET), required=True)
+    parser.add_argument("--scene-starts", choices=sorted(GRASP_OFFSET), default="side",
+                        help="how the scene starts the jaws (default: side)")
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--url", default="ws://127.0.0.1:8765")
     args = parser.parse_args()
     async with websockets.connect(args.url) as ws:
         arm = Arm(ws)
         await arm.start()
-        results = [await run(arm, args.jaws, number + 1) for number in range(args.runs)]
+        results = [await run(arm, args.jaws, args.scene_starts, number + 1) for number in range(args.runs)]
     print(f"jaws {args.jaws}: lifted {sum(l for l, _ in results)} of {args.runs}, placed {sum(p for _, p in results)} of {args.runs}")
 
 
