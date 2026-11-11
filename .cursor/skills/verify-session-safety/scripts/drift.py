@@ -99,9 +99,8 @@ allowed_outside = {
     # sceneResetDone: the top band's reset (the practice link confirms it at once).
     "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
     "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
-    # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS). stop, openSettings and the
-    # reset come only from touches on the bands, which no shipped screen feeds yet; a screen that installs the touch
-    # surface adds them to its ui-map row.
+    # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS); touches on the bands (STOP,
+    # the gear) and on the control surface from the operating screen's touch surface (TOUCH_ACTIONS).
     "Operating/OperatingController.swift": {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings"},
 }
 for path, names in sorted(outside_structs.items()):
