@@ -90,11 +90,18 @@ The live tests move the simulated arm on a machine other people use, so three th
 2. They skip unless the test runner's environment has `TELEOP_MOTION` set, which `xcodebuild` passes on when the
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
 3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That port is meant for the development
-   relay (`scripts/dev_relay.py`), which forwards to the simulator through an SSH tunnel
-   (`scripts/dev_tunnel.sh <user@host>`).
+   relay (below).
 
 Run them only when the simulator is free and you mean to move its arm (needs the live server; not part of any
-routine check):
+routine check). First start the path to the simulator, each in its own terminal:
+
+    pip install websockets                 # once: dev_relay.py and trace_scenarios.py need it
+    scripts/dev_tunnel.sh <user@host>      # an SSH tunnel from 127.0.0.1:8766 to port 8766 on the simulator's machine
+    python3 scripts/dev_relay.py           # listens on port 8765 and forwards each client to 127.0.0.1:8766
+
+The tunnel forwards port 8766, the simulator's own port, and reconnects when it drops. The relay listens on 8765
+on every network interface of the Mac, so a phone on the same network can connect to it too, and gives each client
+its own connection upstream (`--listen` and `--upstream` change the two ports). Then:
 
     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Live \
       -destination "platform=iOS Simulator,name=$SIM"
@@ -142,7 +149,7 @@ added, the step size.
 ## Recording a new scenario
 
 This moves the real simulator's arm a few centimetres: do it only when nobody else is using it (needs the live
-server and the development relay on port 8765).
+server, and the tunnel and the development relay started as in the live tests above; not run for this document).
 
 1. Write it as a function in `scripts/trace_scenarios.py` and add it to `SCENARIOS`.
 2. Run `python3 scripts/trace_scenarios.py` with no names: it records the greeting and every scenario in order, in
