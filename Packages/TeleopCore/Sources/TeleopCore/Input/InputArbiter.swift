@@ -155,32 +155,43 @@ public struct InputArbiter: Sendable {
         self.facts = facts
         let time = max(time, now)
         advance(to: time, firingTies: false)
-        for event in Self.ordered(events) {
+        for event in ordered(events) {
             apply(event)
         }
         advance(to: time, firingTies: true)
         return out
     }
 
-    /// Moves each attitude sample ahead of the touch moves (and ticks, which do nothing) just before it.
-    private static func ordered(_ events: [InputEvent]) -> [InputEvent] {
+    /// Moves each attitude sample ahead of the touch moves just before it, and of the ticks and the key-ups of keys
+    /// that are not down, which do nothing.
+    private func ordered(_ events: [InputEvent]) -> [InputEvent] {
         var result: [InputEvent] = []
+        var yields: [Bool] = []
+        // Keys a key-up would act on, as of each event in turn.
+        var down = Set(keys.keys).union(staleKeys)
         for event in events {
             guard case .attitude = event else {
+                yields.append(Self.yieldsToAttitude(event, down: &down))
                 result.append(event)
                 continue
             }
             var index = result.endIndex
-            while index > result.startIndex, Self.yieldsToAttitude(result[index - 1]) { index -= 1 }
+            while index > result.startIndex, yields[index - 1] { index -= 1 }
             result.insert(event, at: index)
+            yields.insert(false, at: index)
         }
         return result
     }
 
-    private static func yieldsToAttitude(_ event: InputEvent) -> Bool {
+    private static func yieldsToAttitude(_ event: InputEvent, down: inout Set<InputKey>) -> Bool {
         switch event {
         case .touch(let sample): return sample.phase == .moved
         case .tick: return true
+        // Only a key-up whose key is not down: one that ends a hold must still come first.
+        case .keyUp(let key): return down.remove(key) == nil
+        case .keyDown(let key):
+            down.insert(key)
+            return false
         default: return false
         }
     }
@@ -201,6 +212,12 @@ public struct InputArbiter: Sendable {
         case .sceneReset:
             commandedTiltSinceReset = 0
             tiltAtReset = lastWristTarget.axis == .tilt ? lastWristTarget.degrees : 0
+            // Without measured flex, the engaged tilt hold's window now counts from where the hold stood at the reset.
+            if lastWristTarget.axis == .tilt, facts.wrist.flexDeg == nil || facts.wrist.flexAtResetDeg == nil {
+                wrist?.setRange(RotationMapper.limits(
+                    for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -tiltAtReset, constants: constants
+                ))
+            }
         case .wristStartSent:
             guard case .hold(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
             // The target streamed from now on drops the rotation made while the start waited.
@@ -335,7 +352,8 @@ public struct InputArbiter: Sendable {
         case .ignored, .stop:
             return
         case .band(let band):
-            if palm, insidePalmWindow(band.downAt) { touches[s.id] = .ignored }
+            // A band whose window timer already fired at this instant is past its window.
+            if palm, band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) { touches[s.id] = .ignored }
         case .surface(var touch):
             if palm, !touch.windowEnded {
                 touches[s.id] = .ignored
@@ -376,8 +394,9 @@ public struct InputArbiter: Sendable {
         }
     }
 
+    /// Inclusive at its end, as on the control surface, where the window's timer fires after the events of its instant.
     private func insidePalmWindow(_ downAt: TimeInterval) -> Bool {
-        now < downAt + constants.palmWindowMs / 1000 - Self.slack
+        now <= downAt + constants.palmWindowMs / 1000 + Self.slack
     }
 
     // MARK: Phone attitude (I-8, A-6, B-2)
@@ -590,6 +609,11 @@ public struct InputArbiter: Sendable {
                         if case .surface(var touch) = role, touch.phase == .waiting {
                             touch.phase = .dead(owesNO: true)
                             touches[other] = .surface(touch)
+                        }
+                        // So is another top band touch still in its palm window, which owes "Let go first." (I-3).
+                        if other != id, case .band(var otherBand) = role, !otherBand.onGear, otherBand.phase == .pending {
+                            otherBand.phase = .dead(owes: .letGoFirst)
+                            touches[other] = .band(otherBand)
                         }
                     }
                 }

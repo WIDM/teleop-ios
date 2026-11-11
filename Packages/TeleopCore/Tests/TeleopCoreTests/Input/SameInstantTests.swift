@@ -48,6 +48,30 @@ final class SameInstantTests: XCTestCase {
         XCTAssertEqual(commands.withoutUpdates, [.startWrist])
     }
 
+    func testAnAttitudeSampleStillGoesBeforeAMoveBehindAKeyUpThatDoesNothing() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.middle)
+        rig.wait(0.1)
+        rig.slide(1, mm: 9, degrees: 90)
+        rig.turn = 6
+        let up = Rig.middle + SIMD2(0, -10 * Rig.pointsPerMm)
+        // vol+ is not down, so its key-up does nothing.
+        let commands = rig.batch([rig.sample(1, .moved, up, radius: 8), .keyUp(.upper), .attitude(rig.attitude)], after: 0.01)
+        XCTAssertEqual(commands.withoutUpdates, [.startWrist])
+    }
+
+    func testAnAttitudeSampleNeverGoesBeforeAKeyUpThatEndsAHold() {
+        var rig = Rig(.keyTurns)
+        rig.press(.lower)
+        rig.rotate(turn: 10)
+        rig.turn = 20
+        XCTAssertEqual(rig.batch([.keyUp(.lower), .attitude(rig.attitude)], after: 0.016), [.stopWrist])
+        // Nor before one that ends a hold pressed earlier in the same call.
+        rig.turn = 30
+        XCTAssertEqual(rig.batch([.keyDown(.lower), .keyUp(.lower), .attitude(rig.attitude)], after: 1),
+                       [.startWrist, .wristUpdate(.identity), .stopWrist])
+    }
+
     // MARK: An event at a timer's deadline
 
     func testAPalmSampleAtTheEndOfThePalmWindowIsStillAPalm() {
@@ -58,6 +82,23 @@ final class SameInstantTests: XCTestCase {
         XCTAssertEqual(rig.move(1, to: top, radius: 40, after: 0.045), [])
         XCTAssertEqual(rig.wait(0.5), [])
         XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
+    }
+
+    func testAPalmSampleAtTheEndOfTheTopBandPalmWindowIsStillAPalm() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40, after: 0.1), [])
+        XCTAssertEqual(rig.wait(3), [])
+        XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
+    }
+
+    func testAPalmSampleAfterTheTopBandWindowRanOutAtTheSameInstantLeavesTheCountdownRunning() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.wait(0.1), [.resetCountdownStarted])
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40), [])
+        XCTAssertEqual(rig.phase(.touch(1)), .countingDown)
+        XCTAssertEqual(rig.wait(1.9), [.fireReset])
     }
 
     func testAnAttitudeSampleAtTheEndOfThePalmWindowIsJudgedWithTheSlide() {

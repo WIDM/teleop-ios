@@ -169,6 +169,18 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.wait(1.9), [.fireReset])
     }
 
+    func testASecondTopBandFingerStillInItsPalmWindowWhenTheCountdownStartsIsDead() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        rig.touchDown(2, at: Rig.topBand + SIMD2(60, 0), after: 0.05)
+        XCTAssertEqual(rig.wait(0.05), [.resetCountdownStarted])
+        XCTAssertEqual(rig.lift(1, after: 0.02), [.resetCountdownCancelled])
+        // The second finger was down when the countdown began: it never starts one of its own.
+        XCTAssertEqual(rig.wait(0.03), [.cue(.refused(.letGoFirst))])
+        XCTAssertEqual(rig.wait(3), [])
+        XCTAssertEqual(rig.phase(.touch(2)), .dead)
+    }
+
     func testTheTopBandWhileSomethingIsEngagedIsDeadWithLetGoFirst() {
         var rig = Rig(.screenTurns)
         rig.press(.lower)
@@ -436,6 +448,19 @@ final class InputRulesTests: XCTestCase {
         let second = tiltHold(by: 30)
         XCTAssertEqual(second.wristTargets.last?.degrees ?? 0, 5, accuracy: 1e-3)
         XCTAssertEqual(second.cues, [.limit])
+    }
+
+    func testOnAnUnknownServerAResetDuringATiltHoldMovesThatHoldsWindowToTheResetPose() {
+        var rig = Rig(.keyTurns)
+        func settle() -> [InputCommand] { (0..<20).flatMap { _ in rig.orient(after: 1.0 / 60) } }
+        rig.press(.lower)
+        let before = rig.rotate(tilt: 20, steps: 30) + settle()
+        XCTAssertEqual(before.wristTargets.last?.degrees ?? 0, 20, accuracy: 1e-3)
+        rig.send(.sceneReset, after: 0.1)
+        // The reset pose is where the hold stood at +20°, so the 25° window ends at −5° in the same hold.
+        let after = rig.rotate(tilt: -20, steps: 60) + settle()
+        XCTAssertEqual(after.wristTargets.last?.degrees ?? 0, -5, accuracy: 1e-3)
+        XCTAssertEqual(after.cues, [.limit])
     }
 
     func testOnAPatchedServerTheWindowsComeFromTheMeasuredAngles() {

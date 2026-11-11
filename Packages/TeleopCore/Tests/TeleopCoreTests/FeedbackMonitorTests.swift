@@ -162,6 +162,20 @@ final class FeedbackMonitorTests: XCTestCase {
         XCTAssertFalse(monitor.gripping)
     }
 
+    func testAResetOrANewWelcomeForgetsACloseJustLetGoOf() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        monitor.released(.gripper(.closed))
+        monitor.sceneReset()
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 18), at: 200), [], "after a scene reset")
+        XCTAssertFalse(monitor.gripping)
+
+        monitor.startSent(.gripper(.closed), restart: false, at: 400)
+        monitor.released(.gripper(.closed))
+        monitor.welcomed(session: "a")
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 18), at: 600), [], "after a new welcome")
+        XCTAssertFalse(monitor.gripping)
+    }
+
     func testAnEmptyClose() {
         monitor.startSent(.gripper(.closed), restart: false, at: 0)
         XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 30), at: 200), [])

@@ -222,11 +222,13 @@ public struct FeedbackMonitor {
     public mutating func welcomed(session: String?) {
         if session != self.session { gripping = false }
         self.session = session
+        releasedClose = false
     }
 
     /// The server reset the scene: the jaws hold nothing.
     public mutating func sceneReset() {
         gripping = false
+        releasedClose = false
     }
 
     /// The control connection is gone; nothing is engaged any more.

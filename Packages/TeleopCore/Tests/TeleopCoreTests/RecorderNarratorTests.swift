@@ -89,6 +89,16 @@ final class RecorderNarratorTests: XCTestCase {
                        [.ready])
     }
 
+    /// §6.7: only the same episode is the take that continues; a new one while the link was down owes "Ready.".
+    func testAReconnectOntoANewEpisodeOwesReadyNotTheTakeContinues() {
+        _ = see(ServerState(episode: 1, recorder: rec(.capturing)), moving: true, at: 0)
+        narrator.linkLost()
+        narrator.welcomed(session: "run")
+        XCTAssertEqual(see(ServerState(episode: 2, recorder: rec(.capturing, discarded: 1)), at: 5000),
+                       [.reconnected, .offlineDiscarded(1)])
+        XCTAssertEqual(see(ServerState(episode: 2, recorder: rec(.armed, discarded: 1)), at: 5200), [.ready])
+    }
+
     /// A success whose answer was still open when the link dropped is told after the reconnect.
     func testASuccessStillWaitingForItsSaveIsJudgedAfterAReconnect() {
         _ = see(ServerState(taskSuccess: false, episode: 1, recorder: rec(.off)), at: 0)

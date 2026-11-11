@@ -162,7 +162,8 @@ public struct RecorderNarrator {
                 discarded -= 1
             }
             if discarded > 0 { events.append(.offlineDiscarded(discarded)) }
-            if now.label == .capturing {
+            // Only the same episode is the take that continues; a new one owes "Ready." (§6.7).
+            if now.label == .capturing, state.episode == last?.episode {
                 events.append(.takeContinues)
                 return events
             }
