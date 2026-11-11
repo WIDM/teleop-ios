@@ -159,12 +159,66 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case notRecording
     case notReset
 
-    public static var allCases: [CueKey] {
-        [.holdLive] + Refusal.allCases.map(CueKey.refused) + Limit.allCases.map(CueKey.limit) + [.contact]
-            + LetGoReason.allCases.map(CueKey.letGo)
-            + EmergencyCause.allCases.flatMap { cause in [false, true].map { CueKey.emergencyStop(cause, takeDiscarded: $0) } }
-            + [.linkLost(holdEngaged: false), .linkLost(holdEngaged: true)]
-            + [.reconnected, .serverRestarted, .takeContinues, .offlineSaved, .offlineDiscarded, .taskSuccess, .takeSaved,
-               .successNotSaved, .takeDiscarded, .ready, .recordingSession, .notRecording, .notReset]
+    /// Every key. Built from `Kind`, whose cases the compiler lists, so a key cannot be left out by hand: a new case
+    /// here does not compile until `kind` names its kind, and a new kind does not compile until `keys(of:)` lists
+    /// its keys.
+    public static var allCases: [CueKey] { Kind.allCases.flatMap(keys(of:)) }
+
+    /// A key without its payload.
+    enum Kind: CaseIterable {
+        case holdLive, refused, limit, contact, letGo, emergencyStop, linkLost, reconnected, serverRestarted
+        case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
+        case ready, recordingSession, notRecording, notReset
+    }
+
+    var kind: Kind {
+        switch self {
+        case .holdLive: return .holdLive
+        case .refused: return .refused
+        case .limit: return .limit
+        case .contact: return .contact
+        case .letGo: return .letGo
+        case .emergencyStop: return .emergencyStop
+        case .linkLost: return .linkLost
+        case .reconnected: return .reconnected
+        case .serverRestarted: return .serverRestarted
+        case .takeContinues: return .takeContinues
+        case .offlineSaved: return .offlineSaved
+        case .offlineDiscarded: return .offlineDiscarded
+        case .taskSuccess: return .taskSuccess
+        case .takeSaved: return .takeSaved
+        case .successNotSaved: return .successNotSaved
+        case .takeDiscarded: return .takeDiscarded
+        case .ready: return .ready
+        case .recordingSession: return .recordingSession
+        case .notRecording: return .notRecording
+        case .notReset: return .notReset
+        }
+    }
+
+    static func keys(of kind: Kind) -> [CueKey] {
+        switch kind {
+        case .holdLive: return [.holdLive]
+        case .refused: return Refusal.allCases.map(CueKey.refused)
+        case .limit: return Limit.allCases.map(CueKey.limit)
+        case .contact: return [.contact]
+        case .letGo: return LetGoReason.allCases.map(CueKey.letGo)
+        case .emergencyStop:
+            return EmergencyCause.allCases.flatMap { cause in [false, true].map { CueKey.emergencyStop(cause, takeDiscarded: $0) } }
+        case .linkLost: return [.linkLost(holdEngaged: false), .linkLost(holdEngaged: true)]
+        case .reconnected: return [.reconnected]
+        case .serverRestarted: return [.serverRestarted]
+        case .takeContinues: return [.takeContinues]
+        case .offlineSaved: return [.offlineSaved]
+        case .offlineDiscarded: return [.offlineDiscarded]
+        case .taskSuccess: return [.taskSuccess]
+        case .takeSaved: return [.takeSaved]
+        case .successNotSaved: return [.successNotSaved]
+        case .takeDiscarded: return [.takeDiscarded]
+        case .ready: return [.ready]
+        case .recordingSession: return [.recordingSession]
+        case .notRecording: return [.notRecording]
+        case .notReset: return [.notReset]
+        }
     }
 }

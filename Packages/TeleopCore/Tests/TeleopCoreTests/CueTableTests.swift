@@ -12,6 +12,16 @@ final class CueTableTests: XCTestCase {
         XCTAssertEqual(Set(CueKey.allCases).count, CueKey.allCases.count)
     }
 
+    /// `allCases` is built from the kinds, so each kind's keys must all be of that kind.
+    func testEveryKindListsOnlyItsOwnKeys() {
+        for kind in CueKey.Kind.allCases {
+            let keys = CueKey.keys(of: kind)
+            XCTAssertFalse(keys.isEmpty, "\(kind)")
+            for key in keys { XCTAssertEqual(key.kind, kind, "\(key)") }
+        }
+        XCTAssertEqual(CueKey.allCases.count, 11 + 6 + 5 + 10 + 2 + 15)
+    }
+
     func testEveryEventIsFeltOrHeard() {
         for row in CueTable.rows {
             XCTAssertTrue(row.haptic != nil || row.sound != nil || !row.speech.isEmpty, "\(row.key) plays nothing")

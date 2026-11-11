@@ -162,7 +162,11 @@ public enum CueTable {
 
     public static func row(for key: CueKey) -> CueRow {
         // Every key has a row; CueTableTests holds the table to that.
-        byKey[key] ?? CueRow(key)
+        guard let row = byKey[key] else {
+            assertionFailure("no cue row for \(key)")
+            return CueRow(key)
+        }
+        return row
     }
 
     /// The utterance for an event, numbers filled in.
