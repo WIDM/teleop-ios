@@ -65,6 +65,16 @@ final class CueSchedulerTests: XCTestCase {
         XCTAssertEqual(haptics(scheduler.raise(.refused(.deadInput), at: 300, currentHold: nil)), [.no])
     }
 
+    /// C-F3: GO is never dropped. A quick release and press makes the next hold's GO come within 300 ms of the
+    /// last one; it waits out the repeat gap instead.
+    func testAGoWithin300MsOfTheLastOneWaitsInsteadOfBeingDropped() {
+        XCTAssertEqual(haptics(scheduler.raise(.holdLive(hold: 1), at: 0, currentHold: 1)), [.go])
+        XCTAssertEqual(haptics(scheduler.raise(.holdLive(hold: 2), at: 190, currentHold: 2)), [])
+        XCTAssertFalse(scheduler.log.last!.dropped)
+        XCTAssertEqual(haptics(scheduler.tick(at: 299, currentHold: 2)), [])
+        XCTAssertEqual(haptics(scheduler.tick(at: 300, currentHold: 2)), [.go])
+    }
+
     func testSoundsAlwaysPlay() {
         _ = scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 0, currentHold: nil)
         XCTAssertTrue(scheduler.raise(.takeDiscarded, at: 10, currentHold: nil).contains(.sound(.discarded)))

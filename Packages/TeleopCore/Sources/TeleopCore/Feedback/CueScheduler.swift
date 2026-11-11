@@ -23,9 +23,10 @@ public struct CueLogEntry: Equatable, Sendable {
 /// Decides which cue plays when two coincide (§5.4). Pure: time is passed in, nothing is played here.
 ///
 /// Haptics are one channel, ALARM > LETGO > NO > GRIP > END > GO. A higher cue pre-empts a lower one that plays;
-/// a lower one arriving while a higher one plays is dropped, except GO, which waits until the higher one ends (at
-/// most `goWaitMaxMs`) and plays then, if its own hold is still the one engaged. The same pattern never starts
-/// twice within `repeatMs`. Speech follows its level; sounds always play at once.
+/// a lower one arriving while a higher one plays is dropped. The same pattern never starts twice within
+/// `repeatMs`. GO is never dropped for either reason: it waits until the channel is free and its own repeat gap has
+/// passed (at most `goWaitMaxMs`) and plays then, if its own hold is still the one engaged. Speech follows its
+/// level; sounds always play at once.
 public struct CueScheduler {
     public static let goWaitMaxMs = 400
     public static let repeatMs = 300
@@ -86,7 +87,7 @@ public struct CueScheduler {
             if waiting.hold != currentHold {
                 waitingGo = nil
                 record(CueLogEntry(atMs: now, event: .holdLive, haptic: .go, sound: nil, speech: [], dropped: true))
-            } else if playing == nil || now - waiting.sinceMs >= Self.goWaitMaxMs {
+            } else if goIsFree(at: now) || now - waiting.sinceMs >= Self.goWaitMaxMs {
                 waitingGo = nil
                 outputs.append(play(.go, at: now))
             }
@@ -118,14 +119,24 @@ public struct CueScheduler {
 
     private mutating func startHaptic(_ haptic: Haptic, for event: FeedbackEvent, at now: Int, currentHold: Int?) -> ([CueOutput], Bool) {
         expire(at: now)
-        if case .holdLive(let hold) = event, hold != currentHold { return ([], true) }
-        if let last = lastStarted[haptic], now - last < Self.repeatMs { return ([], true) }
-        if let current = playing, haptic.priority <= current.haptic.priority {
-            guard case .holdLive(let hold) = event else { return ([], true) }
-            waitingGo = (hold, now)
-            return ([], false)
+        if case .holdLive(let hold) = event {
+            guard hold == currentHold else { return ([], true) }
+            guard goIsFree(at: now) else {
+                waitingGo = (hold, now)
+                return ([], false)
+            }
+            return ([play(.go, at: now)], false)
         }
+        if let last = lastStarted[haptic], now - last < Self.repeatMs { return ([], true) }
+        if let current = playing, haptic.priority <= current.haptic.priority { return ([], true) }
         return ([play(haptic, at: now)], false)
+    }
+
+    /// Nothing plays (GO is the lowest cue) and the last GO started at least `repeatMs` ago.
+    private func goIsFree(at now: Int) -> Bool {
+        guard playing == nil else { return false }
+        guard let last = lastStarted[.go] else { return true }
+        return now - last >= Self.repeatMs
     }
 
     private mutating func play(_ haptic: Haptic, at now: Int) -> CueOutput {
