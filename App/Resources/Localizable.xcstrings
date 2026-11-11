@@ -1809,22 +1809,6 @@
         }
       }
     },
-    "settings.hello_offline": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "hello not sent: this build has no server link yet"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "hello 未送出：這個版本還沒接上伺服器"
-          }
-        }
-      }
-    },
     "settings.language": {
       "localizations": {
         "en": {
@@ -1917,22 +1901,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "重看教學"
-          }
-        }
-      }
-    },
-    "settings.send_hello": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send hello"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "送出 hello"
           }
         }
       }

@@ -139,18 +139,10 @@ struct SettingsScreen: View {
                             if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
                         }
                     }
-                    HStack(spacing: 8) {
-                        Button {
-                            model.log("→ hello")
-                            model.log("· " + L10n.string("settings.hello_offline"))
-                        } label: { Text("settings.send_hello") }
-                            .buttonStyle(OutlineButtonStyle())
-                            .accessibilityIdentifier("settings.send_hello")
-                        Button { model.clearLog() } label: { Text("settings.clear_log") }
-                            .buttonStyle(OutlineButtonStyle())
-                            .accessibilityIdentifier("settings.clear_log")
-                    }
-                    .padding(.top, 8)
+                    Button { model.clearLog() } label: { Text("settings.clear_log") }
+                        .buttonStyle(OutlineButtonStyle())
+                        .accessibilityIdentifier("settings.clear_log")
+                        .padding(.top, 8)
                 }
                 .card()
                 .padding(.top, 12)

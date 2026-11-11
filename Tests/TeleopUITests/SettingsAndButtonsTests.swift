@@ -36,11 +36,11 @@ final class SettingsAndButtonsTests: XCTestCase {
 
     func testDebugLogHiddenUntilDeveloperMode() {
         openSettings()
-        XCTAssertFalse(element("settings.send_hello").exists)
+        XCTAssertFalse(element("settings.log").exists)
+        XCTAssertFalse(element("settings.clear_log").exists)
         element("settings.developer_mode").switches.firstMatch.tap()
-        expect("settings.send_hello")
-        element("settings.send_hello").tap()
-        XCTAssertTrue(element("settings.log").label.contains("hello"))
+        expect("settings.clear_log")
+        XCTAssertTrue(element("settings.log").label.contains("openSettings"))
         element("settings.clear_log").tap()
         XCTAssertTrue(element("settings.log").label.contains("No events yet."))
     }
