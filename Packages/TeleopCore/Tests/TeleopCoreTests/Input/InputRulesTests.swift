@@ -380,6 +380,28 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(third.wristTargets.last?.degrees ?? 0, 18, accuracy: 1e-3)
     }
 
+    func testAResetDuringATiltHoldCountsOnlyTheTiltCommandedAfterIt() {
+        var rig = Rig(.keyTurns)
+        func settle() -> [InputCommand] { (0..<20).flatMap { _ in rig.orient(after: 1.0 / 60) } }
+        rig.press(.lower)
+        let before = rig.rotate(tilt: -18, steps: 30) + settle()
+        XCTAssertEqual(before.wristTargets.last?.degrees ?? 0, -18, accuracy: 1e-3)
+        // The reset takes the arm home while the hold is still engaged; the tilt before it is gone.
+        rig.send(.sceneReset, after: 0.1)
+        rig.release(.lower, after: 0.1)
+        rig.orient(turn: 0, tilt: 0, after: 0.5)
+        func tiltHold(by tilt: Double) -> [InputCommand] {
+            var commands = rig.press(.lower, after: 0.5)
+            commands += rig.rotate(tilt: rig.tilt + tilt, steps: 60) + settle()
+            return commands + rig.release(.lower)
+        }
+        XCTAssertEqual(tiltHold(by: 30).wristTargets.last?.degrees ?? 0, 20, accuracy: 1e-3)
+        // 20° commanded since the reset: 5° more reach the 25° window.
+        let second = tiltHold(by: 30)
+        XCTAssertEqual(second.wristTargets.last?.degrees ?? 0, 5, accuracy: 1e-3)
+        XCTAssertEqual(second.cues, [.limit])
+    }
+
     func testOnAPatchedServerTheWindowsComeFromTheMeasuredAngles() {
         var rig = Rig(.keyTurns)
         rig.facts.wrist = WristReadings(rollDeg: 130, flexDeg: 0, flexAtResetDeg: 0)

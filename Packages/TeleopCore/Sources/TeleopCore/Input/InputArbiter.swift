@@ -25,6 +25,9 @@ public struct InputArbiter: Sendable {
     private var lastWristTarget = WristTarget.identity
     private var attitude: simd_quatd?
     private var commandedTiltSinceReset = 0.0
+    /// The engaged wrist hold's commanded tilt when the last reset came during it; only what it commands after that
+    /// counts toward the window.
+    private var tiltAtReset = 0.0
     private var now: TimeInterval = -.infinity
     private var facts = InputFacts()
     private var out: [InputCommand] = []
@@ -195,7 +198,9 @@ public struct InputArbiter: Sendable {
             endAllHolds()
             scheme = newScheme
             hand = newHand
-        case .sceneReset: commandedTiltSinceReset = 0
+        case .sceneReset:
+            commandedTiltSinceReset = 0
+            tiltAtReset = lastWristTarget.axis == .tilt ? lastWristTarget.degrees : 0
         case .wristStartSent:
             guard case .hold(_, .wrist)? = engaged, let q = attitude else { return }
             wrist?.startSent(attitude: q, at: now)
@@ -678,7 +683,8 @@ public struct InputArbiter: Sendable {
         case .gripper:
             out.append(.stopGripper)
         case .wrist:
-            if lastWristTarget.axis == .tilt { commandedTiltSinceReset += lastWristTarget.degrees }
+            if lastWristTarget.axis == .tilt { commandedTiltSinceReset += lastWristTarget.degrees - tiltAtReset }
+            tiltAtReset = 0
             wrist = nil
             lastWristTarget = .identity
             out.append(.stopWrist)
