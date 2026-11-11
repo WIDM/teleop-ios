@@ -147,8 +147,12 @@ final class ObserverTests: XCTestCase {
         model.send(.holdArmEnd)
         // The first 300 ms may still carry a state sent just before the hold began.
         let window = start.addingTimeInterval(0.3)
-        XCTAssertEqual(entries("control", incoming: "state", from: window, to: end).count, 0,
-                       "the control connection streams, so the server sends it no state")
+        // The server sends a connection a state only after 200 ms with nothing from it. A busy test machine can
+        // pause the app's 30 Hz stream that long; each such pause may earn one state, and nothing else may.
+        let sentOnControl = log.filter { $0.connection == "control" && $0.outgoing && $0.at >= start && $0.at <= end }.map(\.at)
+        let pauses = zip(sentOnControl, sentOnControl.dropFirst()).filter { $1.timeIntervalSince($0) >= 0.18 }.count
+        XCTAssertLessThanOrEqual(entries("control", incoming: "state", from: window, to: end).count, pauses,
+                                 "the control connection streams, so the server sends it no state")
         XCTAssertGreaterThanOrEqual(entries("observer", incoming: "state", from: window, to: end).count, 5,
                                     "the listening connection gets one every 200 ms")
         let hello = log.first { $0.connection == "observer" && $0.outgoing }
