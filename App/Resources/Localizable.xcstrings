@@ -369,54 +369,6 @@
         }
       }
     },
-    "connect.recent": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recent"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近使用"
-          }
-        }
-      }
-    },
-    "connect.recent_hotspot": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal hotspot"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "個人熱點"
-          }
-        }
-      }
-    },
-    "connect.recent_lab_wifi": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "lab Wi-Fi"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "實驗室 Wi-Fi"
-          }
-        }
-      }
-    },
     "connect.subtitle": {
       "localizations": {
         "en": {

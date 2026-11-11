@@ -67,17 +67,6 @@ struct ConnectScreen: View {
             .card()
             .padding(.top, 16)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("connect.recent")
-                    .font(.system(size: 14))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                    .padding(.bottom, 4)
-                recentRow("connect.recent_lab_wifi")
-                recentRow("connect.recent_hotspot")
-            }
-            .card()
-            .padding(.top, 16)
-
             Text("connect.hint")
                 .font(.system(size: 12))
                 .foregroundStyle(TeleopColors.textSecondary)
@@ -95,15 +84,5 @@ struct ConnectScreen: View {
         }
         .padding(.horizontal, TeleopMetrics.margin)
         .padding(.vertical, 12)
-    }
-
-    private func recentRow(_ key: LocalizedStringKey) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "clock.arrow.circlepath")
-                .foregroundStyle(TeleopColors.textSecondary)
-            Text(key).font(.system(size: 16))
-            Spacer()
-        }
-        .frame(minHeight: TeleopMetrics.touch)
     }
 }
