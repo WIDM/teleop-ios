@@ -25,15 +25,6 @@ final class SettingsAndButtonsTests: XCTestCase {
         expect("settings.done")
     }
 
-    func testSwitchModeReturnsToModeSelectAndCloudWorks() {
-        openSettings()
-        element("settings.switch_mode").tap()
-        expect("mode.next")
-        element("mode.cloud").tap()
-        element("mode.next").tap()
-        expect("cloud.title")
-    }
-
     func testDebugLogHiddenUntilDeveloperMode() {
         openSettings()
         XCTAssertFalse(element("settings.log").exists)

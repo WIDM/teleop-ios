@@ -6,11 +6,6 @@ import TeleopCore
 
 // Every TeleopAction case. scripts/drift.py fails if this list and the enum differ.
 let actionTable: [(String, TeleopAction)] = [
-    ("modeNext", .modeNext),
-    ("cloudEnterStandby", .cloudEnterStandby),
-    ("cloudSimulateFail", .cloudSimulateFail),
-    ("cloudRecheck", .cloudRecheck),
-    ("cloudUseOnSite", .cloudUseOnSite),
     ("permissionsContinue", .permissionsContinue),
     ("tutorialSkip", .tutorialSkip),
     ("tutorialNext1", .tutorialNext(step: 1)),
@@ -22,7 +17,7 @@ let actionTable: [(String, TeleopAction)] = [
     ("keyboardDone", .keyboardDone),
     ("changeServer", .changeServer),
     ("resetScene", .resetScene),
-    ("switchMode", .switchMode),
+    ("switchLink", .switchLink),
     ("connect", .connect),
     ("disconnect", .disconnect),
     ("s1Back", .s1Back),
@@ -57,9 +52,10 @@ let actionTable: [(String, TeleopAction)] = [
 // both while the control is held.
 let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
-// ModeSelectScreen changes the mode directly on the state, not through perform.
-// toggleLiveLink is the Settings switch: AppModel.liveLink sends switchMode, then flips the flag.
-let stateCalls = ["selectCloud", "selectOnSite", "toggleLiveLink"]
+// toggleLiveLink is the Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
+let stateCalls = ["toggleLiveLink"]
+// A fresh install opens on S2 (the default start); every later launch opens on P4.
+let launches = [TeleopSession(), TeleopSession(start: .p4)]
 
 struct Node {
     var session: TeleopSession
@@ -98,7 +94,7 @@ let properties: [Property] = [
     Property(id: "U2", promise: "On shipped screens, S4 is shown only while E-stop is latched.", harm: "The app could claim E-stop when none is active."),
     Property(id: "U3", promise: "On shipped screens, a latched E-stop can always be released.", harm: "The operator could be stuck with no way back to control."),
     Property(id: "U4", promise: "On shipped screens, the arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
-    Property(id: "U5", promise: "Every shipped teleop screen (all but P1, P2, P3, S4) offers STOP.", harm: "The operator could have no STOP on a teleop screen."),
+    Property(id: "U5", promise: "Every shipped teleop screen (all but S4) offers STOP.", harm: "The operator could have no STOP on a teleop screen."),
     Property(id: "U7", promise: "On shipped screens, the gripper is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving.", harm: "Same as S10, reachable by tapping."),
     Property(id: "U8", promise: "On shipped screens, at most one held control is active, and a jaw turn is active only while connected and not E-stopped.", harm: "Same as S12 and S13, reachable by tapping."),
     Property(id: "U6", promise: "On shipped screens, the E-stop long buzz is never started while it is already playing.", harm: "HapticsController keeps only the newest loop player, so an older buzz may not be cancelled on release."),
@@ -107,12 +103,10 @@ let properties: [Property] = [
 func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, restartedLoop: Bool)? {
     var session = node.session
     switch name {
-    case "selectCloud": session.state.selectCloud()
-    case "selectOnSite": session.state.selectOnSite()
     case "toggleLiveLink":
         if session.state.emergencyStop { return nil }
-        session.perform(.switchMode)
         session.state.liveLink.toggle()
+        session.perform(.switchLink)
     default: session.perform(actionsByName[name]!)
     }
     // ArmHoldModifier.onDisappear sends holdArmEnd when the hold area leaves the screen.
@@ -143,10 +137,8 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
 // Not in key, because no action changes them: serverAddress sensitivity smoothing
 // scripts/drift.py fails if FakeTeleopState gains a stored field that is in neither list.
 struct StateKey: Hashable {
-    let mode: TeleopMode
     let connected: Bool
     let heartbeatOk: Bool
-    let physicalEstopOk: Bool
     let latencyMs: Int
     let commandsBlocked: Bool
     let gripper: GripperState
@@ -169,10 +161,8 @@ func key(_ node: Node) -> StateKey {
     let s = node.session.state
     let origin = Mirror(reflecting: node.session).children.first { $0.label == "connectionOrigin" }?.value as? Route
     return StateKey(
-        mode: s.mode,
         connected: s.connected,
         heartbeatOk: s.heartbeatOk,
-        physicalEstopOk: s.physicalEstopOk,
         latencyMs: s.latencyMs,
         commandsBlocked: s.commandsBlocked,
         gripper: s.gripper,
@@ -213,6 +203,7 @@ struct Exploration {
             lines.append("\(name)  (\(nodes[up].session.route) -> \(nodes[i].session.route))")
             current = up
         }
+        if let root = current { lines.append("launch on \(nodes[root].session.route)") }
         lines.reverse()
         if let action { lines.append(action) }
         return lines
@@ -225,12 +216,16 @@ func explore(
     check: (Step) -> [(String, String)]
 ) -> Exploration {
     var result = Exploration()
-    let start = Node(session: TeleopSession(), loopPlaying: false)
-    var seen = [key(start): 0]
-    result.nodes = [start]
-    result.parent = [nil]
-    result.via = [nil]
-    result.edges = [[]]
+    var seen: [StateKey: Int] = [:]
+    for session in launches {
+        let start = Node(session: session, loopPlaying: false)
+        guard seen[key(start)] == nil else { continue }
+        seen[key(start)] = result.nodes.count
+        result.nodes.append(start)
+        result.parent.append(nil)
+        result.via.append(nil)
+        result.edges.append([])
+    }
     var head = 0
     while head < result.nodes.count {
         let node = result.nodes[head]
@@ -397,7 +392,7 @@ if let stuck = canRelease.firstIndex(of: false) {
     uiRun.violations["U3"] = Violation(parent: stuck, action: nil, detail: "no path to release from \(uiRun.nodes[stuck].session.route)")
 }
 // U5: read straight from the screen map.
-let noStopAllowed: Set<Route> = [.p1, .p2, .p3, .s4]
+let noStopAllowed: Set<Route> = [.s4]
 for route in Route.allCases where !noStopAllowed.contains(route) && !uiMap[route]!.contains("stop") {
     uiRun.violations["U5"] = uiRun.violations["U5"] ?? Violation(parent: nil, action: nil, detail: "\(route) has no STOP in ui-map.tsv")
 }

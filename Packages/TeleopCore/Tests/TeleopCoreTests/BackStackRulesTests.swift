@@ -4,10 +4,6 @@ import XCTest
 final class BackStackRulesTests: XCTestCase {
     private func edges(_ route: Route) -> [Route] { BackStackRules.forwardEdges[route] ?? [] }
 
-    func testP2BacksToP1() {
-        XCTAssertEqual(BackStackRules.previous(of: .p2), .p1)
-    }
-
     func testP5BacksToP4() {
         XCTAssertEqual(BackStackRules.previous(of: .p5), .p4)
     }
@@ -22,9 +18,10 @@ final class BackStackRulesTests: XCTestCase {
         XCTAssertEqual(BackStackRules.previous(of: .p7), .p5)
     }
 
-    func testP1HasNoBack() {
-        XCTAssertNil(BackStackRules.previous(of: .p1))
-        XCTAssertFalse(BackStackRules.handlesBack(.p1))
+    func testTheTwoLaunchScreensHaveNoBack() {
+        XCTAssertNil(BackStackRules.previous(of: .s2))
+        XCTAssertNil(BackStackRules.previous(of: .p4))
+        XCTAssertFalse(BackStackRules.handlesBack(.s2))
         XCTAssertTrue(BackStackRules.handlesBack(.p5))
     }
 
@@ -55,16 +52,16 @@ final class BackStackRulesTests: XCTestCase {
         XCTAssertEqual(s.route, .p5)
     }
 
-    func testEveryRouteReachableFromP1() {
-        XCTAssertEqual(Route.allCases.count, 15)
-        XCTAssertEqual(BackStackRules.reachable(from: .p1), Set(Route.allCases))
+    func testEveryRouteReachableFromAFreshInstall() {
+        XCTAssertEqual(Route.allCases.count, 12)
+        XCTAssertEqual(BackStackRules.reachable(from: .s2), Set(Route.allCases))
     }
 
     func testEveryRouteWithABackRuleHasAMatchingForwardEdgeOrIsOverride() {
         for route in Route.allCases {
             guard let previous = BackStackRules.previous(of: route) else { continue }
             XCTAssertTrue(
-                BackStackRules.reachable(from: .p1).contains(previous),
+                BackStackRules.reachable(from: .s2).contains(previous),
                 "\(route) backs to unreachable \(previous)"
             )
         }

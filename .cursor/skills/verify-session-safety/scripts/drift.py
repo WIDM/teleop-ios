@@ -53,12 +53,11 @@ STRUCT = re.compile(
 
 def sends(text):
     found = set(re.findall(r"(?:send|perform)\(\.(\w+)", text))
-    found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
     found |= set(re.findall(r"return \[\.(\w+)[\](]", text))
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
     if "model.connect()" in text:
         found.add("connect")
-    # The Settings switch: AppModel.liveLink sends switchMode, then flips the flag.
+    # The Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
     if "$model.liveLink" in text:
         found.add("toggleLiveLink")
     # LiveLinkController reports what the server did.
@@ -89,8 +88,8 @@ for path in APP.rglob("*.swift"):
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
     # connect: the fake link's S1 Connect. holdArmEnd, turnEnd: a hold or turn the link could not start.
-    # switchMode: the live-link switch.
-    "AppModel.swift": {"connect", "holdArmEnd", "turnEnd", "switchMode"},
+    # switchLink: the live-link switch.
+    "AppModel.swift": {"connect", "holdArmEnd", "turnEnd", "switchLink"},
     "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "linkUp", "linkLost", "linkLatency", "stop"},
 }
 for path, names in sorted(outside_structs.items()):

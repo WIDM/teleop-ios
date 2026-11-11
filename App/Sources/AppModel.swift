@@ -11,19 +11,22 @@ final class AppModel {
     @ObservationIgnored private var holdStartPose: simd_float4x4?
     @ObservationIgnored private var pendingServerCause: StopCause?
     @ObservationIgnored let link: LiveLinkController
-    /// Real server instead of the built-in fake. Changing it returns to mode select, so no session spans both.
+    /// Real server instead of the built-in demo. Changing it drops the current link and starts the other,
+    /// so no session spans both.
     var liveLink: Bool {
         get { session.state.liveLink }
         set {
             guard newValue != session.state.liveLink, !session.state.emergencyStop else { return }
             link.closeQuietly()
-            send(.switchMode)
             session.state.liveLink = newValue
+            send(.switchLink)
             UserDefaults.standard.set(newValue, forKey: Self.liveLinkKey)
         }
     }
     static let liveLinkKey = "liveLink"
     static let serverAddressKey = "serverAddress"
+    /// Set once the tutorial has been finished or skipped. From then on the app opens on standby.
+    static let firstRunDoneKey = "firstRunDone"
     /// UI tests only: `-recordHaptics YES` shows requested haptics to XCUITest, which cannot feel them.
     private(set) var hapticLog: [String]? = UserDefaults.standard.bool(forKey: "recordHaptics") ? [] : nil
     var language: AppLanguage = L10n.language {
@@ -46,21 +49,22 @@ final class AppModel {
     private(set) var debugLog: [String] = []
 
     init(
-        start: Route = .p1,
+        start: Route = .s2,
         haptics: HapticsPlaying = HapticsController(),
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
         liveLink: Bool = UserDefaults.standard.bool(forKey: AppModel.liveLinkKey),
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
     ) {
-        session = TeleopSession(start: start)
+        var state = FakeTeleopState()
+        state.liveLink = liveLink
+        if liveLink, let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+            state.serverAddress = saved
+        }
+        session = TeleopSession(state: state, start: start)
         self.haptics = haptics
         self.pose = pose
         link = LiveLinkController(makeTransport: makeTransport, pose: pose, nowMs: nowMs)
-        session.state.liveLink = liveLink
-        if liveLink, let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
-            session.state.serverAddress = saved
-        }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onOffset = { [weak self] in self?.holdOffset = $0 }
@@ -108,6 +112,13 @@ final class AppModel {
         log("~ \(Self.logName(command))")
     }
 
+    /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
+    /// screen. Called at launch and when the Settings switch turns the real server on.
+    func trySavedServer() {
+        guard session.state.liveLink, !session.state.connected, !link.isOpen else { return }
+        _ = link.connect(to: session.state.serverAddress)
+    }
+
     /// S1 Connect. Fake link: connected at once. Live link: opens the socket; `linkUp` or `linkLost` follows.
     func connect() {
         guard session.state.liveLink else {
@@ -133,6 +144,9 @@ final class AppModel {
         let before = session.state
         let wasMoving = before.armMoving
         session.perform(action)
+        if !before.tutorialDone, session.state.tutorialDone {
+            UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
+        }
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
         if !session.state.armMoving { holdOffset = nil }
         if !before.emergencyStop, session.state.emergencyStop {
@@ -185,11 +199,9 @@ final class AppModel {
             link.resetScene()
         case .disconnect:
             link.closeQuietly()
-        case .switchMode where session.route == .p1:
+        case .switchLink:
             link.closeQuietly()
-        case .modeNext, .cloudUseOnSite, .cloudEnterStandby:
-            // Entering a session: try the saved server so standby is ready when the user gets there.
-            if !after.connected, !link.isOpen { link.connect(to: after.serverAddress) }
+            trySavedServer()
         default:
             break
         }
@@ -231,8 +243,11 @@ final class AppModel {
         }
     }
 
+    /// A fresh install opens on the permissions screen, every later launch on standby.
+    /// UI tests and screenshots can open any screen with `-startRoute <raw value>`.
     static func startRoute(from defaults: UserDefaults = .standard) -> Route {
-        defaults.string(forKey: "startRoute").flatMap(Route.init(rawValue:)) ?? .p1
+        if let route = defaults.string(forKey: "startRoute").flatMap(Route.init(rawValue:)) { return route }
+        return defaults.bool(forKey: firstRunDoneKey) ? .p4 : .s2
     }
 }
 

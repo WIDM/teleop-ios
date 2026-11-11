@@ -1,8 +1,5 @@
-/// All 20 Mockup v2 iOS routes (402x874 frame).
+/// The app's screens, named after the Mockup v2 iOS frames they came from (402x874).
 public enum Route: String, CaseIterable, Sendable {
-    case p1 = "p1_mode_select"
-    case p2 = "p2_cloud_pass"
-    case p3 = "p3_cloud_fail"
     case p4 = "p4_standby"
     case p5 = "p5_connection"
     case p6 = "p6_high_latency"

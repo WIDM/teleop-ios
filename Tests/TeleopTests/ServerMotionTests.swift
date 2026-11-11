@@ -45,7 +45,7 @@ final class ServerMotionTests: XCTestCase {
     override func tearDown() {
         if model?.session.state.armMoving == true { model.send(.holdArmEnd) }
         pump(1)
-        model?.send(.switchMode)
+        model?.link.closeQuietly()
         model = nil
     }
 

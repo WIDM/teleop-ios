@@ -2,35 +2,16 @@ import XCTest
 @testable import TeleopCore
 
 final class TeleopSessionTests: XCTestCase {
-    func testOnSiteNextGoesToPermissions() {
-        var s = TeleopSession()
-        s.perform(.modeNext)
+    func testAFreshSessionOpensOnPermissionsAndTheDemoLinkIsConnected() {
+        let s = TeleopSession()
         XCTAssertEqual(s.route, .s2)
+        XCTAssertEqual(s.navigator.stack, [.s2])
         XCTAssertTrue(s.state.connected)
-    }
-
-    func testCloudNextGoesToCheckPass() {
-        var s = TeleopSession()
-        s.state.selectCloud()
-        s.perform(.modeNext)
-        XCTAssertEqual(s.route, .p2)
-    }
-
-    func testCloudFailThenUseOnSite() {
-        var s = TeleopSession()
-        s.state.selectCloud()
-        s.perform(.modeNext)
-        s.perform(.cloudSimulateFail)
-        XCTAssertEqual(s.route, .p3)
-        XCTAssertFalse(s.state.heartbeatOk)
-        s.perform(.cloudUseOnSite)
-        XCTAssertEqual(s.route, .s2)
-        XCTAssertEqual(s.state.mode, .onSite)
+        XCTAssertEqual(TeleopSession(start: .p4).route, .p4)
     }
 
     func testTutorialRunsThenSkipsOnceDone() {
         var s = TeleopSession()
-        s.perform(.modeNext)
         s.perform(.permissionsContinue)
         XCTAssertEqual(s.route, .t1)
         s.perform(.tutorialNext(step: 1))
@@ -121,8 +102,15 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(s.route, .p4)
     }
 
+    /// A session with its link down. The demo link starts connected, so it is cut first.
+    private func disconnected(at route: Route = .s5) -> TeleopSession {
+        var s = TeleopSession(start: route)
+        s.state.markDisconnected()
+        return s
+    }
+
     func testGripperRefusedWhenDisconnected() {
-        var s = TeleopSession(start: .s5)
+        var s = disconnected()
         s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
         XCTAssertTrue(s.drainHaptics().isEmpty)
@@ -198,7 +186,7 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertFalse(stopped.state.armMoving)
         XCTAssertTrue(stopped.drainHaptics().isEmpty)
 
-        var offline = TeleopSession(start: .s5)
+        var offline = disconnected()
         offline.perform(.holdArmStart)
         XCTAssertFalse(offline.state.armMoving)
         XCTAssertTrue(offline.drainHaptics().isEmpty)
@@ -326,7 +314,7 @@ final class TeleopSessionTests: XCTestCase {
     }
 
     func testJawTurnIsIgnoredWhenDisconnectedAndRefusedWhenEStoppedOrBlocked() {
-        var offline = TeleopSession()
+        var offline = disconnected()
         offline.perform(.turnStart(.positive))
         XCTAssertNil(offline.state.jawTurning)
         XCTAssertEqual(offline.drainHaptics(), [])
@@ -384,7 +372,7 @@ final class TeleopSessionTests: XCTestCase {
     }
 
     func testWristTiltHasTheSameExclusionsAsTheRoll() {
-        var offline = TeleopSession()
+        var offline = disconnected()
         offline.perform(.turnStart(.tiltUp))
         XCTAssertNil(offline.state.jawTurning)
         XCTAssertEqual(offline.drainHaptics(), [])
@@ -402,7 +390,7 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertNil(slow.state.jawTurning)
         XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
 
-        for end in [TeleopAction.stop, .disconnect, .switchMode, .resetScene] {
+        for end in [TeleopAction.stop, .disconnect, .switchLink, .resetScene] {
             var s = connectedFallback()
             s.perform(.turnStart(.tiltUp))
             s.perform(end)
@@ -432,7 +420,7 @@ final class TeleopSessionTests: XCTestCase {
 
         var left = connectedFallback()
         left.perform(.turnStart(.positive))
-        left.perform(.switchMode)
+        left.perform(.switchLink)
         XCTAssertNil(left.state.jawTurning)
 
         var reset = connectedFallback()
@@ -537,40 +525,41 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(stopped.state.gripper, .closed)
         XCTAssertEqual(stopped.route, .s4)
 
-        var offline = TeleopSession(start: .p4)
+        var offline = disconnected(at: .p4)
         offline.state.gripper = .closed
         offline.perform(.resetScene)
         XCTAssertEqual(offline.state.gripper, .closed)
     }
 
-    func testSwitchModeReturnsToModeSelectDisconnected() {
+    func testSwitchingToTheRealServerDropsTheDemoAndStaysOnSettings() {
         var s = TeleopSession(start: .p4)
-        s.state.markConnected()
         s.perform(.holdArmStart)
         s.perform(.openSettings)
-        s.perform(.switchMode)
-        XCTAssertEqual(s.route, .p1)
-        XCTAssertFalse(s.state.connected)
+        s.state.liveLink = true
+        s.perform(.switchLink)
+        XCTAssertEqual(s.route, .s6)
+        XCTAssertFalse(s.state.connected, "the real server is connected only when it says so")
         XCTAssertFalse(s.state.armMoving)
         s.perform(.back)
-        XCTAssertEqual(s.route, .p1)
+        XCTAssertEqual(s.route, .p4)
     }
 
-    func testSwitchModeThenCloudRunsSafetyCheck() {
-        var s = TeleopSession(start: .s6)
-        s.state.markConnected()
-        s.perform(.switchMode)
-        s.state.selectCloud()
-        s.perform(.modeNext)
-        XCTAssertEqual(s.route, .p2)
+    func testSwitchingBackToTheDemoConnectsIt() {
+        var state = FakeTeleopState()
+        state.liveLink = true
+        var s = TeleopSession(state: state, start: .s6)
+        XCTAssertFalse(s.state.connected)
+        s.state.liveLink = false
+        s.perform(.switchLink)
         XCTAssertTrue(s.state.connected)
+        XCTAssertEqual(s.route, .s6)
     }
 
-    func testSwitchModeIgnoredWhileEStopped() {
+    func testSwitchLinkIgnoredWhileEStopped() {
         var s = TeleopSession(start: .s6)
         s.state.markConnected()
         s.perform(.stop)
-        s.perform(.switchMode)
+        s.perform(.switchLink)
         XCTAssertEqual(s.route, .s4)
         XCTAssertTrue(s.state.emergencyStop)
     }

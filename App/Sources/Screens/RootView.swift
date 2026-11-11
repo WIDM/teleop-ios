@@ -23,7 +23,10 @@ struct RootView: View {
                     .accessibilityIdentifier("test.haptics")
             }
         }
-        .onAppear { PoseTracker.shared.setActive(Self.tracksPose(model.session.route)) }
+        .onAppear {
+            PoseTracker.shared.setActive(Self.tracksPose(model.session.route))
+            model.trySavedServer()
+        }
         .onChange(of: model.session.route) { _, route in PoseTracker.shared.setActive(Self.tracksPose(route)) }
         .onChange(of: scenePhase) { _, phase in
             // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
@@ -50,9 +53,6 @@ struct RootView: View {
     @ViewBuilder
     private func screen(for route: Route) -> some View {
         switch route {
-        case .p1: ModeSelectScreen(model: model)
-        case .p2: CloudCheckPassScreen(model: model)
-        case .p3: CloudCheckFailScreen(model: model)
         case .p4: StandbyScreen(model: model)
         case .p5: ConnectionDetailsScreen(model: model, keyboardExpanded: false)
         case .p6: StandbyScreen(model: model, highLatency: true)

@@ -51,23 +51,6 @@ struct SettingsScreen: View {
                 }
                 .frame(minHeight: TeleopMetrics.touch)
                 Divider()
-                Button { model.send(.switchMode) } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("settings.switch_mode")
-                            Text("settings.switch_mode_hint")
-                                .font(.system(size: 12))
-                                .foregroundStyle(TeleopColors.textSecondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(TeleopColors.chevronMuted)
-                    }
-                    .frame(minHeight: TeleopMetrics.touch)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.switch_mode")
-                Divider()
                 Button { model.send(.replayTutorial) } label: {
                     HStack {
                         Text("settings.replay_tutorial")

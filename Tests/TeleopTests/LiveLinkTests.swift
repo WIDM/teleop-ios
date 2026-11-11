@@ -834,7 +834,7 @@ final class LiveLinkTests: XCTestCase {
     func testGuidanceGoesWhenTheLinkDoes() {
         bringUp()
         transport.server("state", sceneState)
-        model.send(.switchMode)
+        model.liveLink = false
         XCTAssertNil(model.guidance)
     }
 
@@ -1012,18 +1012,49 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.session.state.connectionLost)
     }
 
-    func testSwitchModeClosesTheSocket() {
+    func testSwitchingToTheDemoClosesTheSocketAndConnectsTheDemo() {
         bringUp()
-        model.send(.switchMode)
+        model.send(.holdArmStart)
+        model.send(.openSettings)
+        model.liveLink = false
         XCTAssertTrue(transport.closed)
-        XCTAssertFalse(model.session.state.connected)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(model.session.state.connected, "the demo link is connected from the start")
+        XCTAssertEqual(model.session.route, .s6)
     }
 
-    func testEnteringASessionTriesTheSavedServer() {
-        makeModel(at: .p1)
-        model.send(.modeNext)
+    func testSwitchingToTheRealServerTriesTheServerAddress() {
+        defer { UserDefaults.standard.removeObject(forKey: AppModel.liveLinkKey) }
+        transports = []
+        let demo = AppModel(start: .s6, haptics: NoHaptics(), pose: { nil }, liveLink: false, makeTransport: { [unowned self] _ in
+            let made = FakeTransport()
+            transports.append(made)
+            return made
+        })
+        demo.session.state.serverAddress = "100.64.0.1:8765"
+        demo.liveLink = true
         XCTAssertEqual(transports.count, 1)
+        XCTAssertTrue(transports[0].opened)
+        XCTAssertFalse(demo.session.state.connected, "connected only once the server answers")
+        XCTAssertEqual(demo.session.route, .s6)
+    }
+
+    func testLaunchTriesTheSavedServerOnce() {
+        makeModel(at: .p4)
+        XCTAssertTrue(transports.isEmpty, "making the model opens nothing")
+        model.trySavedServer()
+        XCTAssertEqual(transports.count, 1)
+        XCTAssertTrue(transport.opened)
         XCTAssertFalse(model.session.state.connected)
+        model.trySavedServer()
+        XCTAssertEqual(transports.count, 1, "a socket already open is left alone")
+    }
+
+    func testLaunchWithNoSavedServerOpensNothing() {
+        makeModel(at: .p4)
+        model.session.state.serverAddress = ""
+        model.trySavedServer()
+        XCTAssertTrue(transports.isEmpty)
     }
 
     func testReconnectDropsTheOldSocket() {

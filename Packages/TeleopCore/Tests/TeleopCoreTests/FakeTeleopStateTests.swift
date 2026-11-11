@@ -4,7 +4,6 @@ import XCTest
 final class FakeTeleopStateTests: XCTestCase {
     func testDefaults() {
         let s = FakeTeleopState()
-        XCTAssertEqual(s.mode, .onSite)
         XCTAssertFalse(s.connected)
         XCTAssertEqual(s.latencyMs, 80)
         XCTAssertEqual(s.serverAddress, "")
@@ -30,13 +29,6 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertFalse(s.latencyIsAmber)
         s.latencyMs = FakeTeleopState.amberLatencyMs
         XCTAssertTrue(s.latencyIsAmber)
-    }
-
-    func testCloudFailKeepsEstopOkAndDropsHeartbeat() {
-        var s = FakeTeleopState()
-        s.simulateCloudFail()
-        XCTAssertFalse(s.heartbeatOk)
-        XCTAssertTrue(s.physicalEstopOk)
     }
 
     func testGripperMovesTowardATargetUntilStopped() {

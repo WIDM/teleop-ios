@@ -1,4 +1,3 @@
-public enum TeleopMode: Sendable { case onSite, cloud }
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
 /// Which way the wrist moves under a held wrist control. `positive` and `negative` roll it, turning the jaws about
@@ -12,10 +11,8 @@ public enum TurnDirection: Sendable {
 
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
-    public var mode: TeleopMode = .onSite
     public var connected = false
     public var heartbeatOk = true
-    public var physicalEstopOk = true
     public var latencyMs = 80
     public var commandsBlocked = false
     public var gripper: GripperState = .open
@@ -50,9 +47,6 @@ public struct FakeTeleopState: Equatable, Sendable {
         commandsBlocked || latencyMs >= Self.amberLatencyMs
     }
 
-    public mutating func selectCloud() { mode = .cloud }
-    public mutating func selectOnSite() { mode = .onSite }
-
     public mutating func markConnected() {
         connected = true
         connectionLost = false
@@ -68,24 +62,12 @@ public struct FakeTeleopState: Equatable, Sendable {
         jawTurning = nil
     }
 
-    public mutating func simulateCloudPass() {
-        heartbeatOk = true
-        physicalEstopOk = true
-        markConnected()
-    }
-
-    public mutating func simulateCloudFail() {
-        heartbeatOk = false
-        physicalEstopOk = true
-        connected = true
-    }
-
     public mutating func clearLatency() {
         latencyMs = Self.normalLatencyMs
         commandsBlocked = false
     }
 
-    /// Back to mode select: the link is dropped and nothing keeps moving.
+    /// The link is dropped and nothing keeps moving, as when Settings switches between the demo and a real server.
     public mutating func leaveSession() {
         armMoving = false
         gripperMoving = nil

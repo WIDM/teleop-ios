@@ -52,13 +52,33 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(model.session.state.connected)
     }
 
-    func testStartRouteArgument() {
+    func testStartRoute() {
         let defaults = UserDefaults(suiteName: "AppModelTests")!
         defaults.removePersistentDomain(forName: "AppModelTests")
-        XCTAssertEqual(AppModel.startRoute(from: defaults), .p1)
+        XCTAssertEqual(AppModel.startRoute(from: defaults), .s2, "a fresh install opens on permissions")
+        defaults.set(true, forKey: AppModel.firstRunDoneKey)
+        XCTAssertEqual(AppModel.startRoute(from: defaults), .p4, "every later launch opens on standby")
         defaults.set("s1_connect", forKey: "startRoute")
         XCTAssertEqual(AppModel.startRoute(from: defaults), .s1)
         defaults.set("nope", forKey: "startRoute")
-        XCTAssertEqual(AppModel.startRoute(from: defaults), .p1)
+        XCTAssertEqual(AppModel.startRoute(from: defaults), .p4)
+    }
+
+    func testFinishingOrSkippingTheTutorialEndsTheFirstRun() {
+        defer { UserDefaults.standard.removeObject(forKey: AppModel.firstRunDoneKey) }
+        for skip in [true, false] {
+            UserDefaults.standard.removeObject(forKey: AppModel.firstRunDoneKey)
+            let model = AppModel(start: .s2, haptics: SpyHaptics())
+            model.send(.permissionsContinue)
+            XCTAssertEqual(model.session.route, .t1)
+            XCTAssertFalse(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey))
+            if skip {
+                model.send(.tutorialSkip)
+            } else {
+                for step in 1...3 { model.send(.tutorialNext(step: step)) }
+            }
+            XCTAssertEqual(model.session.route, .p4)
+            XCTAssertTrue(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey))
+        }
     }
 }

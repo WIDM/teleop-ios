@@ -2,7 +2,7 @@ import XCTest
 @testable import TeleopCore
 
 final class LiveLinkSessionTests: XCTestCase {
-    private func live(at route: Route = .p1) -> TeleopSession {
+    private func live(at route: Route = .s2) -> TeleopSession {
         var state = FakeTeleopState()
         state.liveLink = true
         return TeleopSession(state: state, start: route)
@@ -10,22 +10,13 @@ final class LiveLinkSessionTests: XCTestCase {
 
     func testReachingStandbyDoesNotPretendToBeConnected() {
         var s = live()
-        s.perform(.modeNext)
+        XCTAssertFalse(s.state.connected)
         s.perform(.permissionsContinue)
         s.perform(.tutorialSkip)
         XCTAssertEqual(s.route, .p4)
         XCTAssertFalse(s.state.connected)
         s.perform(.holdArmStart)
         XCTAssertFalse(s.state.armMoving)
-    }
-
-    func testCloudCheckDoesNotPretendToBeConnected() {
-        var s = live()
-        s.state.selectCloud()
-        s.perform(.modeNext)
-        XCTAssertFalse(s.state.connected)
-        s.perform(.cloudUseOnSite)
-        XCTAssertFalse(s.state.connected)
     }
 
     func testConnectButtonAloneDoesNothing() {
@@ -138,8 +129,10 @@ final class LiveLinkSessionTests: XCTestCase {
 
     func testLinkEventsAreIgnoredOnTheFakeLink() {
         var s = TeleopSession(start: .p4)
+        s.state.markDisconnected()
         s.perform(.linkUp(gripper: .closed))
         XCTAssertFalse(s.state.connected)
+        XCTAssertEqual(s.state.gripper, .open)
         s.state.markConnected()
         s.perform(.linkLost)
         XCTAssertTrue(s.state.connected)

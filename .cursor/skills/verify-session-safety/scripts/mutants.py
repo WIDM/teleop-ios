@@ -77,7 +77,7 @@ VARIANTS = [
         ["FAIL S4"],
     ),
     (
-        "switch mode leaves the arm moving",
+        "link switch leaves the arm moving",
         [("    public mutating func leaveSession() {\n        armMoving = false\n", "    public mutating func leaveSession() {\n")],
         ["FAIL S6"],
     ),
@@ -124,7 +124,7 @@ VARIANTS = [
     ),
     (
         "lost link leaves the gripper moving",
-        [("        armMoving = false\n        gripperMoving = nil\n        jawTurning = nil\n    }\n\n    public mutating func simulateCloudPass", "        armMoving = false\n        jawTurning = nil\n    }\n\n    public mutating func simulateCloudPass")],
+        [("        armMoving = false\n        gripperMoving = nil\n        jawTurning = nil\n    }\n\n    public mutating func clearLatency", "        armMoving = false\n        jawTurning = nil\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S10"],
     ),
     (
@@ -164,7 +164,7 @@ VARIANTS = [
     ),
     (
         "lost link leaves the jaws turning",
-        [("        gripperMoving = nil\n        jawTurning = nil\n    }\n\n    public mutating func simulateCloudPass", "        gripperMoving = nil\n    }\n\n    public mutating func simulateCloudPass")],
+        [("        gripperMoving = nil\n        jawTurning = nil\n    }\n\n    public mutating func clearLatency", "        gripperMoving = nil\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S13"],
     ),
     (

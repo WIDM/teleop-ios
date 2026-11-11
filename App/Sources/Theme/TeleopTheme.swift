@@ -28,8 +28,6 @@ enum TeleopColors {
     static let scrim = Color(hex: 0x0F172A, opacity: 0.6)
     static let gripperCard = Color(hex: 0xE2E8F0)
     static let camera = Color(hex: 0x14213D)
-    static let failSoft = Color(hex: 0xFEF3C7)
-    static let passSoft = Color(hex: 0xDCFCE7)
 }
 
 enum TeleopMetrics {

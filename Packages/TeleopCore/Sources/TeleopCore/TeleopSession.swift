@@ -1,10 +1,5 @@
 /// User intents raised by screens. Each one maps to a state change and/or a navigation step.
 public enum TeleopAction: Equatable, Sendable {
-    case modeNext
-    case cloudEnterStandby
-    case cloudSimulateFail
-    case cloudRecheck
-    case cloudUseOnSite
     case permissionsContinue
     case tutorialSkip
     case tutorialNext(step: Int)
@@ -32,7 +27,9 @@ public enum TeleopAction: Equatable, Sendable {
     case holdArmStart
     case holdArmEnd
     case resetScene
-    case switchMode
+    /// The Settings switch between the demo and a real server: the old link is dropped with anything held, and the
+    /// new one starts. Sent after `liveLink` has changed.
+    case switchLink
     /// Live link only: the server welcomed us and sent its state.
     case linkUp(gripper: GripperState?)
     /// Live link only: the socket closed, failed to open, or the server went quiet.
@@ -49,9 +46,11 @@ public struct TeleopSession: Equatable, Sendable {
     /// Screen that opened P5, so Close can return to it. Cleared once navigation leaves the P5 cluster.
     private var connectionOrigin: Route?
 
-    public init(state: FakeTeleopState = FakeTeleopState(), start: Route = .p1) {
+    /// A session starts at launch, on S2 for a fresh install and on P4 after that.
+    public init(state: FakeTeleopState = FakeTeleopState(), start: Route = .s2) {
         self.state = state
         navigator = TeleopNavigator(start: start)
+        assumeConnected()
     }
 
     public var route: Route { navigator.current }
@@ -68,27 +67,6 @@ public struct TeleopSession: Equatable, Sendable {
 
     public mutating func perform(_ action: TeleopAction) {
         switch action {
-        case .modeNext:
-            switch state.mode {
-            case .cloud:
-                cloudPass()
-                go(.p2)
-            case .onSite:
-                assumeConnected()
-                go(.s2)
-            }
-        case .cloudEnterStandby:
-            go(.s2)
-        case .cloudSimulateFail:
-            state.simulateCloudFail()
-            go(.p3)
-        case .cloudRecheck:
-            cloudPass()
-            go(.p2)
-        case .cloudUseOnSite:
-            state.selectOnSite()
-            assumeConnected()
-            go(.s2)
         case .permissionsContinue:
             go(state.tutorialDone ? .p4 : .t1)
         case .tutorialSkip:
@@ -197,12 +175,11 @@ public struct TeleopSession: Equatable, Sendable {
             guard acceptsControl else { return }
             state.resetScene()
             if route == .p6 { go(.p4) }
-        case .switchMode:
-            // Never while E-stopped: P1 would hide S4.
+        case .switchLink:
+            // Never while E-stopped: the stop is released first, on the link that set it.
             guard !state.emergencyStop else { return }
             state.leaveSession()
-            connectionOrigin = nil
-            navigator = TeleopNavigator(start: .p1)
+            assumeConnected()
         case .linkUp(let gripper):
             guard state.liveLink else { return }
             state.markConnected()
@@ -242,15 +219,9 @@ public struct TeleopSession: Equatable, Sendable {
         }
     }
 
-    /// Fake link: reaching a control screen means connected. Live link: only `linkUp` does that.
+    /// Demo link: connected from the start. Live link: only `linkUp` does that.
     private mutating func assumeConnected() {
         if !state.liveLink { state.markConnected() }
-    }
-
-    private mutating func cloudPass() {
-        let wasConnected = state.connected
-        state.simulateCloudPass()
-        if state.liveLink { state.connected = wasConnected }
     }
 
     /// Inputs are ignored outright while E-stopped or disconnected: no motion, no haptic.

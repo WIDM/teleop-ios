@@ -5,7 +5,6 @@ import XCTest
 final class S1ConnectFlowTests: XCTestCase {
     private func standby() -> TeleopSession {
         var s = TeleopSession()
-        s.perform(.modeNext)
         s.perform(.permissionsContinue)
         s.perform(.tutorialSkip)
         XCTAssertEqual(s.route, .p4)

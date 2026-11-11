@@ -102,12 +102,4 @@ final class StopFlowTests: XCTestCase {
         expect("tutorial.next")
         XCTAssertFalse(element("tutorial.skip").exists)
     }
-
-    func testCloudCheckTitleLongPressReachesFailScreen() {
-        relaunch(at: "p2_cloud_pass")
-        expect("cloud.title")
-        XCTAssertEqual(element("cloud.primary").label, "Enter standby")
-        element("cloud.title").press(forDuration: 1.5)
-        XCTAssertTrue(app.staticTexts["No heartbeat from the robot"].waitForExistence(timeout: 5))
-    }
 }

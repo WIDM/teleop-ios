@@ -125,14 +125,10 @@ struct VolumeHintBox: View {
 }
 
 extension View {
-    func card(border: Color? = nil) -> some View {
+    func card() -> some View {
         padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            .overlay(
-                RoundedRectangle(cornerRadius: TeleopMetrics.corner)
-                    .strokeBorder(border ?? .clear, lineWidth: 2)
-            )
     }
 }
 

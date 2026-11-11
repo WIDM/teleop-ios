@@ -17,182 +17,6 @@
         }
       }
     },
-    "cloud.enter_standby": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter standby"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "進入待命"
-          }
-        }
-      }
-    },
-    "cloud.fail": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fail"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未通過"
-          }
-        }
-      }
-    },
-    "cloud.fail_help": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check the robot power and network, or ask someone on site to check the e-stop."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請檢查機器人的電源與網路，或請現場人員確認急停按鈕。"
-          }
-        }
-      }
-    },
-    "cloud.failed_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "One check failed. Standby is locked."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有一項檢查未通過，待命已鎖定。"
-          }
-        }
-      }
-    },
-    "cloud.must_pass": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Both checks must pass before standby."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "兩項檢查都通過才能進入待命。"
-          }
-        }
-      }
-    },
-    "cloud.pass": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pass"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通過"
-          }
-        }
-      }
-    },
-    "cloud.physical_estop": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Physical e-stop"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "實體急停"
-          }
-        }
-      }
-    },
-    "cloud.physical_estop_ok": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connected and not pressed"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已連線，未按下"
-          }
-        }
-      }
-    },
-    "cloud.recheck": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recheck"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新檢查"
-          }
-        }
-      }
-    },
-    "cloud.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud safety check"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "雲端安全檢查"
-          }
-        }
-      }
-    },
-    "cloud.use_on_site": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use on-site mode"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改用地端模式"
-          }
-        }
-      }
-    },
     "common.back": {
       "localizations": {
         "en": {
@@ -881,22 +705,6 @@
         }
       }
     },
-    "demo.simulate_fail": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Simulate fail"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模擬檢查失敗"
-          }
-        }
-      }
-    },
     "fallback.hold_here": {
       "localizations": {
         "en": {
@@ -1185,118 +993,6 @@
         }
       }
     },
-    "mode.choose": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a mode"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選擇模式"
-          }
-        }
-      }
-    },
-    "mode.cloud": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud mode"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "雲端模式"
-          }
-        }
-      }
-    },
-    "mode.cloud_desc": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connect remotely. Two safety checks must pass first: robot heartbeat and physical e-stop."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "遠端連線。須先通過兩項安全檢查：機器人心跳與實體急停。"
-          }
-        }
-      }
-    },
-    "mode.hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pick once per launch. You can change it in Settings."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每次啟動選一次，之後可在設定中更改。"
-          }
-        }
-      }
-    },
-    "mode.on_site": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On-site mode"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "地端模式"
-          }
-        }
-      }
-    },
-    "mode.on_site_desc": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phone and robot share the lab Wi-Fi."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手機和機器人連同一個實驗室 Wi-Fi。"
-          }
-        }
-      }
-    },
-    "mode.selected": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已選擇"
-          }
-        }
-      }
-    },
     "permissions.camera": {
       "localizations": {
         "en": {
@@ -1494,13 +1190,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Off uses the built-in demo. Changing this returns to mode select."
+            "value": "Off uses the built-in demo. Changing this drops the current connection."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關閉時使用內建示範。切換後會回到選擇模式。"
+            "value": "關閉時使用內建示範。切換後會中斷目前的連線。"
           }
         }
       }
@@ -1581,38 +1277,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "smoothing"
-          }
-        }
-      }
-    },
-    "settings.switch_mode": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Switch mode"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "切換模式"
-          }
-        }
-      }
-    },
-    "settings.switch_mode_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnects and returns to mode select."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "會中斷連線，回到選擇模式。"
           }
         }
       }

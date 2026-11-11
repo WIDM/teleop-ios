@@ -62,7 +62,7 @@ final class StubServerTests: XCTestCase {
         XCTAssertFalse(model.session.state.emergencyStop, "the server's E-stop came back after release")
         XCTAssertTrue(model.session.state.connected)
 
-        model.send(.switchMode)
+        model.liveLink = false
         XCTAssertFalse(model.link.isOpen)
     }
 
