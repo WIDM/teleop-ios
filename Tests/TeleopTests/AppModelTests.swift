@@ -128,6 +128,24 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.cueLog.last?.event, .limit(.alreadyGripping))
     }
 
+    /// Practice runs the reset itself when the top band is held: from the stop state it releases the stop and resets
+    /// the scene, which opens the jaws, as it does outside the stop.
+    func testAPracticeResetFromTheStopStateOpensTheJaws() {
+        let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
+        model.send(.gripperStart(.closed))
+        model.send(.gripperEnd)
+        XCTAssertEqual(model.session.state.gripper, .closed)
+        model.send(.stop)
+        model.runReset()
+        XCTAssertFalse(model.session.state.emergencyStop)
+        XCTAssertEqual(model.session.state.gripper, .open)
+
+        model.send(.gripperStart(.closed))
+        model.send(.gripperEnd)
+        model.runReset()
+        XCTAssertEqual(model.session.state.gripper, .open, "and outside the stop")
+    }
+
     func testTheStopStateOffersReleaseOnTheDemo() {
         let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
         XCTAssertEqual(model.stopExits.exits, [.resetScene, .releaseKeepScene])

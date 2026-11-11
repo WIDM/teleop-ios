@@ -374,6 +374,9 @@ final class AppModel {
         guard s.liveLink else {
             send(.resetScene)
             perform(.sceneResetDone, fromServer: false)
+            // In the stop state the first only asked for the reset and the confirmation released the stop; the reset
+            // itself, which opens the jaws, runs now.
+            if s.emergencyStop { send(.resetScene) }
             controller.sceneReset()
             raise(.ready)
             return
