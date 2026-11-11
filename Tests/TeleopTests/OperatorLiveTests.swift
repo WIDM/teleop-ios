@@ -19,16 +19,12 @@ final class OperatorLiveTests: XCTestCase {
         hand = ScriptedOperator(address: "127.0.0.1:8765", mode: mode, smoothing: 0.3)
         guard hand.connect(within: 4) else { throw XCTSkip("no server on 127.0.0.1:8765") }
         let model = hand.model!
-        if model.session.state.emergencyStop {
-            // The eyes-free exit: hold the top band until the reset releases the stop.
-            let band = hand.topBand
-            let touch = hand.touchDown(x: band.x, y: band.y)
-            _ = hand.wait(2.3, until: { false })
-            hand.touchUp(touch, x: band.x, y: band.y)
-            _ = hand.wait(15, until: { !model.session.state.emergencyStop })
-        } else {
-            model.runReset()
-        }
+        // The reset as a hand makes it: hold the top band 2 s. In the stop state the reset also releases the stop.
+        let band = hand.topBand
+        let touch = hand.touchDown(x: band.x, y: band.y)
+        _ = hand.wait(2.3, until: { false })
+        hand.touchUp(touch, x: band.x, y: band.y)
+        _ = hand.wait(15, until: { !model.session.state.emergencyStop && !model.link.resetPending })
         hand.pump(6)
     }
 
