@@ -48,12 +48,12 @@ struct RootView: View {
 
     /// The routes the operating screen draws. One view for all of them, so a route change (STOP, a slow link) does
     /// not rebuild the touch surface under a finger.
-    static let operatingRoutes: Set<Route> = [.p4, .p5, .p6, .p7, .s4, .s5]
+    static let operatingRoutes: Set<Route> = [.p4, .p5, .p6, .p7, .s4]
 
     @ViewBuilder
     private func screen(for route: Route) -> some View {
         switch route {
-        case .p4, .p5, .p6, .p7, .s4, .s5: OperatingScreen(model: model)
+        case .p4, .p5, .p6, .p7, .s4: OperatingScreen(model: model)
         case .t1: TutorialScreen(model: model, step: 1)
         case .t2: TutorialScreen(model: model, step: 2)
         case .t3: TutorialScreen(model: model, step: 3)

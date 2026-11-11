@@ -27,7 +27,6 @@ let actionTable: [(String, TeleopAction)] = [
     ("openSettings", .openSettings),
     ("settingsDone", .settingsDone),
     ("replayTutorial", .replayTutorial),
-    ("openFallback", .openFallback),
     ("gripperStartClosed", .gripperStart(.closed)),
     ("gripperStartOpen", .gripperStart(.open)),
     ("gripperEnd", .gripperEnd),
@@ -331,7 +330,7 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
 
 // U1. The operating screen draws all of these routes (RootView.operatingRoutes) and shows its stopped state whenever
 // the stop is latched; Settings (S6) pins a STOPPED band then. drift.py holds both to the source.
-let showsTheStop: Set<Route> = [.p4, .p5, .p6, .p7, .s4, .s5, .s6]
+let showsTheStop: Set<Route> = [.p4, .p5, .p6, .p7, .s4, .s6]
 // Connection screens that lead straight back to one that shows the stop: checked, not assumed (leadsStraightBack).
 let leadsBackToTheStop: Set<Route> = [.s1]
 

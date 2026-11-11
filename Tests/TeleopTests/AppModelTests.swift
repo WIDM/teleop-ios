@@ -69,10 +69,9 @@ final class AppModelTests: XCTestCase {
 
     func testBlockedGripperIsRefusedWithThreeTicksAndTheReason() {
         let spy = SpyHaptics(), speech = SpySpeech()
-        let model = AppModel(start: .s5, haptics: spy, speech: speech)
+        let model = AppModel(start: .p4, haptics: spy, speech: speech)
         model.session.state.markConnected()
         model.session.state.commandsBlocked = true
-        model.send(.openFallback)
         model.send(.gripperStart(.closed))
         XCTAssertEqual(spy.felt, [.play(.no)])
         XCTAssertEqual(speech.spoken, ["Slow link."])
@@ -81,7 +80,7 @@ final class AppModelTests: XCTestCase {
     func testTheDemoHoldIsLiveAtOnce() {
         let spy = SpyHaptics()
         var clock = 1000
-        let model = AppModel(start: .s5, haptics: spy, liveLink: false, nowMs: { clock })
+        let model = AppModel(start: .p4, haptics: spy, liveLink: false, nowMs: { clock })
         model.send(.holdArmStart)
         XCTAssertEqual(spy.felt, [.play(.go)])
         model.send(.holdArmEnd)
@@ -137,8 +136,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.gripping)
     }
 
-    func testHoldAreaStartsAndStopsArm() {
-        let model = AppModel(start: .s5, haptics: SpyHaptics(), liveLink: false)
+    func testAnArmHoldStartsAndStopsTheArm() {
+        let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
         model.session.state.markConnected()
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)

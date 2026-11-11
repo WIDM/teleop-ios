@@ -17,7 +17,6 @@ public enum TeleopAction: Equatable, Sendable {
     case openSettings
     case settingsDone
     case replayTutorial
-    case openFallback
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
     case gripperStart(GripperState)
     case gripperEnd
@@ -134,8 +133,6 @@ public struct TeleopSession: Equatable, Sendable {
         case .replayTutorial:
             state.tutorialDone = false
             go(.t1)
-        case .openFallback:
-            go(.s5)
         case .gripperStart(let target):
             guard acceptsControl else { return }
             // H8: the arm is moving, so the gripper cannot move.

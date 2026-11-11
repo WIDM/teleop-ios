@@ -46,7 +46,7 @@ final class LiveLinkSessionTests: XCTestCase {
     }
 
     func testLinkLostStopsTheArmAndReturnsToConnectSayingSo() {
-        for route in [Route.p4, .p6, .s5] {
+        for route in [Route.p4, .p6] {
             var s = live(at: route)
             s.perform(.linkUp(gripper: nil))
             s.perform(.holdArmStart)

@@ -82,7 +82,7 @@ VARIANTS = [
         ["FAIL S6"],
     ),
     (
-        # Harmless: U1 allows S1 while latched, because S1 leads back to S4.
+        # Harmless: U1 allows S1 while latched, because S1's Back opens P5, which shows the stop.
         "lost link opens S1 even while E-stopped",
         [("if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) { go(.s1) }", "go(.s1)")],
         ["PASS U1", "PASS U3"],
@@ -193,6 +193,16 @@ VARIANTS = [
         ["FAIL U2"],
     ),
     (
+        "Settings Done opens the tutorial while stopped",
+        [("        case .settingsDone:\n            go(.p4)", "        case .settingsDone:\n            go(state.emergencyStop ? .t1 : .p4)")],
+        ["FAIL U1"],
+    ),
+    (
+        "S1's Back stays on S1 while stopped",
+        [("        case .s1Back:\n            go(.p5)", "        case .s1Back:\n            go(state.emergencyStop ? .s1 : .p5)")],
+        ["FAIL U1"],
+    ),
+    (
         "hold end does nothing",
         [
             (
@@ -263,24 +273,34 @@ VARIANTS = [
         ["FAIL S8", "FAIL U6"],
     ),
 ]
-MAP_VARIANTS = [("S5 loses STOP in the map", "s5", ",stop", ["FAIL U5"])]
-FALLBACK_STRUCT = "struct FallbackControlScreen: View {"
+MAP_VARIANTS = [("Settings loses STOP in the map", "s6", ",stop", ["FAIL U5"])]
+SETTINGS_STRUCT = "struct SettingsScreen: View {"
 SOURCE_VARIANTS = [
     (
-        "S5 loses STOP in the source",
-        "Screens/FallbackScreen.swift",
-        FALLBACK_STRUCT,
-        "StopButton { model.send(.stop) }",
-        "StopButton {}",
-        "DRIFT s5: ui-map lists stop, but FallbackControlScreen does not send it",
+        "Settings loses STOP in the source",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "StopBand { model.send(.stop) }",
+        "StopBand {}",
+        "DRIFT s6: ui-map lists stop, but SettingsScreen does not send it",
     ),
     (
-        "S4 gains a new control",
-        "Screens/EStopScreen.swift",
-        "struct EStopScreen: View {",
-        "model.send(.releaseStop)",
-        "model.send(.releaseStop); model.send(.openSettings)",
-        "DRIFT EStopScreen sends openSettings, but no ui-map row for it lists it",
+        "Settings stops showing the stop",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        '.accessibilityIdentifier("settings.stopped")',
+        '.accessibilityIdentifier("settings.band")',
+        "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
+    ),
+    (
+        "The operating screen gains a new control",
+        "Operating/Views/OperatingScreen.swift",
+        "private struct OperatingControls: View {",
+        "ReleaseButton(scale: scale) { model.send(.releaseStop) }",
+        "ReleaseButton(scale: scale) { model.send(.releaseStop); model.send(.openKeyboard) }",
+        "DRIFT OperatingControls sends ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', 'holdArmStart', "
+        "'openKeyboard', 'releaseStop'], expected ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', "
+        "'holdArmStart', 'releaseStop']",
     ),
 ]
 

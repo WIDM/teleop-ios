@@ -53,7 +53,7 @@ final class BackStackRulesTests: XCTestCase {
     }
 
     func testEveryRouteReachableFromAFreshInstall() {
-        XCTAssertEqual(Route.allCases.count, 12)
+        XCTAssertEqual(Route.allCases.count, 11)
         XCTAssertEqual(BackStackRules.reachable(from: .s2), Set(Route.allCases))
     }
 
