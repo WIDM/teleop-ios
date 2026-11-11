@@ -390,7 +390,7 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `object_pos`, `goal_pos` | the cube's centre and the goal's centre, **world** frame, metres | the map and the guide, after subtracting the base's height |
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator |
 | `episode` | counts scene resets of this server run | a change means the scene started over (the jaws hold nothing) |
-| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; the owner's copy of the server sends `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing |
+| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing |
 | `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | what the operator hears per take |
 | `rec_saved` | demonstrations in the output file, including earlier server runs | "saved", by comparing with the last value |
 | `rec_discarded` | takes thrown away since the server started | "discarded", the same way |
@@ -445,22 +445,20 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
 - **The tracking stop.** A target more than 10 cm from the arm engages the emergency stop; the app's 8 cm cap per
   server hold keeps clear of it.
 
-## Where the app relies on the owner's copy of the server
+## What the app needs from the server, and what happens without it
 
-The lab runs a copy of the published server with a few local changes. The app is built against that copy, and the
-server model and the recordings in this repository describe only that copy. Against the published server the app
-still works, with the differences below. The published server is not in this repository and nothing here tests
-against it: this table comes from the changes marked as local in the lab copy's source and from the lab's notes on
-the published one.
+Servers of this kind differ in what they report and in a few behaviours. The app is built and tested against a
+server that does everything in the left column, and the server model and the recordings in this repository
+describe that behaviour. Against a server that does not, the app still works, with the effect in the right column.
 
-| The owner's copy | The published server | Effect on the app |
-|---|---|---|
-| `state` carries `rec`, `rec_saved`, `rec_discarded`, `rec_samples`, `rec_session`, `rec_mode` | none of them | an unknown server: no take narration |
-| `state` carries `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | none of them | no "fully open" and no "closed on nothing" cues |
-| the wrist starts rolled 90 degrees, jaws side by side | jaws start front to back | `RobotProfile.jawsStartSideways` is true for the owner's copy; on the published server the operator must turn the jaws a quarter turn before a grasp |
-| a take starts at the first command of any kind | a take starts only at the first gripper, jog or move command; arm and wrist holds never start one | none on the phone; on the published server a take misses the approach to the cube |
-| a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | the refused reset also cancels the pending stop, and the hold runs on until the watchdog | none: the app waits for the final ack before it resets |
-| a hold that ends (stop or watchdog) keeps the arm where it was commanded | the end copies the measured joint angles into the targets: the arm sinks about half a centimetre, and a held cube can shake loose | none in the protocol; the published server feels worse |
+| The app expects | Without it |
+|---|---|
+| `state` carries `rec`, `rec_saved`, `rec_discarded`, `rec_samples`, `rec_session`, `rec_mode` | the app treats the server as unknown: no take narration |
+| `state` carries `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | no "fully open" and no "closed on nothing" cues |
+| the wrist starts rolled 90 degrees, jaws side by side (`RobotProfile.jawsStartSideways`) | the operator must turn the jaws a quarter turn before a grasp |
+| a take starts at the first command of any kind | nothing changes on the phone; a take that starts only at the first gripper, jog or move command misses the approach |
+| a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | nothing changes: the app waits for the final ack before it resets |
+| a hold that ends (by a stop or the watchdog) keeps the arm where it was commanded | nothing changes in the protocol; an arm whose targets are set back to the measured angles when a hold ends sinks about half a centimetre, and a held object can shake loose |
 
 `rec_session` and `rec_mode` are the newest of these fields: the server model and the recordings in the repository
 do not have them yet.
