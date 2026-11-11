@@ -21,6 +21,13 @@ enum CueAudioSession {
             try? session.setActive(true)
         }
     }
+
+    /// After an interruption (a call, Siri) the session is made active again; the sound engine restarts itself at
+    /// the next sound.
+    static func reactivate() {
+        guard configured else { return }
+        queue.async { try? AVAudioSession.sharedInstance().setActive(true) }
+    }
 }
 
 /// The three sounds, synthesised once as short tones (interaction specification §5.2).

@@ -15,16 +15,30 @@ final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
     var onFinished: ((Int) -> Void)?
     private let synthesizer = AVSpeechSynthesizer()
     private var ids: [ObjectIdentifier: Int] = [:]
+    private var interruptions: NSObjectProtocol?
 
     override init() {
         super.init()
         CueAudioSession.activate()
         synthesizer.delegate = self
+        // A call or Siri interrupts the audio session. What was being said is cut off, which reports it finished,
+        // so a paused utterance cannot hold every later phrase behind it.
+        interruptions = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
+            if type == .began { self?.synthesizer.stopSpeaking(at: .immediate) }
+            if type == .ended { CueAudioSession.reactivate() }
+        }
+    }
+
+    deinit {
+        if let interruptions { NotificationCenter.default.removeObserver(interruptions) }
     }
 
     func speak(_ text: String, language: String, interrupt: Bool, id: Int) {
         CueAudioSession.activate()
-        if interrupt, synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        if interrupt || synthesizer.isPaused, synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: language)
         ids[ObjectIdentifier(utterance)] = id
