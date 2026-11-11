@@ -833,6 +833,70 @@
         }
       }
     },
+    "guide.goal_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal %@ cm across · %@ cm above"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標區：水平差 %@ 公分 · 高 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.goal_below": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal %@ cm across · %@ cm below"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標區：水平差 %@ 公分 · 低 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.goal_level": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal %@ cm across · level"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標區：水平差 %@ 公分 · 等高"
+          }
+        }
+      }
+    },
+    "guide.height": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height %@ cm"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離桌面 %@ 公分"
+          }
+        }
+      }
+    },
     "guide.hold_upright": {
       "localizations": {
         "en": {
@@ -861,6 +925,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "不要橫拿，螢幕朝自己、不要朝地板。往後仰沒關係。"
+          }
+        }
+      }
+    },
+    "guide.holding": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holding"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾持中"
+          }
+        }
+      }
+    },
+    "guide.jaws": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jaws %d%% open"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪張開 %d%%"
           }
         }
       }
@@ -897,6 +993,38 @@
         }
       }
     },
+    "guide.on_target": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On target"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "對準目標物"
+          }
+        }
+      }
+    },
+    "guide.outside": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outside the work area"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超出工作範圍"
+          }
+        }
+      }
+    },
     "guide.ready_to_grasp": {
       "localizations": {
         "en": {
@@ -909,6 +1037,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "對準了。按住音量－夾住。"
+          }
+        }
+      }
+    },
+    "guide.target_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target %@ cm across · %@ cm above"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標物：水平差 %@ 公分 · 高 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.target_below": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target %@ cm across · %@ cm below"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標物：水平差 %@ 公分 · 低 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.target_level": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target %@ cm across · level"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標物：水平差 %@ 公分 · 等高"
           }
         }
       }
@@ -929,6 +1105,38 @@
         }
       }
     },
+    "guide.wrist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrist turn %d° · tilt %d°"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手腕轉 %d° · 傾 %d°"
+          }
+        }
+      }
+    },
+    "guide.wrist_tilt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrist tilt %d°"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手腕傾 %d°"
+          }
+        }
+      }
+    },
     "guide.wrist_tilted": {
       "localizations": {
         "en": {
@@ -941,6 +1149,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "手腕已傾斜：地圖不再代表夾爪尖端，按 Reset 後才準"
+          }
+        }
+      }
+    },
+    "guide.wrist_turn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrist turn %d°"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手腕轉 %d°"
           }
         }
       }
