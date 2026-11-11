@@ -129,10 +129,11 @@ public final class TeleopLink {
         emit("hello", ["client": "phone", "name": name])
     }
 
-    /// Starts a hold. Returns false, sending nothing, if the link is not ready or a hold is already active.
+    /// Starts a hold. Returns false, sending nothing, if the link is not ready, a hold is already active or a scene
+    /// reset is pending.
     @discardableResult
     public func poseStart(_ params: PoseParams) -> Bool {
-        guard ready, !holdActive else { return false }
+        guard ready, !holdActive, !resetPending else { return false }
         // The server runs one held control at a time.
         gripperJogStop()
         orientStop()
@@ -178,8 +179,13 @@ public final class TeleopLink {
 
     public func estopReset() { emit("estop_reset", [:]) }
 
-    /// True while a scene reset is waiting to go out or for its answer.
-    public var resetPending: Bool { reset != nil }
+    /// True while a scene reset is waiting to go out or for its answer. Every start is refused meanwhile: a reset
+    /// must never go out behind a start (a start held back for the same final ack would go first), and the server
+    /// takes none while it resets. One the server never answered stops counting after a while.
+    public var resetPending: Bool {
+        guard let reset else { return false }
+        return now() - reset.sinceMs < Self.resetAnswerMs
+    }
 
     /// Asks for a scene reset. Refused (false, nothing sent) while a control is still active: the operator lets go
     /// first. A reset sent behind a control that is still finishing is refused `busy` and can swallow its stop, so it
@@ -188,8 +194,8 @@ public final class TeleopLink {
     @discardableResult
     public func resetScene() -> Bool {
         guard ready, !holdActive, !gripperJogActive, !turnActive else { return false }
-        // One reset at a time. One the server never answered stops counting after a while.
-        if let pending = reset, now() - pending.sinceMs < Self.resetAnswerMs { return true }
+        // One reset at a time.
+        if resetPending { return true }
         reset = (now(), nil, nil, false)
         sendDueReset()
         return true
@@ -217,12 +223,15 @@ public final class TeleopLink {
     /// The server's one-shot `gripper` message blocks every other command for tens of seconds in simulation,
     /// so the jog messages are used instead. The jog never ends by itself: on contact the server only stops
     /// squeezing harder. The owner sends `keepalive` and decides when to call `gripperJogStop`.
-    public func gripperJogStart(_ target: GripperState) {
-        guard ready, !holdActive else { return }
+    /// Returns false, sending nothing, if the link is not ready, an arm hold is active or a scene reset is pending.
+    @discardableResult
+    public func gripperJogStart(_ target: GripperState) -> Bool {
+        guard ready, !holdActive, !resetPending else { return false }
         orientStop()
         gripperJogStop()
         gripperJogActive = true
         begin(.gripperJog(target))
+        return true
     }
 
     /// Must go out at least every 750 ms while a gripper jog runs; the server expects every 150 ms.
@@ -243,10 +252,11 @@ public final class TeleopLink {
 
     /// Starts a wrist move, replacing any already running. The server moves the wrist by the rotation that
     /// `orientUpdate` asks for: about y it rolls the wrist (at most 60 degrees from where it was when this hold began),
-    /// about x it pitches it (at most 35 degrees). Returns false, sending nothing, if the link is not ready or an arm hold is active.
+    /// about x it pitches it (at most 35 degrees). Returns false, sending nothing, if the link is not ready, an arm
+    /// hold is active or a scene reset is pending.
     @discardableResult
     public func orientStart() -> Bool {
-        guard ready, !holdActive else { return false }
+        guard ready, !holdActive, !resetPending else { return false }
         // The server runs one held control at a time.
         gripperJogStop()
         orientStop()

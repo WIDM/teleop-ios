@@ -1368,6 +1368,28 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(speech.spoken, ["No link."])
     }
 
+    /// C-R4: a press while the reset waits for a final ack is refused, so `reset_scene` never goes out behind a
+    /// start released by the same ack.
+    func testAPressWhileAResetIsPendingIsRefusedAndTheResetStillGoesOutAlone() throws {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        tick()
+        model.send(.holdArmEnd)
+        model.send(.resetScene)
+        model.send(.holdArmStart)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["Wait."])
+        clock += 400
+        model.send(.gripperStart(.closed))
+        XCTAssertEqual(felt.felt, [.play(.no), .play(.no)])
+        model.send(.gripperEnd)
+        serverFinished(start)
+        let stop = try XCTUnwrap(transport.types.lastIndex(of: "pose_stop"))
+        XCTAssertEqual(Array(transport.types[(stop + 1)...]), ["reset_scene"])
+    }
+
     /// §5.4: a hold the server ends with a success plays no LETGO; the session's hold ends with it.
     func testAHoldEndedBySuccessEndsQuietly() {
         bringUp()

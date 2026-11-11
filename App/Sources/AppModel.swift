@@ -344,8 +344,14 @@ final class AppModel {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
             let held = PhonePosture.of(pose(), previous: posture)
             if held == .tilted || !link.startHold(params) {
-                log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking or link"))")
-                pendingRefusal = held == .tilted ? .posture : (held == .unknown ? .notTracking : .noLink)
+                log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))")
+                if held == .tilted {
+                    pendingRefusal = .posture
+                } else if link.resetPending {
+                    pendingRefusal = .notReady
+                } else {
+                    pendingRefusal = held == .unknown ? .notTracking : .noLink
+                }
                 session.perform(.holdArmEnd)
                 session.pendingCue(.commandBlocked)
             }
@@ -353,8 +359,8 @@ final class AppModel {
         if before.jawTurning != after.jawTurning {
             if let direction = after.jawTurning {
                 if !link.startTurn(direction) {
-                    log("link: jaw turn not started (no link)")
-                    pendingRefusal = .noLink
+                    log("link: jaw turn not started (no link or a reset)")
+                    pendingRefusal = link.resetPending ? .notReady : .noLink
                     session.perform(.turnEnd)
                     session.pendingCue(.commandBlocked)
                 }
@@ -363,7 +369,12 @@ final class AppModel {
             }
         }
         if before.gripperMoving != after.gripperMoving {
-            if let target = after.gripperMoving { link.startGripper(target) } else { link.stopGripper() }
+            if let target = after.gripperMoving {
+                // The session keeps the press until it is released; nothing goes out, and the operator hears why.
+                if !link.startGripper(target), link.resetPending { raise(.refused(.notReady)) }
+            } else {
+                link.stopGripper()
+            }
         }
         switch action {
         case .resetScene where before.connected && !before.emergencyStop:

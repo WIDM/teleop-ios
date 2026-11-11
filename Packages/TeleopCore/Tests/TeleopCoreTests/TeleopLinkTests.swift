@@ -197,6 +197,51 @@ final class TeleopLinkTests: XCTestCase {
         )
     }
 
+    /// C-R4: a start pressed while the reset waits for a final ack would be released by that same ack and go out
+    /// first, putting `reset_scene` behind an open hold. Starts are refused until the reset is answered.
+    func testEveryStartIsRefusedWhileAResetIsPending() {
+        bringUp()
+        link.poseStart(params)
+        let start = lastSeq
+        clock += 500
+        link.poseStop()
+        clock += 20
+        XCTAssertTrue(link.resetScene())
+        clock += 20
+        XCTAssertFalse(link.poseStart(params))
+        XCTAssertFalse(link.gripperJogStart(.closed))
+        XCTAssertFalse(link.orientStart())
+        clock += 20
+        finish(start)
+        XCTAssertEqual(types, ["hello", "pose_start", "pose_stop", "reset_scene"])
+        XCTAssertFalse(link.holdActive)
+        XCTAssertFalse(link.poseStart(params), "nor while the reset is in flight")
+        let reset = lastSeq
+        XCTAssertEqual(server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"]), .resetDone)
+        XCTAssertTrue(link.poseStart(params))
+    }
+
+    func testStartsAreRefusedDuringTheBusyRetryToo() {
+        bringUp()
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        XCTAssertFalse(link.poseStart(params))
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
+    }
+
+    func testAResetTheServerNeverAnswersStopsBlockingStarts() {
+        bringUp()
+        link.resetScene()
+        clock += TeleopLink.resetAnswerMs - 1
+        XCTAssertFalse(link.poseStart(params))
+        clock += 1
+        XCTAssertFalse(link.resetPending)
+        XCTAssertTrue(link.poseStart(params))
+    }
+
     /// The server ends a control that is still held when the task succeeds, with `ok task_success` for its start.
     func testAControlTheServerEndsWithASuccessIsNoLongerActive() {
         bringUp()

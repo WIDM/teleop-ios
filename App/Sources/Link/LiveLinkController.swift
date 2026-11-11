@@ -126,6 +126,8 @@ final class LiveLinkController {
     var engagedHold: Int? { monitor.engagedHold }
     /// A close ended in contact and nothing has opened since, no scene reset and no new server run.
     var gripping: Bool { monitor.gripping }
+    /// A scene reset is waiting to go out or for its answer; every start is refused meanwhile.
+    var resetPending: Bool { link?.resetPending == true }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
     var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
     /// Task object and goal from the server's newest state, robot base frame.
@@ -299,10 +301,12 @@ final class LiveLinkController {
         if let arm = armPosition { publishGuidance(arm: arm) }
     }
     /// The gripper travels toward `target` while its control is held. Holding past the end is harmless:
-    /// the server clamps at the joint limit and stops squeezing on contact.
-    func startGripper(_ target: GripperState) {
-        link?.gripperJogStart(target)
+    /// the server clamps at the joint limit and stops squeezing on contact. False when the move could not start.
+    @discardableResult
+    func startGripper(_ target: GripperState) -> Bool {
+        guard let link, link.gripperJogStart(target) else { return false }
         syncStart()
+        return true
     }
 
     func stopGripper() {
