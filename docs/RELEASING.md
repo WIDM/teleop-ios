@@ -88,21 +88,27 @@ This needs an iPhone connected to the Mac (by cable, or paired over the network)
 developer team the phone is registered with. The project carries no signing settings, and `xcodegen generate`
 drops a team picked in Xcode's window, so the team goes on the command line.
 
-Find the phone's identifier (its UDID, in the Identifier column):
+Find the phone's UDID (unique device identifier). `xcodebuild` matches a destination on the UDID and nothing
+else, so take it from `xcodebuild` itself: the connected phone is the `platform:iOS` line with a real `id`, not the
+`Any iOS Device` placeholder.
 
-    xcrun devicectl list devices
+    xcodebuild -showdestinations -project Teleop.xcodeproj -scheme Teleop
 
-Build for it. `<TEAM_ID>` is the ten-character team identifier, `<DEVICE_ID>` the phone's UDID:
+`xcrun devicectl list devices` lists the phone too, but what its Identifier column shows depends on the Xcode
+version: recent versions show the UDID and mark it `(UDID)`, older ones show a CoreDevice identifier (in the form
+8-4-4-4-12 hex digits; a phone's UDID is 8-16) that `devicectl` accepts and `xcodebuild` does not.
+
+Build for it. `<TEAM_ID>` is the ten-character team identifier, `<DEVICE_UDID>` the phone's UDID:
 
     xcodebuild -project Teleop.xcodeproj -scheme Teleop -configuration Debug \
-      -destination 'id=<DEVICE_ID>' -derivedDataPath build/device \
+      -destination 'id=<DEVICE_UDID>' -derivedDataPath build/device \
       DEVELOPMENT_TEAM=<TEAM_ID> -allowProvisioningUpdates build
 
 `-allowProvisioningUpdates` lets Xcode create or renew the signing certificate and profile with the Apple account
-signed in to Xcode. Install it and start it:
+signed in to Xcode. Install it and start it (`devicectl` takes the same UDID):
 
-    xcrun devicectl device install app --device <DEVICE_ID> build/device/Build/Products/Debug-iphoneos/Teleop.app
-    xcrun devicectl device process launch --device <DEVICE_ID> widm.teleop.app
+    xcrun devicectl device install app --device <DEVICE_UDID> build/device/Build/Products/Debug-iphoneos/Teleop.app
+    xcrun devicectl device process launch --device <DEVICE_UDID> widm.teleop.app
 
 The first launch on a phone may need the developer to be trusted on the phone itself (Settings, General, VPN &
 Device Management). With a free team, the profile expires after seven days and the app stops opening until it is
