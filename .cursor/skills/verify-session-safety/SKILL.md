@@ -77,7 +77,7 @@ U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own stru
 
 ## Scope and assumptions
 
-Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from both ways the app opens: a fresh install on S2 (`TeleopSession()`) and every later launch on P4 (`launches` in `main.swift`).
+Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from every way the app opens: a fresh install on S2 and every later launch on P4, each on the demo or on a real server, as the Settings switch last saved it (`launches` in `main.swift`).
 
 Bounds:
 

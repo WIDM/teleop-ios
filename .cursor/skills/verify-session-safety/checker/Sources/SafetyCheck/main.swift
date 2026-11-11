@@ -54,8 +54,13 @@ let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "li
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
 // toggleLiveLink is the Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
 let stateCalls = ["toggleLiveLink"]
-// A fresh install opens on S2 (the default start); every later launch opens on P4.
-let launches = [TeleopSession(), TeleopSession(start: .p4)]
+// A fresh install opens on S2 (the default start); every later launch opens on P4. Either launch is on the demo or on
+// a real server, whichever the Settings switch last saved (AppModel reads it at launch).
+let launches = [false, true].flatMap { liveLink -> [TeleopSession] in
+    var state = FakeTeleopState()
+    state.liveLink = liveLink
+    return [TeleopSession(state: state), TeleopSession(state: state, start: .p4)]
+}
 
 struct Node {
     var session: TeleopSession
