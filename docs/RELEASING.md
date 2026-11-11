@@ -44,8 +44,10 @@ All of these must pass on the commit that will carry the version. The first five
 `git status --porcelain` must print nothing. The safety checker must exit 0; `docs/ARCHITECTURE.md` says what it
 proves.
 
-Every string a person sees or hears must exist in English and in Traditional Chinese. Nothing in the repository
-checks that yet; this lists any key without a Traditional Chinese entry and fails if there is one:
+Every string a person sees or hears must exist in English and in Traditional Chinese. The default test plan checks
+this for the spoken strings only (`SpeechTextTests.testEveryPhraseResolvesInBothLanguages`); nothing checks the
+other three catalogs (`Localizable`, `Buttons`, `InfoPlist`). This command checks all four: it lists any key without
+a Traditional Chinese entry and fails if there is one.
 
     python3 -c "
     import json, pathlib, sys
@@ -70,8 +72,10 @@ separate, deliberate step.
 
 ## Commit and tag
 
-The version bump, the changelog entry and the regenerated settings go in one commit. Then put an annotated tag on
-that commit, named `v` and the version, with the version and the one-line summary as its message:
+The version bump in `project.yml` and the changelog entry go in one commit. Regenerating the project leaves
+nothing else to commit: the Xcode project is not in the repository, and `App/Info.plist` reads both numbers from the
+build settings (`$(MARKETING_VERSION)`, `$(CURRENT_PROJECT_VERSION)`). Then put an annotated tag on that commit,
+named `v` and the version, with the version and the one-line summary as its message:
 
     git tag -a v1.0.0 -m "1.0.0: <one-line summary>"
 
