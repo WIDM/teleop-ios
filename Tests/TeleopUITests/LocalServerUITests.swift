@@ -27,7 +27,12 @@ final class LocalServerUITests: XCTestCase {
         // P5 comes up only once the server has answered hello with welcome and a state.
         XCTAssertTrue(app.descendants(matching: .any)["connection.change_server"].firstMatch.waitForExistence(timeout: 5),
                       "the app did not connect to \(server.address)")
-        XCTAssertEqual(server.inspect { $0.welcomedClients }, 1)
+        // The control connection, and the listening one the app opens right after its welcome.
+        let deadline = Date().addingTimeInterval(3)
+        while server.inspect({ $0.welcomedClients }) < 2, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertEqual(server.inspect { $0.welcomedClients }, 2)
         XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
     }
 }

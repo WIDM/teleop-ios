@@ -18,6 +18,7 @@ final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
 
     override init() {
         super.init()
+        CueAudioSession.activate()
         synthesizer.delegate = self
     }
 

@@ -1179,6 +1179,15 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 1, "the server's own stop is not told twice")
     }
 
+    func testAStopReleasedBeforeTheLinkCameBackIsNotSentLater() {
+        makeModel(at: .p4)
+        model.send(.stop)
+        model.send(.releaseStop)
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello"])
+    }
+
     func testADroppedListeningConnectionIsReopenedEvery2sWithoutAWord() {
         bringUp()
         bringUpObserver()

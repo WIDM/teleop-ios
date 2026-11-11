@@ -241,7 +241,14 @@ final class AppModel {
     }
 
     private static func engaged(_ state: FakeTeleopState) -> Bool {
-        state.armMoving || state.gripperMoving != nil || state.jawTurning != nil
+        heldControl(state) != nil
+    }
+
+    /// The one control held now, if any.
+    private static func heldControl(_ state: FakeTeleopState) -> ControlKind? {
+        if state.armMoving { return .pose }
+        if let target = state.gripperMoving { return .gripper(target) }
+        return state.jawTurning != nil ? .wrist : nil
     }
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
@@ -279,7 +286,7 @@ final class AppModel {
                 raise(.refused(.noLink))
             }
         }
-        if !session.state.liveLink, !Self.engaged(before), Self.engaged(session.state) {
+        if !session.state.liveLink, let held = Self.heldControl(session.state), held != Self.heldControl(before) {
             // The demo has no server to accept the hold: it is live at once.
             demoHold += 1
             raise(.holdLive(hold: demoHold))
@@ -361,6 +368,9 @@ final class AppModel {
         switch action {
         case .resetScene where before.connected && !before.emergencyStop:
             link.resetScene()
+        case .releaseStop:
+            // Released before the link came back: the STOP owed to the server is no longer wanted.
+            stopOwed = false
         case .disconnect:
             link.closeQuietly()
             holdEngagedAtLoss = false

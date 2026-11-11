@@ -7,15 +7,19 @@ protocol SoundPlaying: AnyObject {
 
 /// The app's audio session: playback, so the ring switch on silent does not mute the cues, mixed with other audio.
 /// The app never records.
+/// Activating it can block, so it happens off the main queue, once, when the players are made at launch.
 enum CueAudioSession {
     private static var configured = false
+    private static let queue = DispatchQueue(label: "CueAudioSession")
 
     static func activate() {
         guard !configured else { return }
         configured = true
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        try? session.setActive(true)
+        queue.async {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try? session.setActive(true)
+        }
     }
 }
 
@@ -27,6 +31,7 @@ final class SoundPlayer: SoundPlaying {
     private lazy var buffers: [Sound: AVAudioPCMBuffer] = Dictionary(uniqueKeysWithValues: Sound.allCases.map { ($0, render($0)) })
 
     init() {
+        CueAudioSession.activate()
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
     }
