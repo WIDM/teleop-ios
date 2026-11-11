@@ -37,7 +37,7 @@ struct StandbyScreen: View {
                 }
                 .overlay(alignment: .leading) {
                     // Lower than centre: the latency banner sits across the top of the view.
-                    GripperOpenHandle(model: model)
+                    LeftHandles(model: model)
                         .frame(width: 72)
                         .padding(.top, 170)
                         .padding(.bottom, 130)

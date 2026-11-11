@@ -153,11 +153,13 @@ private struct ArmHoldModifier: ViewModifier {
     }
 }
 
-/// Press = the gripper travels toward `target`, release = it stops where it is. Same session path as holding vol−.
-/// One press sends one `gripperStart`, for the same reasons as the arm hold.
-private struct GripperHoldModifier: ViewModifier {
+/// Press = start a held control, release = stop it. One press sends `start` once, for the same reasons as the arm hold:
+/// finger drift must not repeat a blocked cue. Same session path as the volume keys, so `end` is what releasing sends.
+private struct HeldControlModifier: ViewModifier {
     let model: AppModel
-    let target: GripperState
+    let start: TeleopAction
+    let end: TeleopAction
+    let isActive: Bool
     @GestureState private var pressing = false
     @State private var startSent = false
 
@@ -170,24 +172,24 @@ private struct GripperHoldModifier: ViewModifier {
                     .onChanged { _ in
                         guard !startSent else { return }
                         startSent = true
-                        model.send(.gripperStart(target))
+                        model.send(start)
                     }
                     .onEnded { _ in
                         startSent = false
-                        model.send(.gripperEnd)
+                        model.send(end)
                     }
             )
             .onChange(of: pressing) { _, isPressing in
                 guard !isPressing else { return }
                 startSent = false
-                model.send(.gripperEnd)
+                model.send(end)
             }
             .onDisappear {
-                guard model.session.state.gripperMoving == target else { return }
-                model.send(.gripperEnd)
+                guard isActive else { return }
+                model.send(end)
             }
             .accessibilityAddTraits(.isButton)
-            .accessibilityValue(model.session.state.gripperMoving == target ? "moving" : "stopped")
+            .accessibilityValue(isActive ? "moving" : "stopped")
     }
 }
 
@@ -234,13 +236,56 @@ struct GripperOpenHandle: View {
             Text("control.gripper_open_handle").font(.system(size: 17))
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch, maxHeight: .infinity)
         .background(
             active ? TeleopColors.primary : TeleopColors.basePanel,
             in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("control.gripper_open_handle"))
         .gripperHold(model: model, target: .open)
         .accessibilityIdentifier("gripper.open")
+    }
+}
+
+/// Left edge of the camera view, under the open handle: hold to roll the wrist, which turns the jaws about the forearm.
+/// One press turns them by up to 45 degrees and they stay where they are on release. The server reports no wrist
+/// angle, so the handle cannot show how far they have turned.
+struct JawTurnHandle: View {
+    let model: AppModel
+    let direction: TurnDirection
+
+    var body: some View {
+        let active = model.session.state.jawTurning == direction
+        let positive = direction == .positive
+        VStack(spacing: 2) {
+            Image(systemName: positive ? "arrow.counterclockwise" : "arrow.clockwise").font(.system(size: 22))
+            Text("control.jaw_turn").font(.system(size: 13))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
+        .background(
+            active ? TeleopColors.primary : TeleopColors.basePanel,
+            in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
+        )
+        // One element for the whole handle: iOS 18 otherwise exposes the icon as a second, untappable one.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(positive ? "control.jaw_turn_positive" : "control.jaw_turn_negative"))
+        .turnHold(model: model, direction: direction)
+        .accessibilityIdentifier(positive ? "jaw.turn_positive" : "jaw.turn_negative")
+    }
+}
+
+/// The hold-to-act handles down the left edge of the camera view: open the gripper, turn the jaws each way.
+struct LeftHandles: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(spacing: 8) {
+            GripperOpenHandle(model: model)
+            JawTurnHandle(model: model, direction: .positive)
+            JawTurnHandle(model: model, direction: .negative)
+        }
     }
 }
 
@@ -250,6 +295,16 @@ extension View {
     }
 
     func gripperHold(model: AppModel, target: GripperState) -> some View {
-        modifier(GripperHoldModifier(model: model, target: target))
+        modifier(HeldControlModifier(
+            model: model, start: .gripperStart(target), end: .gripperEnd,
+            isActive: model.session.state.gripperMoving == target
+        ))
+    }
+
+    func turnHold(model: AppModel, direction: TurnDirection) -> some View {
+        modifier(HeldControlModifier(
+            model: model, start: .turnStart(direction), end: .turnEnd,
+            isActive: model.session.state.jawTurning == direction
+        ))
     }
 }

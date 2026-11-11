@@ -18,6 +18,11 @@ final class LiveLinkController {
     static let resyncAfterMs = 1500
     /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
     static let resyncTimeoutMs = 1500
+    /// How fast the jaw turn asks the wrist to roll, and how far one press asks for. The server's target is the
+    /// joint angle when the hold began plus the roll asked for, so one press is an exact step. Two full presses make
+    /// the quarter turn a grasp needs. The server's own clamp is 60 degrees per hold.
+    static let turnDegreesPerSecond = 30.0
+    static let turnStepDegrees = 45.0
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -57,6 +62,8 @@ final class LiveLinkController {
     /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
     private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
+    /// The jaw turn being held: which way, and when the press began (the ramp runs from there).
+    private var turn: (sign: Double, startedMs: Int)?
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
@@ -126,6 +133,7 @@ final class LiveLinkController {
         timer = nil
         link?.poseStop()
         link?.gripperJogStop()
+        link?.orientStop()
         link?.transportClosed()
         transport?.close()
         transport = nil
@@ -137,6 +145,7 @@ final class LiveLinkController {
         armAtSegmentStart = nil
         resync = nil
         atEdge = false
+        turn = nil
         onGuidance?(nil)
     }
 
@@ -204,6 +213,7 @@ final class LiveLinkController {
 
     func estop() {
         link?.estop()
+        turn = nil
         holdEnded()
     }
 
@@ -217,6 +227,26 @@ final class LiveLinkController {
     /// the server clamps at the joint limit and stops squeezing on contact.
     func startGripper(_ target: GripperState) { link?.gripperJogStart(target) }
     func stopGripper() { link?.gripperJogStop() }
+
+    /// The jaws turn toward `direction` while its control is held, by at most `turnStepDegrees` from where they
+    /// were when the press began. False when the turn could not start.
+    func startTurn(_ direction: TurnDirection) -> Bool {
+        guard let link, link.orientStart() else { return false }
+        turn = (direction == .positive ? 1 : -1, nowMs())
+        return true
+    }
+
+    func stopTurn() {
+        link?.orientStop()
+        turn = nil
+    }
+
+    private func tickTurn(_ link: TeleopLink) {
+        guard let run = turn, link.turnActive else { return }
+        let elapsed = Double(nowMs() - run.startedMs) / 1000
+        let angle = min(Self.turnDegreesPerSecond * elapsed, Self.turnStepDegrees)
+        link.orientUpdate(rollDegrees: run.sign * angle)
+    }
 
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
@@ -240,6 +270,7 @@ final class LiveLinkController {
             onAction?(.holdArmEnd)
             return
         }
+        tickTurn(link)
         guard link.holdActive, let holdStart else { return }
         guard let current = pose().map(Self.position) else {
             onLog?("link: tracking lost, hold ended")
@@ -313,6 +344,10 @@ final class LiveLinkController {
         case .gripperRefused(let reason):
             onLog?("link: gripper refused: \(reason)")
             onAction?(.gripperEnd)
+        case .turnRefused(let reason):
+            onLog?("link: jaw turn refused: \(reason)")
+            turn = nil
+            onAction?(.turnEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
             lastRefusal = (reason, nowMs())

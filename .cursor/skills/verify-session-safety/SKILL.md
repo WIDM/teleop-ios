@@ -35,7 +35,7 @@ Each property prints one status:
 Two groups of properties:
 
 - **S properties, every action in every state.** The session rules on their own. They guard paths that do not go through today's screens, such as volume keys and a real link.
-- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `recordingTick` while recording and `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, as `ArmHoldModifier.onDisappear` does. A U failure is reachable by a user tapping today.
+- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `recordingTick` while recording and `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, a gripper hold and a jaw turn, as `ArmHoldModifier.onDisappear` and `HeldControlModifier.onDisappear` do. A U failure is reachable by a user tapping today.
 
 ## Real bug or checker error
 
@@ -59,6 +59,9 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
 | S10, U7 | The gripper starts moving only on `gripperStart`, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving. | The gripper squeezes or drops something when the operator was told it cannot move. |
 | S11 | `gripperEnd` always leaves the gripper still. | Releasing the control does not stop the gripper. |
+| S12, U8 | At most one of the arm hold, the gripper hold and the jaw turn is active. | The server runs one held control at a time; the phone would show two working while one is. |
+| S13, U8 | A jaw turn is active only while connected and not E-stopped. | The jaws keep turning after STOP or over a lost link. |
+| S14 | `turnEnd` always leaves the jaws still. | Releasing the control does not stop the jaws. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
 | S8, U6 | The E-stop long buzz never starts while already playing. | `HapticsController.play` overwrites `loopPlayer` without stopping it, so an older buzz may survive release. |
 | S9 | The long buzz plays exactly while E-stop is latched. | The haptic signal disagrees with the safety state. |
@@ -84,7 +87,7 @@ Bounds:
 Left out:
 
 - Settings sliders (`setDeadband`, `setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
-- SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
+- SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier` and `HeldControlModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
 - The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`) or a refused hold (`holdArmEnd`) from any route on a live link. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
 - Launch arguments for UI tests (`-startRoute`, `-startConnected`).
 
@@ -117,7 +120,7 @@ Sync commit: `4d86bab`
 - `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop, gripper and recording state.
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
-- `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `GripperHoldModifier` and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`).
+- `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `HeldControlModifier` (gripper and jaw turn) and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`, `JawTurnHandle`, `LeftHandles`).
 - `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− hold on P4, P6, S3a, S3m, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.

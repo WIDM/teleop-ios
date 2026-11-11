@@ -769,6 +769,54 @@
         }
       }
     },
+    "control.jaw_turn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉動"
+          }
+        }
+      }
+    },
+    "control.jaw_turn_negative": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn jaws clockwise"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪順時針轉"
+          }
+        }
+      }
+    },
+    "control.jaw_turn_positive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn jaws counterclockwise"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪逆時針轉"
+          }
+        }
+      }
+    },
     "control.record": {
       "localizations": {
         "en": {
@@ -1277,6 +1325,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "對準了。按住音量－夾住。"
+          }
+        }
+      }
+    },
+    "guide.turn_jaws_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jaws sideways first: hold Turn until it stops, twice"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先把夾爪轉成左右夾：按住「轉」到停，共兩次"
           }
         }
       }

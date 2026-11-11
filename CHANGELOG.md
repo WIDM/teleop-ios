@@ -6,6 +6,36 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.9.0 (2026-11-11)
+
+The jaws can turn now, so the cube can be held.
+
+- Two new hold-to-turn handles sit under Open on the left edge of the camera view: counterclockwise and
+  clockwise. The jaws turn while a handle is held and stay where they are on release. The server reports no
+  wrist angle, so there is no readout: watch the video. One press turns the jaws by up to 45 degrees from
+  where they were when the press began, so hold until they stop, and press twice for sideways jaws.
+- Why: with the jaws as they start (open front to back) a scripted, position-exact grasp lifted the cube 1
+  time in 19 and never placed it. With the jaws turned 90 degrees (side by side) it lifted the cube 8 times
+  in 10, and the server counted the task done 6 times in 10. `scripts/sim_pick_place.py` repeats the
+  measurement.
+- The map's grasp point is now the sideways-jaw one, measured on the S4 simulator: 0.7 cm left, 3.6 cm
+  ahead and 8.8 cm below the point the server reports. From the start pose the cube is 2.3 cm right, 2.3 cm
+  ahead and 2 cm down. A caption under the map says "Jaws sideways first: hold Turn until it stops, twice" while the cube is
+  the target.
+- The whole task now passes end to end through the app's own code against the simulator
+  (`ServerMotionTests.testPickAndPlaceByScript`, 135 s): open, two presses of Turn, two holds to the grasp
+  point, close, lift, carry, lower, open.
+- Known limit, in the server: every hold lets the wrist droop a little more, about 0.2 to 0.5 degrees a
+  hold (3 to 6 degrees over the 9 to 35 holds of a hand-driven attempt). The jaw tips then sit up to a
+  centimetre behind where the map shows them. Until the server keeps its wrist target, reach the cube in
+  few holds, and Reset if it took many.
+- Only one of the arm hold, the gripper hold and the jaw turn runs at a time, as on the server: starting one
+  ends the other, and a turn is refused while the arm is held.
+- The turn handles are not on the fallback screens (no volume keys) yet.
+- Fixed: the on-screen gripper button is one accessibility element, so it can be pressed in the iOS 18
+  simulator (it exposed its icon as a second one).
+- Fixed: the UI tests' helper that answers the system permission prompt works on iOS 18.
+
 ## 0.8.0 (2026-11-11)
 
 The map pointed at the wrong place. Now the ring is where the jaws close.

@@ -49,6 +49,16 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertEqual(s.gripper, .open)
     }
 
+    func testJawsTurnTowardADirectionUntilStopped() {
+        var s = FakeTeleopState()
+        s.turnJaws(toward: .negative)
+        XCTAssertEqual(s.jawTurning, .negative)
+        s.turnJaws(toward: .positive)
+        XCTAssertEqual(s.jawTurning, .positive)
+        s.stopTurn()
+        XCTAssertNil(s.jawTurning)
+    }
+
     func testRecordingClock() {
         var s = FakeTeleopState()
         s.tickRecording()

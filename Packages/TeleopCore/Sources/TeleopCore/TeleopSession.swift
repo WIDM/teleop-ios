@@ -39,6 +39,9 @@ public enum TeleopAction: Equatable, Sendable {
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
     case gripperStart(GripperState)
     case gripperEnd
+    /// The jaw turn control is pressed: the wrist rolls toward `direction` until `turnEnd`.
+    case turnStart(TurnDirection)
+    case turnEnd
     case holdArmStart
     case holdArmEnd
     case resetScene
@@ -151,6 +154,7 @@ public struct TeleopSession: Equatable, Sendable {
             state.emergencyStop = true
             state.armMoving = false
             state.stopGripper()
+            state.stopTurn()
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
@@ -193,18 +197,33 @@ public struct TeleopSession: Equatable, Sendable {
             if state.gripperMoving != target {
                 pendingHaptics.append(.play(target == .closed ? .gripperClosed : .gripperOpened))
             }
+            // The server runs one held control at a time: the gripper takes over from a jaw turn.
+            state.stopTurn()
             state.moveGripper(toward: target)
         case .gripperEnd:
             // Release always stops, even if the session got blocked while held.
             state.stopGripper()
+        case .turnStart(let direction):
+            guard acceptsControl else { return }
+            // The arm is moving, so the jaws cannot turn.
+            guard canControl, !state.armMoving else {
+                pendingHaptics.append(.play(.commandBlocked))
+                return
+            }
+            state.stopGripper()
+            state.turnJaws(toward: direction)
+        case .turnEnd:
+            // Release always stops, even if the session got blocked while held.
+            state.stopTurn()
         case .holdArmStart:
             guard acceptsControl else { return }
             guard canControl else {
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
-            // The server runs one held control at a time: the arm takes over from the gripper.
+            // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
             state.stopGripper()
+            state.stopTurn()
             state.armMoving = true
         case .holdArmEnd:
             // Release always stops, even if the session got blocked while held.
@@ -249,6 +268,7 @@ public struct TeleopSession: Equatable, Sendable {
                 state.commandsBlocked = true
                 state.armMoving = false
                 state.stopGripper()
+                state.stopTurn()
                 if route == .p4 { go(.p6) }
             } else if !slow {
                 state.commandsBlocked = false

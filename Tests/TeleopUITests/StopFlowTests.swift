@@ -133,6 +133,26 @@ final class StopFlowTests: XCTestCase {
         XCTAssertTrue(element("standby.base").isHittable, "the base handle must stay reachable")
     }
 
+    func testStandbyOffersTheJawTurnHandles() {
+        relaunch(at: "p4_standby")
+        for id in ["jaw.turn_positive", "jaw.turn_negative"] {
+            let handle = element(id)
+            XCTAssertTrue(handle.waitForExistence(timeout: 5), id)
+            XCTAssertEqual(app.descendants(matching: .any).matching(identifier: id).count, 1, id)
+            XCTAssertTrue(handle.isHittable, id)
+            XCTAssertGreaterThanOrEqual(handle.frame.height, 48, id)
+            XCTAssertEqual(handle.value as? String, "stopped", id)
+            var duringPress: String?
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                duringPress = handle.value as? String
+            }
+            handle.press(forDuration: 2.0)
+            XCTAssertEqual(duringPress, "moving", id)
+            XCTAssertEqual(handle.value as? String, "stopped", id)
+        }
+        XCTAssertTrue(element("gripper.open").isHittable, "the open handle must stay reachable")
+    }
+
     func testTutorialLastStepHasNoSkip() {
         relaunch(at: "t3_tutorial")
         expect("tutorial.back")

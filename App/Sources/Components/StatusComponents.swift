@@ -213,6 +213,11 @@ struct AimOrOffset: View {
                     Text(guidance.target == .goal ? "guide.map_caption_carry" : "guide.map_caption")
                         .font(.system(size: 11)).opacity(0.8)
                 }
+                if guidance.target == .cube {
+                    Text("guide.turn_jaws_hint")
+                        .font(.system(size: 11, weight: .semibold))
+                        .accessibilityIdentifier("guide.turn_jaws_hint")
+                }
                 if model.catchingUp {
                     Text("control.catching_up")
                         .font(.system(size: 13, weight: .semibold))

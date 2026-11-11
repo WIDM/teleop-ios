@@ -13,6 +13,8 @@ public enum LinkEvent: Equatable, Sendable {
     case holdStopped
     /// The server refused or ended the gripper jog that is running now.
     case gripperRefused(reason: String)
+    /// The server refused or ended the jaw turn that is running now.
+    case turnRefused(reason: String)
     case latency(ms: Int)
 }
 
@@ -64,6 +66,9 @@ public final class TeleopLink {
     /// True while a gripper jog is running. The server stops it 750 ms after the last `keepalive`.
     public private(set) var gripperJogActive = false
     private var gripperJogSeq: Int?
+    /// True between an `orientStart` and the stop or refusal that ends it. The server drops it 750 ms after the last update.
+    public private(set) var turnActive = false
+    private var turnSeq: Int?
 
     /// - Parameters:
     ///   - send: writes one text frame.
@@ -83,6 +88,7 @@ public final class TeleopLink {
         guard ready, !holdActive else { return false }
         // The server runs one held control at a time.
         gripperJogStop()
+        orientStop()
         holdActive = true
         holdSeq = emit("pose_start", [
             "frame": "webxr_local",
@@ -120,6 +126,8 @@ public final class TeleopLink {
         holdSeq = nil
         gripperJogActive = false
         gripperJogSeq = nil
+        turnActive = false
+        turnSeq = nil
         emit("estop", [:])
     }
 
@@ -128,6 +136,7 @@ public final class TeleopLink {
     public func resetScene() {
         poseStop()
         gripperJogStop()
+        orientStop()
         emit("reset_scene", [:])
     }
 
@@ -137,6 +146,7 @@ public final class TeleopLink {
     /// squeezing harder. The owner sends `keepalive` and decides when to call `gripperJogStop`.
     public func gripperJogStart(_ target: GripperState) {
         guard ready, !holdActive else { return }
+        orientStop()
         gripperJogStop()
         gripperJogActive = true
         gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
@@ -153,6 +163,46 @@ public final class TeleopLink {
         gripperJogActive = false
         gripperJogSeq = nil
         emit("gripper_jog_stop", [:])
+    }
+
+    /// Starts turning the jaws, replacing any turn already running. The server rolls the wrist by the rotation
+    /// about y that `orientUpdate` asks for, at most 60 degrees from where the wrist was when this hold began.
+    /// Returns false, sending nothing, if the link is not ready or an arm hold is active.
+    @discardableResult
+    public func orientStart() -> Bool {
+        guard ready, !holdActive else { return false }
+        // The server runs one held control at a time.
+        gripperJogStop()
+        orientStop()
+        turnActive = true
+        turnSeq = emit("orient_start", [
+            "frame": "phone_body",
+            "rate_hz": Self.poseRateHz,
+            "gain": 1.0,
+            "deadband_deg": 0.0,
+            "smoothing": 0.0,
+        ])
+        return true
+    }
+
+    /// Roll asked for, in degrees from the wrist as it was when the hold began. Positive turns the same way
+    /// as the server's wrist roll increases. Also the keepalive: the server drops the hold 750 ms after the last one.
+    public func orientUpdate(rollDegrees: Double) {
+        guard turnActive, rollDegrees.isFinite else { return }
+        // The server reads the rotation about y, negated, as the wrist roll. x and z stay 0: x would pitch the wrist.
+        let half = rollDegrees * .pi / 360
+        // Adding 0 turns a negative zero into 0, so a roll of 0 sends [0, 0, 0, 1].
+        let y = (-sin(half) * 1_000_000).rounded() / 1_000_000 + 0
+        let w = (cos(half) * 1_000_000).rounded() / 1_000_000
+        emit("orient_update", ["q_rel": [0, y, 0, w]])
+    }
+
+    /// Ends the turn; the joint stays where it is. Safe to call when none is active.
+    public func orientStop() {
+        guard turnActive else { return }
+        turnActive = false
+        turnSeq = nil
+        emit("orient_stop", [:])
     }
 
     /// Asks the server to echo one message, to time the round trip.
@@ -184,6 +234,8 @@ public final class TeleopLink {
         stoppingSeq = nil
         gripperJogActive = false
         gripperJogSeq = nil
+        turnActive = false
+        turnSeq = nil
         probes = [:]
         sentTypes = [:]
         lastHeardAt = nil
@@ -234,6 +286,11 @@ public final class TeleopLink {
                 gripperJogSeq = nil
                 return .gripperRefused(reason: reason)
             }
+            if sentType == "orient_start", seq == turnSeq {
+                turnActive = false
+                turnSeq = nil
+                return .turnRefused(reason: reason)
+            }
             return .rejected(type: sentType, reason: reason)
         default:
             return nil
@@ -255,8 +312,8 @@ public final class TeleopLink {
         let message: [String: Any] = [
             "v": Self.protocolVersion, "type": type, "ts": now(), "seq": seq, "payload": payload,
         ]
-        // pose_update and test get no ack; remembering them would only grow the table.
-        if type != "pose_update", type != "test", type != "jog_keepalive" { sentTypes[seq] = type }
+        // pose_update, orient_update and test get no ack; remembering them would only grow the table.
+        if type != "pose_update", type != "orient_update", type != "test", type != "jog_keepalive" { sentTypes[seq] = type }
         if sentTypes.count > 64, let oldest = sentTypes.keys.min() { sentTypes[oldest] = nil }
         if let data = try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys]),
            let text = String(data: data, encoding: .utf8) {

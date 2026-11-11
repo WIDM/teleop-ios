@@ -329,6 +329,132 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(transport.types.contains("jog_keepalive"))
     }
 
+    /// Roll in degrees of every orient_update sent after `index`, read back from the quaternion.
+    private func rolls(after index: Int = 0) -> [Double] {
+        transport.sent.dropFirst(index).filter { $0["type"] as? String == "orient_update" }.map {
+            let q = ($0["payload"] as! [String: Any])["q_rel"] as! [Double]
+            return -2 * asin(q[1]) * 180 / .pi
+        }
+    }
+
+    private func lastOrientStartSeq() -> Int {
+        transport.sent.last { $0["type"] as? String == "orient_start" }!["seq"] as! Int
+    }
+
+    func testJawTurnSendsOneUpdatePerTickRampingAtThirtyDegreesPerSecond() {
+        bringUp()
+        let before = transport.sent.count
+        model.send(.turnStart(.positive))
+        XCTAssertEqual(transport.types.last, "orient_start")
+        XCTAssertEqual(model.session.state.jawTurning, .positive)
+        run(ticks: 30)
+        let sent = rolls(after: before)
+        XCTAssertEqual(sent.count, 30)
+        XCTAssertEqual(sent.first!, 30 * 0.033, accuracy: 0.01)
+        XCTAssertEqual(sent.last!, 30 * 0.99, accuracy: 0.01)
+        XCTAssertEqual(sent, sent.sorted())
+        let atRelease = transport.sent.count
+        model.send(.turnEnd)
+        XCTAssertEqual(transport.types.last, "orient_stop")
+        run(ticks: 30)
+        XCTAssertTrue(rolls(after: atRelease).isEmpty)
+        XCTAssertFalse(transport.types.dropFirst(atRelease).contains("orient_start"))
+    }
+
+    func testTheOtherDirectionRollsTheOtherWay() {
+        bringUp()
+        let before = transport.sent.count
+        model.send(.turnStart(.negative))
+        run(ticks: 30)
+        XCTAssertEqual(rolls(after: before).last!, -30 * 0.99, accuracy: 0.01)
+    }
+
+    func testHoldingPastTheStepKeepsSendingTheStepAndNeverChains() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        let before = transport.sent.count
+        run(ticks: 56)
+        let atStep = rolls(after: before)
+        XCTAssertEqual(atStep.max()!, LiveLinkController.turnStepDegrees, accuracy: 0.01)
+        run(ticks: 100)
+        let held = rolls(after: before)
+        XCTAssertEqual(held.count, 156, "one update per tick, the keepalive, for as long as it is held")
+        XCTAssertEqual(held.suffix(100).min()!, LiveLinkController.turnStepDegrees, accuracy: 0.01)
+        XCTAssertEqual(held, held.sorted())
+        XCTAssertEqual(model.session.state.jawTurning, .positive)
+        XCTAssertFalse(transport.types.dropFirst(before).contains("orient_stop"))
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 1)
+        model.send(.turnEnd)
+        XCTAssertEqual(transport.types.last, "orient_stop")
+    }
+
+    func testASecondPressStartsANewServerHoldFromZero() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        run(ticks: 60)
+        model.send(.turnEnd)
+        let before = transport.sent.count
+        model.send(.turnStart(.positive))
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 2)
+        XCTAssertEqual(transport.types.last, "orient_start")
+        run(ticks: 3)
+        let again = rolls(after: before)
+        XCTAssertEqual(again.count, 3)
+        XCTAssertLessThan(again.last!, 5, "the ramp starts again, relative to where the joint got to")
+    }
+
+    func testServerRefusingTheTurnEndsItHere() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        let start = lastOrientStartSeq()
+        transport.server("ack", seq: start, ["seq": start, "status": "rejected", "reason": "busy"])
+        XCTAssertNil(model.session.state.jawTurning)
+        let sentAfter = transport.sent.count
+        run(ticks: 30)
+        XCTAssertTrue(rolls(after: sentAfter).isEmpty)
+    }
+
+    func testStaleRefusalOfAnEarlierTurnKeepsTheCurrentOne() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        let first = lastOrientStartSeq()
+        model.send(.turnEnd)
+        model.send(.turnStart(.negative))
+        transport.server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"])
+        XCTAssertEqual(model.session.state.jawTurning, .negative)
+    }
+
+    func testStopEndsTheTurn() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        model.send(.stop)
+        XCTAssertEqual(transport.types.last, "estop")
+        let sentAfter = transport.sent.count
+        run(ticks: 30)
+        XCTAssertTrue(rolls(after: sentAfter).isEmpty)
+    }
+
+    func testArmHoldAndGripperTakeOverFromTheTurn() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        model.send(.holdArmStart)
+        XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "pose_start"])
+        XCTAssertNil(model.session.state.jawTurning)
+        model.send(.holdArmEnd)
+        model.send(.turnStart(.positive))
+        model.send(.gripperStart(.open))
+        XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "gripper_jog_start"])
+        XCTAssertEqual(transport.types.filter { $0 == "orient_stop" }.count, 2)
+    }
+
+    func testTurnWithNoLinkIsRefusedWithACue() {
+        makeModel(at: .p4)
+        model.session.state.markConnected()
+        model.send(.turnStart(.positive))
+        XCTAssertNil(model.session.state.jawTurning)
+        XCTAssertTrue(transports.isEmpty)
+    }
+
     func testHoldOffsetIsShownAsRightForwardUpAndClearedOnRelease() {
         bringUp()
         XCTAssertNil(model.holdOffset)
@@ -457,22 +583,22 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertNil(model.guidance, "the first state had no positions")
         transport.server("state", sceneState)
         XCTAssertEqual(model.guidance?.target, .cube)
-        // From the start the cube is 0.7 cm behind where the jaws pinch.
-        XCTAssertEqual(model.guidance!.offset.y, -0.007, accuracy: 0.001)
+        // From the start the cube is 2.3 cm ahead of where the jaws pinch.
+        XCTAssertEqual(model.guidance!.offset.y, 0.023, accuracy: 0.001)
     }
 
     func testGuidanceFollowsTheCommandDuringAHold() {
         bringUp()
         transport.server("state", sceneState)
         model.send(.holdArmStart)
-        // 3 cm forward: the cube goes from 0.7 cm behind the jaws to 3.7 cm behind.
+        // 3 cm forward: the cube goes from 2.3 cm ahead of the jaws to 0.7 cm behind.
         for step in 1...3 {
             position = SIMD3(0, 0, -0.01 * Float(step))
             tick()
         }
         XCTAssertTrue(model.session.state.armMoving)
-        XCTAssertEqual(model.guidance!.offset.y, -0.037, accuracy: 0.001)
-        XCTAssertEqual(model.guidance!.offset.x, 0.016, accuracy: 0.001)
+        XCTAssertEqual(model.guidance!.offset.y, -0.007, accuracy: 0.001)
+        XCTAssertEqual(model.guidance!.offset.x, 0.023, accuracy: 0.001)
     }
 
     func testArmThatDoesNotMoveIsReportedAtTheEdge() {

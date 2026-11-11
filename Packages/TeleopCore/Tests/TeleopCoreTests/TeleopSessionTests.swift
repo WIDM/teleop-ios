@@ -323,6 +323,108 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertNil(offline.state.gripperMoving)
     }
 
+    func testJawTurnRunsOnlyWhileHeld() {
+        var s = connectedFallback()
+        s.perform(.turnStart(.positive))
+        XCTAssertEqual(s.state.jawTurning, .positive)
+        s.perform(.turnStart(.negative))
+        XCTAssertEqual(s.state.jawTurning, .negative)
+        s.perform(.turnEnd)
+        XCTAssertNil(s.state.jawTurning)
+    }
+
+    func testJawTurnIsRefusedWhileTheArmMovesWithCue() {
+        var s = connectedFallback()
+        s.perform(.holdArmStart)
+        s.perform(.turnStart(.positive))
+        XCTAssertNil(s.state.jawTurning)
+        XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
+    }
+
+    func testJawTurnIsIgnoredWhenDisconnectedAndRefusedWhenEStoppedOrBlocked() {
+        var offline = TeleopSession()
+        offline.perform(.turnStart(.positive))
+        XCTAssertNil(offline.state.jawTurning)
+        XCTAssertEqual(offline.drainHaptics(), [])
+
+        var stopped = connectedFallback()
+        stopped.perform(.stop)
+        _ = stopped.drainHaptics()
+        stopped.perform(.turnStart(.positive))
+        XCTAssertNil(stopped.state.jawTurning)
+        XCTAssertEqual(stopped.drainHaptics(), [])
+
+        var slow = connectedFallback()
+        slow.perform(.simulateHighLatency)
+        slow.perform(.turnStart(.positive))
+        XCTAssertNil(slow.state.jawTurning)
+        XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
+    }
+
+    func testTheThreeHeldControlsTakeOverFromEachOther() {
+        var s = connectedFallback()
+        s.perform(.turnStart(.positive))
+        s.perform(.gripperStart(.open))
+        XCTAssertNil(s.state.jawTurning)
+        XCTAssertEqual(s.state.gripperMoving, .open)
+        s.perform(.turnStart(.negative))
+        XCTAssertNil(s.state.gripperMoving)
+        XCTAssertEqual(s.state.jawTurning, .negative)
+        s.perform(.holdArmStart)
+        XCTAssertNil(s.state.jawTurning)
+        XCTAssertTrue(s.state.armMoving)
+    }
+
+    func testStopLatencyBlockAndDisconnectEndTheJawTurn() {
+        var stopped = connectedFallback()
+        stopped.perform(.turnStart(.positive))
+        stopped.perform(.stop)
+        XCTAssertNil(stopped.state.jawTurning)
+
+        var slow = connectedFallback()
+        slow.perform(.turnStart(.positive))
+        slow.perform(.simulateHighLatency)
+        XCTAssertNil(slow.state.jawTurning)
+
+        var offline = connectedFallback()
+        offline.perform(.turnStart(.positive))
+        offline.perform(.disconnect)
+        XCTAssertNil(offline.state.jawTurning)
+
+        var left = connectedFallback()
+        left.perform(.turnStart(.positive))
+        left.perform(.switchMode)
+        XCTAssertNil(left.state.jawTurning)
+
+        var reset = connectedFallback()
+        reset.perform(.turnStart(.positive))
+        reset.perform(.resetScene)
+        XCTAssertNil(reset.state.jawTurning)
+    }
+
+    func testLiveLinkLossAndSlowLinkEndTheJawTurn() {
+        var lost = connectedFallback()
+        lost.state.liveLink = true
+        lost.perform(.turnStart(.negative))
+        lost.perform(.linkLost)
+        XCTAssertNil(lost.state.jawTurning)
+
+        var slow = connectedFallback()
+        slow.state.liveLink = true
+        slow.perform(.turnStart(.negative))
+        slow.perform(.linkLatency(ms: 500))
+        slow.perform(.linkLatency(ms: 500))
+        XCTAssertNil(slow.state.jawTurning)
+    }
+
+    func testJawTurnEndWorksEvenWhenBlocked() {
+        var s = connectedFallback()
+        s.perform(.turnStart(.positive))
+        s.state.commandsBlocked = true
+        s.perform(.turnEnd)
+        XCTAssertNil(s.state.jawTurning)
+    }
+
     func testGripperEndWorksEvenWhenBlocked() {
         var s = connectedFallback()
         s.perform(.gripperStart(.closed))

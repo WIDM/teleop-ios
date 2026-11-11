@@ -44,6 +44,7 @@ for name in sorted(stored - key_fields - excluded):
 HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
 KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
 GRIPPER_ACTIONS = {"gripperStart", "gripperEnd"}
+TURN_ACTIONS = {"turnStart", "turnEnd"}
 ROOT_VIEW_ACTIONS = {"holdArmEnd", "recordingTick"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
@@ -78,16 +79,20 @@ for path in APP.rglob("*.swift"):
         if ".volumeKeys(model:" in match.group(0):
             struct_sends[match.group(1)] |= KEY_ACTIONS
         # The gripper hold reaches a screen through these views.
-        if re.search(r"\.gripperHold\(model:|GripperOpenHandle\(|GripperHoldRow\(|GripperHoldButton\(", match.group(0)):
+        if re.search(r"\.gripperHold\(model:|LeftHandles\(|GripperOpenHandle\(|GripperHoldRow\(|GripperHoldButton\(", match.group(0)):
             struct_sends[match.group(1)] |= GRIPPER_ACTIONS
+        # The jaw turn reaches a screen through these views.
+        if re.search(r"\.turnHold\(model:|LeftHandles\(|JawTurnHandle\(", match.group(0)):
+            struct_sends[match.group(1)] |= TURN_ACTIONS
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
-    # connect: the fake link's S1 Connect. holdArmEnd: a hold the link could not start. switchMode: the live-link switch.
-    "AppModel.swift": {"connect", "holdArmEnd", "switchMode"},
-    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "linkUp", "linkLost", "linkLatency", "stop"},
+    # connect: the fake link's S1 Connect. holdArmEnd, turnEnd: a hold or turn the link could not start.
+    # switchMode: the live-link switch.
+    "AppModel.swift": {"connect", "holdArmEnd", "turnEnd", "switchMode"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "linkUp", "linkLost", "linkLatency", "stop"},
 }
 for path, names in sorted(outside_structs.items()):
     if allowed_outside.get(path) != names:
@@ -112,7 +117,10 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
             f"{route}: ui-map says {screen}, RootView shows {screen_of_route.get(route)}"
         )
     # tutorialNext1 -> tutorialNext, gripperStartClosed -> gripperStart: the table names one case per payload.
-    names = {re.sub(r"^(gripperStart)(Closed|Open)$", r"\1", re.sub(r"\d+$", "", a)) for a in actions.split(",")}
+    names = {
+        re.sub(r"^(gripperStart)(Closed|Open)$|^(turnStart)(Positive|Negative)$", lambda m: m.group(1) or m.group(3), re.sub(r"\d+$", "", a))
+        for a in actions.split(",")
+    }
     for name in sorted(names - struct_sends.get(screen, set())):
         problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
     if "recordingTick" in names:
@@ -131,10 +139,12 @@ allowed = {
     "ArmHoldModifier": HOLD_ACTIONS,
     "VolumeKeyMapper": KEY_ACTIONS,
     "VolumeKeyModifier": {"holdArmEnd", "gripperEnd"},
-    "GripperHoldModifier": GRIPPER_ACTIONS,
+    "HeldControlModifier": set(),
     "GripperHoldButton": GRIPPER_ACTIONS,
     "GripperOpenHandle": GRIPPER_ACTIONS,
     "GripperHoldRow": GRIPPER_ACTIONS,
+    "JawTurnHandle": TURN_ACTIONS,
+    "LeftHandles": GRIPPER_ACTIONS | TURN_ACTIONS,
 }
 for name, expected in allowed.items():
     if struct_sends.get(name) != expected:

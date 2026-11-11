@@ -229,6 +229,158 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.last, "estop")
     }
 
+    private func qRel(_ message: [String: Any]) -> [Double] {
+        (message["payload"] as! [String: Any])["q_rel"] as! [Double]
+    }
+
+    func testOrientStartSendsExactlyTheServerPayload() {
+        bringUp()
+        XCTAssertTrue(link.orientStart())
+        let message = sent.last!
+        XCTAssertEqual(message["type"] as? String, "orient_start")
+        let payload = message["payload"] as! [String: Any]
+        XCTAssertEqual(Set(payload.keys), ["frame", "rate_hz", "gain", "deadband_deg", "smoothing"])
+        XCTAssertEqual(payload["frame"] as? String, "phone_body")
+        XCTAssertEqual(payload["rate_hz"] as? Int, 30)
+        XCTAssertEqual(payload["gain"] as? Double, 1.0)
+        XCTAssertEqual(payload["deadband_deg"] as? Double, 0.0)
+        XCTAssertEqual(payload["smoothing"] as? Double, 0.0)
+        XCTAssertTrue(link.turnActive)
+    }
+
+    func testOrientUpdateRollsAboutYWithTheServersSign() throws {
+        bringUp()
+        link.orientStart()
+        link.orientUpdate(rollDegrees: 0)
+        XCTAssertEqual(qRel(sent.last!), [0, 0, 0, 1])
+        link.orientUpdate(rollDegrees: 30)
+        var q = qRel(sent.last!)
+        XCTAssertEqual(q[0], 0)
+        XCTAssertEqual(q[2], 0)
+        XCTAssertEqual(q[1], -sin(15 * Double.pi / 180), accuracy: 1e-6)
+        XCTAssertEqual(q[3], cos(15 * Double.pi / 180), accuracy: 1e-6)
+        link.orientUpdate(rollDegrees: -55)
+        q = qRel(sent.last!)
+        XCTAssertEqual(q[1], sin(27.5 * Double.pi / 180), accuracy: 1e-6)
+        XCTAssertEqual(sqrt(q.map { $0 * $0 }.reduce(0, +)), 1, accuracy: 1e-5)
+        XCTAssertEqual(Set((sent.last!["payload"] as! [String: Any]).keys), ["q_rel"])
+    }
+
+    func testOrientUpdateIsNotRememberedAndIsDroppedOutsideATurn() {
+        bringUp()
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertFalse(types.contains("orient_update"))
+        link.orientStart()
+        link.orientUpdate(rollDegrees: .nan)
+        XCTAssertFalse(types.contains("orient_update"))
+        link.orientUpdate(rollDegrees: 10)
+        let seq = sent.last!["seq"] as! Int
+        XCTAssertNil(server("ack", seq: seq, ["seq": seq, "status": "rejected", "reason": "x"]))
+    }
+
+    func testOrientStopEndsTheTurnAndTheAckOfItsStartReportsNothing() {
+        bringUp()
+        link.orientStart()
+        let seq = sent.last!["seq"] as! Int
+        link.orientStop()
+        link.orientStop()
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        XCTAssertEqual((sent.last!["payload"] as! [String: Any]).count, 0)
+        XCTAssertFalse(link.turnActive)
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.last, "orient_stop")
+        XCTAssertNil(server("ack", seq: seq, ["seq": seq, "status": "accepted"]))
+    }
+
+    func testOrientIsNotSentBeforeReadyOrDuringAnArmHold() {
+        XCTAssertFalse(link.orientStart())
+        bringUp()
+        link.poseStart(params)
+        XCTAssertFalse(link.orientStart())
+        XCTAssertFalse(types.contains("orient_start"))
+    }
+
+    func testArmHoldAndGripperJogStopTheTurnFirst() {
+        bringUp()
+        link.orientStart()
+        XCTAssertTrue(link.poseStart(params))
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "pose_start"])
+        XCTAssertFalse(link.turnActive)
+
+        link.poseStop()
+        link.orientStart()
+        link.gripperJogStart(.open)
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "gripper_jog_start"])
+        XCTAssertFalse(link.turnActive)
+    }
+
+    func testTurnStopsAGripperJogAndReplacesARunningTurn() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        link.orientStart()
+        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "orient_start"])
+        XCTAssertFalse(link.gripperJogActive)
+        link.orientStart()
+        XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "orient_start"])
+    }
+
+    func testEstopResetSceneAndClosedTransportEndTheTurn() {
+        bringUp()
+        link.orientStart()
+        link.estop()
+        XCTAssertFalse(link.turnActive)
+        link.orientUpdate(rollDegrees: 5)
+        XCTAssertEqual(types.last, "estop")
+
+        link.orientStart()
+        link.resetScene()
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "reset_scene"])
+
+        link.orientStart()
+        link.transportClosed()
+        XCTAssertFalse(link.turnActive)
+        XCTAssertFalse(link.orientStart())
+    }
+
+    func testRefusedTurnIsReportedAsItsOwnEventAndStopsUpdates() {
+        bringUp()
+        link.orientStart()
+        let seq = sent.last!["seq"] as! Int
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "rejected", "reason": "busy"]),
+            .turnRefused(reason: "busy")
+        )
+        XCTAssertFalse(link.turnActive)
+        link.orientUpdate(rollDegrees: 5)
+        XCTAssertEqual(types.last, "orient_start")
+    }
+
+    func testLateRefusalOfAnEarlierTurnKeepsTheCurrentOne() {
+        bringUp()
+        link.orientStart()
+        let first = sent.last!["seq"] as! Int
+        link.orientStop()
+        link.orientStart()
+        XCTAssertEqual(
+            server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]),
+            .rejected(type: "orient_start", reason: "busy")
+        )
+        XCTAssertTrue(link.turnActive)
+    }
+
+    func testRefusalOfAnArmHoldDoesNotEndATurnAndTheOtherWayAround() {
+        bringUp()
+        link.poseStart(params)
+        let hold = sent.last!["seq"] as! Int
+        link.poseStop()
+        link.orientStart()
+        XCTAssertEqual(
+            server("ack", seq: hold, ["seq": hold, "status": "rejected", "reason": "busy"]),
+            .rejected(type: "pose_start", reason: "busy")
+        )
+        XCTAssertTrue(link.turnActive)
+    }
+
     func testProbeMeasuresTheRoundTrip() {
         bringUp()
         link.probe()

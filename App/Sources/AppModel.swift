@@ -165,6 +165,17 @@ final class AppModel {
                 session.pendingCue(.commandBlocked)
             }
         }
+        if before.jawTurning != after.jawTurning {
+            if let direction = after.jawTurning {
+                if !link.startTurn(direction) {
+                    log("link: jaw turn not started (no link)")
+                    session.perform(.turnEnd)
+                    session.pendingCue(.commandBlocked)
+                }
+            } else {
+                link.stopTurn()
+            }
+        }
         if before.gripperMoving != after.gripperMoving {
             if let target = after.gripperMoving { link.startGripper(target) } else { link.stopGripper() }
         }

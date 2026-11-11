@@ -49,6 +49,9 @@ let actionTable: [(String, TeleopAction)] = [
     ("gripperStartClosed", .gripperStart(.closed)),
     ("gripperStartOpen", .gripperStart(.open)),
     ("gripperEnd", .gripperEnd),
+    ("turnStartPositive", .turnStart(.positive)),
+    ("turnStartNegative", .turnStart(.negative)),
+    ("turnEnd", .turnEnd),
     ("holdArmStart", .holdArmStart),
     ("holdArmEnd", .holdArmEnd),
     ("linkUpOpen", .linkUp(gripper: .open)),
@@ -61,7 +64,8 @@ let actionTable: [(String, TeleopAction)] = [
 ]
 // What the server can cause at any moment on a live link: LiveLinkController reports these from any route.
 // A server-side E-stop arrives as stop; a rejected or untracked hold as holdArmEnd.
-// A refused gripper jog arrives as gripperEnd, which shippedActions already adds while the gripper moves.
+// A refused gripper jog arrives as gripperEnd, and a refused jaw turn as turnEnd; shippedActions already adds
+// both while the control is held.
 let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
 // ModeSelectScreen changes the mode directly on the state, not through perform.
@@ -99,12 +103,16 @@ let properties: [Property] = [
     Property(id: "S9", promise: "The E-stop long buzz plays exactly while E-stop is latched.", harm: "The operator could lose the haptic signal for the current safety state."),
     Property(id: "S10", promise: "The gripper starts moving only on gripperStart, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving.", harm: "The gripper could squeeze or drop something when the operator was told it cannot move."),
     Property(id: "S11", promise: "gripperEnd always leaves the gripper still.", harm: "Releasing the control would not stop the gripper."),
+    Property(id: "S12", promise: "At most one of the arm hold, the gripper hold and the jaw turn is active.", harm: "The server runs one held control at a time, so the phone would show two controls working while only one is."),
+    Property(id: "S13", promise: "A jaw turn is active only while connected and not E-stopped.", harm: "The jaws could keep turning after STOP or over a lost link."),
+    Property(id: "S14", promise: "turnEnd always leaves the jaws still.", harm: "Releasing the control would not stop the jaws turning."),
     Property(id: "U1", promise: "On shipped screens, while E-stop is latched the user is only on S4 or a connection screen that leads back to it (P5, P7, S1, S7).", harm: "S4 is hidden, so the app looks ready while all control input is silently ignored."),
     Property(id: "U2", promise: "On shipped screens, S4 is shown only while E-stop is latched.", harm: "The app could claim E-stop when none is active."),
     Property(id: "U3", promise: "On shipped screens, a latched E-stop can always be released.", harm: "The operator could be stuck with no way back to control."),
     Property(id: "U4", promise: "On shipped screens, the arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
     Property(id: "U5", promise: "Every shipped teleop screen (all but P1, P2, P3, S4) offers STOP.", harm: "The operator could have no STOP on a teleop screen."),
     Property(id: "U7", promise: "On shipped screens, the gripper is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving.", harm: "Same as S10, reachable by tapping."),
+    Property(id: "U8", promise: "On shipped screens, at most one held control is active, and a jaw turn is active only while connected and not E-stopped.", harm: "Same as S12 and S13, reachable by tapping."),
     Property(id: "U6", promise: "On shipped screens, the E-stop long buzz is never started while it is already playing.", harm: "HapticsController keeps only the newest loop player, so an older buzz may not be cancelled on release."),
 ]
 
@@ -124,9 +132,12 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
     if shippedUI, session.route != node.session.route, session.state.armMoving {
         session.perform(.holdArmEnd)
     }
-    // GripperHoldModifier.onDisappear and VolumeKeyModifier.onDisappear do the same for the gripper.
+    // HeldControlModifier.onDisappear and VolumeKeyModifier.onDisappear do the same for the gripper and the jaw turn.
     if shippedUI, session.route != node.session.route, session.state.gripperMoving != nil {
         session.perform(.gripperEnd)
+    }
+    if shippedUI, session.route != node.session.route, session.state.jawTurning != nil {
+        session.perform(.turnEnd)
     }
     // Commands run in order, so a cancel only counts for a play that comes after it.
     var loop = node.loopPlaying
@@ -160,6 +171,7 @@ struct StateKey: Hashable {
     let developerMode: Bool
     let armMoving: Bool
     let gripperMoving: GripperState?
+    let jawTurning: TurnDirection?
     let serverInputError: Bool
     let liveLink: Bool
     let route: Route
@@ -186,6 +198,7 @@ func key(_ node: Node) -> StateKey {
         developerMode: s.developerMode,
         armMoving: s.armMoving,
         gripperMoving: s.gripperMoving,
+        jawTurning: s.jawTurning,
         serverInputError: s.serverInputError,
         liveLink: s.liveLink,
         route: node.session.route,
@@ -266,6 +279,10 @@ func explore(
 
 func linkOk(_ s: FakeTeleopState) -> Bool { s.connected && !s.commandsBlocked }
 
+func heldControls(_ s: FakeTeleopState) -> Int {
+    (s.armMoving ? 1 : 0) + (s.gripperMoving != nil ? 1 : 0) + (s.jawTurning != nil ? 1 : 0)
+}
+
 func sessionChecks(_ step: Step) -> [(String, String)] {
     let a = step.before.session.state
     let b = step.after.session.state
@@ -291,6 +308,13 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
         out.append(("S10", "gripper moving with connected=\(b.connected) blocked=\(b.commandsBlocked) eStop=\(b.emergencyStop) arm=\(b.armMoving)"))
     }
     if step.action == "gripperEnd", b.gripperMoving != nil { out.append(("S11", "gripper still moving after gripperEnd")) }
+    if heldControls(b) > 1 {
+        out.append(("S12", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) turn=\(String(describing: b.jawTurning))"))
+    }
+    if b.jawTurning != nil, !(b.connected && !b.emergencyStop) {
+        out.append(("S13", "jaws turning with connected=\(b.connected) eStop=\(b.emergencyStop)"))
+    }
+    if step.action == "turnEnd", b.jawTurning != nil { out.append(("S14", "jaws still turning after turnEnd")) }
     if b.armMoving, !linkOk(b) {
         out.append(("S6", "armMoving is true with connected=\(b.connected) blocked=\(b.commandsBlocked)"))
     }
@@ -324,6 +348,12 @@ func uiChecks(_ step: Step) -> [(String, String)] {
     }
     if b.gripperMoving != nil, !(linkOk(b) && !b.emergencyStop && !b.armMoving) {
         out.append(("U7", "gripper moving with connected=\(b.connected) blocked=\(b.commandsBlocked) eStop=\(b.emergencyStop) arm=\(b.armMoving)"))
+    }
+    if heldControls(b) > 1 {
+        out.append(("U8", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) turn=\(String(describing: b.jawTurning))"))
+    }
+    if b.jawTurning != nil, !(b.connected && !b.emergencyStop) {
+        out.append(("U8", "jaws turning with connected=\(b.connected) eStop=\(b.emergencyStop)"))
     }
     return out
 }
@@ -362,6 +392,7 @@ func shippedActions(_ node: Node) -> [String] {
     if node.session.state.isRecording { names.append("recordingTick") }
     if node.session.state.armMoving, !names.contains("holdArmEnd") { names.append("holdArmEnd") }
     if node.session.state.gripperMoving != nil, !names.contains("gripperEnd") { names.append("gripperEnd") }
+    if node.session.state.jawTurning != nil, !names.contains("turnEnd") { names.append("turnEnd") }
     if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
     return names
 }

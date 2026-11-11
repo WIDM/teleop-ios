@@ -1,6 +1,8 @@
 public enum TeleopMode: Sendable { case onSite, cloud }
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
+/// Which way the jaws turn about the forearm axis. Positive is the direction the server's wrist roll increases.
+public enum TurnDirection: Sendable { case positive, negative }
 
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
@@ -25,6 +27,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var armMoving = false
     /// Direction the gripper is travelling while its control is held; nil when still.
     public var gripperMoving: GripperState?
+    /// Direction the jaws are turning while a turn control is held; nil when still.
+    public var jawTurning: TurnDirection?
     public var serverInputError = false
     /// True when a real server drives the link. Then only `linkUp` marks the session connected.
     public var liveLink = false
@@ -57,6 +61,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         heartbeatOk = false
         armMoving = false
         gripperMoving = nil
+        jawTurning = nil
     }
 
     public mutating func simulateCloudPass() {
@@ -76,6 +81,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         commandsBlocked = true
         armMoving = false
         gripperMoving = nil
+        jawTurning = nil
     }
 
     public mutating func simulateNormalLatency() {
@@ -87,6 +93,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func leaveSession() {
         armMoving = false
         gripperMoving = nil
+        jawTurning = nil
         isRecording = false
         connected = false
         heartbeatOk = true
@@ -97,6 +104,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func resetScene() {
         armMoving = false
         gripperMoving = nil
+        jawTurning = nil
         gripper = .open
         simulateNormalLatency()
     }
@@ -116,6 +124,10 @@ public struct FakeTeleopState: Equatable, Sendable {
     }
 
     public mutating func stopGripper() { gripperMoving = nil }
+
+    public mutating func turnJaws(toward direction: TurnDirection) { jawTurning = direction }
+
+    public mutating func stopTurn() { jawTurning = nil }
 
     public mutating func startRecording() {
         isRecording = true

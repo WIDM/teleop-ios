@@ -7,17 +7,18 @@ struct RobotProfile: Equatable {
     var name: String
     /// From the point the server reports for the arm (the gripper link origin) to where the jaws pinch,
     /// in the robot base frame, metres. Holds while the wrist joints stay put, as in translation mode.
+    /// This is the grasp point with the jaws turned sideways, measured on the S4 simulator on 2026-11-11:
+    /// the reported point sat at the cube's centre plus (−0.007, +0.036, +0.088) m. The front-to-back grasp it
+    /// replaces lifted the cube 1 time in 16.
     var toolOffset: SIMD3<Float>
     /// Where the robot base sits in the world frame, metres. The server reports the arm in the base frame
     /// and objects in the world frame; this brings objects into the base frame.
     var baseInWorld: SIMD3<Float>
 
-    /// The SO-101 in the S4 pick-and-place simulator. The tool offset was measured there on 2026-11-11 by
-    /// grasping the cube: 6.6 cm ahead of the reported point (−Y) and 8.65 cm below it. The robot's USD model
-    /// predicts 5.8 cm and 8.9 cm. The base height is ROBOT_BASE_POS_W in the simulator's source.
+    /// The SO-101 in the S4 pick-and-place simulator. The base height is ROBOT_BASE_POS_W in the simulator's source.
     static let so101Simulator = RobotProfile(
         name: "SO-101 (S4 simulator)",
-        toolOffset: SIMD3(0, -0.066, -0.0865),
+        toolOffset: SIMD3(0.007, -0.036, -0.088),
         baseInWorld: SIMD3(0, 0, 0.05)
     )
 

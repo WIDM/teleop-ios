@@ -110,17 +110,21 @@ final class ServerMotionTests: XCTestCase {
         ))
     }
 
-    /// Moves the arm to a robot-base position, in as many holds as it takes, checking where the arm really is
-    /// between holds. The server reports no position during a hold, so this is how an operator has to work too.
+    /// Moves the arm to a robot-base position, checking where the arm really is between holds. The server reports
+    /// no position during a hold, so this is how an operator has to work too.
+    ///
+    /// Few holds on purpose. The server takes the wrist's sagged angle as its new target whenever a hold starts
+    /// or ends, so every hold lets the gripper droop about 0.6 degrees more (measured 5.7 degrees over 10 holds),
+    /// which moves the jaw tips away from where the grasp point was measured.
     @discardableResult
-    private func moveArm(to target: SIMD3<Float>, _ name: String) -> Bool {
+    private func moveArm(to target: SIMD3<Float>, _ name: String, maxHolds: Int = 2) -> Bool {
         let started = Date()
         var holds = 0
         pump(0.6)
-        while holds < 10 {
+        while holds < maxHolds {
             guard let arm = model.link.armPosition else { return false }
             let remaining = target - arm
-            if simd_length(remaining) < 0.004 { break }
+            if simd_length(remaining) < 0.005 { break }
             // Operator frame: right is −X, forward is −Y, up is +Z. An upright phone: right +x, up +y, forward −z.
             let hand = SIMD3(-remaining.x, remaining.z, remaining.y)
             position = .zero
@@ -142,7 +146,7 @@ final class ServerMotionTests: XCTestCase {
         print(String(format: "PICK %@: %d holds, %.0f s, ended %.1f cm from target, arm at (%.1f, %.1f, %.1f) cm, estop %@",
                      name, holds, Date().timeIntervalSince(started), off * 100, arm.x * 100, arm.y * 100, arm.z * 100,
                      model.session.state.emergencyStop ? "YES" : "no"))
-        return off < 0.006
+        return off < 0.008
     }
 
     private func gripper(_ target: GripperState, seconds: Double) {
@@ -152,9 +156,21 @@ final class ServerMotionTests: XCTestCase {
         pump(1.0)
     }
 
-    /// The whole task, done the way an operator would, to learn whether it can be done and what each step takes.
+    /// One full press of a jaw-turn handle. The server reports no joint angle, so the only way to know the
+    /// 45 degrees are done is to hold long enough for a slow simulator.
+    private func turnJaws(_ direction: TurnDirection) {
+        model.send(.turnStart(direction))
+        XCTAssertEqual(model.session.state.jawTurning, direction, "the turn did not start. log: \(model.debugLog.suffix(3))")
+        pump(20)
+        model.send(.turnEnd)
+        pump(1.5)
+    }
+
+    /// The whole task, done the way an operator would with the app's own controls: open, turn the jaws sideways,
+    /// go to the grasp point the mini map shows, close, lift, carry, lower, open.
     func testPickAndPlaceByScript() throws {
         let started = Date()
+        let profile = RobotProfile.so101Simulator
         guard let cubeStart = model.link.cubePosition, let goal = model.link.goalPosition,
               let armStart = model.link.armPosition else {
             throw XCTSkip("the server did not report the cube, goal and arm positions")
@@ -162,45 +178,41 @@ final class ServerMotionTests: XCTestCase {
         print(String(format: "PICK start: arm (%.1f, %.1f, %.1f) cube (%.1f, %.1f, %.1f) goal (%.1f, %.1f, %.1f) cm",
                      armStart.x * 100, armStart.y * 100, armStart.z * 100, cubeStart.x * 100, cubeStart.y * 100,
                      cubeStart.z * 100, goal.x * 100, goal.y * 100, goal.z * 100))
-        gripper(.open, seconds: 5)
-        moveArm(to: SIMD3(cubeStart.x, cubeStart.y, armStart.z), "over the cube")
+        // Where the reported gripper point has to be for the map's ring to sit on the cube.
+        let grasp = profile.inBase(world: cubeStart) - profile.toolOffset
+        let lift = SIMD3<Float>(0, 0, 0.03)
 
-        var graspHeight: Float?
-        for height: Float in [0.05, 0.04, 0.03, 0.02, 0.012] {
-            let reached = moveArm(to: SIMD3(cubeStart.x, cubeStart.y, cubeStart.z + height),
-                                  String(format: "down to %.1f cm above the cube centre", height * 100))
-            guard reached else {
-                print(String(format: "PICK try %.1f cm: the arm could not get that low", height * 100))
-                continue
-            }
-            gripper(.closed, seconds: 12)
-            moveArm(to: SIMD3(cubeStart.x, cubeStart.y, cubeStart.z + height + 0.03), "lift 3 cm")
-            pump(1.0)
-            let lifted = (model.link.cubePosition ?? cubeStart).z - cubeStart.z
-            print(String(format: "PICK try %.1f cm: cube rose %.1f cm", height * 100, lifted * 100))
-            if lifted > 0.015 {
-                graspHeight = height
-                break
-            }
-            gripper(.open, seconds: 5)
-        }
-        guard let graspHeight else {
-            print("PICK RESULT: never lifted the cube")
-            XCTFail("the cube was never lifted")
+        gripper(.open, seconds: 5)
+        turnJaws(.positive)
+        turnJaws(.positive)
+        moveArm(to: grasp + lift, "above the grasp point")
+        guard moveArm(to: grasp, "grasp point") else {
+            print("PICK RESULT: could not reach the grasp point")
+            XCTFail("the arm could not reach the grasp point")
             return
         }
-        let carryZ = cubeStart.z + graspHeight + 0.03
-        moveArm(to: SIMD3(goal.x, goal.y, carryZ), "to the goal")
-        moveArm(to: SIMD3(goal.x, goal.y, cubeStart.z + graspHeight + 0.004), "down onto the goal")
+        gripper(.closed, seconds: 15)
+        moveArm(to: grasp + lift, "lift 3 cm", maxHolds: 1)
+        pump(1.0)
+        let lifted = (model.link.cubePosition ?? cubeStart).z - cubeStart.z
+        print(String(format: "PICK lift: cube rose %.1f cm", lifted * 100))
+        guard lifted > 0.015 else {
+            print("PICK RESULT: never lifted the cube")
+            XCTFail("the cube was not lifted")
+            return
+        }
+        let overGoal = grasp + SIMD3(goal.x - cubeStart.x, goal.y - cubeStart.y, 0)
+        moveArm(to: overGoal + lift, "to the goal")
+        moveArm(to: overGoal + SIMD3(0, 0, 0.002), "down onto the goal", maxHolds: 1)
         gripper(.open, seconds: 5)
-        moveArm(to: SIMD3(goal.x, goal.y, carryZ), "lift away")
+        moveArm(to: overGoal + lift, "lift away", maxHolds: 1)
         pump(4)
         let cubeEnd = model.link.cubePosition ?? cubeStart
         let inGoal = abs(cubeEnd.x - goal.x) <= 0.025 && abs(cubeEnd.y - goal.y) <= 0.025
         // A success resets the scene at once, which also puts the cube back at its start.
         let resetBySuccess = simd_distance(cubeEnd, cubeStart) < 0.005
-        print(String(format: "PICK RESULT: grasp height %.1f cm above cube centre, cube ended (%.1f, %.1f, %.1f) cm, in goal %@, scene reset after success %@, %.0f s in all",
-                     graspHeight * 100, cubeEnd.x * 100, cubeEnd.y * 100, cubeEnd.z * 100,
+        print(String(format: "PICK RESULT: cube ended (%.1f, %.1f, %.1f) cm, in goal %@, scene reset after success %@, %.0f s in all",
+                     cubeEnd.x * 100, cubeEnd.y * 100, cubeEnd.z * 100,
                      inGoal ? "YES" : "no", resetBySuccess ? "YES" : "no", Date().timeIntervalSince(started)))
         XCTAssertFalse(model.session.state.emergencyStop)
         XCTAssertTrue(inGoal || resetBySuccess, "the cube did not end in the goal")
