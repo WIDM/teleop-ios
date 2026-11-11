@@ -293,6 +293,14 @@ SOURCE_VARIANTS = [
         "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
     ),
     (
+        "Settings stops drawing its STOPPED band",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "            if case .stopped = model.operating.state { stoppedBand }\n",
+        "",
+        "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
+    ),
+    (
         "The operating screen gains a new control",
         "Operating/Views/OperatingScreen.swift",
         "private struct OperatingControls: View {",

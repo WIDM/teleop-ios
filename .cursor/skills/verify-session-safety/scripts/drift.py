@@ -129,7 +129,9 @@ elif shows_stop - {"s6"} != operating_routes:
 settings_source = next(
     (m.group(0) for p in APP.rglob("*.swift") for m in STRUCT.finditer(p.read_text()) if m.group(1) == "SettingsScreen"), ""
 )
-if "s6" in (shows_stop or set()) and 'accessibilityIdentifier("settings.stopped")' not in settings_source:
+# The band must exist and be drawn whenever the operating screen shows the stop.
+draws_band = re.search(r"if case \.stopped = model\.operating\.state \{ stoppedBand \}", settings_source)
+if "s6" in (shows_stop or set()) and not (draws_band and 'accessibilityIdentifier("settings.stopped")' in settings_source):
     problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
 # One case may name several routes ("case .p4, .p5: OperatingScreen(").
 screen_of_route = {
