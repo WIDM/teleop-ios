@@ -30,6 +30,18 @@ final class LiveLinkTests: XCTestCase {
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
+    private var savedLiveLink: Any?
+
+    // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
+    override func setUp() {
+        super.setUp()
+        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
+        super.tearDown()
+    }
 
     private func makeModel(at route: Route) {
         transports = []
@@ -1024,7 +1036,6 @@ final class LiveLinkTests: XCTestCase {
     }
 
     func testSwitchingToTheRealServerTriesTheServerAddress() {
-        defer { UserDefaults.standard.removeObject(forKey: AppModel.liveLinkKey) }
         transports = []
         let demo = AppModel(start: .s6, haptics: NoHaptics(), pose: { nil }, liveLink: false, makeTransport: { [unowned self] _ in
             let made = FakeTransport()

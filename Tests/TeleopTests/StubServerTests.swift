@@ -7,6 +7,18 @@ import XCTest
 /// Skipped when the stub is not running, so CI without it stays green.
 final class StubServerTests: XCTestCase {
     private var position = SIMD3<Float>.zero
+    private var savedLiveLink: Any?
+
+    // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
+    override func setUp() {
+        super.setUp()
+        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
+        super.tearDown()
+    }
 
     private func makeModel() -> AppModel {
         let model = AppModel(
