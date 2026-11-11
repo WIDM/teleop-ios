@@ -36,6 +36,8 @@ public struct InputConstants: Equatable, Sendable {
     public var gapPt: Double
     public var topBandExtraPt: Double
     public var gearPt: Double
+    /// The gear area is never smaller than this, however short the screen: the smallest comfortable touch target.
+    public var gearMinPt: Double
     public var gearTapS: Double
     /// The reference device's height, which the zone sizes are given for.
     public var referenceHeightPt: Double
@@ -62,7 +64,7 @@ public struct InputConstants: Equatable, Sendable {
         openSlideMm: Double = 10, sideDeadPt: Double = 24,
         gripDwellMs: Double = 150, openWhileGrippingMs: Double = 500,
         bottomBandPt: Double = 72, gapPt: Double = 16, topBandExtraPt: Double = 64, gearPt: Double = 56,
-        gearTapS: Double = 0.5, referenceHeightPt: Double = 874, referencePointsPerMm: Double = 6.4,
+        gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874, referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
         resetHoldS: Double = 2.0
     ) {
@@ -87,6 +89,7 @@ public struct InputConstants: Equatable, Sendable {
         self.gapPt = gapPt
         self.topBandExtraPt = topBandExtraPt
         self.gearPt = gearPt
+        self.gearMinPt = gearMinPt
         self.gearTapS = gearTapS
         self.referenceHeightPt = referenceHeightPt
         self.referencePointsPerMm = referencePointsPerMm
