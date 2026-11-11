@@ -39,9 +39,9 @@ enum OperatingFixtures {
         countdown.resetCountdown = 0.6
         all["rec_off_countdown"] = countdown
         all["outside"] = display(.ready, arm: outside(), recorder: notRecording)
-        // Practice.
-        all["practice_ready"] = display(.ready, arm: hotel(), recorder: .unknown, practice: true)
-        all["practice_stopped"] = display(.stopped(cause: .button), arm: hotel(), recorder: .unknown, practice: true)
+        // Practice. The model reads no arm from the practice link, so these show no guide, as the app does.
+        all["practice_ready"] = display(.ready, arm: nil, recorder: .unknown, practice: true)
+        all["practice_stopped"] = display(.stopped(cause: .button), arm: nil, recorder: .unknown, practice: true)
         // Buttons mode.
         all["buttons_ready"] = display(.ready, mode: .buttons, arm: task(), recorder: armed)
         var moving = display(.moving(catchingUp: false), mode: .buttons, arm: task(moving: true), recorder: capturing)
@@ -52,7 +52,7 @@ enum OperatingFixtures {
         var stopped = display(.stopped(cause: .other), mode: .buttons, arm: hotel(), recorder: .unknown, exits: unknownServerExits)
         stopped.hand = .left
         all["buttons_stopped"] = stopped
-        all["buttons_practice"] = display(.ready, mode: .buttons, arm: hotel(), recorder: .unknown, practice: true)
+        all["buttons_practice"] = display(.ready, mode: .buttons, arm: nil, recorder: .unknown, practice: true)
         return all
     }()
 

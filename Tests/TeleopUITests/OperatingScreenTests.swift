@@ -297,6 +297,7 @@ final class OperatingScreenTests: XCTestCase {
         XCTAssertEqual(app.element("operating.rec").label, "Practice: nothing is recorded")
         XCTAssertEqual(app.element("operating.link").label, "No robot")
         XCTAssertTrue(app.staticTexts["No robot connected"].exists)
+        XCTAssertFalse(exists(app, "guide"), "the practice link reports no arm")
         assertNoConnectedWord(app)
     }
 
