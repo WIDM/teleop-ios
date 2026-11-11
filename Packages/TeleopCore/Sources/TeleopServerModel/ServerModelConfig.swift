@@ -63,8 +63,10 @@ public struct ServerModelConfig: Equatable, Sendable {
     public var wristFlexStart = 40.24
     public var wristRollStart = 90.0
     public var jawStart = 0.0
-    /// Model choice: the grasp works with the wrist roll within this of 90 (jaws side by side). Front to back,
-    /// the real grasp lifted the cube 1 time in 16, so the model does not grasp at all.
+    /// Wrist roll with the jaws side by side.
+    public var sidewaysRoll = 90.0
+    /// Model choice: the grasp works with the wrist roll within this of `sidewaysRoll`. Front to back, the real
+    /// grasp lifted the cube 1 time in 16, so the model does not grasp at all.
     public var sidewaysRollTolerance = 15.0
     /// Model choice: the tool offset holds only near the start pitch; a few degrees move the real jaw tips
     /// further than the grasp tolerance, so the model grasps only within this of `wristFlexStart`.
@@ -93,6 +95,8 @@ public struct ServerModelConfig: Equatable, Sendable {
     /// A pose hold's commanded point moves toward the phone's target at this speed, slower while carrying.
     public var poseSpeed = 0.40
     public var poseCarrySpeed = 0.12
+    /// A pose hold's `gripper_delta` beyond this either way relabels the gripper "open" or "close".
+    public var poseGripperLabelThreshold = 0.02
     /// `gripper_delta` in a pose hold moves the jaw target by this many degrees per unit, at these rates.
     public var poseJawRange = 110.0
     public var poseJawOpenRate = 90.0
@@ -123,6 +127,9 @@ public struct ServerModelConfig: Equatable, Sendable {
     public var jointStep: [String: Double] = ["fine": 5, "coarse": 15]
     public var jointMoveSteps: [String: Int] = ["fine": 30, "coarse": 90]
     public var jointTolerance = 1.0
+    /// Where the one-shot `gripper` command drives the jaws.
+    public var gripperOpenTarget = 100.0
+    public var gripperClosedTarget = 0.0
     public var gripperMoveSteps = 240
     public var gripperStableSteps = 10
     public var gripperOpenTolerance = 2.0

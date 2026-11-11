@@ -86,7 +86,7 @@ public struct World: Equatable, Sendable {
         return jaw >= config.jawAngleOnCube
             && (gap.x * gap.x + gap.y * gap.y).squareRoot() <= config.graspToleranceAcross
             && abs(gap.z) <= config.graspToleranceHeight
-            && abs(wristRoll - 90) <= config.sidewaysRollTolerance
+            && abs(wristRoll - config.sidewaysRoll) <= config.sidewaysRollTolerance
             && abs(wristFlex - config.wristFlexStart) <= config.graspFlexTolerance
     }
 

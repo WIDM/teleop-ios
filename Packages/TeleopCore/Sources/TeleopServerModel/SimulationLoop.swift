@@ -186,7 +186,7 @@ extension ServerModel {
             update(["gripper": .string(command.action), "step": .string(step), "ik": "gripper_jogging"])
         case "gripper":
             command.startAngle = world.jaw
-            let requested = command.action == "open" ? 100.0 : 0.0
+            let requested = command.action == "open" ? config.gripperOpenTarget : config.gripperClosedTarget
             command.goalAngle = clamp(requested, config.jawLimits)
             command.completion = command.goalAngle == requested ? "ok" : "clamped"
         default:
@@ -255,8 +255,9 @@ extension ServerModel {
             return
         }
         command.motionStep += 1
-        let label: JSONValue = command.gripperDelta > 0.02 ? "open"
-            : command.gripperDelta < -0.02 ? "close" : (state["gripper"] ?? "closed")
+        let threshold = config.poseGripperLabelThreshold
+        let label: JSONValue = command.gripperDelta > threshold ? "open"
+            : command.gripperDelta < -threshold ? "close" : (state["gripper"] ?? "closed")
         update([
             "ee_pos": .numbers(world.arm), "gripper": label, "ik": clampedNow ? "pose_clamped" : "pose_tracking",
             "orient_deg": .double(degrees(length(rotationVector(command.qRel)))),

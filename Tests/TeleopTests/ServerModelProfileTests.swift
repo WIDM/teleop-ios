@@ -14,6 +14,6 @@ final class ServerModelProfileTests: XCTestCase {
         XCTAssertEqual(Float(model.graspToleranceAcross), profile.graspTolerance.x)
         XCTAssertEqual(Float(model.graspToleranceHeight), profile.graspTolerance.y)
         XCTAssertEqual(Float(model.cubeSize), profile.cubeSize)
-        XCTAssertEqual(model.wristRollStart == 90, profile.jawsStartSideways)
+        XCTAssertEqual(model.wristRollStart == model.sidewaysRoll, profile.jawsStartSideways)
     }
 }
