@@ -25,7 +25,7 @@ struct RootView: View {
         }
         .onAppear {
             PoseTracker.shared.setActive(Self.tracksPose(model.session.route))
-            model.trySavedServer()
+            if AppModel.opensSavedServerAtLaunch() { model.trySavedServer() }
         }
         .onChange(of: model.session.route) { _, route in PoseTracker.shared.setActive(Self.tracksPose(route)) }
         .onChange(of: scenePhase) { _, phase in

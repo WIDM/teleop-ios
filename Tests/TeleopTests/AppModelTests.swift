@@ -64,6 +64,11 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(AppModel.startRoute(from: defaults), .p4)
     }
 
+    func testTheUnitTestHostDoesNotOpenTheSavedServer() {
+        XCTAssertFalse(AppModel.opensSavedServerAtLaunch(), "this process is the unit-test host")
+        XCTAssertTrue(AppModel.opensSavedServerAtLaunch(environment: [:]))
+    }
+
     func testFinishingOrSkippingTheTutorialEndsTheFirstRun() {
         defer { UserDefaults.standard.removeObject(forKey: AppModel.firstRunDoneKey) }
         for skip in [true, false] {

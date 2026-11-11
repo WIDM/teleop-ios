@@ -119,6 +119,12 @@ final class AppModel {
         _ = link.connect(to: session.state.serverAddress)
     }
 
+    /// False when the app is only the host process of the unit tests. That launch reads whatever Real server
+    /// setting and address the simulator has saved, and must never reach a live server.
+    static func opensSavedServerAtLaunch(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        environment["XCTestConfigurationFilePath"] == nil
+    }
+
     /// S1 Connect. Fake link: connected at once. Live link: opens the socket; `linkUp` or `linkLost` follows.
     func connect() {
         guard session.state.liveLink else {
