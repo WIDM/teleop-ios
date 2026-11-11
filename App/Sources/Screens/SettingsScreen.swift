@@ -1,158 +1,233 @@
 import SwiftUI
 import TeleopCore
 
+/// Settings (§7.3), version 1 rows only, with a STOP band pinned to the bottom edge.
 struct SettingsScreen: View {
     @Bindable var model: AppModel
+    /// Five taps on the version show the developer log.
+    @State private var versionTaps = 0
+
+    /// Settings → Control → Smoothing: Off, Low and High (§7.3).
+    static let smoothingSteps: [(key: LocalizedStringKey, value: Double)] = [
+        ("settings.smoothing_off", 0), ("settings.smoothing_low", 0.3), ("settings.smoothing_high", 0.6),
+    ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let practice = model.operating.practice
+        VStack(spacing: 0) {
+            PracticeBanner(practice: practice)
             HStack {
-                Button { model.send(.back) } label: { Text("common.back") }
-                    .buttonStyle(TextActionStyle(color: TeleopColors.primary))
-                    .accessibilityIdentifier("settings.back")
-                Spacer()
-                Text("control.settings").font(.system(size: 18, weight: .semibold))
+                Text("settings.title").font(.system(size: 20, weight: .bold))
                 Spacer()
                 Button { model.send(.settingsDone) } label: { Text("common.done") }
                     .buttonStyle(TextActionStyle(color: TeleopColors.primary))
                     .accessibilityIdentifier("settings.done")
             }
-            ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                sliderRow("settings.sensitivity", tag: "settings.gain_tag",
-                          value: $model.session.state.sensitivity, range: 0...2,
-                          label: String(format: "%.1f", model.session.state.sensitivity))
-                sliderRow("settings.smoothing", tag: "settings.smoothing_tag",
-                          value: Binding(
-                              get: { model.session.state.smoothing },
-                              set: { model.session.state.setSmoothing($0) }
-                          ),
-                          range: FakeTeleopState.smoothingRange,
-                          label: String(format: "%.1f", model.session.state.smoothing))
+            .padding(.horizontal, TeleopMetrics.margin)
+            Form {
+                control
+                taskAid
+                recording
+                server
+                practiceSection
+                language
+                about
+                if versionTaps >= 5 { developer }
             }
-            .card()
-            .padding(.top, 8)
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("settings.language")
-                    Spacer()
-                    Picker("settings.language", selection: $model.language) {
-                        ForEach(AppLanguage.allCases, id: \.self) { language in
-                            if let name = language.nativeName {
-                                Text(verbatim: name).tag(language)
-                            } else {
-                                Text("settings.language_system").tag(language)
-                            }
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("settings.language")
-                }
-                .frame(minHeight: TeleopMetrics.touch)
-                Divider()
-                Button { model.send(.replayTutorial) } label: {
-                    HStack {
-                        Text("settings.replay_tutorial")
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(TeleopColors.chevronMuted)
-                    }
-                    .frame(minHeight: TeleopMetrics.touch)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.replay_tutorial")
-                Divider()
-                Toggle(isOn: $model.liveLink) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("settings.live_link")
-                        Text("settings.live_link_hint")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TeleopColors.textSecondary)
-                    }
-                }
-                .frame(minHeight: TeleopMetrics.touch)
-                .accessibilityIdentifier("settings.live_link")
-                Divider()
-                Toggle(isOn: $model.session.state.developerMode) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("settings.developer_mode")
-                        Text("settings.developer_hint")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TeleopColors.textSecondary)
-                    }
-                }
-                .frame(minHeight: TeleopMetrics.touch)
-                .accessibilityIdentifier("settings.developer_mode")
-            }
-            .padding(.horizontal, 16)
-            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            .padding(.top, 12)
-
-            // Raw protocol lines stay out of the normal UI (S6 rule); developer mode shows them.
-            if model.session.state.developerMode {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("settings.debug_log")
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 2) {
-                                if model.debugLog.isEmpty {
-                                    Text("settings.log_empty")
-                                } else {
-                                    ForEach(Array(model.debugLog.enumerated()), id: \.offset) { index, line in
-                                        Text(verbatim: line).id(index)
-                                    }
-                                }
-                            }
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(TeleopColors.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityElement(children: .combine)
-                            .accessibilityIdentifier("settings.log")
-                        }
-                        .frame(height: 96)
-                        .onChange(of: model.debugLog.count) { _, count in
-                            if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
-                        }
-                    }
-                    Button { model.clearLog() } label: { Text("settings.clear_log") }
-                        .buttonStyle(OutlineButtonStyle())
-                        .accessibilityIdentifier("settings.clear_log")
-                        .padding(.top, 8)
-                }
-                .card()
-                .padding(.top, 12)
-            }
-
-            // Which version is on the phone: installs happen often, and the icon does not change.
-            // CHANGELOG.md says what each version does.
-            Text(String(format: L10n.string("settings.version"), Self.version))
-                .font(.system(size: 12))
-                .foregroundStyle(TeleopColors.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 12)
-                .accessibilityIdentifier("settings.version")
-            }
-            .scrollIndicators(.hidden)
-            StopButton { model.send(.stop) }
+            StopBand { model.send(.stop) }
         }
-        .padding(TeleopMetrics.margin)
     }
 
-    private func sliderRow(
-        _ title: LocalizedStringKey, tag: LocalizedStringKey,
-        value: Binding<Double>, range: ClosedRange<Double>, label: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(title).font(.system(size: 15))
-                Text(tag).font(.system(size: 12)).foregroundStyle(TeleopColors.textSecondary)
-                Spacer()
-                Text(verbatim: label).font(.system(size: 15, design: .monospaced))
+    private var control: some View {
+        Section {
+            Picker(selection: $model.controlMode) {
+                ForEach(ControlMode.allCases, id: \.self) { mode in
+                    Text(verbatim: OperatingWords.modeName(mode)).tag(mode)
+                }
+            } label: {
+                Text("settings.mode")
             }
-            Slider(value: value, in: range)
+            .pickerStyle(.inline)
+            .accessibilityIdentifier("settings.mode")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("settings.hand")
+                Picker(selection: $model.hand) {
+                    Text("settings.hand_right").tag(Hand.right)
+                    Text("settings.hand_left").tag(Hand.left)
+                } label: {
+                    Text("settings.hand")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityIdentifier("settings.hand")
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("settings.arm_speed")
+                    Spacer()
+                    Text(verbatim: String(format: "%.2g×", model.session.state.sensitivity))
+                        .font(.system(size: 15, design: .monospaced))
+                }
+                Slider(value: $model.session.state.sensitivity, in: 0.5...2, step: 0.25)
+                    .accessibilityIdentifier("settings.arm_speed")
+                Text("settings.arm_speed_help")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TeleopColors.textSecondary)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("settings.smoothing")
+                Picker(selection: smoothing) {
+                    ForEach(Self.smoothingSteps.indices, id: \.self) { index in
+                        Text(Self.smoothingSteps[index].key).tag(index)
+                    }
+                } label: {
+                    Text("settings.smoothing")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityIdentifier("settings.smoothing")
+            }
+        } header: {
+            Text("settings.control")
+        }
+    }
+
+    /// The step nearest the stored smoothing.
+    private var smoothing: Binding<Int> {
+        Binding(
+            get: {
+                let value = model.session.state.smoothing
+                return Self.smoothingSteps.indices.min { abs(Self.smoothingSteps[$0].value - value) < abs(Self.smoothingSteps[$1].value - value) } ?? 1
+            },
+            set: { model.session.state.setSmoothing(Self.smoothingSteps[$0].value) }
+        )
+    }
+
+    private var taskAid: some View {
+        Section {
+            Toggle(isOn: $model.taskAid) { Text("settings.task_aid_show") }
+                .accessibilityIdentifier("settings.task_aid")
+        } header: {
+            Text("settings.task_aid")
+        } footer: {
+            Text("settings.task_aid_help")
+        }
+    }
+
+    private var recording: some View {
+        let display = model.operating
+        return Section {
+            Text(verbatim: OperatingWords.recLine(display)?.spoken ?? L10n.string("settings.rec_unknown"))
+                .accessibilityIdentifier("settings.rec_status")
+            if !display.practice, let saved = display.recorder.saved {
+                LabeledContent { Text(verbatim: "\(saved)") } label: { Text("settings.rec_saved") }
+            }
+            if !display.practice, let discarded = display.recorder.discarded {
+                LabeledContent { Text(verbatim: "\(discarded)") } label: { Text("settings.rec_discarded") }
+            }
+        } header: {
+            Text("settings.recording")
+        }
+    }
+
+    private var server: some View {
+        Section {
+            TextField(text: $model.session.state.serverAddress, prompt: Text(verbatim: "192.168.0.10:8765")) {
+                Text("connection.server_address")
+            }
+            .font(.system(size: 16, design: .monospaced))
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .keyboardType(.numbersAndPunctuation)
+            .accessibilityIdentifier("settings.address")
+            HStack(spacing: 8) {
+                Button { model.connect() } label: { Text("connect.connect") }
+                    .buttonStyle(FilledButtonStyle())
+                    .accessibilityIdentifier("settings.connect")
+                Button {
+                    // Disconnect goes back to Connect, with no error (§7.3).
+                    model.send(.disconnect)
+                    model.send(.changeServer)
+                } label: { Text("connect.disconnect") }
+                    .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("settings.disconnect")
+            }
+        } header: {
+            Text("settings.server")
+        }
+    }
+
+    private var practiceSection: some View {
+        Section {
+            if model.operating.practice {
+                Button { model.leavePractice() } label: { Text("settings.leave_practice") }
+                    .accessibilityIdentifier("settings.leave_practice")
+            } else {
+                Button { model.startPractice() } label: { Text("settings.start_practice") }
+                    .accessibilityIdentifier("settings.start_practice")
+            }
+        } header: {
+            Text("settings.practice")
+        }
+    }
+
+    private var language: some View {
+        Section {
+            Picker(selection: $model.language) {
+                ForEach(AppLanguage.allCases, id: \.self) { language in
+                    if let name = language.nativeName {
+                        Text(verbatim: name).tag(language)
+                    } else {
+                        Text("settings.language_system").tag(language)
+                    }
+                }
+            } label: {
+                Text("settings.language")
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("settings.language")
+        }
+    }
+
+    private var about: some View {
+        Section {
+            // Which version is on the phone: installs happen often, and the icon does not change.
+            Text(verbatim: String(format: L10n.string("settings.version"), Self.version, Self.build))
+                .foregroundStyle(TeleopColors.textSecondary)
+                .contentShape(Rectangle())
+                .onTapGesture { versionTaps += 1 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("settings.version")
+        } header: {
+            Text("settings.about")
+        }
+    }
+
+    // Raw protocol lines stay out of the normal screens; five taps on the version show them.
+    private var developer: some View {
+        Section {
+            if model.debugLog.isEmpty {
+                Text("settings.log_empty")
+                    .foregroundStyle(TeleopColors.textSecondary)
+                    .accessibilityIdentifier("settings.log")
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(model.debugLog.enumerated()), id: \.offset) { _, line in
+                        Text(verbatim: line)
+                    }
+                }
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(TeleopColors.textSecondary)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings.log")
+            }
+            Button { model.clearLog() } label: { Text("settings.clear_log") }
+                .accessibilityIdentifier("settings.clear_log")
+        } header: {
+            Text("settings.developer")
         }
     }
 
     private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    private static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 }

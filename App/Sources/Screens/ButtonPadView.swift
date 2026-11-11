@@ -34,11 +34,15 @@ struct ButtonPadView: View {
                         onTouchDown: onTouchDown, onTouchUp: onTouchUp, onDragOut: onDragOut
                     )
                 }
+                // The pad sits on the state colour, so the label carries its own backing.
                 Self.speedName(speed)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(TeleopColors.textSecondary)
+                    .foregroundStyle(TeleopColors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(TeleopColors.card.opacity(0.85), in: Capsule())
                     .frame(width: layout.speedLabel.width, height: layout.speedLabel.height)
                     .position(x: layout.speedLabel.midX, y: layout.speedLabel.midY)
                     // The switch already says the speed.

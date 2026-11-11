@@ -7,12 +7,7 @@ struct PermissionsScreen: View {
     @State private var request: Task<Void, Never>?
 
     var body: some View {
-        let state = model.session.state
         VStack(alignment: .leading, spacing: 0) {
-            ControlStatusBar(
-                modeKey: "control.setup",
-                connected: state.connected
-            ) { model.send(.openConnection) }
             Text("permissions.title")
                 .font(.system(size: 22, weight: .semibold))
                 .padding(.top, 16)
@@ -27,7 +22,7 @@ struct PermissionsScreen: View {
                 request = Task {
                     await SystemPermissions.request()
                     requesting = false
-                    // STOP or the connection chip may have left S2 while the prompts were up.
+                    // STOP may have left S2 while the prompts were up.
                     guard !Task.isCancelled else { return }
                     model.send(.permissionsContinue)
                 }
@@ -36,10 +31,10 @@ struct PermissionsScreen: View {
                 .disabled(requesting)
                 .accessibilityIdentifier("permissions.continue")
                 .padding(.top, 8)
-            StopButton { model.send(.stop) }
-                .padding(.top, 8)
+                .padding(.bottom, 12)
         }
-        .padding(TeleopMetrics.margin)
+        .padding(.horizontal, TeleopMetrics.margin)
+        .safeAreaInset(edge: .bottom, spacing: 0) { StopBand { model.send(.stop) } }
         .onDisappear { request?.cancel() }
     }
 
