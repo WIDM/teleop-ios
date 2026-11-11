@@ -25,10 +25,13 @@ The jaws can turn now, so the cube can be held.
 - The whole task now passes end to end through the app's own code against the simulator
   (`ServerMotionTests.testPickAndPlaceByScript`, 135 s): open, two presses of Turn, two holds to the grasp
   point, close, lift, carry, lower, open.
-- Known limit, in the server: every hold lets the wrist droop a little more, about 0.2 to 0.5 degrees a
-  hold (3 to 6 degrees over the 9 to 35 holds of a hand-driven attempt). The jaw tips then sit up to a
-  centimetre behind where the map shows them. Until the server keeps its wrist target, reach the cube in
-  few holds, and Reset if it took many.
+- Known limit, in the server as published: every hold lets the wrist droop a little more, about 0.2 to 0.5
+  degrees a hold (3 to 6 degrees over the 9 to 35 holds of a hand-driven attempt), because the measured,
+  sagged wrist angle is copied into the wrist target at every hold start and stop. The jaw tips then sit up
+  to a centimetre behind where the map shows them. On such a server, reach the cube in few holds and Reset
+  if it took many. With the wrist target kept as commanded (a four-line change, running on the development
+  simulator since 2026-11-11) the wrist stays within 0.2 degrees over 12 holds, and
+  `ServerMotionTests.testPickAndPlaceAfterManyHolds` passes.
 - Only one of the arm hold, the gripper hold and the jaw turn runs at a time, as on the server: starting one
   ends the other, and a turn is refused while the arm is held.
 - The turn handles are not on the fallback screens (no volume keys) yet.

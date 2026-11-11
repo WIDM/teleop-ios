@@ -166,9 +166,21 @@ final class ServerMotionTests: XCTestCase {
         pump(1.5)
     }
 
+    /// The whole task in as few holds as it takes.
+    func testPickAndPlaceByScript() throws {
+        try pickAndPlace(warmUpHolds: 0)
+    }
+
+    /// The same after a dozen extra holds, the way a hand works its way to the cube. This needs a server that
+    /// keeps its wrist target: one that copies the sagged wrist angle into the target at every hold droops the
+    /// gripper about 4 to 7 degrees over these holds, and the jaws then close beside the cube.
+    func testPickAndPlaceAfterManyHolds() throws {
+        try pickAndPlace(warmUpHolds: 12)
+    }
+
     /// The whole task, done the way an operator would with the app's own controls: open, turn the jaws sideways,
     /// go to the grasp point the mini map shows, close, lift, carry, lower, open.
-    func testPickAndPlaceByScript() throws {
+    private func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = RobotProfile.so101Simulator
         guard let cubeStart = model.link.cubePosition, let goal = model.link.goalPosition,
@@ -178,13 +190,20 @@ final class ServerMotionTests: XCTestCase {
         print(String(format: "PICK start: arm (%.1f, %.1f, %.1f) cube (%.1f, %.1f, %.1f) goal (%.1f, %.1f, %.1f) cm",
                      armStart.x * 100, armStart.y * 100, armStart.z * 100, cubeStart.x * 100, cubeStart.y * 100,
                      cubeStart.z * 100, goal.x * 100, goal.y * 100, goal.z * 100))
-        // Where the reported gripper point has to be for the map's ring to sit on the cube.
-        let grasp = profile.inBase(world: cubeStart) - profile.toolOffset
         let lift = SIMD3<Float>(0, 0, 0.03)
 
         gripper(.open, seconds: 5)
+        for hold in 0..<warmUpHolds {
+            // Above the start pose only: there the jaw tips hang a centimetre over the cube.
+            let up: Float = hold % 2 == 0 ? 0.03 : 0.015
+            moveArm(to: armStart + SIMD3(0, 0, up), "warm-up hold \(hold + 1)", maxHolds: 1)
+        }
         turnJaws(.positive)
         turnJaws(.positive)
+        // Where the reported gripper point has to be for the map's ring to sit on the cube, from where the cube
+        // is now, as the map shows it.
+        let cube = model.link.cubePosition ?? cubeStart
+        let grasp = profile.inBase(world: cube) - profile.toolOffset
         moveArm(to: grasp + lift, "above the grasp point")
         guard moveArm(to: grasp, "grasp point") else {
             print("PICK RESULT: could not reach the grasp point")
@@ -194,14 +213,14 @@ final class ServerMotionTests: XCTestCase {
         gripper(.closed, seconds: 15)
         moveArm(to: grasp + lift, "lift 3 cm", maxHolds: 1)
         pump(1.0)
-        let lifted = (model.link.cubePosition ?? cubeStart).z - cubeStart.z
+        let lifted = (model.link.cubePosition ?? cube).z - cube.z
         print(String(format: "PICK lift: cube rose %.1f cm", lifted * 100))
         guard lifted > 0.015 else {
             print("PICK RESULT: never lifted the cube")
             XCTFail("the cube was not lifted")
             return
         }
-        let overGoal = grasp + SIMD3(goal.x - cubeStart.x, goal.y - cubeStart.y, 0)
+        let overGoal = grasp + SIMD3(goal.x - cube.x, goal.y - cube.y, 0)
         moveArm(to: overGoal + lift, "to the goal")
         moveArm(to: overGoal + SIMD3(0, 0, 0.002), "down onto the goal", maxHolds: 1)
         gripper(.open, seconds: 5)
