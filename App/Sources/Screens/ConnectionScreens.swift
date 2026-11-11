@@ -9,7 +9,6 @@ struct ConnectionDetailsScreen: View {
 
     var body: some View {
         let state = model.session.state
-        let amber = state.latencyIsAmber
         ZStack {
             StandbyScreen(model: model, highLatency: state.commandsBlocked, showStop: false)
                 .allowsHitTesting(false)
@@ -21,9 +20,9 @@ struct ConnectionDetailsScreen: View {
                         .font(.system(size: 22, weight: .semibold))
                         .padding(.bottom, 12)
                     detailRow(
-                        dot: amber ? TeleopColors.statusAmber : TeleopColors.statusGreen,
+                        dot: Self.latencyDot(state),
                         label: "connection.latency",
-                        value: latencyText(state)
+                        value: Self.latencyText(state)
                     )
                     .accessibilityIdentifier("connection.latency_row")
                     Text("connection.server_address")
@@ -104,11 +103,18 @@ struct ConnectionDetailsScreen: View {
         .accessibilityIdentifier("connection.change_server")
     }
 
-    private func latencyText(_ state: FakeTeleopState) -> String {
+    /// A number only for a round trip measured on the link that is up now. The demo link measures none.
+    static func latencyText(_ state: FakeTeleopState) -> String {
+        guard state.connected, let ms = state.latencyMs else { return L10n.string("connection.latency_none") }
         let format = state.latencyIsAmber
             ? L10n.string("connection.latency_high")
             : L10n.string("connection.latency_normal")
-        return String(format: format, state.latencyMs)
+        return String(format: format, ms)
+    }
+
+    private static func latencyDot(_ state: FakeTeleopState) -> Color {
+        guard state.connected, state.latencyMs != nil else { return TeleopColors.textSecondary }
+        return state.latencyIsAmber ? TeleopColors.statusAmber : TeleopColors.statusGreen
     }
 
     private func detailRow(dot: Color, label: LocalizedStringKey, value: String) -> some View {

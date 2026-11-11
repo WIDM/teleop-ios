@@ -138,7 +138,7 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
 // scripts/drift.py fails if FakeTeleopState gains a stored field that is in neither list.
 struct StateKey: Hashable {
     let connected: Bool
-    let latencyMs: Int
+    let latencyMs: Int?
     let commandsBlocked: Bool
     let gripper: GripperState
     let arm: ArmSide

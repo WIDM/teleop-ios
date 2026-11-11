@@ -32,7 +32,7 @@ final class S1ConnectFlowTests: XCTestCase {
         s.perform(.connect)
         XCTAssertEqual(s.route, .p5)
         XCTAssertTrue(s.state.connected)
-        XCTAssertEqual(s.state.latencyMs, 80)
+        XCTAssertNil(s.state.latencyMs, "the demo link measures no latency")
     }
 
     func testS1BackReturnsToP5() {

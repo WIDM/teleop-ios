@@ -203,7 +203,7 @@ public struct TeleopSession: Equatable, Sendable {
             guard state.liveLink, state.connected else { return }
             // One slow sample is noise (a stalled radio, the app waking up). Two in a row is a slow link.
             let slow = ms >= FakeTeleopState.blockLatencyMs
-            let confirmed = slow && (state.commandsBlocked || state.latencyMs >= FakeTeleopState.blockLatencyMs)
+            let confirmed = slow && (state.commandsBlocked || (state.latencyMs ?? 0) >= FakeTeleopState.blockLatencyMs)
             state.latencyMs = ms
             if confirmed {
                 state.commandsBlocked = true

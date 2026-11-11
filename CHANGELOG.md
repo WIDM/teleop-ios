@@ -27,7 +27,8 @@ real.
   The arm stopped." E-stop still stays on screen when the link drops.
 - No faked latency. Tapping the latency row used to set 420 ms and block commands, even on a real server, and
   holding the mode pill opened a debug sheet with "Simulate high latency". The high-latency screen stays; it comes
-  from two slow round trips in a row on a real link.
+  from two slow round trips in a row on a real link. The latency row says "Not measured" until a round trip has been
+  measured on the link that is up, instead of a fixed 80 ms; the demo measures none.
 - No "Robot heartbeat: Received just now" on the connection sheet; it was fixed text. The connection chip now
   follows the connection alone, so the demo no longer says "Not connected" after Disconnect and Connect, and the
   chip on the connect screen no longer always says "Not connected".

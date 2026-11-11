@@ -5,7 +5,7 @@ final class FakeTeleopStateTests: XCTestCase {
     func testDefaults() {
         let s = FakeTeleopState()
         XCTAssertFalse(s.connected)
-        XCTAssertEqual(s.latencyMs, 80)
+        XCTAssertNil(s.latencyMs, "nothing measured yet")
         XCTAssertEqual(s.serverAddress, "")
     }
 
@@ -15,7 +15,7 @@ final class FakeTeleopStateTests: XCTestCase {
         s.commandsBlocked = true
         s.markConnected()
         XCTAssertTrue(s.connected)
-        XCTAssertEqual(s.latencyMs, 80)
+        XCTAssertNil(s.latencyMs, "a new connection has no sample yet")
         XCTAssertFalse(s.commandsBlocked)
     }
 

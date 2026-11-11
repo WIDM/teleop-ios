@@ -501,7 +501,10 @@ final class TeleopSessionTests: XCTestCase {
         s.perform(.resetScene)
         XCTAssertEqual(s.route, .p4)
         XCTAssertFalse(s.state.commandsBlocked)
-        XCTAssertEqual(s.state.latencyMs, FakeTeleopState.normalLatencyMs)
+        XCTAssertNil(s.state.latencyMs, "the old samples no longer count")
+        s.perform(.linkLatency(ms: FakeTeleopState.blockLatencyMs))
+        XCTAssertFalse(s.state.commandsBlocked, "after a reset, one slow sample is noise again")
+        XCTAssertEqual(s.route, .p4)
     }
 
     func testResetStopsArmAndOpensGripperWithoutHaptics() {

@@ -305,6 +305,22 @@
         }
       }
     },
+    "connection.latency_none": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not measured"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未量測"
+          }
+        }
+      }
+    },
     "connection.latency_normal": {
       "localizations": {
         "en": {

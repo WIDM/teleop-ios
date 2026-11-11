@@ -31,8 +31,9 @@ for name in sorted(enum_cases ^ table_cases):
 state_source = (
     ROOT / "Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift"
 ).read_text()
+# An optional field may have no initializer; a computed property ends its line with "{".
 stored = set(
-    re.findall(r"public (?:private\(set\) )?var (\w+)(?:: *[\w.]+)? *=", state_source)
+    re.findall(r"^ *public (?:private\(set\) )?var (\w+)(?:: *[\w.?]+)? *(?:=|$)", state_source, re.M)
 )
 key_body = re.search(r"struct StateKey: Hashable \{(.*?)\n\}", main, re.S).group(1)
 key_fields = set(re.findall(r"let (\w+):", key_body))

@@ -52,7 +52,7 @@ final class StubServerTests: XCTestCase {
         XCTAssertEqual(model.session.route, .p5)
 
         // The probe goes out once a second; a local round trip is a few milliseconds.
-        XCTAssertTrue(wait(3, until: { model.session.state.latencyMs < 80 }), "no latency measured")
+        XCTAssertTrue(wait(3, until: { model.session.state.latencyMs.map { $0 < 80 } ?? false }), "no latency measured")
 
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)

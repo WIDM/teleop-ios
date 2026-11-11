@@ -12,7 +12,8 @@ public enum TurnDirection: Sendable {
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
     public var connected = false
-    public var latencyMs = 80
+    /// Live link only: the last measured round trip. Nil until the first sample on a connection and after a reset.
+    public var latencyMs: Int?
     public var commandsBlocked = false
     public var gripper: GripperState = .open
     public var arm: ArmSide = .left
@@ -36,20 +37,19 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public init() {}
 
-    public static let normalLatencyMs = 80
     public static let amberLatencyMs = 150
     /// Round trip at or above this blocks commands.
     public static let blockLatencyMs = 400
     public static let smoothingRange = 0.0...1.0
 
     public var latencyIsAmber: Bool {
-        commandsBlocked || latencyMs >= Self.amberLatencyMs
+        commandsBlocked || (latencyMs ?? 0) >= Self.amberLatencyMs
     }
 
     public mutating func markConnected() {
         connected = true
         connectionLost = false
-        latencyMs = Self.normalLatencyMs
+        latencyMs = nil
         commandsBlocked = false
     }
 
@@ -61,7 +61,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     }
 
     public mutating func clearLatency() {
-        latencyMs = Self.normalLatencyMs
+        latencyMs = nil
         commandsBlocked = false
     }
 
