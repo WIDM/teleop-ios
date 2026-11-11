@@ -21,6 +21,7 @@ public struct GripperLimits: Equatable, Sendable {
 ///   less than 2 mm in 1.0 s.
 /// - GRIP on contact while closing; from then on the jaws count as gripping until an open, a scene reset or a new
 ///   server run.
+/// - Nothing for a hold the server ends with a success, and nothing judged while the success shows.
 public struct FeedbackMonitor {
     public static let acceptMinMs = 100
     public static let acceptMaxMs = 300
@@ -100,8 +101,9 @@ public struct FeedbackMonitor {
     public mutating func startRefused(reason: String, at now: Int) -> [FeedbackEvent] {
         guard let current = engaged else { return [] }
         engaged = nil
-        // An emergency stop is told by its own event, never as a refusal or a let-go.
-        if Self.emergencyStopReasons.contains(reason) { return [] }
+        // A success is told by the recorder narration, and an emergency stop by its own event; neither is a
+        // refusal or a let-go.
+        if reason == TeleopLink.successReason || Self.emergencyStopReasons.contains(reason) { return [] }
         if !current.accepted {
             switch reason {
             case "busy": return [.refused(.busy)]
@@ -153,7 +155,8 @@ public struct FeedbackMonitor {
             if let before = episode, before != number { gripping = false }
             episode = number
         }
-        guard var current = engaged, now >= current.sentAtMs, !state.estop else { return [] }
+        // While the success shows nothing moves on purpose, and the hold has ended or is about to.
+        guard var current = engaged, now >= current.sentAtMs, !state.estop, !state.simBusy else { return [] }
         var events: [FeedbackEvent] = []
         switch current.kind {
         case .pose:

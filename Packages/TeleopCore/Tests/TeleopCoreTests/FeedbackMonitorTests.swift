@@ -55,6 +55,29 @@ final class FeedbackMonitorTests: XCTestCase {
         XCTAssertNil(monitor.engagedHold)
     }
 
+    /// §5.4: a hold ended by success plays no LETGO.
+    func testAHoldTheServerEndsWithASuccessEndsWithoutACue() {
+        monitor.startSent(.pose, restart: false, at: 0)
+        _ = monitor.tick(at: 300)
+        XCTAssertEqual(monitor.startRefused(reason: "task_success", at: 2000), [])
+        XCTAssertNil(monitor.engagedHold)
+        monitor.startSent(.gripper(.open), restart: false, at: 3000)
+        XCTAssertEqual(monitor.startRefused(reason: "task_success", at: 3050), [], "nor a NO before GO")
+    }
+
+    /// The success display holds the arm still while the phone may keep moving; that is not "Blocked.".
+    func testNothingIsJudgedWhileTheSuccessShows() {
+        monitor.startSent(.pose, restart: false, at: 0)
+        _ = monitor.tick(at: 300)
+        let arm = SIMD3<Double>(0, -0.14, 0.16)
+        monitor.commanded(arm + SIMD3(0, 0, 0.03))
+        var events: [FeedbackEvent] = []
+        for t in stride(from: 400, through: 2400, by: 200) {
+            events += monitor.observe(ServerState(activity: .taskSuccess, endEffector: arm, taskSuccess: true, episode: 1), at: t)
+        }
+        XCTAssertEqual(events, [])
+    }
+
     func testAHoldTheAppEndsIsALetGoWithItsReason() {
         monitor.startSent(.pose, restart: false, at: 0)
         XCTAssertEqual(monitor.endedByApp(.tooFast), [.letGo(.tooFast)])

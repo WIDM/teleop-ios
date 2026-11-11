@@ -197,6 +197,28 @@ final class TeleopLinkTests: XCTestCase {
         )
     }
 
+    /// The server ends a control that is still held when the task succeeds, with `ok task_success` for its start.
+    func testAControlTheServerEndsWithASuccessIsNoLongerActive() {
+        bringUp()
+        link.poseStart(params)
+        var seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .holdRefused(reason: TeleopLink.successReason))
+        XCTAssertFalse(link.holdActive)
+        link.poseUpdate(positionMeters: [0, 0, 0.01])
+        XCTAssertEqual(types.last, "pose_start", "nothing more is streamed for it")
+        link.gripperJogStart(.open)
+        seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .gripperRefused(reason: "task_success"))
+        XCTAssertFalse(link.gripperJogActive)
+        link.orientStart()
+        seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .turnRefused(reason: "task_success"))
+        XCTAssertFalse(link.turnActive)
+    }
+
     func testClosedTransportDropsTheHoldAndReadiness() {
         bringUp()
         link.poseStart(params)

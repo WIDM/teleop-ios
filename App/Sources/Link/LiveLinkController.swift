@@ -472,7 +472,8 @@ final class LiveLinkController {
             onAction?(.turnEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
-            lastRefusal = (reason, nowMs())
+            // A success is not the cause of a later emergency stop.
+            if reason != TeleopLink.successReason { lastRefusal = (reason, nowMs()) }
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             holdEnded()
             onAction?(.holdArmEnd)

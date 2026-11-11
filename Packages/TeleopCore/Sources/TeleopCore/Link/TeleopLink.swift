@@ -64,6 +64,8 @@ public final class TeleopLink {
     public static let resetRetryMs = 300
     /// A reset's answer comes when the scene has settled, a few seconds at the slowest rate.
     static let resetAnswerMs = 10_000
+    /// The final ack reason of a control the server ended because the task succeeded while it was held.
+    public static let successReason = "task_success"
 
     /// A control's start, built when it goes out.
     private enum HeldStart {
@@ -381,28 +383,34 @@ public final class TeleopLink {
                 reset = nil
                 return .resetRefused(reason: reason)
             }
-            guard rejected else { return finishedPose ? .holdStopped : nil }
-            // Only the current hold's refusal ends it. A late refusal of an earlier press must not cancel this one.
-            if sentType == "pose_start", seq == holdSeq {
-                holdActive = false
-                holdSeq = nil
-                return .holdRefused(reason: reason)
-            }
-            // Same rule for the gripper: only the running jog's refusal (busy, watchdog) ends it.
-            if sentType == "gripper_jog_start", seq == gripperJogSeq {
-                gripperJogActive = false
-                gripperJogSeq = nil
-                return .gripperRefused(reason: reason)
-            }
-            if sentType == "orient_start", seq == turnSeq {
-                turnActive = false
-                turnSeq = nil
-                return .turnRefused(reason: reason)
-            }
-            return .rejected(type: sentType, reason: reason)
+            if finishedPose, !rejected { return .holdStopped }
+            // A final ack for the control that is active now, with no stop sent: the server refused it or ended it
+            // while it is still held, as a success does (`ok task_success`).
+            if let ended = endActive(sentType, seq: seq, reason: reason) { return ended }
+            return rejected ? .rejected(type: sentType, reason: reason) : nil
         default:
             return nil
         }
+    }
+
+    /// Only the active control's own final ack ends it. A late refusal of an earlier press must not cancel this one.
+    private func endActive(_ sentType: String, seq: Int, reason: String) -> LinkEvent? {
+        if sentType == "pose_start", seq == holdSeq {
+            holdActive = false
+            holdSeq = nil
+            return .holdRefused(reason: reason)
+        }
+        if sentType == "gripper_jog_start", seq == gripperJogSeq {
+            gripperJogActive = false
+            gripperJogSeq = nil
+            return .gripperRefused(reason: reason)
+        }
+        if sentType == "orient_start", seq == turnSeq {
+            turnActive = false
+            turnSeq = nil
+            return .turnRefused(reason: reason)
+        }
+        return nil
     }
 
     /// Sends the start now, or keeps it back while the server is still finishing the control a stop just ended.

@@ -1367,4 +1367,19 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt, [.play(.no)])
         XCTAssertEqual(speech.spoken, ["No link."])
     }
+
+    /// §5.4: a hold the server ends with a success plays no LETGO; the session's hold ends with it.
+    func testAHoldEndedBySuccessEndsQuietly() {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        for _ in 0..<10 { tick() }
+        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "task_success"])
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(felt.felt, [.play(.go)])
+        XCTAssertEqual(speech.spoken, [])
+        let sent = transport.sent.count
+        tick()
+        XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_update"), "nothing more is streamed for it")
+    }
 }
