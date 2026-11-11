@@ -23,8 +23,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var serverAddress = ""
     public var tutorialDone = false
     public var emergencyStop = false
-    public var isRecording = false
-    public var recordingElapsedSec = 0
     public var developerMode = false
     public var sensitivity = 1.0
     public private(set) var smoothing = 0.3
@@ -84,18 +82,17 @@ public struct FakeTeleopState: Equatable, Sendable {
         commandsBlocked = false
     }
 
-    /// Back to mode select: the link is dropped and nothing keeps moving or recording.
+    /// Back to mode select: the link is dropped and nothing keeps moving.
     public mutating func leaveSession() {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
-        isRecording = false
         connected = false
         heartbeatOk = true
         clearLatency()
     }
 
-    /// Reset scene: arm stopped, gripper back to open, latency block cleared. Recording keeps running.
+    /// Reset scene: arm stopped, gripper back to open, latency block cleared.
     public mutating func resetScene() {
         armMoving = false
         gripperMoving = nil
@@ -119,22 +116,4 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func turnJaws(toward direction: TurnDirection) { jawTurning = direction }
 
     public mutating func stopTurn() { jawTurning = nil }
-
-    public mutating func startRecording() {
-        isRecording = true
-        recordingElapsedSec = 0
-    }
-
-    public mutating func stopRecording() { isRecording = false }
-
-    public mutating func tickRecording() {
-        if isRecording { recordingElapsedSec += 1 }
-    }
-
-    /// mm:ss, zero padded (visual-spec v1.1).
-    public var recordingTimeLabel: String {
-        let minutes = recordingElapsedSec / 60
-        let seconds = recordingElapsedSec % 60
-        return (minutes < 10 ? "0" : "") + String(minutes) + ":" + (seconds < 10 ? "0" : "") + String(seconds)
-    }
 }

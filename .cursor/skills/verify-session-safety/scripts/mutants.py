@@ -252,23 +252,13 @@ VARIANTS = [
         ],
         ["FAIL S8", "FAIL U6"],
     ),
-    (
-        "recording tick on settings opens S4",
-        [
-            (
-                "state.tickRecording()\n",
-                "state.tickRecording()\n            if route == .s6 { go(.s4) }\n",
-            )
-        ],
-        ["FAIL U2"],
-    ),
 ]
 MAP_VARIANTS = [("S5 loses STOP in the map", "s5", ",stop", ["FAIL U5"])]
 FALLBACK_STRUCT = "struct FallbackControlScreen: View {"
 SOURCE_VARIANTS = [
     (
         "S5 loses STOP in the source",
-        "Screens/RecordingScreens.swift",
+        "Screens/FallbackScreen.swift",
         FALLBACK_STRUCT,
         "StopButton { model.send(.stop) }",
         "StopButton {}",

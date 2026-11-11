@@ -12,11 +12,8 @@ public enum Route: String, CaseIterable, Sendable {
     case t3 = "t3_tutorial"
     case s1 = "s1_connect"
     case s2 = "s2_permissions"
-    case s3a = "s3a_recording"
-    case s3b = "s3b_record_end"
     case s4 = "s4_estopped"
     case s5 = "s5_fallback"
-    case s5a = "s5a_fallback_recording"
     case s6 = "s6_settings"
     case s7 = "s7_errors"
 }

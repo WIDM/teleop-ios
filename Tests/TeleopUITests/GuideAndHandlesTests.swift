@@ -55,7 +55,6 @@ final class GuideAndHandlesTests: XCTestCase {
     }
 
     func testFiveHandlesStayClearOfTheOtherControlsOnStandby() { assertFiveHandlesClear(of: "p4_standby") }
-    func testFiveHandlesStayClearOfTheOtherControlsWhileRecording() { assertFiveHandlesClear(of: "s3a_recording") }
     func testFiveHandlesStayClearOfTheOtherControlsUnderTheLatencyBanner() { assertFiveHandlesClear(of: "p6_high_latency") }
 
     func testTiltHandlesMoveOnlyWhilePressed() {

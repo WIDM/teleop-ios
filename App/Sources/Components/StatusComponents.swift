@@ -50,18 +50,14 @@ struct ConnectionChip: View {
 
 struct ModePill: View {
     let textKey: LocalizedStringKey
-    var color: Color = TeleopColors.primary
-    var showsDot = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if showsDot { Circle().fill(.white).frame(width: 10, height: 10) }
-            Text(textKey).font(.system(size: 14))
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(color, in: Capsule())
+        Text(textKey)
+            .font(.system(size: 14))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(TeleopColors.primary, in: Capsule())
     }
 }
 
@@ -70,26 +66,17 @@ struct ControlStatusBar: View {
     var connected: Bool
     var amber = false
     var heartbeatOk = true
-    var recording = false
     let onConnectionTap: () -> Void
 
     var body: some View {
         HStack {
-            pill
+            ModePill(textKey: modeKey)
             Spacer()
             ConnectionChip(connected: connected, amber: amber, heartbeatOk: heartbeatOk, onTap: onConnectionTap)
         }
         .frame(minHeight: TeleopMetrics.touch)
         .padding(.horizontal, 8)
         .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-    }
-
-    private var pill: some View {
-        ModePill(
-            textKey: modeKey,
-            color: recording ? TeleopColors.recording : TeleopColors.primary,
-            showsDot: recording
-        )
     }
 }
 
@@ -137,22 +124,6 @@ struct VolumeHintBox: View {
         .foregroundStyle(TeleopColors.textSecondary)
         .padding(12)
         .background(TeleopColors.card.opacity(0.92), in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-    }
-}
-
-struct BlinkingDot: View {
-    var color: Color = .white
-    var size: CGFloat = 8
-    @State private var dim = false
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: size, height: size)
-            .opacity(dim ? 0.15 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { dim = true }
-            }
     }
 }
 

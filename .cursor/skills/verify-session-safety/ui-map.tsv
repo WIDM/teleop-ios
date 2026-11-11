@@ -1,22 +1,18 @@
 # route	screen struct	actions the screen itself can send
 # scripts/drift.py compares each row with RootView.screen(for:) and with the model.send calls in that struct.
-# recordingTick is not listed: RootView sends it on every route while recording, and main.swift adds it there.
 p1	ModeSelectScreen	selectCloud,selectOnSite,modeNext
 p2	CloudCheckPassScreen	cloudEnterStandby,back,cloudSimulateFail
 p3	CloudCheckFailScreen	cloudRecheck,cloudUseOnSite
-p4	StandbyScreen	openConnection,openRecording,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
+p4	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
 p5	ConnectionDetailsScreen	changeServer,openKeyboard,closeConnection,stop
-p6	StandbyScreen	openConnection,openRecording,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
+p6	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
 p7	ConnectionDetailsScreen	keyboardDone,stop
 t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
 t2	TutorialScreen	stop,tutorialSkip,tutorialNext2
 t3	TutorialScreen	stop,back,tutorialNext3
 s1	ConnectScreen	openConnection,connect,disconnect,s1Back,stop
 s2	PermissionsScreen	openConnection,permissionsContinue,stop
-s3a	RecordingScreen	openConnection,stopRecording,openSettings,stop,recordingAppeared,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
-s3b	RecordEndScreen	openConnection,discardRecording,saveRecording,stop
 s4	EStopScreen	openConnection,releaseStop,stop
-s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,startFallbackRecording,gripperStartClosed,gripperStartOpen,gripperEnd,openSettings,stop
-s5a	RecordingScreen	openConnection,stopRecording,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd,openSettings,stop,recordingAppeared,holdArmStart,holdArmEnd
+s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,openSettings,stop
 s6	SettingsScreen	back,settingsDone,replayTutorial,stop,switchMode,toggleLiveLink
 s7	ErrorsScreen	openConnection,reconnect,backToConnect,stop

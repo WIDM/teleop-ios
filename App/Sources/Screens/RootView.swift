@@ -40,19 +40,11 @@ struct RootView: View {
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
         }
-        .task(id: model.session.state.isRecording) {
-            guard model.session.state.isRecording else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                if Task.isCancelled { break }
-                model.send(.recordingTick)
-            }
-        }
     }
 
     /// Control screens track the phone. That also keeps the camera in use for the volume keys.
     private static func tracksPose(_ route: Route) -> Bool {
-        [.p4, .p6, .s3a, .s5, .s5a].contains(route)
+        [.p4, .p6, .s5].contains(route)
     }
 
     @ViewBuilder
@@ -70,11 +62,8 @@ struct RootView: View {
         case .t3: TutorialScreen(model: model, step: 3)
         case .s1: ConnectScreen(model: model)
         case .s2: PermissionsScreen(model: model)
-        case .s3a: RecordingScreen(model: model, fallback: false)
-        case .s3b: RecordEndScreen(model: model)
         case .s4: EStopScreen(model: model)
         case .s5: FallbackControlScreen(model: model)
-        case .s5a: RecordingScreen(model: model, fallback: true)
         case .s6: SettingsScreen(model: model)
         case .s7: ErrorsScreen(model: model)
         }

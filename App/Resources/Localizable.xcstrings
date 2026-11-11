@@ -785,54 +785,6 @@
         }
       }
     },
-    "control.record": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Record"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "錄製"
-          }
-        }
-      }
-    },
-    "control.recording": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recording"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "錄製中"
-          }
-        }
-      }
-    },
-    "control.recording_time": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recording %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "錄製中 %@"
-          }
-        }
-      }
-    },
     "control.reset": {
       "localizations": {
         "en": {
@@ -1085,22 +1037,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "只在音量鍵無法使用時顯示"
-          }
-        }
-      }
-    },
-    "fallback.stop_recording_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stop recording is bottom-left, same spot as Record"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止錄製在左下角，和錄製按鈕同一個位置"
           }
         }
       }
@@ -1517,70 +1453,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要相機權限"
-          }
-        }
-      }
-    },
-    "record.discard_hold": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Discard (hold 1s)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "捨棄（按住 1 秒）"
-          }
-        }
-      }
-    },
-    "record.save": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存"
-          }
-        }
-      }
-    },
-    "record.save_or_discard_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save or discard this take? The arm stays still until you choose."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "要儲存還是捨棄這段錄製？選好之前手臂不會動。"
-          }
-        }
-      }
-    },
-    "recording.volume_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold vol+: move arm with the phone, release to stop\nHold vol−: close. Left edge: open (release vol+ first)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住音量＋：手機帶動手臂，放開就停止\n按住音量－：夾爪關。左側：夾爪開（先放開音量＋）"
           }
         }
       }

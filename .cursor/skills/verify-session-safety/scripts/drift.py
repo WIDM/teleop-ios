@@ -45,7 +45,7 @@ HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
 KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
 GRIPPER_ACTIONS = {"gripperStart", "gripperEnd"}
 TURN_ACTIONS = {"turnStart", "turnEnd"}
-ROOT_VIEW_ACTIONS = {"holdArmEnd", "recordingTick"}
+ROOT_VIEW_ACTIONS = {"holdArmEnd"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
 )
@@ -122,8 +122,6 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
     }
     for name in sorted(names - struct_sends.get(screen, set())):
         problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
-    if "recordingTick" in names:
-        problems.append(f"{route}: recordingTick is global, remove it from ui-map")
     listed_by_struct.setdefault(screen, set()).update(names)
 for route in sorted(set(screen_of_route) - map_routes):
     problems.append(f"{route} is in RootView but not in ui-map")

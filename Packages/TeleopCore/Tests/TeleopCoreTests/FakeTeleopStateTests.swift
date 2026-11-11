@@ -67,15 +67,4 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertEqual([TurnDirection.positive, .negative, .tiltDown, .tiltUp].map(\.isTilt), [false, false, true, true])
     }
 
-    func testRecordingClock() {
-        var s = FakeTeleopState()
-        s.tickRecording()
-        XCTAssertEqual(s.recordingElapsedSec, 0)
-        s.startRecording()
-        for _ in 0..<72 { s.tickRecording() }
-        XCTAssertEqual(s.recordingTimeLabel, "01:12")
-        s.stopRecording()
-        s.tickRecording()
-        XCTAssertEqual(s.recordingElapsedSec, 72)
-    }
 }

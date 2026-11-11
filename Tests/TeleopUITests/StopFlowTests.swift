@@ -61,21 +61,6 @@ final class StopFlowTests: XCTestCase {
         app.launch()
     }
 
-    func testRecordingFallbackOffersHoldPadAndGripper() {
-        relaunch(at: "s5a_fallback_recording")
-        let pad = element("fallback.hold_recording")
-        XCTAssertTrue(pad.waitForExistence(timeout: 5))
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "fallback.hold_recording").count, 1)
-        XCTAssertEqual(pad.value as? String, "stopped")
-        XCTAssertTrue(pad.valuesDuringPress().contains("moving"))
-        XCTAssertEqual(pad.value as? String, "stopped")
-        for id in ["gripper.close", "gripper.open"] {
-            expect(id)
-            XCTAssertTrue(element(id).isHittable, id)
-            XCTAssertEqual(element(id).value as? String, "stopped")
-        }
-    }
-
     func testFallbackGripperButtonsMoveOnlyWhilePressed() {
         relaunch(at: "s5_fallback")
         for id in ["gripper.close", "gripper.open"] {

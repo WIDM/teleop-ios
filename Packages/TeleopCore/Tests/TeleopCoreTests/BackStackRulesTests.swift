@@ -28,9 +28,8 @@ final class BackStackRulesTests: XCTestCase {
         XCTAssertTrue(BackStackRules.handlesBack(.p5))
     }
 
-    func testSettingsAndRecordingBackToStandby() {
+    func testSettingsBacksToStandby() {
         XCTAssertEqual(BackStackRules.previous(of: .s6), .p4)
-        XCTAssertEqual(BackStackRules.previous(of: .s3a), .p4)
     }
 
     func testChangeServerEdgeFromP5ToS1() {
@@ -54,7 +53,7 @@ final class BackStackRulesTests: XCTestCase {
     }
 
     func testEveryRouteReachableFromP1() {
-        XCTAssertEqual(Route.allCases.count, 19)
+        XCTAssertEqual(Route.allCases.count, 16)
         XCTAssertEqual(BackStackRules.reachable(from: .p1), Set(Route.allCases))
     }
 

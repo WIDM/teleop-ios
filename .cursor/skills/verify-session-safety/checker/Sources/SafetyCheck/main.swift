@@ -34,14 +34,7 @@ let actionTable: [(String, TeleopAction)] = [
     ("openSettings", .openSettings),
     ("settingsDone", .settingsDone),
     ("replayTutorial", .replayTutorial),
-    ("openRecording", .openRecording),
-    ("recordingAppeared", .recordingAppeared),
-    ("recordingTick", .recordingTick),
-    ("stopRecording", .stopRecording),
-    ("saveRecording", .saveRecording),
-    ("discardRecording", .discardRecording),
     ("openFallback", .openFallback),
-    ("startFallbackRecording", .startFallbackRecording),
     ("gripperStartClosed", .gripperStart(.closed)),
     ("gripperStartOpen", .gripperStart(.open)),
     ("gripperEnd", .gripperEnd),
@@ -69,7 +62,6 @@ let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0
 // ModeSelectScreen changes the mode directly on the state, not through perform.
 // toggleLiveLink is the Settings switch: AppModel.liveLink sends switchMode, then flips the flag.
 let stateCalls = ["selectCloud", "selectOnSite", "toggleLiveLink"]
-let recordingTickBound = 2
 
 struct Node {
     var session: TeleopSession
@@ -116,7 +108,6 @@ let properties: [Property] = [
 
 func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, restartedLoop: Bool)? {
     var session = node.session
-    if name == "recordingTick", session.state.recordingElapsedSec >= recordingTickBound { return nil }
     switch name {
     case "selectCloud": session.state.selectCloud()
     case "selectOnSite": session.state.selectOnSite()
@@ -164,8 +155,6 @@ struct StateKey: Hashable {
     let arm: ArmSide
     let tutorialDone: Bool
     let emergencyStop: Bool
-    let isRecording: Bool
-    let recordingElapsedSec: Int
     let developerMode: Bool
     let armMoving: Bool
     let gripperMoving: GripperState?
@@ -191,8 +180,6 @@ func key(_ node: Node) -> StateKey {
         arm: s.arm,
         tutorialDone: s.tutorialDone,
         emergencyStop: s.emergencyStop,
-        isRecording: s.isRecording,
-        recordingElapsedSec: s.recordingElapsedSec,
         developerMode: s.developerMode,
         armMoving: s.armMoving,
         gripperMoving: s.gripperMoving,
@@ -384,10 +371,9 @@ let known = Set(
 
 let allNames = actionTable.map(\.0) + stateCalls
 let sessionRun = explore(actions: { _ in allNames }, shippedUI: false, check: sessionChecks)
-// RootView sends these from any route: the recording timer, and holdArmEnd when the app leaves the foreground.
+// RootView sends holdArmEnd from any route when the app leaves the foreground.
 func shippedActions(_ node: Node) -> [String] {
     var names = uiMap[node.session.route]!
-    if node.session.state.isRecording { names.append("recordingTick") }
     if node.session.state.armMoving, !names.contains("holdArmEnd") { names.append("holdArmEnd") }
     if node.session.state.gripperMoving != nil, !names.contains("gripperEnd") { names.append("gripperEnd") }
     if node.session.state.jawTurning != nil, !names.contains("turnEnd") { names.append("turnEnd") }

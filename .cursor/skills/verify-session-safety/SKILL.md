@@ -35,7 +35,7 @@ Each property prints one status:
 Two groups of properties:
 
 - **S properties, every action in every state.** The session rules on their own. They guard paths that do not go through today's screens, such as volume keys and a real link.
-- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `recordingTick` while recording and `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, a gripper hold and a jaw turn, as `ArmHoldModifier.onDisappear` and `HeldControlModifier.onDisappear` do. A U failure is reachable by a user tapping today.
+- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, a gripper hold and a jaw turn, as `ArmHoldModifier.onDisappear` and `HeldControlModifier.onDisappear` do. A U failure is reachable by a user tapping today.
 
 ## Real bug or checker error
 
@@ -73,7 +73,7 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 
 U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable; `verify-teleop-ios` covers that.
 
-`drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4 and p6 (`StandbyScreen`), p5 and p7 (`ConnectionDetailsScreen`), t1 to t3 (`TutorialScreen`), s3a and s5a (`RecordingScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
+`drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4 and p6 (`StandbyScreen`), p5 and p7 (`ConnectionDetailsScreen`), t1 to t3 (`TutorialScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
 
 ## Scope and assumptions
 
@@ -81,7 +81,6 @@ Verified: every reachable combination of the `FakeTeleopState` fields in `StateK
 
 Bounds:
 
-- Recording time stops growing at 2 ticks. No guard reads `recordingElapsedSec`.
 - The back stack is left out of state identity (see below).
 
 Left out:
@@ -118,7 +117,7 @@ Sync commit: `4d86bab`
 ## Coverage
 
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopSession.swift`: `perform`, `acceptsControl`, `canControl`, `go`.
-- `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop, gripper and recording state.
+- `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop and gripper state.
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
 - `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `HeldControlModifier` (gripper and jaw turn) and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`, `JawTurnHandle`, `LeftHandles`).

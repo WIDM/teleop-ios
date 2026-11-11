@@ -149,29 +149,6 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(s.state.gripper, .closed)
     }
 
-    func testRecordingFlow() {
-        var s = TeleopSession(start: .p4)
-        s.perform(.openRecording)
-        s.perform(.recordingAppeared)
-        s.perform(.recordingTick)
-        s.perform(.recordingTick)
-        XCTAssertEqual(s.state.recordingElapsedSec, 2)
-        s.perform(.stopRecording)
-        XCTAssertEqual(s.route, .s3b)
-        XCTAssertFalse(s.state.isRecording)
-        s.perform(.saveRecording)
-        XCTAssertEqual(s.route, .p4)
-    }
-
-    func testFallbackRecordingBackReturnsToFallback() {
-        var s = TeleopSession(start: .p4)
-        s.perform(.openFallback)
-        s.perform(.startFallbackRecording)
-        XCTAssertEqual(s.route, .s5a)
-        s.perform(.back)
-        XCTAssertEqual(s.route, .s5)
-    }
-
     func testSettingsDoneReturnsToStandby() {
         var s = TeleopSession(start: .p4)
         s.perform(.openSettings)
@@ -551,17 +528,6 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertTrue(s.drainHaptics().isEmpty)
     }
 
-    func testResetKeepsRecordingRunning() {
-        var s = TeleopSession(start: .p4)
-        s.state.markConnected()
-        s.perform(.openRecording)
-        s.perform(.recordingAppeared)
-        XCTAssertTrue(s.state.isRecording)
-        s.perform(.resetScene)
-        XCTAssertTrue(s.state.isRecording)
-        XCTAssertEqual(s.route, .s3a)
-    }
-
     func testResetIgnoredWhenEStoppedOrDisconnected() {
         var stopped = TeleopSession(start: .p4)
         stopped.state.markConnected()
@@ -580,15 +546,12 @@ final class TeleopSessionTests: XCTestCase {
     func testSwitchModeReturnsToModeSelectDisconnected() {
         var s = TeleopSession(start: .p4)
         s.state.markConnected()
-        s.perform(.openRecording)
-        s.perform(.recordingAppeared)
         s.perform(.holdArmStart)
         s.perform(.openSettings)
         s.perform(.switchMode)
         XCTAssertEqual(s.route, .p1)
         XCTAssertFalse(s.state.connected)
         XCTAssertFalse(s.state.armMoving)
-        XCTAssertFalse(s.state.isRecording)
         s.perform(.back)
         XCTAssertEqual(s.route, .p1)
     }

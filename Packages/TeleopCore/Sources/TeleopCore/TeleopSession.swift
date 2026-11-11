@@ -24,14 +24,7 @@ public enum TeleopAction: Equatable, Sendable {
     case openSettings
     case settingsDone
     case replayTutorial
-    case openRecording
-    case recordingAppeared
-    case recordingTick
-    case stopRecording
-    case saveRecording
-    case discardRecording
     case openFallback
-    case startFallbackRecording
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
     case gripperStart(GripperState)
     case gripperEnd
@@ -158,21 +151,8 @@ public struct TeleopSession: Equatable, Sendable {
         case .replayTutorial:
             state.tutorialDone = false
             go(.t1)
-        case .openRecording:
-            go(.s3a)
-        case .recordingAppeared:
-            if !state.isRecording { state.startRecording() }
-        case .recordingTick:
-            state.tickRecording()
-        case .stopRecording:
-            state.stopRecording()
-            go(.s3b)
-        case .saveRecording, .discardRecording:
-            go(.p4)
         case .openFallback:
             go(.s5)
-        case .startFallbackRecording:
-            go(.s5a)
         case .gripperStart(let target):
             guard acceptsControl else { return }
             // H8: the arm is moving, so the gripper cannot move.

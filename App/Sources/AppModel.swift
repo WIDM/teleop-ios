@@ -141,8 +141,8 @@ final class AppModel {
             stopCause = nil
         }
         pendingServerCause = nil
-        // The recording clock and the latency probe tick every second; logging them would bury everything else.
-        if action != .recordingTick, !Self.isLatency(action) { log("→ \(action)") }
+        // The latency probe ticks every second; logging it would bury everything else.
+        if !Self.isLatency(action) { log("→ \(action)") }
         logPose(wasMoving: wasMoving)
         for command in session.drainHaptics() {
             haptics.run(command)
