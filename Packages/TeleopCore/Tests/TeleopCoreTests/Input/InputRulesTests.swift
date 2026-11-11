@@ -248,6 +248,72 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.press(.upper, after: 1), [.startTranslation])
     }
 
+    func testAKeyWhoseReleaseWasLostWhileAwayCostsOnePressWithNo() {
+        var rig = Rig(.screenTurns)
+        rig.press(.upper)
+        XCTAssertEqual(rig.send(.endAllHolds, after: 0.2), [.stopTranslation])
+        // Let go of while the app was inactive: no key-up arrives.
+        XCTAssertEqual(rig.send(.becameActive, after: 3), [])
+        XCTAssertTrue(rig.arbiter.held.isEmpty)
+        XCTAssertFalse(rig.arbiter.isHoldingAnInput)
+        // The next press might be the platform handing over a key held all along: dead, with NO.
+        XCTAssertEqual(rig.press(.upper, after: 1), [.cue(.dead)])
+        XCTAssertEqual(rig.release(.upper, after: 0.2), [])
+        XCTAssertEqual(rig.press(.upper, after: 0.5), [.startTranslation])
+        XCTAssertEqual(rig.release(.upper, after: 0.2), [.stopTranslation])
+    }
+
+    func testAKeyStaleFromBeforeLeavingDoesNotBlockTheOtherKey() {
+        var rig = Rig(.screenTurns)
+        rig.press(.upper)
+        rig.send(.endAllHolds, after: 0.2)
+        rig.send(.becameActive, after: 3)
+        XCTAssertEqual(rig.press(.lower, after: 1), [.startGripper(.closed)])
+        XCTAssertEqual(rig.release(.lower, after: 0.3), [.stopGripper])
+    }
+
+    func testAKeyHeldAcrossLeavingAndReleasedAfterReturnIsFreeAgain() {
+        var rig = Rig(.keyTurns)
+        rig.press(.lower)
+        rig.send(.endAllHolds, after: 0.2)
+        rig.send(.becameActive, after: 3)
+        XCTAssertEqual(rig.release(.lower, after: 0.5), [])
+        XCTAssertEqual(rig.press(.lower, after: 0.5), [.startWrist, .wristUpdate(.identity)])
+    }
+
+    func testATouchWhoseLiftWasLostWhileAwayDoesNotBlockTheSurface() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.middle)
+        rig.wait(0.2)
+        XCTAssertEqual(rig.rotate(turn: 8).withoutUpdates, [.startWrist])
+        XCTAssertEqual(rig.send(.endAllHolds, after: 0.2), [.stopWrist])
+        rig.send(.becameActive, after: 3)
+        XCTAssertTrue(rig.arbiter.held.isEmpty)
+        // Late samples of the forgotten touch do nothing.
+        XCTAssertEqual(rig.move(1, to: Rig.middle + SIMD2(0, -80)), [])
+        rig.orient(turn: 0, after: 1)
+        rig.touchDown(2, at: Rig.leftHalf, after: 1)
+        rig.wait(0.2)
+        XCTAssertEqual(rig.rotate(turn: 8).withoutUpdates, [.startWrist])
+        XCTAssertEqual(rig.lift(1), [])
+        XCTAssertEqual(rig.lift(2), [.stopWrist])
+
+        var keyTurns = Rig(.keyTurns)
+        keyTurns.touchDown(1, at: Rig.rightHalf)
+        keyTurns.wait(0.2)
+        XCTAssertEqual(keyTurns.send(.endAllHolds, after: 0.1), [.stopGripper])
+        keyTurns.send(.becameActive, after: 2)
+        keyTurns.touchDown(2, at: Rig.leftHalf, after: 1)
+        XCTAssertEqual(keyTurns.wait(0.5), [.startGripper(.open)])
+    }
+
+    func testReturningEndsAHoldThatWasNotEndedOnLeaving() {
+        var rig = Rig(.screenTurns)
+        rig.press(.upper)
+        XCTAssertEqual(rig.send(.becameActive, after: 1), [.stopTranslation])
+        XCTAssertEqual(rig.release(.upper), [])
+    }
+
     func testLeavingDuringTheCountdownCancelsIt() {
         var rig = Rig(.keyTurns)
         rig.touchDown(1, at: Rig.topBand)

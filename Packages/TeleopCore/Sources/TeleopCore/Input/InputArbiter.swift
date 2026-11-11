@@ -16,6 +16,8 @@ public struct InputArbiter: Sendable {
     private var keys: [InputKey: KeyState] = [:]
     private var keyBeganAt: [InputKey: TimeInterval] = [:]
     private var keyEndedAt: [InputKey: TimeInterval] = [:]
+    /// Keys that were down when the app left the active state; whether they still are is unknown (I-11).
+    private var staleKeys: Set<InputKey> = []
     private var touches: [Int: TouchRole] = [:]
     private var engaged: Engaged?
     /// The engaged wrist hold's mapper.
@@ -188,6 +190,7 @@ public struct InputArbiter: Sendable {
         case .attitude(let q): attitudeSample(q)
         case .tick: break
         case .endAllHolds: endAllHolds()
+        case .becameActive: becameActive()
         case .modeChanged(let newScheme, let newHand):
             endAllHolds()
             scheme = newScheme
@@ -203,6 +206,14 @@ public struct InputArbiter: Sendable {
 
     private mutating func keyDown(_ key: InputKey) {
         guard keys[key] == nil else { return }
+        if staleKeys.remove(key) != nil {
+            // Still held from before the app left, or pressed again after a release that never arrived: dead either
+            // way, and the NO says to press again.
+            keyBeganAt[key] = now
+            keys[key] = .dead
+            cue(.dead)
+            return
+        }
         let other = key.other
         let previousBegan = keyBeganAt[other]
         keyBeganAt[key] = now
@@ -232,6 +243,10 @@ public struct InputArbiter: Sendable {
     }
 
     private mutating func keyUp(_ key: InputKey) {
+        if staleKeys.remove(key) != nil {
+            keyEndedAt[key] = now
+            return
+        }
         guard let state = keys.removeValue(forKey: key) else { return }
         keyEndedAt[key] = now
         if state == .engaged, case .hold(.key(key), _)? = engaged { stopEngaged() }
@@ -690,6 +705,15 @@ public struct InputArbiter: Sendable {
                 break
             }
         }
+    }
+
+    /// I-11 on return: releases made while the app was away were never delivered. UIKit does not carry a touch across
+    /// leaving the active state, so every touch is forgotten; a key may still be held, so it becomes stale.
+    private mutating func becameActive() {
+        endAllHolds()
+        touches.removeAll()
+        staleKeys.formUnion(keys.keys)
+        keys.removeAll()
     }
 
     private mutating func cue(_ cue: InputCue) { out.append(.cue(cue)) }

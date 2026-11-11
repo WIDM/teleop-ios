@@ -230,6 +230,7 @@ struct Scenario {
         }
         for tick in stride(from: 0.0, through: span + 0.6, by: 1.0 / 30) { add(tick, .tick) }
         if rng.chance(0.08) { add(rng.uniform(0, span), .endAllHolds) }
+        if rng.chance(0.04) { add(rng.uniform(0, span), .becameActive) }
         if rng.chance(0.03) { add(rng.uniform(0, span), .modeChanged(scheme == .screenTurns ? .keyTurns : .screenTurns, hand)) }
         if rng.chance(0.05) { add(rng.uniform(0, span), .wristStartSent) }
         if rng.chance(0.03) { add(rng.uniform(0, span), .sceneReset) }

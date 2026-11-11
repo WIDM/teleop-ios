@@ -54,6 +54,11 @@ public enum InputEvent: Equatable, Sendable {
     /// a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or the server
     /// ended the engaged hold itself.
     case endAllHolds
+    /// The app is active again after leaving the active state (I-11, J8). It got no key-up or touch-up while away, so
+    /// every touch held before is forgotten (its later samples are ignored), and a key held before no longer counts
+    /// as down; its next `began` is taken as that key still held from before, so it is dead (NO) until its `ended`.
+    /// Send `endAllHolds` on leaving and this on return.
+    case becameActive
     /// A scheme or Hand change. Ends every hold first, as `endAllHolds`.
     case modeChanged(InputScheme, Hand)
     /// The server reset the scene (`ok scene_reset`, an `episode` change or a new `welcome.session`). On an
