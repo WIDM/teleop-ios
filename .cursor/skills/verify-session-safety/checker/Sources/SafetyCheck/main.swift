@@ -64,6 +64,9 @@ let launches = [false, true].flatMap { liveLink -> [TeleopSession] in
 struct Node {
     var session: TeleopSession
     var loopPlaying: Bool
+    /// The real server records. Then AppModel refuses Release, keep scene while stopped (§6.5), so on shipped screens
+    /// the confirmed reset is the only way out of the stop. Fixed for a run of the server; practice has no recorder.
+    var recorder = false
 }
 
 struct Step {
@@ -138,7 +141,7 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
         }
         if command == .cancel { loop = false }
     }
-    return (Node(session: session, loopPlaying: loop), restarted)
+    return (Node(session: session, loopPlaying: loop, recorder: node.recorder), restarted)
 }
 
 // The stack is left out on purpose. See "Why the stack is left out" in SKILL.md.
@@ -163,6 +166,7 @@ struct StateKey: Hashable {
     let route: Route
     let origin: Route?
     let loopPlaying: Bool
+    let recorder: Bool
 }
 
 func key(_ node: Node) -> StateKey {
@@ -186,7 +190,8 @@ func key(_ node: Node) -> StateKey {
         liveLink: s.liveLink,
         route: node.session.route,
         origin: origin,
-        loopPlaying: node.loopPlaying
+        loopPlaying: node.loopPlaying,
+        recorder: node.recorder
     )
 }
 
@@ -211,7 +216,9 @@ struct Exploration {
             lines.append("\(name)  (\(nodes[up].session.route) -> \(nodes[i].session.route))")
             current = up
         }
-        if let root = current { lines.append("launch on \(nodes[root].session.route)") }
+        if let root = current {
+            lines.append("launch on \(nodes[root].session.route)\(nodes[root].recorder ? ", the server records" : "")")
+        }
         lines.reverse()
         if let action { lines.append(action) }
         return lines
@@ -225,14 +232,17 @@ func explore(
 ) -> Exploration {
     var result = Exploration()
     var seen: [StateKey: Int] = [:]
+    // The session rules do not depend on the recorder; on shipped screens each launch is tried with and without one.
     for session in launches {
-        let start = Node(session: session, loopPlaying: false)
-        guard seen[key(start)] == nil else { continue }
-        seen[key(start)] = result.nodes.count
-        result.nodes.append(start)
-        result.parent.append(nil)
-        result.via.append(nil)
-        result.edges.append([])
+        for recorder in shippedUI ? [false, true] : [false] {
+            let start = Node(session: session, loopPlaying: false, recorder: recorder)
+            guard seen[key(start)] == nil else { continue }
+            seen[key(start)] = result.nodes.count
+            result.nodes.append(start)
+            result.parent.append(nil)
+            result.via.append(nil)
+            result.edges.append([])
+        }
     }
     var head = 0
     while head < result.nodes.count {
@@ -400,6 +410,8 @@ func shippedActions(_ node: Node) -> [String] {
     if node.session.state.gripperMoving != nil, !names.contains("gripperEnd") { names.append("gripperEnd") }
     if node.session.state.wristMoving, !names.contains("wristEnd") { names.append("wristEnd") }
     if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
+    // AppModel.send refuses Release, keep scene while stopped with a recorder on the real server.
+    if node.recorder, node.session.state.liveLink, node.session.state.emergencyStop { names.removeAll { $0 == "releaseStop" } }
     return names
 }
 /// One of the screen's own actions, other than pressing STOP again, opens a screen that shows the stop.

@@ -183,13 +183,21 @@ VARIANTS = [
         ["FAIL S1"],
     ),
     (
+        # With a recorder the app refuses Release, keep scene, so the confirmed reset is the only way out of the stop.
+        "a confirmed reset never releases the stop",
+        [("guard state.emergencyStop, state.resetClearsStop else { return }", "if true { return }")],
+        ["FAIL U3"],
+    ),
+    (
         "confirmed reset leaves the buzz playing",
         [("            // The long buzz ends. \"Ready.\" comes from the server's new episode, not from here.\n            pendingHaptics.append(.cancel)\n", "")],
         ["FAIL S9"],
     ),
     (
-        "confirmed reset stays where it is",
-        [("            // must not lead back to it.\n            go(.p4)", "            // must not lead back to it.\n            if route == .s4 { go(.p4) }")],
+        # The connection screens are drawn by the operating screen and have no Close back to S4, so a reset that only
+        # stayed where it was would show nothing wrong; one that opens S4 must be caught.
+        "confirmed reset opens S4",
+        [("            // must not lead back to it.\n            go(.p4)", "            // must not lead back to it.\n            go(.s4)")],
         ["FAIL U2"],
     ),
     (
