@@ -639,6 +639,23 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.filter { $0 == "orient_start" }.count, 2)
     }
 
+    /// The owner's tick services the link before it sends updates, so it can learn of a start that went out on its own
+    /// (`lastStart`) before working out the first update for it.
+    func testServiceSendsAHeldBackStartOnceTheWaitIsOver() {
+        bringUp()
+        link.orientStart()
+        link.orientStop()
+        link.orientStart()
+        clock += TeleopLink.finishWaitMs - 1
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        clock += 1
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "orient_start"])
+        XCTAssertEqual(link.lastStart?.kind, .wrist)
+        XCTAssertEqual(link.lastStart?.seq, sent.last?["seq"] as? Int)
+    }
+
     func testTheWaitIsTimedFromTheStopAndAHeldBackGripperStartIsReleasedByKeepalive() {
         bringUp()
         link.orientStart()

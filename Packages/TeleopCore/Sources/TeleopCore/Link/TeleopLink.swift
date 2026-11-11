@@ -202,8 +202,10 @@ public final class TeleopLink {
         return true
     }
 
-    /// Sends what is due by time: a reset that has waited long enough. The owner calls it on every tick.
+    /// Sends what is due by time: a held-back start or a reset that has waited long enough. The owner calls it on
+    /// every tick, before the tick's updates, so it can learn of a start that went out before it sends one.
     public func service() {
+        releaseHeldStart(force: false)
         sendDueReset()
     }
 

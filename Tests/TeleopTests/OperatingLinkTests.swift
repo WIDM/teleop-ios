@@ -174,6 +174,36 @@ final class OperatingLinkTests: XCTestCase {
         model.keyEvent(.lower, down: false)
     }
 
+    /// A wrist start held back past the 800 ms wait goes out without the final ack. Its first update, in the same tick,
+    /// is already measured from the hold's start and bounded: the turn made while waiting is dropped, and with the
+    /// wrist reported still and no fresh state the command does not move away from it.
+    func testAWristStartHeldBackPastTheWaitGoesOutBoundedAndReanchored() {
+        bringUp(.keyTurns, state: ["wrist_roll_deg": 90.0, "wrist_flex_deg": 40.0])
+        step()
+        model.keyEvent(.upper, down: true)
+        step(2)
+        model.keyEvent(.upper, down: false)
+        step(6)
+        model.keyEvent(.lower, down: true)
+        XCTAssertFalse(transport.types.contains("orient_start"), "held back until the arm hold has finished")
+        for degrees in stride(from: Float(2), through: 20, by: 2) {
+            turn(to: degrees)
+            step()
+        }
+        // No final ack comes: the start goes out on its own after 800 ms.
+        while !transport.types.contains("orient_start") { step() }
+        let start = transport.sent.lastIndex { $0["type"] as? String == "orient_start" }!
+        let rolls = transport.sent[start...].filter { $0["type"] as? String == "orient_update" }.map { message -> Double in
+            let q = (message["payload"] as! [String: Any])["q_rel"] as! [Double]
+            return -2 * asin(q[1]) * 180 / .pi
+        }
+        XCTAssertFalse(rolls.isEmpty)
+        XCTAssertEqual(rolls.first ?? .nan, 0, accuracy: 1e-6, "the first update after the start: \(rolls)")
+        step(5)
+        XCTAssertEqual(lastRoll() ?? .nan, 0, accuracy: 1e-6, "no fresh state: the command stays with the still wrist")
+        model.keyEvent(.lower, down: false)
+    }
+
     /// Buttons: the ramp is the translation target, 4 cm/s Coarse, through the 8 cm lead cap; release stops.
     func testAButtonHoldStreamsTheRampThroughTheLeadCap() {
         bringUp(.buttons, state: ["ee_pos": [0.02, -0.14, 0.16]])

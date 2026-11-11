@@ -406,6 +406,9 @@ final class LiveLinkController {
             return
         }
         link.service()
+        // A start held back past its wait may have just gone out: the lead bound and the input rules learn of it
+        // before this tick's wrist update is worked out.
+        syncStart()
         // Twice a second: the echo is the only thing the server sends during a hold, so it is also the heartbeat.
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
