@@ -20,7 +20,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var commandsBlocked = false
     public var gripper: GripperState = .open
     public var arm: ArmSide = .left
-    public var serverAddress = "192.168.x.x:8765"
+    public var serverAddress = ""
     public var tutorialDone = false
     public var emergencyStop = false
     public var isRecording = false

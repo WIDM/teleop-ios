@@ -94,10 +94,19 @@ final class LiveLinkTests: XCTestCase {
 
     func testBadAddressShowsTheErrorAndOpensNothing() {
         makeModel(at: .s1)
-        model.session.state.serverAddress = "192.168.x.x:8765 oops"
+        model.session.state.serverAddress = "100.64.0.1:8765 oops"
         model.connect()
         XCTAssertTrue(model.session.state.serverInputError)
         XCTAssertTrue(transports.isEmpty)
+    }
+
+    func testAddressStartsEmptyAndASavedOneLoadsForTheRealServer() {
+        UserDefaults.standard.set("100.64.0.7:8765", forKey: AppModel.serverAddressKey)
+        defer { UserDefaults.standard.removeObject(forKey: AppModel.serverAddressKey) }
+        let live = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: true, makeTransport: { _ in FakeTransport() })
+        XCTAssertEqual(live.session.state.serverAddress, "100.64.0.7:8765")
+        let demo = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: false)
+        XCTAssertEqual(demo.session.state.serverAddress, "")
     }
 
     func testAddressForms() {

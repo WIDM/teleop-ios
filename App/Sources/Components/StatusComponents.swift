@@ -392,13 +392,16 @@ struct MiniMap: View {
 }
 
 struct ServerAddressField: View {
+    /// Shown greyed in an empty address field, so the expected form is visible without pretending to be an address.
+    static let example = "192.168.0.10:8765"
+
     let address: String
     let error: Bool
 
     var body: some View {
-        Text(address)
+        Text(address.isEmpty ? Self.example : address)
             .font(.system(size: 16, design: .monospaced))
-            .foregroundStyle(TeleopColors.textPrimary)
+            .foregroundStyle(address.isEmpty ? TeleopColors.textSecondary : TeleopColors.textPrimary)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch, alignment: .leading)
             .background(

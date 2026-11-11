@@ -7,7 +7,7 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertEqual(s.mode, .onSite)
         XCTAssertFalse(s.connected)
         XCTAssertEqual(s.latencyMs, 80)
-        XCTAssertEqual(s.serverAddress, "192.168.x.x:8765")
+        XCTAssertEqual(s.serverAddress, "")
     }
 
     func testMarkConnectedResetsLatency() {

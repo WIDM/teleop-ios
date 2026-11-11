@@ -27,8 +27,8 @@ struct ConnectScreen: View {
                     .font(.system(size: 14))
                     .foregroundStyle(TeleopColors.textSecondary)
                 if state.liveLink {
-                    // The real server address is typed here; the fake link only shows a sample.
-                    TextField("192.168.0.10:8765", text: $model.session.state.serverAddress)
+                    // The real server address is typed here; the demo link only shows it.
+                    TextField(ServerAddressField.example, text: $model.session.state.serverAddress)
                         .font(.system(size: 16, design: .monospaced))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

@@ -70,7 +70,7 @@ struct ConnectionDetailsScreen: View {
     @ViewBuilder
     private func addressField(_ state: FakeTeleopState) -> some View {
         if keyboardExpanded {
-            TextField("", text: $model.session.state.serverAddress)
+            TextField(ServerAddressField.example, text: $model.session.state.serverAddress)
                 .focused($addressFocused)
                 .font(.system(size: 16, design: .monospaced))
                 .textInputAutocapitalization(.never)
