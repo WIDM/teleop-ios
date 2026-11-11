@@ -1,6 +1,6 @@
 ---
 name: verify-teleop-ios
-description: Verify the Teleop iOS app (WIDM/teleop-ios, SwiftUI, 20 Mockup v2 screens) - the phone volume-key teleoperation app. Use before claiming any PR PASS: runs TeleopCore logic tests (swift test), fetches macOS CI xcodebuild results and simulator screenshots, compares each screen page-by-page with the Figma frames, and checks the repo is English-only.
+description: Verify the Teleop iOS app (WIDM/teleop-ios, SwiftUI, 12 screens from Mockup v2) - the phone volume-key teleoperation app. Use before claiming any PR PASS: runs TeleopCore logic tests (swift test), fetches macOS CI xcodebuild results and simulator screenshots, compares each screen page-by-page with the Figma frames, and checks the repo is English-only.
 ---
 
 # verify-teleop-ios
