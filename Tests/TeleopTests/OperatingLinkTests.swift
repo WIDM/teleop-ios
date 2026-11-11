@@ -30,6 +30,8 @@ final class OperatingLinkTests: XCTestCase {
     private var clock = 10_000
     private var model: AppModel!
     private var rotation = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
+    /// False while ARKit's tracking is limited: frames come with no camera pose.
+    private var tracking = true
     private var savedMode: String?
 
     override func setUp() {
@@ -43,11 +45,12 @@ final class OperatingLinkTests: XCTestCase {
         super.tearDown()
     }
 
-    private var camera: simd_float4x4 { simd_float4x4(rotation) * TestPose.portrait }
+    private var camera: simd_float4x4? { tracking ? simd_float4x4(rotation) * TestPose.portrait : nil }
 
     private func bringUp(_ mode: ControlMode, state: [String: Any] = [:]) {
         opened = 0
         clock = 10_000
+        tracking = true
         model = AppModel(
             start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(),
             pose: { [unowned self] in camera }, liveLink: true,
@@ -201,6 +204,31 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(rolls.first ?? .nan, 0, accuracy: 1e-6, "the first update after the start: \(rolls)")
         step(5)
         XCTAssertEqual(lastRoll() ?? .nan, 0, accuracy: 1e-6, "no fresh state: the command stays with the still wrist")
+        model.keyEvent(.lower, down: false)
+    }
+
+    /// Limited tracking (frames with no camera pose) ends a wrist hold, as it ends a translation hold: the phone's
+    /// rotation is no longer known, so the wrist must not keep its last target as if it were.
+    func testLimitedTrackingEndsAWristHold() {
+        bringUp(.keyTurns, state: ["wrist_roll_deg": 90.0, "wrist_flex_deg": 40.0])
+        step()
+        model.keyEvent(.lower, down: true)
+        XCTAssertTrue(model.session.state.wristMoving)
+        for degrees in stride(from: Float(2), through: 10, by: 2) {
+            turn(to: degrees)
+            step()
+        }
+        tracking = false
+        step(3)
+        XCTAssertFalse(model.session.state.wristMoving, "the wrist hold ended")
+        XCTAssertEqual(transport.types.filter { $0 == "orient_stop" }.count, 1)
+        XCTAssertTrue(model.cueLog.contains { $0.event == .letGo(.tracking) }, "and says why")
+        let sent = transport.sent.count
+        step(10)
+        XCTAssertFalse(transport.types.dropFirst(sent).contains("orient_update"))
+        tracking = true
+        step(3)
+        XCTAssertFalse(model.session.state.wristMoving, "the key held across stays dead")
         model.keyEvent(.lower, down: false)
     }
 

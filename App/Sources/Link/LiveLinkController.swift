@@ -384,6 +384,15 @@ final class LiveLinkController {
 
     private func tickWrist(_ link: TeleopLink) {
         guard let target = wristTarget, link.turnActive else { return }
+        // The target is the phone's rotation; with no tracked pose that is no longer known, so the hold ends, as a
+        // translation hold does.
+        guard pose() != nil else {
+            onLog?("link: tracking lost, wrist hold ended")
+            emit(monitor.endedByApp(.tracking))
+            endWristTarget()
+            onAction?(.wristEnd)
+            return
+        }
         let age = newestStateAtMs.map { nowMs() - $0 }
         let sent = leadBound.bounded(target, measured: measuredWrist, ageMs: age)
         switch sent.axis {
