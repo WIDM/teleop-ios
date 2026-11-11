@@ -20,7 +20,21 @@ final class OperatingRulesTests: XCTestCase {
         var connecting = OperatingFacts()
         connecting.connecting = true
         connecting.address = "100.64.0.7:8765"
+        // STOP with no connection up latches the session, but no estop reached a server (§2.8, J7).
+        var owedLost = lost
+        owedLost.emergencyStop = true
+        owedLost.stopOwed = true
+        owedLost.stopCause = .button
+        var owedNever = owedLost
+        owedNever.connectionLost = false
+        // A STOP that reached the server, and the link lost after it: the robot is stopped.
+        var stoppedThenLost = lost
+        stoppedThenLost.emergencyStop = true
+        stoppedThenLost.stopCause = .button
         let rows: [(String, OperatingFacts, OperatingState)] = [
+            ("STOP that reached no server, link lost", owedLost, .linkLost),
+            ("STOP that reached no server, never connected", owedNever, .notConnected(reason: nil)),
+            ("stopped, then the link lost", stoppedThenLost, .stopped(cause: .button)),
             ("not connected", OperatingFacts(), .notConnected(reason: nil)),
             ("connecting", connecting, .connecting(address: "100.64.0.7:8765")),
             ("link lost", lost, .linkLost),

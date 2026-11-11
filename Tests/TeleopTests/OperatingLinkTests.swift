@@ -385,6 +385,22 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.session.route, .s4)
     }
 
+    /// §2.8, J7: STOP with no connection up says "No link. Not stopped.", and the screen shows the lost link, not
+    /// STOPPED: no estop reached any server.
+    func testAStopThatReachedNoServerIsNotShownAsStopped() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        transport.onClose?()
+        step()
+        XCTAssertFalse(model.session.state.connected)
+        let bottom = model.operating.layout!.bottomBand.y + 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        XCTAssertTrue(model.cueLog.contains { $0.event == .refused(.notStopped) })
+        XCTAssertEqual(model.operating.state, .linkLost)
+    }
+
     func testTheModeCannotChangeWhileAHoldIsEngaged() {
         bringUp(.screenTurns)
         step()

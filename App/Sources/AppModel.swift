@@ -514,6 +514,7 @@ final class AppModel {
         link.estop()
         log("link: the STOP pressed while the link was down is sent now")
         raise(.emergencyStop(.button, takeDiscarded: narrator.stopDiscardsTake))
+        refreshOperating()
     }
 
     private func refreshRecorder() {
@@ -549,6 +550,7 @@ final class AppModel {
         facts.connectionLost = s.connectionLost
         facts.address = s.serverAddress
         facts.emergencyStop = s.emergencyStop
+        facts.stopOwed = stopOwed
         facts.stopCause = s.emergencyStop ? emergencyCause : nil
         facts.cameraStopped = controller.isCameraStopped
         facts.commandsBlocked = s.commandsBlocked

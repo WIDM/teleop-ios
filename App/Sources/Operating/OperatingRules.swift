@@ -10,6 +10,8 @@ struct OperatingFacts {
     var connectionLost = false
     var address = ""
     var emergencyStop = false
+    /// STOP was pressed with no connection up: no estop has reached a server yet (it goes out after the next welcome).
+    var stopOwed = false
     var stopCause: EmergencyCause?
     /// ARKit stopped the camera, so the volume keys change the volume and the phone's movement does nothing.
     var cameraStopped = false
@@ -44,9 +46,10 @@ enum OperatingRules {
     static let savedShownMs = 2000
 
     /// The rows of §7.2 that version 1 has, highest first: the stop, the link, the camera, a take just saved, the
-    /// engaged hold, a refusal just heard, the server not ready, a slow link, ready.
+    /// engaged hold, a refusal just heard, the server not ready, a slow link, ready. A STOP that reached no server is
+    /// not shown as stopped: the robot is not (§2.8, J7).
     static func state(_ f: OperatingFacts) -> OperatingState {
-        if f.emergencyStop { return .stopped(cause: f.stopCause) }
+        if f.emergencyStop, !f.stopOwed { return .stopped(cause: f.stopCause) }
         if !f.connected {
             if f.connecting { return .connecting(address: f.address) }
             return f.connectionLost ? .linkLost : .notConnected(reason: nil)
