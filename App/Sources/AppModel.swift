@@ -332,7 +332,7 @@ final class AppModel {
     func inputFacts() -> InputFacts {
         let s = session.state
         let settingsOpen = session.route == .s6
-        let notReady = s.liveLink && (link.resetPending || Self.serverBusy(serverState))
+        let notReady = s.liveLink && (link.resetPending || serverState?.simBusy == true)
         var refusal: InputRefusal?
         if s.emergencyStop {
             refusal = .stopped
@@ -367,11 +367,6 @@ final class AppModel {
         )
     }
 
-    /// The simulator is showing a success or resetting, and takes no command.
-    private static func serverBusy(_ state: ServerState?) -> Bool {
-        guard let state else { return false }
-        return state.simBusy || state.activity == .taskSuccess || state.activity == .resetting
-    }
 
     /// The controller handled an input; what the screen draws may have changed.
     func inputsChanged() {
@@ -524,35 +519,49 @@ final class AppModel {
 
     /// Recomputes what the operating screen draws, and writes it only on a change: every write redraws.
     private func refreshOperating() {
-        guard fixture == nil else { return }
+        guard fixture == nil, let controller else { return }
         let s = session.state
         let display = OperatingDisplay(
-            mode: modeSetting, hand: handSetting, state: operatingState, layout: surfaceLayout,
-            engaged: controller?.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
-            resetCountdown: controller?.resetCountdown, heldButton: controller?.buttons.engaged,
-            speed: controller?.buttons.speed ?? .coarse,
-            recorder: recorder, stopExits: stopExits, linkUp: s.connected, latencyMs: s.latencyMs,
-            address: s.serverAddress, arm: nil, practice: !s.liveLink, taskAid: taskAidSetting
+            mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
+            engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
+            resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
+            speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
+            latencyMs: s.latencyMs, address: s.serverAddress,
+            arm: s.liveLink
+                ? OperatingRules.arm(serverState, commanded: link.commandedArm, gripping: gripping, profile: profile)
+                : nil,
+            practice: !s.liveLink, taskAid: taskAidSetting
         )
         if operating != display { operating = display }
     }
 
-    private var operatingState: OperatingState {
+    private var operatingFacts: OperatingFacts {
         let s = session.state
-        if s.emergencyStop { return .stopped(cause: emergencyCause) }
-        if !s.connected {
-            if link.isOpen { return .connecting(address: s.serverAddress) }
-            return s.connectionLost ? .linkLost : .notConnected(reason: nil)
+        var facts = OperatingFacts()
+        facts.connected = s.connected
+        facts.connecting = s.liveLink && link.isOpen
+        facts.connectionLost = s.connectionLost
+        facts.address = s.serverAddress
+        facts.emergencyStop = s.emergencyStop
+        facts.stopCause = s.emergencyStop ? emergencyCause : nil
+        facts.cameraStopped = controller.isCameraStopped
+        facts.commandsBlocked = s.commandsBlocked
+        facts.latencyMs = s.latencyMs
+        facts.engaged = controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind)
+        facts.wristTarget = controller.wristTarget
+        facts.wristMeasured = serverState?.wristRollDeg != nil
+        facts.catchingUp = catchingUp
+        facts.gripping = gripping
+        if s.liveLink {
+            facts.serverSaving = serverState?.taskSuccess == true || serverState?.activity == .taskSuccess
+            facts.serverResetting = link.resetPending || serverState?.activity == .resetting
         }
-        if s.commandsBlocked { return .slowLink(ms: s.latencyMs ?? 0) }
-        if s.armMoving { return .moving(catchingUp: catchingUp) }
-        if let target = s.gripperMoving { return target == .open ? .opening : .closing(gripped: gripping) }
-        if let turn = s.jawTurning {
-            return turn.isTilt
-                ? .tilting(degrees: 0, limit: profile.inputConstants.tiltClampDeg, estimated: true)
-                : .turning(degrees: 0, limit: profile.inputConstants.rollClampDeg, estimated: true)
-        }
-        return .ready
+        facts.lastRefusal = lastRefusal
+        facts.lastSaved = lastSaved
+        facts.nowMs = nowMs()
+        facts.turnLimit = profile.inputConstants.rollClampDeg
+        facts.tiltLimit = profile.inputConstants.tiltClampDeg
+        return facts
     }
 
     private static func holdKind(_ control: ControlKind) -> HoldKind {
