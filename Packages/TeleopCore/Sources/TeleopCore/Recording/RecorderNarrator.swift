@@ -60,6 +60,8 @@ public struct RecorderNarrator {
     private var pendingSuccess: (sinceMs: Int, saved: Int)?
     private var notRecordingSaid = false
     private var connections = 0
+    /// The link was lost since the last welcome: the next one is a reconnect, not the operator's own.
+    private var lost = false
 
     public init() {}
 
@@ -69,12 +71,14 @@ public struct RecorderNarrator {
     /// A control connection said `welcome`. The first state after it is compared with the last one before.
     public mutating func welcomed(session: String?) {
         connections += 1
-        greeting = (connections > 1, connections > 1 && session != self.session)
+        greeting = (lost, connections > 1 && session != self.session)
+        lost = false
         self.session = session
     }
 
     /// The control connection dropped. An unsaved success in flight is judged again after the reconnect.
     public mutating func linkLost() {
+        lost = true
         pendingSuccess = nil
     }
 
@@ -125,8 +129,9 @@ public struct RecorderNarrator {
 
     /// The first state on a new connection.
     private mutating func greet(_ state: ServerState, reconnect: Bool, newRun: Bool) -> [FeedbackEvent] {
-        // An emergency stop found on arrival is announced by its own event, which says enough.
-        guard !state.estop else { return [] }
+        // An emergency stop found on arrival, or one the app is sending now, is announced by its own event,
+        // which says enough.
+        guard !state.estop, !stopNoted else { return [] }
         var events: [FeedbackEvent] = []
         if reconnect { events.append(.reconnected) }
         if reconnect, !newRun, let before = last?.recorder, let now = state.recorder {

@@ -75,7 +75,8 @@ public final class TeleopLink {
     private let send: (String) -> Void
     private let now: () -> Int
     private var seq = 0
-    private var welcomed = false
+    /// True once the server said `welcome` on this connection.
+    public private(set) var welcomed = false
     private var sentTypes: [Int: String] = [:]
     private var probes: [Int: Int] = [:]
     private var lastHeardAt: Int?
@@ -92,9 +93,10 @@ public final class TeleopLink {
     public private(set) var lastGoal: [Double]?
     /// Gripper as the newest `state` named it.
     public private(set) var lastGripper: GripperState?
-    /// The newest `state` on this connection, and when it arrived.
+    /// The newest `state` on this connection, when it arrived, and the server's own time on it (`ts`).
     public private(set) var lastState: ServerState?
     public private(set) var lastStateAtMs: Int?
+    public private(set) var lastStateServerMs: Int?
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
     /// The newest control start that went on the wire.
@@ -344,6 +346,7 @@ public final class TeleopLink {
             let parsed = ServerState(payload: payload)
             lastState = parsed
             lastStateAtMs = now()
+            lastStateServerMs = message["ts"] as? Int
             if let gripper = parsed.gripper { lastGripper = gripper }
             let estop = parsed.estop
             let gripper = parsed.gripper

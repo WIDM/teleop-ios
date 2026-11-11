@@ -113,9 +113,17 @@ public struct FeedbackMonitor {
         return [.letGo(reason.hasSuffix("_watchdog_timeout") ? .watchdog : .lateRejection)]
     }
 
-    /// The operator let go and the app sent the stop.
-    public mutating func released() {
-        engaged = nil
+    /// The operator let go of `kind` and the app sent its stop; nil: whatever is engaged. A stop for another kind
+    /// than the one engaged (the gripper's, after a wrist turn took over) changes nothing.
+    public mutating func released(_ kind: ControlKind? = nil) {
+        guard let current = engaged, let kind else {
+            engaged = nil
+            return
+        }
+        switch (current.kind, kind) {
+        case (.pose, .pose), (.wrist, .wrist), (.gripper, .gripper): engaged = nil
+        default: break
+        }
     }
 
     /// The app ended the hold while the operator still holds it.
