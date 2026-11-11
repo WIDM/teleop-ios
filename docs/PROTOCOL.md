@@ -15,7 +15,11 @@ recordings of the real server back most of what is written here.
   when the press begins, *updates* or *keepalives* while it lasts, and a *stop* when it ends. The server runs one
   hold at a time.
 - **Ack** (acknowledgement): the server's answer to one message, naming that message's sequence number.
-- **Final ack**: the one ack a hold's start gets, sent when the hold has ended.
+- **Final ack**: the ack a start gets when the hold it started has ended, sent from the simulation loop and
+  followed by a `state`. A scene reset gets one too, when the reset is done.
+- **Immediate refusal**: the ack a start gets instead when the server refuses it on arrival (`busy`,
+  `sim_not_ready`, `estop_active`, or a validation code such as `invalid_pose_start`). No `state` follows it, and no
+  final ack comes later. Every start gets exactly one of the two.
 - **E-stop** (emergency stop): a latched state in which the server refuses every motion until it is released.
 - **Physics step**: one pass of the simulation loop. The simulation counts 60 steps per simulated second; the lab
   machine runs fewer than 60 per real second, so every server speed is slower in real time than its number says.
@@ -177,22 +181,24 @@ hold's keepalive.
 {"v": 1, "type": "ack", "ts": 1794378689529, "seq": 5, "payload": {"seq": 5, "status": "ok", "reason": "pose_stopped"}}
 ```
 
-`status` is `ok` or `rejected` (and `clamped` for a kind of hold the app does not use). `reason` says why. A final
-ack, and the ack of a stop, `estop` or `estop_reset`, is followed by a `state` on the same connection; a refusal
-sent at once (`busy`, `estop_active`, a validation code) is not. The ones that matter:
+`status` is `ok` or `rejected`, or `clamped` for messages the app does not send: a `jog_start` hold that reached
+the edge of the box, and a one-shot `move_delta`, `joint_delta` or `gripper` whose target was cut short. `reason`
+says why. A final ack is followed by a `state` on the same connection. So is the ack of a stop, an `estop` or an
+`estop_reset`, except a stop refused `estop_active` and a message whose payload was invalid. An immediate refusal
+is not. The ones that matter:
 
 | Ack | Reason examples | What the app does |
 |---|---|---|
 | a stop's own ack, at once | `pose_stop_requested`, `gripper_jog_stop_requested`, `orient_stop_requested` | nothing; the hold has not finished yet |
 | a final ack, `ok` | `pose_stopped`, `gripper_jog_stopped`, `orient_stopped` | the hold is over; a start kept back for it goes out now |
 | a final ack, `ok`, with no stop sent | `task_success` | the task was done while the hold ran; the hold is over, and it is not a refusal |
-| a final ack, `rejected` | `busy`, `sim_not_ready`, `estop_active`, a validation code such as `invalid_pose_start` | the press did nothing: the operator feels the refusal and the hold ends on the phone |
-| a final ack, `rejected`, after the hold was live | `pose_watchdog_timeout`, `gripper_jog_watchdog_timeout`, `estop` | the server ended a hold the operator still holds |
-| `reset_scene` | `ok scene_reset`; `rejected busy` or `sim_not_ready` | the reset is done, retried once, or reported as not done |
+| an immediate refusal of a start | `busy`, `sim_not_ready`, `estop_active`, a validation code such as `invalid_pose_start` | the press did nothing: the operator feels the refusal and the hold ends on the phone |
+| a final ack, `rejected` | `pose_watchdog_timeout`, `gripper_jog_watchdog_timeout`, `estop` | the server ended a hold the operator still holds |
+| `reset_scene` | a final ack `ok scene_reset`; an immediate refusal `busy` or `sim_not_ready` | the reset is done, retried once, or reported as not done |
 | `estop`, `estop_reset` | `ok estop_engaged`, `ok estop_reset`, `rejected estop_not_frozen` | a refusal is logged; the phone follows `state.estop` |
 
-Only a hold's own final ack ends it. A late refusal of an earlier press does not cancel the hold that runs now
-(`TeleopLink.endActive`).
+Only an ack that names the running hold's start ends it on the phone. A late refusal of an earlier press does not
+cancel the hold that runs now (`TeleopLink.endActive`).
 
 ## A hold from start to final ack
 
@@ -334,7 +340,8 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 says nothing about takes. (`StopExits` would offer both ways out of an emergency stop, with a warning that recording,
 if any, stays off until a reset; as said above, no screen shows that choice yet.)
 
-When `state` arrives: right after `welcome`, after every ack, and after every 200 ms of silence from the client.
+When `state` arrives: right after `welcome`; after a final ack and after the ack of a stop, `estop` or
+`estop_reset` (not after an immediate refusal); and after every 200 ms of silence from the client.
 On the control connection that means about five times a second when idle and never while a hold streams; on the
 listening connection, five times a second all the time.
 
@@ -345,7 +352,7 @@ On the server:
 - the watchdog, 750 ms after the last update or keepalive;
 - an emergency stop, from any of the causes above;
 - the task succeeding while the hold runs (final ack `ok task_success`);
-- a refusal of the start itself: `busy`, `sim_not_ready`, `estop_active`, or a validation code.
+- an immediate refusal of the start itself: `busy`, `sim_not_ready`, `estop_active`, or a validation code.
 
 On the phone (`LiveLinkController.tick` and `AppModel`):
 
