@@ -133,20 +133,22 @@ public struct RotationMapper: Equatable, Sendable {
 
     /// I-8.1: the start went on the wire only now, after waiting behind a finishing hold. Rotation made while it
     /// waited is dropped: the anchor moves so that the angle sent equals the angle at commit (scheme A) or zero
-    /// (scheme B, which also commits afresh).
-    public mutating func startSent(attitude: simd_quatd, at time: TimeInterval) {
+    /// (scheme B, which also commits afresh). Returns the target from now on.
+    @discardableResult
+    public mutating func startSent(attitude: simd_quatd, at time: TimeInterval) -> WristTarget {
         anchor = attitude
         lastAxisAngle = nil
         endedAt = nil
         smoothedAt = time
-        if startsAtCommit, axis != nil {
+        if startsAtCommit, let axis {
             offset = commitAngle
             smoothed = commitAngle
-        } else {
-            axis = nil
-            offset = 0
-            smoothed = 0
+            return WristTarget(axis: axis, degrees: smoothed)
         }
+        axis = nil
+        offset = 0
+        smoothed = 0
+        return .identity
     }
 
     /// The server angles a hold on `axis` may command (I-8.3): the per-hold clamp, narrowed by the roll window

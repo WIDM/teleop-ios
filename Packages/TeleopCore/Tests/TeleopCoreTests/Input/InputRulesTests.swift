@@ -351,9 +351,21 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(committed.withoutUpdates, [.startWrist])
         // The link held the start back while the phone turned on to 16°.
         rig.rotate(turn: 16)
-        rig.send(.wristStartSent, after: 0.01)
+        // The target from the moment the start goes out is the commit angle again, without waiting for a sample.
+        let atSend = rig.send(.wristStartSent, after: 0.01)
+        XCTAssertEqual(atSend.wristTargets.count, 1)
+        XCTAssertEqual(atSend.wristTargets.first?.degrees ?? 0, committed.wristTargets.first!.degrees, accuracy: 1e-9)
         let after = rig.orient(after: 1.0 / 30).wristTargets
         XCTAssertEqual(after.last?.degrees ?? 0, committed.wristTargets.first!.degrees, accuracy: 1e-6)
+
+        // Scheme B goes back to the identity and commits afresh.
+        var keyTurns = Rig(.keyTurns)
+        keyTurns.press(.lower)
+        XCTAssertEqual(keyTurns.rotate(turn: 10).wristTargets.last?.axis, .turn)
+        XCTAssertEqual(keyTurns.send(.wristStartSent, after: 0.01), [.wristUpdate(.identity)])
+        // Without an engaged wrist hold it does nothing.
+        keyTurns.release(.lower)
+        XCTAssertEqual(keyTurns.send(.wristStartSent, after: 0.01), [])
     }
 
     func testOnAnUnknownServerTheTiltWindowCountsCommandedTiltUntilAReset() {
