@@ -60,6 +60,23 @@ final class SameInstantTests: XCTestCase {
         XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
     }
 
+    func testAPalmSampleAtTheEndOfTheTopBandPalmWindowIsStillAPalm() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40, after: 0.1), [])
+        XCTAssertEqual(rig.wait(3), [])
+        XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
+    }
+
+    func testAPalmSampleAfterTheTopBandWindowRanOutAtTheSameInstantLeavesTheCountdownRunning() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.wait(0.1), [.resetCountdownStarted])
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40), [])
+        XCTAssertEqual(rig.phase(.touch(1)), .countingDown)
+        XCTAssertEqual(rig.wait(1.9), [.fireReset])
+    }
+
     func testAnAttitudeSampleAtTheEndOfThePalmWindowIsJudgedWithTheSlide() {
         var rig = Rig(.screenTurns)
         rig.touchDown(1, at: Rig.middle)

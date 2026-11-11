@@ -341,7 +341,8 @@ public struct InputArbiter: Sendable {
         case .ignored, .stop:
             return
         case .band(let band):
-            if palm, insidePalmWindow(band.downAt) { touches[s.id] = .ignored }
+            // A band whose window timer already fired at this instant is past its window.
+            if palm, band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) { touches[s.id] = .ignored }
         case .surface(var touch):
             if palm, !touch.windowEnded {
                 touches[s.id] = .ignored
@@ -382,8 +383,9 @@ public struct InputArbiter: Sendable {
         }
     }
 
+    /// Inclusive at its end, as on the control surface, where the window's timer fires after the events of its instant.
     private func insidePalmWindow(_ downAt: TimeInterval) -> Bool {
-        now < downAt + constants.palmWindowMs / 1000 - Self.slack
+        now <= downAt + constants.palmWindowMs / 1000 + Self.slack
     }
 
     // MARK: Phone attitude (I-8, A-6, B-2)
