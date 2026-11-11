@@ -18,15 +18,6 @@ final class LiveLinkController {
     static let resyncAfterMs = 1500
     /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
     static let resyncTimeoutMs = 1500
-    /// How fast the jaw turn asks the wrist to roll, and how far one press asks for. The server's target is the
-    /// joint angle when the hold began plus the roll asked for, so one press is an exact step. Two full presses make
-    /// the quarter turn a grasp needs. The server's own clamp is 60 degrees per hold.
-    static let turnDegreesPerSecond = 30.0
-    static let turnStepDegrees = 45.0
-    /// The same for the wrist pitch, in smaller steps: a tilt is a fine correction of the jaws' height.
-    /// The server's clamp is 35 degrees per hold.
-    static let tiltDegreesPerSecond = 15.0
-    static let tiltStepDegrees = 10.0
     /// How the listening connection names itself in the server's log.
     static let observerName = "teleop-ios/1.0.0 observer"
     /// A dropped listening connection is opened again this often, without a word to the operator.
@@ -102,8 +93,6 @@ final class LiveLinkController {
     /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
     private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
-    /// The wrist move being held: which way, and when the press began (the ramp runs from there).
-    private var turn: (direction: TurnDirection, startedMs: Int)?
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
     private var wristTarget: WristTarget?
@@ -222,7 +211,6 @@ final class LiveLinkController {
         armAtSegmentStart = nil
         resync = nil
         atEdge = false
-        turn = nil
         wristTarget = nil
         buttonTarget = nil
         commandedArm = nil
@@ -333,7 +321,6 @@ final class LiveLinkController {
         link?.estop()
         if observerUp { observer?.estop() }
         monitor.released()
-        turn = nil
         endWristTarget()
         holdEnded()
         return reached
@@ -372,25 +359,6 @@ final class LiveLinkController {
     func stopGripper() {
         link?.gripperJogStop()
         monitor.released(.gripper(.open))
-    }
-
-    /// The wrist moves toward `direction` while its control is held, by at most `turnStepDegrees` (roll) or
-    /// `tiltStepDegrees` (pitch) from where it was when the press began. False when the move could not start.
-    func startTurn(_ direction: TurnDirection) -> Bool {
-        guard let link, link.orientStart() else { return false }
-        syncStart()
-        turn = (direction, nowMs())
-        if direction.isTilt, !wristTilted {
-            wristTilted = true
-            if let arm = armPosition { publishGuidance(arm: arm) }
-        }
-        return true
-    }
-
-    func stopTurn() {
-        link?.orientStop()
-        monitor.released(.wrist)
-        turn = nil
     }
 
     /// A wrist hold whose angle comes from `setWristTarget`. False when the move could not start.
@@ -438,19 +406,6 @@ final class LiveLinkController {
         }
     }
 
-    private func tickTurn(_ link: TeleopLink) {
-        guard let run = turn, link.turnActive else { return }
-        let elapsed = Double(nowMs() - run.startedMs) / 1000
-        switch run.direction {
-        case .positive, .negative:
-            let angle = min(Self.turnDegreesPerSecond * elapsed, Self.turnStepDegrees)
-            link.orientUpdate(rollDegrees: run.direction == .positive ? angle : -angle)
-        case .tiltDown, .tiltUp:
-            let angle = min(Self.tiltDegreesPerSecond * elapsed, Self.tiltStepDegrees)
-            link.orientUpdate(pitchDegrees: run.direction == .tiltDown ? angle : -angle)
-        }
-    }
-
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
         guard let link else { return }
@@ -476,7 +431,6 @@ final class LiveLinkController {
             onAction?(.holdArmEnd)
             return
         }
-        tickTurn(link)
         tickWrist(link)
         syncStart()
         emit(monitor.tick(at: nowMs()))
@@ -588,15 +542,10 @@ final class LiveLinkController {
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
-            onLog?("link: jaw turn refused: \(reason)")
+            onLog?("link: wrist hold refused: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
-            turn = nil
-            if wristTarget != nil {
-                endWristTarget()
-                onAction?(.wristEnd)
-            } else {
-                onAction?(.turnEnd)
-            }
+            endWristTarget()
+            onAction?(.wristEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
             // A success is not the cause of a later emergency stop.

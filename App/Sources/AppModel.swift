@@ -610,7 +610,7 @@ final class AppModel {
     private static func heldControl(_ state: FakeTeleopState) -> ControlKind? {
         if state.armMoving { return .pose }
         if let target = state.gripperMoving { return .gripper(target) }
-        return state.jawTurning != nil || state.wristMoving ? .wrist : nil
+        return state.wristMoving ? .wrist : nil
     }
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
@@ -691,7 +691,7 @@ final class AppModel {
 
     private static func isPress(_ action: TeleopAction) -> Bool {
         switch action {
-        case .holdArmStart, .gripperStart, .turnStart, .wristStart: return true
+        case .holdArmStart, .gripperStart, .wristStart: return true
         default: return false
         }
     }
@@ -726,18 +726,6 @@ final class AppModel {
                 }
                 session.perform(.holdArmEnd)
                 session.pendingCue(.commandBlocked)
-            }
-        }
-        if before.jawTurning != after.jawTurning {
-            if let direction = after.jawTurning {
-                if !link.startTurn(direction) {
-                    log("link: jaw turn not started (no link or a reset)")
-                    pendingRefusal = link.resetPending ? .notReady : .noLink
-                    session.perform(.turnEnd)
-                    session.pendingCue(.commandBlocked)
-                }
-            } else {
-                link.stopTurn()
             }
         }
         if before.wristMoving != after.wristMoving {

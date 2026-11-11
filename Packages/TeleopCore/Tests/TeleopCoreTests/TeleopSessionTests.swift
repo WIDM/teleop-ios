@@ -295,153 +295,18 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertNil(offline.state.gripperMoving)
     }
 
-    func testJawTurnRunsOnlyWhileHeld() {
-        var s = connectedFallback()
-        s.perform(.turnStart(.positive))
-        XCTAssertEqual(s.state.jawTurning, .positive)
-        s.perform(.turnStart(.negative))
-        XCTAssertEqual(s.state.jawTurning, .negative)
-        s.perform(.turnEnd)
-        XCTAssertNil(s.state.jawTurning)
-    }
-
-    func testJawTurnIsRefusedWhileTheArmMovesWithCue() {
-        var s = connectedFallback()
-        s.perform(.holdArmStart)
-        s.perform(.turnStart(.positive))
-        XCTAssertNil(s.state.jawTurning)
-        XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
-    }
-
-    func testJawTurnIsIgnoredWhenDisconnectedAndRefusedWhenEStoppedOrBlocked() {
-        var offline = disconnected()
-        offline.perform(.turnStart(.positive))
-        XCTAssertNil(offline.state.jawTurning)
-        XCTAssertEqual(offline.drainHaptics(), [])
-
-        var stopped = connectedFallback()
-        stopped.perform(.stop)
-        _ = stopped.drainHaptics()
-        stopped.perform(.turnStart(.positive))
-        XCTAssertNil(stopped.state.jawTurning)
-        XCTAssertEqual(stopped.drainHaptics(), [])
-
-        var slow = connectedFallback()
-        blockOnLatency(&slow)
-        slow.perform(.turnStart(.positive))
-        XCTAssertNil(slow.state.jawTurning)
-        XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
-    }
-
     func testTheThreeHeldControlsTakeOverFromEachOther() {
         var s = connectedFallback()
-        s.perform(.turnStart(.positive))
+        s.perform(.wristStart)
         s.perform(.gripperStart(.open))
-        XCTAssertNil(s.state.jawTurning)
+        XCTAssertFalse(s.state.wristMoving)
         XCTAssertEqual(s.state.gripperMoving, .open)
-        s.perform(.turnStart(.negative))
+        s.perform(.wristStart)
         XCTAssertNil(s.state.gripperMoving)
-        XCTAssertEqual(s.state.jawTurning, .negative)
+        XCTAssertTrue(s.state.wristMoving)
         s.perform(.holdArmStart)
-        XCTAssertNil(s.state.jawTurning)
+        XCTAssertFalse(s.state.wristMoving)
         XCTAssertTrue(s.state.armMoving)
-    }
-
-    func testWristTiltRunsOnlyWhileHeldAndTakesOverFromEveryOtherControl() {
-        var s = connectedFallback()
-        s.perform(.turnStart(.tiltDown))
-        XCTAssertEqual(s.state.jawTurning, .tiltDown)
-        s.perform(.turnStart(.tiltUp))
-        XCTAssertEqual(s.state.jawTurning, .tiltUp)
-        s.perform(.turnStart(.positive))
-        XCTAssertEqual(s.state.jawTurning, .positive, "roll and tilt are one wrist move at a time")
-        s.perform(.turnStart(.tiltDown))
-        s.perform(.gripperStart(.open))
-        XCTAssertNil(s.state.jawTurning)
-        s.perform(.turnStart(.tiltUp))
-        XCTAssertNil(s.state.gripperMoving)
-        s.perform(.holdArmStart)
-        XCTAssertNil(s.state.jawTurning)
-        s.perform(.turnStart(.tiltDown))
-        XCTAssertNil(s.state.jawTurning, "refused while the arm is held")
-        XCTAssertEqual(s.drainHaptics().last, .play(.commandBlocked))
-        s.perform(.holdArmEnd)
-        s.perform(.turnStart(.tiltDown))
-        s.perform(.turnEnd)
-        XCTAssertNil(s.state.jawTurning)
-    }
-
-    func testWristTiltHasTheSameExclusionsAsTheRoll() {
-        var offline = disconnected()
-        offline.perform(.turnStart(.tiltUp))
-        XCTAssertNil(offline.state.jawTurning)
-        XCTAssertEqual(offline.drainHaptics(), [])
-
-        var stopped = connectedFallback()
-        stopped.perform(.stop)
-        _ = stopped.drainHaptics()
-        stopped.perform(.turnStart(.tiltDown))
-        XCTAssertNil(stopped.state.jawTurning)
-        XCTAssertEqual(stopped.drainHaptics(), [])
-
-        var slow = connectedFallback()
-        blockOnLatency(&slow)
-        slow.perform(.turnStart(.tiltDown))
-        XCTAssertNil(slow.state.jawTurning)
-        XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
-
-        for end in [TeleopAction.stop, .disconnect, .switchLink, .resetScene] {
-            var s = connectedFallback()
-            s.perform(.turnStart(.tiltUp))
-            s.perform(end)
-            XCTAssertNil(s.state.jawTurning, "\(end)")
-        }
-        var slowed = connectedFallback()
-        slowed.perform(.turnStart(.tiltUp))
-        blockOnLatency(&slowed)
-        XCTAssertNil(slowed.state.jawTurning)
-    }
-
-    func testStopLatencyBlockAndDisconnectEndTheJawTurn() {
-        var stopped = connectedFallback()
-        stopped.perform(.turnStart(.positive))
-        stopped.perform(.stop)
-        XCTAssertNil(stopped.state.jawTurning)
-
-        var slow = connectedFallback()
-        slow.perform(.turnStart(.positive))
-        blockOnLatency(&slow)
-        XCTAssertNil(slow.state.jawTurning)
-
-        var offline = connectedFallback()
-        offline.perform(.turnStart(.positive))
-        offline.perform(.disconnect)
-        XCTAssertNil(offline.state.jawTurning)
-
-        var left = connectedFallback()
-        left.perform(.turnStart(.positive))
-        left.perform(.switchLink)
-        XCTAssertNil(left.state.jawTurning)
-
-        var reset = connectedFallback()
-        reset.perform(.turnStart(.positive))
-        reset.perform(.resetScene)
-        XCTAssertNil(reset.state.jawTurning)
-    }
-
-    func testLiveLinkLossAndSlowLinkEndTheJawTurn() {
-        var lost = connectedFallback()
-        lost.state.liveLink = true
-        lost.perform(.turnStart(.negative))
-        lost.perform(.linkLost)
-        XCTAssertNil(lost.state.jawTurning)
-
-        var slow = connectedFallback()
-        slow.state.liveLink = true
-        slow.perform(.turnStart(.negative))
-        slow.perform(.linkLatency(ms: 500))
-        slow.perform(.linkLatency(ms: 500))
-        XCTAssertNil(slow.state.jawTurning)
     }
 
     func testWristHoldRunsOnlyWhileHeldAndTakesOverFromEveryOtherControl() {
@@ -450,17 +315,12 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertTrue(s.state.wristMoving)
         s.perform(.wristEnd)
         XCTAssertFalse(s.state.wristMoving)
-        s.perform(.turnStart(.positive))
         s.perform(.wristStart)
-        XCTAssertNil(s.state.jawTurning, "one wrist move at a time")
         XCTAssertTrue(s.state.wristMoving)
         s.perform(.gripperStart(.open))
         XCTAssertFalse(s.state.wristMoving)
         s.perform(.wristStart)
         XCTAssertNil(s.state.gripperMoving)
-        s.perform(.turnStart(.tiltUp))
-        XCTAssertFalse(s.state.wristMoving)
-        s.perform(.wristStart)
         s.perform(.holdArmStart)
         XCTAssertFalse(s.state.wristMoving)
         _ = s.drainHaptics()
@@ -469,7 +329,7 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
     }
 
-    func testWristHoldHasTheSameExclusionsAsAJawTurn() {
+    func testWristHoldIsRefusedAndEndedLikeTheOtherControls() {
         var offline = disconnected()
         offline.perform(.wristStart)
         XCTAssertFalse(offline.state.wristMoving)
@@ -510,14 +370,6 @@ final class TeleopSessionTests: XCTestCase {
         blocked.state.commandsBlocked = true
         blocked.perform(.wristEnd)
         XCTAssertFalse(blocked.state.wristMoving, "release always stops")
-    }
-
-    func testJawTurnEndWorksEvenWhenBlocked() {
-        var s = connectedFallback()
-        s.perform(.turnStart(.positive))
-        s.state.commandsBlocked = true
-        s.perform(.turnEnd)
-        XCTAssertNil(s.state.jawTurning)
     }
 
     func testGripperEndWorksEvenWhenBlocked() {

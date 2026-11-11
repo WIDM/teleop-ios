@@ -13,7 +13,7 @@ public enum LinkEvent: Equatable, Sendable {
     case holdStopped
     /// The server refused or ended the gripper jog that is running now.
     case gripperRefused(reason: String)
-    /// The server refused or ended the jaw turn that is running now.
+    /// The server refused or ended the wrist hold (`orient_start`) that is running now.
     case turnRefused(reason: String)
     case latency(ms: Int)
     /// The server reset the scene (`ok scene_reset`).

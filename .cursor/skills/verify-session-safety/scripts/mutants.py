@@ -25,9 +25,8 @@ HOLD_GUARDS = """guard acceptsControl else { return }
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
-            // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
+            // The server runs one held control at a time: the arm takes over from the gripper and the wrist.
             state.stopGripper()
-            state.stopTurn()
             state.stopWrist()
             state.armMoving = true"""
 
@@ -115,63 +114,38 @@ VARIANTS = [
     ),
     (
         "stop leaves the gripper moving",
-        [("state.armMoving = false\n            state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.armMoving = false\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)")],
+        [("state.armMoving = false\n            state.stopGripper()\n            state.stopWrist()\n            go(.s4)", "state.armMoving = false\n            state.stopWrist()\n            go(.s4)")],
         ["FAIL S10"],
     ),
     (
         "arm hold leaves the gripper moving",
-        [("            state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true")],
+        [("            state.stopGripper()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopWrist()\n            state.armMoving = true")],
         ["FAIL S10", "FAIL U7"],
     ),
     (
         "lost link leaves the gripper moving",
-        [("        armMoving = false\n        gripperMoving = nil\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        armMoving = false\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
+        [("        armMoving = false\n        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        armMoving = false\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S10"],
     ),
     (
-        "gripper hold leaves the jaws turning",
-        [("            state.stopTurn()\n            state.stopWrist()\n            state.moveGripper(toward: target)", "            state.stopWrist()\n            state.moveGripper(toward: target)")],
+        "gripper hold leaves the wrist hold engaged",
+        [("            state.stopWrist()\n            state.moveGripper(toward: target)", "            state.moveGripper(toward: target)")],
         ["FAIL S12", "FAIL U8"],
     ),
     (
-        "jaw turn leaves the gripper moving",
-        [("            state.stopGripper()\n            state.stopWrist()\n            state.turnJaws(toward: direction)", "            state.stopWrist()\n            state.turnJaws(toward: direction)")],
+        "wrist hold leaves the gripper moving",
+        [("            state.stopGripper()\n            state.wristMoving = true", "            state.wristMoving = true")],
         ["FAIL S12", "FAIL U8"],
     ),
     (
-        "arm hold leaves the jaws turning",
-        [("            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopWrist()\n            state.armMoving = true")],
-        ["FAIL S12", "FAIL U8"],
+        "wrist hold ignores the arm hold",
+        [("// The arm is moving, so the wrist cannot turn.\n            guard canControl, !state.armMoving else {", "// The arm is moving, so the wrist cannot turn.\n            guard canControl else {")],
+        ["FAIL S12", "FAIL S16", "FAIL U8"],
     ),
     (
-        "jaw turn ignores the arm hold",
-        [("// The arm is moving, so the jaws cannot turn.\n            guard canControl, !state.armMoving else {", "// The arm is moving, so the jaws cannot turn.\n            guard canControl else {")],
-        ["FAIL S12", "FAIL U8"],
-    ),
-    (
-        "jaw turn has no guards",
-        [
-            (
-                "case .turnStart(let direction):\n            guard acceptsControl else { return }\n            // The arm is moving, so the jaws cannot turn.\n            guard canControl, !state.armMoving else {\n                pendingHaptics.append(.play(.commandBlocked))\n                return\n            }\n",
-                "case .turnStart(let direction):\n",
-            )
-        ],
+        "lost link leaves the wrist hold engaged",
+        [("        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        gripperMoving = nil\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S13"],
-    ),
-    (
-        "stop leaves the jaws turning",
-        [("state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.stopGripper()\n            state.stopWrist()\n            go(.s4)")],
-        ["FAIL S13"],
-    ),
-    (
-        "lost link leaves the jaws turning",
-        [("        gripperMoving = nil\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
-        ["FAIL S13"],
-    ),
-    (
-        "jaw turn end does nothing",
-        [("// Release always stops, even if the session got blocked while held.\n            state.stopTurn()", "break")],
-        ["FAIL S14"],
     ),
     (
         "wrist end does nothing",
@@ -190,7 +164,7 @@ VARIANTS = [
     ),
     (
         "stop leaves the wrist hold engaged",
-        [("state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.stopTurn()\n            go(.s4)")],
+        [("state.stopGripper()\n            state.stopWrist()\n            go(.s4)", "state.stopGripper()\n            go(.s4)")],
         ["FAIL S13"],
     ),
     (

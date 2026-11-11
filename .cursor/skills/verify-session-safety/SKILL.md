@@ -59,9 +59,8 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
 | S10, U7 | The gripper starts moving only on `gripperStart`, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving. | The gripper squeezes or drops something when the operator was told it cannot move. |
 | S11 | `gripperEnd` always leaves the gripper still. | Releasing the control does not stop the gripper. |
-| S12, U8 | At most one of the arm hold, the gripper hold, the jaw turn and the wrist hold is active. | The server runs one held control at a time; the phone would show two working while one is. |
-| S13, U8 | A jaw turn or a wrist hold (`wristMoving`) is active only while connected and not E-stopped. | The jaws keep turning after STOP or over a lost link. |
-| S14 | `turnEnd` always leaves the jaws still. | Releasing the control does not stop the jaws. |
+| S12, U8 | At most one of the arm hold, the gripper hold and the wrist hold is active. | The server runs one held control at a time; the phone would show two working while one is. |
+| S13, U8 | A wrist hold (`wristMoving`) is active only while connected and not E-stopped. | The wrist keeps turning after STOP or over a lost link. |
 | S15 | `wristEnd` always ends the wrist hold. | Releasing the input does not stop the wrist. |
 | S16 | A wrist hold starts only on `wristStart` while connected, not E-stopped, not latency-blocked and the arm not moving. | The wrist turns when the operator was told it cannot. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |

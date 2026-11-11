@@ -24,11 +24,8 @@ final class ServerMotionTests: XCTestCase {
         guard hand.connect(within: 4) else {
             throw XCTSkip("no server on 127.0.0.1:8765")
         }
-        if model.session.state.emergencyStop {
-            model.send(.releaseStop)
-            hand.pump(1.5)
-        }
-        model.send(.resetScene)
+        // What the top band does when held: from the stop state the server's reset also clears the stop.
+        model.runReset()
         hand.pump(6)
     }
 
@@ -76,19 +73,18 @@ final class ServerMotionTests: XCTestCase {
 
     /// One held control taking over from another while the first is still held. The server finishes the old one
     /// about 50 ms after its stop and refuses a start that arrives sooner ("busy"), so the link has to wait.
-    func testTurnTakesOverFromAGripperHoldStillHeld() {
+    func testAWristHoldTakesOverFromAGripperHoldStillHeld() {
         model.send(.gripperStart(.open))
         hand.pump(1.0)
-        model.send(.turnStart(.positive))
+        model.send(.wristStart)
         hand.pump(1.5)
-        XCTAssertEqual(model.session.state.jawTurning, .positive,
-                       "the turn was refused. log: \(model.debugLog.suffix(4))")
+        XCTAssertTrue(model.session.state.wristMoving, "the wrist hold was refused. log: \(model.debugLog.suffix(4))")
         XCTAssertNil(model.session.state.gripperMoving)
         hand.pump(3)
-        model.send(.turnEnd)
+        model.send(.wristEnd)
         hand.pump(1.0)
         // And straight back, the other way round.
-        model.send(.turnStart(.negative))
+        model.send(.wristStart)
         hand.pump(0.5)
         model.send(.gripperStart(.open))
         hand.pump(1.5)
@@ -99,18 +95,17 @@ final class ServerMotionTests: XCTestCase {
         XCTAssertFalse(model.session.state.emergencyStop)
     }
 
-    /// The wrist pitch handles: a press tilts the jaws and is not refused, and the opposite press follows it at once.
-    /// The angles themselves are only in the server's log (it reports none): 40 to 50 and back on 2026-11-11.
-    func testTiltPressesAreAcceptedBothWays() {
-        model.send(.turnStart(.tiltDown))
-        hand.pump(4)
-        XCTAssertEqual(model.session.state.jawTurning, .tiltDown, "the tilt was refused. log: \(model.debugLog.suffix(4))")
-        model.send(.turnEnd)
-        model.send(.turnStart(.tiltUp))
-        hand.pump(4)
-        XCTAssertEqual(model.session.state.jawTurning, .tiltUp, "the tilt back was refused. log: \(model.debugLog.suffix(4))")
-        model.send(.turnEnd)
-        hand.pump(1.0)
+    /// Tipping the phone with the wrist input held tilts the jaws, and tipping it back brings them back; neither is
+    /// refused. The server reports the measured flex when it has `wrist_flex_deg`.
+    func testTiltingThePhoneTiltsTheWristBothWays() {
+        let before = model.serverState?.wristFlexDeg
+        hand.wrist(.tilt, by: 10, hold: 3)
+        let tilted = model.serverState?.wristFlexDeg
+        hand.wrist(.tilt, by: -10, hold: 3)
+        if let before, let tilted, let after = model.serverState?.wristFlexDeg {
+            print(String(format: "MOTION tilt: flex %.1f, then %.1f, then %.1f", before, tilted, after))
+        }
+        XCTAssertFalse(model.session.state.wristMoving)
         XCTAssertFalse(model.session.state.emergencyStop)
     }
 

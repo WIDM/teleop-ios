@@ -94,11 +94,11 @@ for path in APP.rglob("*.swift"):
         outside_structs[str(path.relative_to(APP))] = leftover
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
-    # connect: the fake link's S1 Connect. holdArmEnd, turnEnd, wristEnd: a hold or turn the link could not start.
+    # connect: the fake link's S1 Connect. holdArmEnd, wristEnd: a hold the link could not start.
     # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
     # sceneResetDone: the top band's reset (the practice link confirms it at once).
-    "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "turnEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
-    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
+    "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
     # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS). stop, openSettings and the
     # reset come only from touches on the bands, which no shipped screen feeds yet; a screen that installs the touch
     # surface adds them to its ui-map row.
@@ -151,10 +151,7 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
             f"{route}: ui-map says {screen}, RootView shows {screen_of_route.get(route)}"
         )
     # tutorialNext1 -> tutorialNext, gripperStartClosed -> gripperStart: the table names one case per payload.
-    names = {
-        re.sub(r"^(gripperStart)(Closed|Open)$|^(turnStart)(Positive|Negative|TiltDown|TiltUp)$", lambda m: m.group(1) or m.group(3), re.sub(r"\d+$", "", a))
-        for a in actions.split(",")
-    }
+    names = {re.sub(r"^(gripperStart)(Closed|Open)$", r"\1", re.sub(r"\d+$", "", a)) for a in actions.split(",")}
     for name in sorted(names - struct_sends.get(screen, set())):
         problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
     listed_by_struct.setdefault(screen, set()).update(names)

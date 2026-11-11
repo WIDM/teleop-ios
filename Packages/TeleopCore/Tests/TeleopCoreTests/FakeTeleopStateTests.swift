@@ -43,20 +43,5 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertEqual(s.gripper, .open)
     }
 
-    func testJawsTurnTowardADirectionUntilStopped() {
-        var s = FakeTeleopState()
-        s.turnJaws(toward: .negative)
-        XCTAssertEqual(s.jawTurning, .negative)
-        s.turnJaws(toward: .positive)
-        XCTAssertEqual(s.jawTurning, .positive)
-        s.turnJaws(toward: .tiltDown)
-        XCTAssertEqual(s.jawTurning, .tiltDown)
-        s.stopTurn()
-        XCTAssertNil(s.jawTurning)
-    }
-
-    func testOnlyTheTwoPitchDirectionsAreTilts() {
-        XCTAssertEqual([TurnDirection.positive, .negative, .tiltDown, .tiltUp].map(\.isTilt), [false, false, true, true])
-    }
 
 }

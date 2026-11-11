@@ -31,11 +31,6 @@ let actionTable: [(String, TeleopAction)] = [
     ("gripperStartClosed", .gripperStart(.closed)),
     ("gripperStartOpen", .gripperStart(.open)),
     ("gripperEnd", .gripperEnd),
-    ("turnStartPositive", .turnStart(.positive)),
-    ("turnStartNegative", .turnStart(.negative)),
-    ("turnStartTiltDown", .turnStart(.tiltDown)),
-    ("turnStartTiltUp", .turnStart(.tiltUp)),
-    ("turnEnd", .turnEnd),
     ("wristStart", .wristStart),
     ("wristEnd", .wristEnd),
     ("sceneResetDone", .sceneResetDone),
@@ -51,7 +46,7 @@ let actionTable: [(String, TeleopAction)] = [
 ]
 // What the server can cause at any moment on a live link: LiveLinkController reports these from any route.
 // A server-side E-stop arrives as stop; a rejected or untracked hold as holdArmEnd.
-// A refused gripper jog arrives as gripperEnd, a refused jaw turn as turnEnd and a refused wrist hold as wristEnd;
+// A refused gripper jog arrives as gripperEnd and a refused wrist hold as wristEnd;
 // shippedActions already adds them while the control is held. The server's answer to a scene reset arrives as
 // sceneResetDone; it is offered in every state, more often than a server can send it, so S1 also checks that the
 // session lets only the answer to a reset asked for in the stop state release it.
@@ -97,9 +92,8 @@ let properties: [Property] = [
     Property(id: "S9", promise: "The E-stop long buzz plays exactly while E-stop is latched.", harm: "The operator could lose the haptic signal for the current safety state."),
     Property(id: "S10", promise: "The gripper starts moving only on gripperStart, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving.", harm: "The gripper could squeeze or drop something when the operator was told it cannot move."),
     Property(id: "S11", promise: "gripperEnd always leaves the gripper still.", harm: "Releasing the control would not stop the gripper."),
-    Property(id: "S12", promise: "At most one of the arm hold, the gripper hold and the jaw turn is active.", harm: "The server runs one held control at a time, so the phone would show two controls working while only one is."),
-    Property(id: "S13", promise: "A jaw turn or a wrist hold is active only while connected and not E-stopped.", harm: "The jaws could keep turning after STOP or over a lost link."),
-    Property(id: "S14", promise: "turnEnd always leaves the jaws still.", harm: "Releasing the control would not stop the jaws turning."),
+    Property(id: "S12", promise: "At most one of the arm hold, the gripper hold and the wrist hold is active.", harm: "The server runs one held control at a time, so the phone would show two controls working while only one is."),
+    Property(id: "S13", promise: "A wrist hold is active only while connected and not E-stopped.", harm: "The wrist could keep turning after STOP or over a lost link."),
     Property(id: "S15", promise: "wristEnd always ends the wrist hold.", harm: "Releasing the input would not stop the wrist turning."),
     Property(id: "S16", promise: "A wrist hold starts only on wristStart while connected, not E-stopped, not latency-blocked and the arm not moving.", harm: "The wrist could turn when the operator was told it cannot."),
     Property(id: "U1", promise: "On shipped screens, while E-stop is latched every screen the user can be on shows that it is stopped (the operating screen's routes and Settings), or is a connection screen that leads straight back to one that does (S1, by its Back).", harm: "The stop is hidden, so the app looks ready while all control input is silently ignored."),
@@ -108,7 +102,7 @@ let properties: [Property] = [
     Property(id: "U4", promise: "On shipped screens, the arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
     Property(id: "U5", promise: "Every shipped teleop screen (all but S4) offers STOP.", harm: "The operator could have no STOP on a teleop screen."),
     Property(id: "U7", promise: "On shipped screens, the gripper is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving.", harm: "Same as S10, reachable by tapping."),
-    Property(id: "U8", promise: "On shipped screens, at most one held control is active, and a jaw turn or a wrist hold is active only while connected and not E-stopped.", harm: "Same as S12 and S13, reachable by tapping."),
+    Property(id: "U8", promise: "On shipped screens, at most one held control is active, and a wrist hold is active only while connected and not E-stopped.", harm: "Same as S12 and S13, reachable by tapping."),
     Property(id: "U6", promise: "On shipped screens, the E-stop long buzz is never started while it is already playing.", harm: "HapticsController keeps only the newest loop player, so an older buzz may not be cancelled on release."),
 ]
 
@@ -121,11 +115,9 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
         session.perform(.switchLink)
     default: session.perform(actionsByName[name]!)
     }
-    // OperatingController ends the holds of the keys, the touches and the pad only when the operating screens
-    // (BackStackRules.controlRoutes) go away, so moving between them keeps a hold. ArmHoldModifier and
-    // HeldControlModifier end an on-screen handle's hold on any route change, but the checker cannot tell who started
-    // a hold, so it models the narrower rule for the arm, the gripper and the wrist. The end actions stay offered while
-    // a control is held (shippedActions), so what a handle's own end reaches is still explored.
+    // OperatingController ends every hold of the keys, the touches and the pad, with its stop, when the operating
+    // screens (BackStackRules.controlRoutes) go away, so moving between them keeps a hold. The end actions stay offered
+    // while a control is held (shippedActions), so every release is explored as well.
     let leftOperating = BackStackRules.controlRoutes.contains(node.session.route)
         && !BackStackRules.controlRoutes.contains(session.route)
     if shippedUI, leftOperating, session.state.armMoving {
@@ -133,10 +125,6 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
     }
     if shippedUI, leftOperating, session.state.gripperMoving != nil {
         session.perform(.gripperEnd)
-    }
-    // Only JawTurnHandle runs a jaw turn, and HeldControlModifier.onDisappear ends it on any route change.
-    if shippedUI, session.route != node.session.route, session.state.jawTurning != nil {
-        session.perform(.turnEnd)
     }
     if shippedUI, leftOperating, session.state.wristMoving {
         session.perform(.wristEnd)
@@ -169,7 +157,6 @@ struct StateKey: Hashable {
     let developerMode: Bool
     let armMoving: Bool
     let gripperMoving: GripperState?
-    let jawTurning: TurnDirection?
     let wristMoving: Bool
     let serverInputError: Bool
     let connectionLost: Bool
@@ -194,7 +181,6 @@ func key(_ node: Node) -> StateKey {
         developerMode: s.developerMode,
         armMoving: s.armMoving,
         gripperMoving: s.gripperMoving,
-        jawTurning: s.jawTurning,
         wristMoving: s.wristMoving,
         serverInputError: s.serverInputError,
         connectionLost: s.connectionLost,
@@ -283,7 +269,7 @@ func explore(
 func linkOk(_ s: FakeTeleopState) -> Bool { s.connected && !s.commandsBlocked }
 
 func heldControls(_ s: FakeTeleopState) -> Int {
-    (s.armMoving ? 1 : 0) + (s.gripperMoving != nil ? 1 : 0) + (s.jawTurning != nil ? 1 : 0) + (s.wristMoving ? 1 : 0)
+    (s.armMoving ? 1 : 0) + (s.gripperMoving != nil ? 1 : 0) + (s.wristMoving ? 1 : 0)
 }
 
 func sessionChecks(_ step: Step) -> [(String, String)] {
@@ -319,12 +305,11 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     }
     if step.action == "gripperEnd", b.gripperMoving != nil { out.append(("S11", "gripper still moving after gripperEnd")) }
     if heldControls(b) > 1 {
-        out.append(("S12", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) turn=\(String(describing: b.jawTurning))"))
+        out.append(("S12", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) wrist=\(b.wristMoving)"))
     }
-    if b.jawTurning != nil || b.wristMoving, !(b.connected && !b.emergencyStop) {
-        out.append(("S13", "jaws turning with connected=\(b.connected) eStop=\(b.emergencyStop) wrist hold=\(b.wristMoving)"))
+    if b.wristMoving, !(b.connected && !b.emergencyStop) {
+        out.append(("S13", "wrist hold with connected=\(b.connected) eStop=\(b.emergencyStop)"))
     }
-    if step.action == "turnEnd", b.jawTurning != nil { out.append(("S14", "jaws still turning after turnEnd")) }
     if step.action == "wristEnd", b.wristMoving { out.append(("S15", "wrist hold still engaged after wristEnd")) }
     if !a.wristMoving, b.wristMoving, !(step.action == "wristStart" && linkOk(a) && !a.emergencyStop && !a.armMoving) {
         out.append(("S16", "wrist hold started by \(step.action): connected=\(a.connected) blocked=\(a.commandsBlocked) eStop=\(a.emergencyStop) arm=\(a.armMoving)"))
@@ -372,10 +357,10 @@ func uiChecks(_ step: Step) -> [(String, String)] {
         out.append(("U7", "gripper moving with connected=\(b.connected) blocked=\(b.commandsBlocked) eStop=\(b.emergencyStop) arm=\(b.armMoving)"))
     }
     if heldControls(b) > 1 {
-        out.append(("U8", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) turn=\(String(describing: b.jawTurning))"))
+        out.append(("U8", "held controls: arm=\(b.armMoving) gripper=\(String(describing: b.gripperMoving)) wrist=\(b.wristMoving)"))
     }
-    if b.jawTurning != nil || b.wristMoving, !(b.connected && !b.emergencyStop) {
-        out.append(("U8", "jaws turning with connected=\(b.connected) eStop=\(b.emergencyStop) wrist hold=\(b.wristMoving)"))
+    if b.wristMoving, !(b.connected && !b.emergencyStop) {
+        out.append(("U8", "wrist hold with connected=\(b.connected) eStop=\(b.emergencyStop)"))
     }
     return out
 }
@@ -413,7 +398,6 @@ func shippedActions(_ node: Node) -> [String] {
     var names = uiMap[node.session.route]!
     if node.session.state.armMoving, !names.contains("holdArmEnd") { names.append("holdArmEnd") }
     if node.session.state.gripperMoving != nil, !names.contains("gripperEnd") { names.append("gripperEnd") }
-    if node.session.state.jawTurning != nil, !names.contains("turnEnd") { names.append("turnEnd") }
     if node.session.state.wristMoving, !names.contains("wristEnd") { names.append("wristEnd") }
     if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
     return names
