@@ -284,6 +284,7 @@ final class LiveLinkController {
             drop("server went quiet")
             return
         }
+        link.service()
         // Twice a second: the echo is the only thing the server sends during a hold, so it is also the heartbeat.
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
@@ -378,6 +379,10 @@ final class LiveLinkController {
             lastRefusal = (reason, nowMs())
             holdEnded()
             onAction?(.holdArmEnd)
+        case .resetDone:
+            onLog?("link: scene reset")
+        case .resetRefused(let reason):
+            onLog?("link: scene reset refused: \(reason)")
         }
     }
 

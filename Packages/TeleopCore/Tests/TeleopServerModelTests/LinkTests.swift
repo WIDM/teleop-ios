@@ -118,21 +118,25 @@ final class LinkTests: XCTestCase {
         XCTAssertFalse(wire.events.contains { if case .holdRefused = $0 { return true } else { return false } })
     }
 
-    /// The link sends `reset_scene` straight behind the stop of a running hold. The server refuses the reset
-    /// (`busy`, the hold has not finished) and must still honour the stop rather than let the hold run on into
-    /// its watchdog. The scene is not reset.
-    func testAResetRightBehindAStopIsRefusedAndTheStopStillLands() {
+    /// A reset asked for right after the stop of a running hold. The server refuses a reset behind an unfinished
+    /// hold (`busy`), so the link holds it back until the hold's final ack; then the scene resets.
+    func testAResetRightBehindAStopWaitsForTheFinalAckAndResets() throws {
         let wire = Wire()
         let episode = wire.model.episode
         wire.link.poseStart(params)
         wire.run(0.5) { wire.link.poseUpdate(positionMeters: [0, 0.01, 0]) }
-        wire.link.resetScene()
-        wire.run(1.5)
-        XCTAssertEqual(wire.acks("busy").count, 1)
-        XCTAssertTrue(wire.events.contains(.rejected(type: "reset_scene", reason: "busy")))
-        XCTAssertEqual(wire.acks("pose_stopped").count, 1)
+        XCTAssertFalse(wire.link.resetScene(), "refused while the arm is held")
+        wire.link.poseStop()
+        XCTAssertTrue(wire.link.resetScene())
+        wire.run(3) { wire.link.service() }
+        XCTAssertEqual(wire.acks("busy").count, 0)
+        let finished = try XCTUnwrap(wire.ackTime("pose_stopped"))
+        let reset = try XCTUnwrap(wire.sentTimes("reset_scene").first)
+        XCTAssertGreaterThan(reset, finished, "the reset went out before the hold had finished")
+        XCTAssertEqual(wire.acks("scene_reset").count, 1)
+        XCTAssertTrue(wire.events.contains(.resetDone))
         XCTAssertEqual(wire.acks("pose_watchdog_timeout").count, 0)
-        XCTAssertEqual(wire.model.episode, episode)
+        XCTAssertEqual(wire.model.episode, episode + 1)
         XCTAssertFalse(wire.link.holdActive)
     }
 

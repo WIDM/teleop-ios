@@ -16,6 +16,24 @@ public enum LinkEvent: Equatable, Sendable {
     /// The server refused or ended the jaw turn that is running now.
     case turnRefused(reason: String)
     case latency(ms: Int)
+    /// The server reset the scene (`ok scene_reset`).
+    case resetDone
+    /// The server refused the scene reset, after the one retry a `busy` gets.
+    case resetRefused(reason: String)
+}
+
+/// Which held control a start begins.
+public enum ControlKind: Equatable, Sendable {
+    case pose
+    case gripper(GripperState)
+    case wrist
+}
+
+/// A control's start as it went on the wire.
+public struct SentStart: Equatable, Sendable {
+    public let seq: Int
+    public let kind: ControlKind
+    public let atMs: Int
 }
 
 public struct PoseParams: Equatable, Sendable {
@@ -40,7 +58,12 @@ public final class TeleopLink {
     public static let staleAfterMs = 2000
     /// The server finishes a stopped control a moment after it acks the stop, and refuses every start until then.
     /// A start waits this long for that final ack, then goes out anyway and the server answers for itself.
+    /// A scene reset waits the same way.
     public static let finishWaitMs = 800
+    /// A scene reset refused `busy` is sent once more after this long.
+    public static let resetRetryMs = 300
+    /// A reset's answer comes when the scene has settled, a few seconds at the slowest rate.
+    static let resetAnswerMs = 10_000
 
     /// A control's start, built when it goes out.
     private enum HeldStart {
@@ -69,6 +92,15 @@ public final class TeleopLink {
     public private(set) var lastGoal: [Double]?
     /// Gripper as the newest `state` named it.
     public private(set) var lastGripper: GripperState?
+    /// The newest `state` on this connection, and when it arrived.
+    public private(set) var lastState: ServerState?
+    public private(set) var lastStateAtMs: Int?
+    /// `welcome.session`: names the server run.
+    public private(set) var serverSession: String?
+    /// The newest control start that went on the wire.
+    public private(set) var lastStart: SentStart?
+    /// A scene reset asked for and not yet answered: waiting for a stop's final ack, waiting to retry, or in flight.
+    private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool)?
     /// True after `welcome` and a first `state`.
     public private(set) var ready = false
     /// True between an accepted `poseStart` and the stop that ends it.
@@ -88,8 +120,9 @@ public final class TeleopLink {
         self.now = now
     }
 
-    public func hello() {
-        emit("hello", ["client": "phone", "name": "thomas-app"])
+    /// - Parameter name: how the server's log names this connection.
+    public func hello(name: String = "thomas-app") {
+        emit("hello", ["client": "phone", "name": name])
     }
 
     /// Starts a hold. Returns false, sending nothing, if the link is not ready or a hold is already active.
@@ -135,18 +168,45 @@ public final class TeleopLink {
         turnSeq = nil
         stopping = nil
         heldBack = nil
+        reset = nil
         emit("estop", [:])
     }
 
     public func estopReset() { emit("estop_reset", [:]) }
 
-    public func resetScene() {
-        poseStop()
-        gripperJogStop()
-        orientStop()
-        emit("reset_scene", [:])
+    /// True while a scene reset is waiting to go out or for its answer.
+    public var resetPending: Bool { reset != nil }
+
+    /// Asks for a scene reset. Refused (false, nothing sent) while a control is still active: the operator lets go
+    /// first. A reset sent behind a control that is still finishing is refused `busy` and can swallow its stop, so it
+    /// waits for that control's final ack, at most `finishWaitMs`. A `busy` answer gets one retry after
+    /// `resetRetryMs`. The answer arrives as `resetDone` or `resetRefused`.
+    @discardableResult
+    public func resetScene() -> Bool {
+        guard ready, !holdActive, !gripperJogActive, !turnActive else { return false }
+        // One reset at a time. One the server never answered stops counting after a while.
+        if let pending = reset, now() - pending.sinceMs < Self.resetAnswerMs { return true }
+        reset = (now(), nil, nil, false)
+        sendDueReset()
+        return true
+    }
+
+    /// Sends what is due by time: a reset that has waited long enough. The owner calls it on every tick.
+    public func service() {
+        sendDueReset()
+    }
+
+    private func sendDueReset() {
+        guard var pending = reset, pending.seq == nil else { return }
+        if let retryAt = pending.retryAtMs {
+            guard now() >= retryAt else { return }
+        } else if let stopping, now() - stopping.sentAtMs < Self.finishWaitMs {
+            return
+        }
         stopping = nil
-        heldBack = nil
+        pending.retryAtMs = nil
+        pending.seq = emit("reset_scene", [:])
+        reset = pending
     }
 
     /// Starts moving the gripper toward `target`, replacing any jog already running.
@@ -253,6 +313,7 @@ public final class TeleopLink {
         holdSeq = nil
         stopping = nil
         heldBack = nil
+        reset = nil
         gripperJogActive = false
         gripperJogSeq = nil
         turnActive = false
@@ -260,6 +321,7 @@ public final class TeleopLink {
         probes = [:]
         sentTypes = [:]
         lastHeardAt = nil
+        lastStart = nil
     }
 
     public func receive(_ text: String) -> LinkEvent? {
@@ -272,15 +334,19 @@ public final class TeleopLink {
         case "welcome":
             welcomed = true
             lastHeardAt = now()
+            serverSession = payload["session"] as? String
             return nil
         case "state":
             guard welcomed else { return nil }
             if let position = payload["ee_pos"] as? [Double], position.count == 3 { lastEndEffector = position }
             if let position = payload["object_pos"] as? [Double], position.count == 3 { lastObject = position }
             if let position = payload["goal_pos"] as? [Double], position.count == 3 { lastGoal = position }
-            if let name = payload["gripper"] as? String, let parsed = Self.gripperState(name) { lastGripper = parsed }
-            let estop = payload["estop"] as? Bool ?? false
-            let gripper = (payload["gripper"] as? String).flatMap(Self.gripperState)
+            let parsed = ServerState(payload: payload)
+            lastState = parsed
+            lastStateAtMs = now()
+            if let gripper = parsed.gripper { lastGripper = gripper }
+            let estop = parsed.estop
+            let gripper = parsed.gripper
             if !ready {
                 ready = true
                 return .up(estop: estop, gripper: gripper)
@@ -296,9 +362,23 @@ public final class TeleopLink {
             if finishedStop {
                 stopping = nil
                 releaseHeldStart(force: true)
+                sendDueReset()
             }
-            guard payload["status"] as? String == "rejected" else { return finishedPose ? .holdStopped : nil }
+            let rejected = payload["status"] as? String == "rejected"
             let reason = payload["reason"] as? String ?? ""
+            if let pending = reset, seq == pending.seq {
+                guard rejected else {
+                    reset = nil
+                    return .resetDone
+                }
+                if reason == "busy", !pending.retried {
+                    reset = (pending.sinceMs, nil, now() + Self.resetRetryMs, true)
+                    return nil
+                }
+                reset = nil
+                return .resetRefused(reason: reason)
+            }
+            guard rejected else { return finishedPose ? .holdStopped : nil }
             // Only the current hold's refusal ends it. A late refusal of an earlier press must not cancel this one.
             if sentType == "pose_start", seq == holdSeq {
                 holdActive = false
@@ -345,8 +425,10 @@ public final class TeleopLink {
                 "deadband_deg": 0.0,
                 "smoothing": params.smoothing,
             ])
+            lastStart = SentStart(seq: seq, kind: .pose, atMs: now())
         case .gripperJog(let target):
             gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
+            lastStart = SentStart(seq: seq, kind: .gripper(target), atMs: now())
         case .orient:
             turnSeq = emit("orient_start", [
                 "frame": "phone_body",
@@ -355,6 +437,7 @@ public final class TeleopLink {
                 "deadband_deg": 0.0,
                 "smoothing": 0.0,
             ])
+            lastStart = SentStart(seq: seq, kind: .wrist, atMs: now())
         }
     }
 
@@ -370,15 +453,6 @@ public final class TeleopLink {
     }
 
     private enum HeldKind { case pose, gripperJog, orient }
-
-    private static func gripperState(_ text: String) -> GripperState? {
-        switch text {
-        case "open": return .open
-        // The server starts with "closed" and says "close" after a closing command.
-        case "closed", "close": return .closed
-        default: return nil
-        }
-    }
 
     @discardableResult
     private func emit(_ type: String, _ payload: [String: Any]) -> Int {
