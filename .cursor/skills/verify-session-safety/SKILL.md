@@ -121,7 +121,7 @@ Sync commit: `4d86bab`
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
 - `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
 - `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `HeldControlModifier` (gripper and jaw turn) and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`, `JawTurnHandle`, `LeftHandles`).
-- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− hold on P4, P6, S3a, S5a). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/VolumeKeys`: `VolumeKeyMapper`, `VolumeKeyModifier` (vol+ hold and vol− hold on P4 and P6). `App/Sources/Pose` only reads the camera pose and sends no actions.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.

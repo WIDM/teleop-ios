@@ -6,7 +6,7 @@ Maintained source for verifying user-facing behavior of the Teleop iOS app. Read
 
 - Checkout of WIDM/teleop-ios at the SHA under test; `scripts/doctor.sh local` or `ci` passes for the path you use.
 - `export RUN_ID=...` set once; evidence in `~/teleop-ios-evidence/$RUN_ID`.
-- App starts at P1 with fake state (Not connected, gripper open, no E-stop) unless a recipe says otherwise.
+- A fresh install starts at S2 on the demo link (Connected, gripper open, no E-stop); later launches start at P4. Pass `-firstRunDone NO` or `YES` to choose.
 - Per-page acceptance points: `docs/figma-map.md`. Navigation: visual spec v1.14.
 
 ## Driving conventions
@@ -28,6 +28,6 @@ Maintained source for verifying user-facing behavior of the Teleop iOS app. Read
 |---|---|---|
 | F1 | connect-to-p5.md | S1 Connect and Back return to P5 |
 | F2 | status-chip-to-p5.md | Every status chip opens P5 |
-| F3 | disconnect-reconnect.md | S1 Disconnect -> S7 -> Reconnect -> S1 |
+| F3 | disconnect-reconnect.md | S1 Disconnect stays on S1; Connect again -> P5 |
 | F4 | hold-to-move-haptics.md | vol+ hold/release, vol- gripper, haptic patterns |
-| F5 | stop-reachability.md | STOP/E-stop always reachable, red only for STOP/S4/S7 |
+| F5 | stop-reachability.md | STOP/E-stop always reachable, red only for STOP/S4/lost connection |

@@ -1,13 +1,13 @@
 # F5 STOP / E-stop reachability
 
-The red STOP control is visible and tappable on every teleop screen; tapping it goes to S4 E-stopped with the long-buzz loop; Release (hold) returns to teleop. Red appears only on STOP, S4 and S7.
+The red STOP control is visible and tappable on every teleop screen; tapping it goes to S4 E-stopped with the long-buzz loop; Release (hold) returns to teleop. Red appears only on STOP, S4 and the lost-connection line on S1.
 
 ## Sub-features
 
-- F5.a `stop` exists and is hittable on P4, S3a, S3m, S5, S5a, S7.
+- F5.a `stop` exists and is hittable on P4, P6, S5, S1, S2, S6.
 - F5.b STOP -> S4, plays `.emergencyLoop`.
 - F5.c S4 Release (hold 1 s) -> back, cancels the loop.
-- F5.d No other red element on any of the 20 pages.
+- F5.d No other red element on any page.
 
 ## How to get to it (user POV)
 
@@ -19,7 +19,7 @@ Preconditions: baseline, connected.
 
 - Logic: `swift test --filter TeleopSessionTests` -> `.stop` asserts `.s4` and drained `.play(.emergencyLoop)`; `.releaseStop` asserts `.cancel`.
 - UI: on each listed screen assert `app.buttons["stop"].isHittable`, tap it, expect `stop.release`, shot `NN-S4-estopped`.
-- Red check: in the Figma compare side-by-sides, review red only on STOP/S4/S7.
+- Red check: in the Figma compare side-by-sides, review red only on STOP/S4/the S1 lost-connection line.
 
 ## Gotchas
 
