@@ -102,7 +102,7 @@ let properties: [Property] = [
     Property(id: "S14", promise: "turnEnd always leaves the jaws still.", harm: "Releasing the control would not stop the jaws turning."),
     Property(id: "S15", promise: "wristEnd always ends the wrist hold.", harm: "Releasing the input would not stop the wrist turning."),
     Property(id: "S16", promise: "A wrist hold starts only on wristStart while connected, not E-stopped, not latency-blocked and the arm not moving.", harm: "The wrist could turn when the operator was told it cannot."),
-    Property(id: "U1", promise: "On shipped screens, while E-stop is latched the user is only on S4 or a connection screen that leads back to it (P5, P7, S1).", harm: "S4 is hidden, so the app looks ready while all control input is silently ignored."),
+    Property(id: "U1", promise: "On shipped screens, while E-stop is latched every screen the user can be on shows that it is stopped (the operating screen's routes and Settings), or is a connection screen that leads straight back to one that does (S1, by its Back).", harm: "The stop is hidden, so the app looks ready while all control input is silently ignored."),
     Property(id: "U2", promise: "On shipped screens, S4 is shown only while E-stop is latched.", harm: "The app could claim E-stop when none is active."),
     Property(id: "U3", promise: "On shipped screens, a latched E-stop can always be released.", harm: "The operator could be stuck with no way back to control."),
     Property(id: "U4", promise: "On shipped screens, the arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
@@ -344,14 +344,22 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     return out
 }
 
-let screensWhileEStopped: Set<Route> = [.s4, .p5, .p7, .s1]
+// U1. The operating screen draws all of these routes (RootView.operatingRoutes) and shows its stopped state whenever
+// the stop is latched; Settings (S6) pins a STOPPED band then. drift.py holds both to the source.
+let showsTheStop: Set<Route> = [.p4, .p5, .p6, .p7, .s4, .s5, .s6]
+// Connection screens that lead straight back to one that shows the stop: checked, not assumed (leadsStraightBack).
+let leadsBackToTheStop: Set<Route> = [.s1]
 
 func uiChecks(_ step: Step) -> [(String, String)] {
     let b = step.after.session.state
     let route = step.after.session.route
     var out: [(String, String)] = []
-    if b.emergencyStop, !screensWhileEStopped.contains(route) {
-        out.append(("U1", "E-stop latched while showing \(route)"))
+    if b.emergencyStop, !showsTheStop.contains(route) {
+        if !leadsBackToTheStop.contains(route) {
+            out.append(("U1", "E-stop latched while showing \(route), which does not show it"))
+        } else if !leadsStraightBack(step.after) {
+            out.append(("U1", "E-stop latched on \(route), and none of its own actions opens a screen that shows it"))
+        }
     }
     if route == .s4, !b.emergencyStop { out.append(("U2", "S4 shown with no E-stop latched")) }
     if b.armMoving, !linkOk(b) {
@@ -409,6 +417,12 @@ func shippedActions(_ node: Node) -> [String] {
     if node.session.state.wristMoving, !names.contains("wristEnd") { names.append("wristEnd") }
     if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
     return names
+}
+/// One of the screen's own actions, other than pressing STOP again, opens a screen that shows the stop.
+func leadsStraightBack(_ node: Node) -> Bool {
+    uiMap[node.session.route]!.contains { name in
+        name != "stop" && perform(name, on: node, shippedUI: true).map { showsTheStop.contains($0.node.session.route) } ?? false
+    }
 }
 var uiRun = explore(actions: shippedActions, shippedUI: true, check: uiChecks)
 

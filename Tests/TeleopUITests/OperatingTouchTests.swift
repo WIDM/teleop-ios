@@ -34,6 +34,27 @@ final class OperatingTouchTests: XCTestCase {
         expectLabel(app.element("operating.state"), "Ready")
     }
 
+    /// The gear opens Settings while stopped too, and Settings then says plainly that the robot is stopped and how to
+    /// leave the stop, so the stop is never hidden behind it.
+    func testSettingsShowsTheStopWhileStopped() {
+        app.element("operating.gear").tap()
+        expect(app, "settings.done")
+        XCTAssertFalse(app.element("settings.stopped").exists, "nothing while not stopped")
+        app.element("settings.done").tap()
+
+        app.element("operating.stop").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+        app.element("operating.gear").tap()
+        expect(app, "settings.stopped")
+        let band = app.element("settings.stopped")
+        XCTAssertTrue(band.label.contains("STOPPED"), band.label)
+        XCTAssertTrue(band.label.contains("Tap Done, then hold the top edge to reset."), band.label)
+        XCTAssertLessThan(band.frame.minY, app.element("settings.done").frame.minY, "above everything else")
+        attachScreenshot("settings-stopped")
+        app.element("settings.done").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+    }
+
     func testTheStopBandOnSettingsStopsToo() {
         app.element("operating.gear").tap()
         expect(app, "stop")

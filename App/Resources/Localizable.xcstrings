@@ -1889,6 +1889,22 @@
         }
       }
     },
+    "settings.stopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. Tap Done, then hold the top edge to reset."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。點「完成」，再按住螢幕頂端重置。"
+          }
+        }
+      }
+    },
     "settings.task_aid": {
       "localizations": {
         "en": {

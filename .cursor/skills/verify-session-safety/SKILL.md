@@ -67,7 +67,7 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
 | S8, U6 | The E-stop long buzz never starts while already playing. | `HapticsController.play` overwrites `loopPlayer` without stopping it, so an older buzz may survive release. |
 | S9 | The long buzz plays exactly while E-stop is latched. | The haptic signal disagrees with the safety state. |
-| U1 | While E-stop is latched, the user is only on S4 or P5, P7, S1, which lead back to it. | S4 is hidden and input is silently ignored. |
+| U1 | While E-stop is latched, every screen the user can be on shows that it is stopped (the operating screen's routes P4, P5, P6, P7, S4, S5, and Settings, S6, with its STOPPED band), or is a connection screen that leads straight back to one that does (S1: one of its own actions other than STOP opens such a screen, checked in every stopped state). `drift.py` holds the list to `RootView.operatingRoutes` and to Settings' `settings.stopped` band. | The stop is hidden and input is silently ignored. |
 | U2 | S4 shows only while E-stop is latched. | The app claims an E-stop that is not active. |
 | U3 | A latched E-stop can always be released. | The operator is stuck. |
 | U4 | The arm is moving only while connected and not latency-blocked. | Same as S6, reachable by tapping. |

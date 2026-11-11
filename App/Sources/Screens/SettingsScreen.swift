@@ -16,6 +16,7 @@ struct SettingsScreen: View {
         let practice = model.operating.practice
         VStack(spacing: 0) {
             PracticeBanner(practice: practice)
+            if case .stopped = model.operating.state { stoppedBand }
             HStack {
                 Text("settings.title").font(.system(size: 20, weight: .bold))
                 Spacer()
@@ -36,6 +37,26 @@ struct SettingsScreen: View {
             }
             StopBand { model.send(.stop) }
         }
+    }
+
+    /// While the robot is stopped, Settings says so above everything and where the way out is, as the operating screen
+    /// does: the stop is never hidden behind Settings.
+    private var stoppedBand: some View {
+        VStack(spacing: 2) {
+            Text("state.stopped")
+                .font(.system(size: 20, weight: .heavy))
+            Text("settings.stopped")
+                .font(.system(size: 15, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .padding(.horizontal, TeleopMetrics.margin)
+        .background(TeleopColors.stateRed.ignoresSafeArea(edges: .top))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("settings.stopped")
     }
 
     private var control: some View {

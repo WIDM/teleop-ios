@@ -113,6 +113,25 @@ for path in sorted(set(allowed_outside) - set(outside_structs)):
     problems.append(f"{path} no longer sends actions; remove it from allowed_outside")
 
 root_view = (APP / "Screens/RootView.swift").read_text()
+
+# U1: the checker counts these routes as showing a latched stop. The operating screen's routes must be exactly
+# RootView.operatingRoutes, and Settings must draw its STOPPED band.
+def route_set(pattern, text):
+    found = re.search(pattern, text)
+    return set(re.findall(r"\.(\w+)", found.group(1))) if found else None
+
+
+shows_stop = route_set(r"let showsTheStop: Set<Route> = \[([^\]]*)\]", main)
+operating_routes = route_set(r"static let operatingRoutes: Set<Route> = \[([^\]]*)\]", root_view)
+if shows_stop is None or operating_routes is None:
+    problems.append("cannot read showsTheStop in main.swift or operatingRoutes in RootView.swift")
+elif shows_stop - {"s6"} != operating_routes:
+    problems.append(f"showsTheStop in main.swift, less s6, differs from RootView.operatingRoutes {sorted(operating_routes)}")
+settings_source = next(
+    (m.group(0) for p in APP.rglob("*.swift") for m in STRUCT.finditer(p.read_text()) if m.group(1) == "SettingsScreen"), ""
+)
+if "s6" in (shows_stop or set()) and 'accessibilityIdentifier("settings.stopped")' not in settings_source:
+    problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
 # One case may name several routes ("case .p4, .p5: OperatingScreen(").
 screen_of_route = {
     route: screen
