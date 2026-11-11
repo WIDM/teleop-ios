@@ -154,6 +154,14 @@ It must be updated, before the change counts as safe:
 `drift.py`, run by `check.sh`, fails when one of the first three is forgotten. `SKILL.md` has the full procedure,
 including how to prove the checker can still fail after it was changed.
 
+A `REVIEW` line is a reminder, not a failure: the run still exits 0 if every promise holds. It lists each covered
+file that differs from the sync commit named in `SKILL.md` (uncommitted changes included), and it names files that
+have since been deleted as well. At this commit the sync commit is `4d86bab`, older than much of the app, so a clean
+checkout prints about twenty `REVIEW` lines, among them screens that no longer exist (`ErrorsScreen.swift`,
+`ModeSelectScreen.swift`, `RecordingScreens.swift`, `CloudCheckScreens.swift`). That is a review not done yet, not
+a broken check. Whoever does it reads those changes, confirms the checker still describes the code, and moves the
+sync commit; until then, look only at the `REVIEW` lines for files your own change touched.
+
 ## Where robot and task numbers live
 
 What the app must know about one robot setup is in `RobotProfile` (`App/Sources/Link/Guidance.swift`): the offset
