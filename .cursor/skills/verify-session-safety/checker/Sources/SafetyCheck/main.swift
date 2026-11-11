@@ -138,7 +138,6 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
 // scripts/drift.py fails if FakeTeleopState gains a stored field that is in neither list.
 struct StateKey: Hashable {
     let connected: Bool
-    let heartbeatOk: Bool
     let latencyMs: Int
     let commandsBlocked: Bool
     let gripper: GripperState
@@ -162,7 +161,6 @@ func key(_ node: Node) -> StateKey {
     let origin = Mirror(reflecting: node.session).children.first { $0.label == "connectionOrigin" }?.value as? Route
     return StateKey(
         connected: s.connected,
-        heartbeatOk: s.heartbeatOk,
         latencyMs: s.latencyMs,
         commandsBlocked: s.commandsBlocked,
         gripper: s.gripper,

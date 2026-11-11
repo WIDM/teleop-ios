@@ -88,8 +88,8 @@ VARIANTS = [
         ["PASS U1", "PASS U3"],
     ),
     (
-        "lost link leaves the arm moving",
-        [("        connected = false\n        heartbeatOk = false\n        armMoving = false\n", "        connected = false\n        heartbeatOk = false\n")],
+        "lost link or disconnect leaves the arm moving",
+        [("        connected = false\n        armMoving = false\n", "        connected = false\n")],
         ["FAIL S6"],
     ),
     (
@@ -216,16 +216,6 @@ VARIANTS = [
             )
         ],
         ["FAIL U3"],
-    ),
-    (
-        "disconnect leaves the arm moving",
-        [
-            (
-                "heartbeatOk = false\n        armMoving = false\n",
-                "heartbeatOk = false\n",
-            )
-        ],
-        ["FAIL S6"],
     ),
     (
         "second stop restarts the buzz",

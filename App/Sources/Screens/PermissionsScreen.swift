@@ -11,8 +11,7 @@ struct PermissionsScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             ControlStatusBar(
                 modeKey: "control.setup",
-                connected: state.connected,
-                heartbeatOk: state.heartbeatOk
+                connected: state.connected
             ) { model.send(.openConnection) }
             Text("permissions.title")
                 .font(.system(size: 22, weight: .semibold))

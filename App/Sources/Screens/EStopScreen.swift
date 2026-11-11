@@ -16,7 +16,7 @@ struct EStopScreen: View {
                     .padding(.vertical, 4)
                     .background(TeleopColors.emergency, in: Capsule())
                 Spacer()
-                ConnectionChip(connected: state.connected, heartbeatOk: state.heartbeatOk) { model.send(.openConnection) }
+                ConnectionChip(connected: state.connected) { model.send(.openConnection) }
             }
             .frame(minHeight: TeleopMetrics.touch)
             .padding(.horizontal, 8)

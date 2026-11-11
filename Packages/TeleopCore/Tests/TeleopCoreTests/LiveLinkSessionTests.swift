@@ -32,7 +32,6 @@ final class LiveLinkSessionTests: XCTestCase {
         s.state.connectionLost = true
         s.perform(.linkUp(gripper: .closed))
         XCTAssertTrue(s.state.connected)
-        XCTAssertTrue(s.state.heartbeatOk)
         XCTAssertFalse(s.state.serverInputError)
         XCTAssertFalse(s.state.connectionLost)
         XCTAssertEqual(s.state.gripper, .closed)

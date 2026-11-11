@@ -14,8 +14,7 @@ struct StandbyScreen: View {
             ControlStatusBar(
                 modeKey: "control.standby",
                 connected: state.connected,
-                amber: blocked,
-                heartbeatOk: state.heartbeatOk
+                amber: blocked
             ) { model.send(.openConnection) }
 
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)

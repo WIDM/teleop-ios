@@ -60,8 +60,7 @@ struct FallbackControlScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             ControlStatusBar(
                 modeKey: "control.standby",
-                connected: state.connected,
-                heartbeatOk: state.heartbeatOk
+                connected: state.connected
             ) { model.send(.openConnection) }
             HoldPad(gripper: state.gripper, armMoving: state.armMoving)
                 .armHold(model: model)

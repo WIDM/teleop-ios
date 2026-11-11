@@ -26,13 +26,6 @@ struct ConnectionDetailsScreen: View {
                         value: latencyText(state)
                     )
                     .accessibilityIdentifier("connection.latency_row")
-                    detailRow(
-                        dot: state.heartbeatOk ? TeleopColors.statusGreen : TeleopColors.statusAmber,
-                        label: "connection.heartbeat",
-                        value: state.heartbeatOk
-                            ? L10n.string("connection.heartbeat_ok")
-                            : L10n.string("connection.heartbeat_missing")
-                    )
                     Text("connection.server_address")
                         .font(.system(size: 14))
                         .foregroundStyle(TeleopColors.textSecondary)

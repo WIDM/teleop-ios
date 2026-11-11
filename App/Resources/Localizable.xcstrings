@@ -273,54 +273,6 @@
         }
       }
     },
-    "connection.heartbeat": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Robot heartbeat"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "機器人心跳"
-          }
-        }
-      }
-    },
-    "connection.heartbeat_missing": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No heartbeat from the robot"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "收不到機器人心跳"
-          }
-        }
-      }
-    },
-    "connection.heartbeat_ok": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Received just now"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剛剛收到"
-          }
-        }
-      }
-    },
     "connection.latency": {
       "localizations": {
         "en": {

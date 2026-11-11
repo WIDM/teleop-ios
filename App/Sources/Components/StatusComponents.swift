@@ -5,18 +5,15 @@ import TeleopCore
 struct ConnectionChip: View {
     var connected: Bool
     var amber = false
-    var heartbeatOk = true
     var onTap: (() -> Void)? = nil
 
-    private var effectivelyConnected: Bool { connected && heartbeatOk }
-
     private var dotColor: Color {
-        if !effectivelyConnected { return TeleopColors.textSecondary }
+        if !connected { return TeleopColors.textSecondary }
         return amber ? TeleopColors.statusAmber : TeleopColors.statusGreen
     }
 
     private var labelKey: LocalizedStringKey {
-        effectivelyConnected ? "status.connected" : "status.not_connected"
+        connected ? "status.connected" : "status.not_connected"
     }
 
     var body: some View {
@@ -62,14 +59,13 @@ struct ControlStatusBar: View {
     let modeKey: LocalizedStringKey
     var connected: Bool
     var amber = false
-    var heartbeatOk = true
     let onConnectionTap: () -> Void
 
     var body: some View {
         HStack {
             ModePill(textKey: modeKey)
             Spacer()
-            ConnectionChip(connected: connected, amber: amber, heartbeatOk: heartbeatOk, onTap: onConnectionTap)
+            ConnectionChip(connected: connected, amber: amber, onTap: onConnectionTap)
         }
         .frame(minHeight: TeleopMetrics.touch)
         .padding(.horizontal, 8)

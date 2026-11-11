@@ -12,7 +12,6 @@ public enum TurnDirection: Sendable {
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
     public var connected = false
-    public var heartbeatOk = true
     public var latencyMs = 80
     public var commandsBlocked = false
     public var gripper: GripperState = .open
@@ -56,7 +55,6 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public mutating func markDisconnected() {
         connected = false
-        heartbeatOk = false
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
@@ -74,7 +72,6 @@ public struct FakeTeleopState: Equatable, Sendable {
         jawTurning = nil
         connected = false
         connectionLost = false
-        heartbeatOk = true
         clearLatency()
     }
 

@@ -183,7 +183,6 @@ public struct TeleopSession: Equatable, Sendable {
         case .linkUp(let gripper):
             guard state.liveLink else { return }
             state.markConnected()
-            state.heartbeatOk = true
             state.serverInputError = false
             if let gripper { state.gripper = gripper }
             if route == .s1 { go(.p5) }
