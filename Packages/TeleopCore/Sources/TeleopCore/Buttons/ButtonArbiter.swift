@@ -20,8 +20,10 @@ public enum ButtonID: String, CaseIterable, Sendable {
 public enum ButtonCommand: Equatable, Sendable {
     /// `pose_start` for a translation hold.
     case startTranslation(OperatorDirection)
-    /// `pose_update` with the ramp's target, on every 30 Hz tick while the hold runs: metres, in the frame
-    /// `TeleopLink.poseUpdate(positionMeters:)` takes.
+    /// The ramp's target on every 30 Hz tick while the hold runs: metres, in the frame
+    /// `TeleopLink.poseUpdate(positionMeters:)` takes. It is the whole way asked for since the press and grows for
+    /// as long as the button is held, so it is not what one `pose_update` carries: it takes the place of the
+    /// phone's offset and goes through the link's 8 cm lead cap and resync (§3.3) like that offset does.
     case updateTranslation(SIMD3<Double>)
     /// `pose_stop`.
     case stopTranslation

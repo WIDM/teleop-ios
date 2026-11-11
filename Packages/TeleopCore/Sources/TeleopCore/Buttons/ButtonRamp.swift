@@ -13,8 +13,8 @@ public enum ButtonSpeed: String, CaseIterable, Sendable {
 
 /// The target of one direction-button hold. From zero at the press, it moves along the button's direction at the
 /// chosen speed of wall time, and stops moving once frozen: at the release, or when the arm stopped following
-/// (§3.3). The offset is what the phone's motion would otherwise give: metres, in the frame
-/// `TeleopLink.poseUpdate(positionMeters:)` takes. Time is passed in, in milliseconds.
+/// (§3.3). The offset is what the phone's motion would otherwise give, before the link's lead cap: metres, in the
+/// frame `TeleopLink.poseUpdate(positionMeters:)` takes. Time is passed in, in milliseconds.
 public struct ButtonRamp: Equatable, Sendable {
     public let direction: OperatorDirection
     public let speed: ButtonSpeed
