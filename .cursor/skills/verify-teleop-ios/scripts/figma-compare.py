@@ -4,7 +4,7 @@
 Usage:
   figma-compare.py --figma DIR --shots DIR --out DIR [--threshold 0.10] [--only S1,P5]
 
---figma : files named <SCREEN_ID>.png (P4..P7, T1..T3, S1, S2, S4, S5, S6)
+--figma : files named <SCREEN_ID>.png (P4..P7, T1..T3, S1, S2, S4, S6)
 --shots : simulator screenshots; the screen id is taken from the name, e.g. 05-S1-connect.png
 Output  : <out>/<SCREEN_ID>-side-by-side.png (figma | sim | diff heatmap) and <out>/report.json, report.md
 Score   : fraction of pixels whose max channel delta > 32 after resizing the shot to the frame size.
@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-IDS = ["P4","P5","P6","P7","T1","T2","T3","S1","S2","S4","S5","S6"]
+IDS = ["P4","P5","P6","P7","T1","T2","T3","S1","S2","S4","S6"]
 CANON = {i.lower(): i for i in IDS}
 
 def screen_id(name):
