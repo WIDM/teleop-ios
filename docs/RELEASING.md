@@ -105,10 +105,11 @@ Build for it. `<TEAM_ID>` is the ten-character team identifier, `<DEVICE_UDID>` 
       DEVELOPMENT_TEAM=<TEAM_ID> -allowProvisioningUpdates build
 
 `-allowProvisioningUpdates` lets Xcode create or renew the signing certificate and profile with the Apple account
-signed in to Xcode. Install it and start it (`devicectl` takes the same UDID):
+signed in to Xcode. Install it and start it (`devicectl` takes the same UDID; `<BUNDLE_ID>` is
+`PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`):
 
     xcrun devicectl device install app --device <DEVICE_UDID> build/device/Build/Products/Debug-iphoneos/Teleop.app
-    xcrun devicectl device process launch --device <DEVICE_UDID> widm.teleop.app
+    xcrun devicectl device process launch --device <DEVICE_UDID> <BUNDLE_ID>
 
 The first launch on a phone may need the developer to be trusted on the phone itself (Settings, General, VPN &
 Device Management). With a free team, the profile expires after seven days and the app stops opening until it is
@@ -121,7 +122,8 @@ repository today, and the two commands below need the paid team and the App Stor
 been run here. A release through it would additionally need:
 
 - a paid Apple Developer Program membership for the team, and an app record in App Store Connect for the bundle
-  identifier `widm.teleop.app`, with a privacy policy address (required for every app);
+  identifier (`PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`), with a privacy policy address (required for every
+  app);
 - a build number higher than any build already uploaded for that version;
 - a Release archive for a generic device, signed for distribution:
 
