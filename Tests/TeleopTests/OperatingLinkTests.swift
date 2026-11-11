@@ -250,6 +250,53 @@ final class OperatingLinkTests: XCTestCase {
         model.buttonUp(.left)
     }
 
+    /// I-3 in buttons mode: during a pad hold the top band is dead (NO + "Let go first.") and so is a gear tap.
+    func testTheBandsAreDeadDuringAPadHold() {
+        bringUp(.buttons, state: ["ee_pos": [0.02, -0.14, 0.16]])
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        model.buttonDown(.up)
+        touch(3, .began, x: 200, y: layout.topBand.maxY - 20)
+        step(70)
+        XCTAssertNil(model.operating.resetCountdown)
+        XCTAssertFalse(transport.types.contains("reset_scene"))
+        XCTAssertTrue(model.cueLog.contains { $0.event == .refused(.letGoFirst) })
+        touch(3, .ended, x: 200, y: layout.topBand.maxY - 20)
+        let refusals = model.cueLog.filter { $0.event == .refused(.letGoFirst) }.count
+        let gear = (x: layout.gear.x + layout.gear.width / 2, y: layout.gear.y + layout.gear.height / 2)
+        touch(4, .began, x: gear.x, y: gear.y)
+        step(3)
+        touch(4, .ended, x: gear.x, y: gear.y)
+        XCTAssertEqual(model.session.route, .p4, "Settings did not open")
+        XCTAssertEqual(model.cueLog.filter { $0.event == .refused(.letGoFirst) }.count, refusals + 1)
+        XCTAssertTrue(model.session.state.armMoving, "the hold runs on")
+        model.buttonUp(.up)
+        XCTAssertFalse(model.session.state.armMoving)
+    }
+
+    /// I-3 in buttons mode: the reset countdown counts as engaged, so a pad press during it is dead until released.
+    func testAPadPressDuringTheResetCountdownIsDead() {
+        bringUp(.buttons, state: ["ee_pos": [0.02, -0.14, 0.16]])
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(3, .began, x: 200, y: top)
+        step(10)
+        XCTAssertNotNil(model.operating.resetCountdown)
+        model.buttonDown(.up)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertFalse(transport.types.contains("pose_start"))
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.deadInput))
+        touch(3, .ended, x: 200, y: top)
+        step()
+        XCTAssertFalse(model.session.state.armMoving, "still dead after the countdown")
+        model.buttonUp(.up)
+        model.buttonDown(.up)
+        XCTAssertTrue(model.session.state.armMoving, "lifted, the button works again")
+        model.buttonUp(.up)
+    }
+
     func testFineAndCoarseAreRefusedWhileAButtonIsDown() {
         bringUp(.buttons)
         model.buttonDown(.left)

@@ -347,7 +347,10 @@ final class AppModel {
         }
         let camera = pose()
         var resetRefusal: InputRefusal?
-        if !s.connected {
+        if controller.buttons.engaged != nil {
+            // The input rules do not see the pad's holds, and the top band is dead while one runs (I-3).
+            resetRefusal = .letGoFirst
+        } else if !s.connected {
             resetRefusal = .noLink
         } else if settingsOpen {
             resetRefusal = .settingsOpen

@@ -217,6 +217,12 @@ final class OperatingController {
         let facts = model.inputFacts()
         let commands = buttons.press(button, atMs: milliseconds(now()), gripping: facts.gripping)
         let starts = commands.contains { if case .startTranslation = $0 { true } else if case .startGripper = $0 { true } else { false } }
+        if starts, countdownStartedAt != nil {
+            // The reset countdown counts as engaged (I-3): the press is dead until it is released.
+            buttons.holdEnded()
+            model.raise(.refused(.deadInput))
+            return
+        }
         if starts, let refusal = facts.refusal {
             // The button stays dead until it is released, as a refused key does.
             buttons.holdEnded()
@@ -247,7 +253,13 @@ final class OperatingController {
         case .fireReset:
             countdownStartedAt = nil
             model.runReset()
-        case .openSettings: model.send(.openSettings)
+        case .openSettings:
+            // The input rules do not see the pad's holds: a gear tap during one is dead (§2.2).
+            if buttons.engaged != nil {
+                model.raise(.refused(.letGoFirst))
+            } else {
+                model.send(.openSettings)
+            }
         case .cue(let cue): cueRaised(cue)
         }
     }
