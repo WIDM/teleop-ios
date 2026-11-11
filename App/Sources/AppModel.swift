@@ -23,21 +23,9 @@ final class AppModel {
     @ObservationIgnored private var holdEngagedAtLoss = false
     /// The built-in demo's hold count, for its GO.
     @ObservationIgnored private var demoHold = 0
-    /// Real server instead of the practice demo. Changing it drops the current link and starts the other, so no
-    /// session spans both. Not kept across launches: every launch is on the real server.
-    var liveLink: Bool {
-        get { session.state.liveLink }
-        set {
-            guard newValue != session.state.liveLink, !session.state.emergencyStop else { return }
-            link.closeQuietly()
-            session.state.liveLink = newValue
-            if newValue, session.state.serverAddress.isEmpty,
-               let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
-                session.state.serverAddress = saved
-            }
-            send(.switchLink)
-        }
-    }
+    /// Real server instead of the practice demo. Not kept across launches: every launch is on the real server.
+    /// Only `startPractice` and `leavePractice` change it.
+    var liveLink: Bool { session.state.liveLink }
     /// UI tests only: `-liveLink NO` launches in practice. It was once a saved setting; a saved value is ignored.
     static let liveLinkKey = "liveLink"
     static let serverAddressKey = "serverAddress"
@@ -297,14 +285,24 @@ final class AppModel {
     /// Practice without a robot: the built-in demo. Never the default and never kept across launches; no message
     /// reaches any server while it runs. Refused while the robot is in emergency stop.
     func startPractice() {
-        guard session.state.liveLink else { return }
-        liveLink = false
+        switchLink(live: false)
     }
 
-    /// Back to the real server at the saved address.
+    /// Back to the real server at the saved address. Refused while the robot is in emergency stop.
     func leavePractice() {
-        guard !session.state.liveLink else { return }
-        liveLink = true
+        switchLink(live: true)
+    }
+
+    /// Drops the current link and starts the other, so no session spans both.
+    private func switchLink(live: Bool) {
+        guard live != session.state.liveLink, !session.state.emergencyStop else { return }
+        link.closeQuietly()
+        session.state.liveLink = live
+        if live, session.state.serverAddress.isEmpty,
+           let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+            session.state.serverAddress = saved
+        }
+        send(.switchLink)
     }
 
     // MARK: Raw inputs from the device

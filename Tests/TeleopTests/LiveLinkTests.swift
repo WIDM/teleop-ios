@@ -686,7 +686,7 @@ final class LiveLinkTests: XCTestCase {
     func testGuidanceGoesWhenTheLinkDoes() {
         bringUp()
         transport.server("state", sceneState)
-        model.liveLink = false
+        model.startPractice()
         XCTAssertNil(model.guidance)
     }
 
@@ -872,7 +872,7 @@ final class LiveLinkTests: XCTestCase {
         bringUp()
         model.send(.holdArmStart)
         model.send(.openSettings)
-        model.liveLink = false
+        model.startPractice()
         XCTAssertTrue(transport.closed)
         XCTAssertFalse(model.session.state.armMoving)
         XCTAssertTrue(model.session.state.connected, "the demo link is connected from the start")
@@ -887,7 +887,7 @@ final class LiveLinkTests: XCTestCase {
             return made
         })
         demo.session.state.serverAddress = "100.64.0.1:8765"
-        demo.liveLink = true
+        demo.leavePractice()
         XCTAssertEqual(transports.count, 1)
         XCTAssertTrue(transports[0].opened)
         XCTAssertFalse(demo.session.state.connected, "connected only once the server answers")

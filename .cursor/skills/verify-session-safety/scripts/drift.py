@@ -63,8 +63,8 @@ def sends(text):
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
     if "model.connect()" in text:
         found.add("connect")
-    # Practice on and off: AppModel.liveLink flips the flag, then sends switchLink.
-    if "$model.liveLink" in text or "model.startPractice()" in text or "model.leavePractice()" in text:
+    # Practice on and off: AppModel.startPractice and leavePractice flip the flag, then send switchLink.
+    if "model.startPractice()" in text or "model.leavePractice()" in text:
         found.add("toggleLiveLink")
     # LiveLinkController reports what the server did.
     found |= set(re.findall(r"onAction\?\(\.(\w+)", text))

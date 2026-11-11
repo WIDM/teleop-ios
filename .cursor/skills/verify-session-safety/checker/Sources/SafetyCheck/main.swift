@@ -52,10 +52,10 @@ let actionTable: [(String, TeleopAction)] = [
 // session lets only the answer to a reset asked for in the stop state release it.
 let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop", "sceneResetDone"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
-// toggleLiveLink is the Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
+// toggleLiveLink is practice on or off (AppModel.startPractice, leavePractice): the flag flips, then switchLink.
 let stateCalls = ["toggleLiveLink"]
-// A fresh install opens on S2 (the default start); every later launch opens on P4. Either launch is on the demo or on
-// a real server, whichever the Settings switch last saved (AppModel reads it at launch).
+// A fresh install opens on S2 (the default start); every later launch opens on P4. A launch is on a real server, or in
+// practice when a UI test asks for it (`-liveLink NO`), so both are explored.
 let launches = [false, true].flatMap { liveLink -> [TeleopSession] in
     var state = FakeTeleopState()
     state.liveLink = liveLink
