@@ -60,7 +60,7 @@ the model is kept honest against recordings of the real server.
 | `Haptics/`, `Audio/` | The players: Core Haptics patterns, the three sounds, and speech. They play what they are told and decide nothing. |
 | `Input/` | `TouchSurfaceView`, a UIKit view that reports raw touches for the input rules. Not on any screen yet. |
 | `Localization/`, `Permissions/` | The in-app language choice and the camera permission request. |
-| `App/Resources/` | The string catalogs (`Localizable`, `Speech`, `Buttons`, `InfoPlist`), each in English and Traditional Chinese, and the app icon. |
+| `App/Resources/` | The string catalogs (`Localizable`, `Speech`, `Buttons`, `InfoPlist`), each in English and Traditional Chinese. The app icon is in `App/Assets.xcassets`. |
 
 ## Pure logic takes time as an argument
 
@@ -111,8 +111,9 @@ The gripper (`gripperStart`, `gripperEnd`) and the wrist (`turnStart`, `turnEnd`
      hands it to `RecorderNarrator`.
    - Refusals and hold ends go to `FeedbackMonitor`, which knows which hold the operator has engaged.
 4. `FeedbackMonitor` and `RecorderNarrator` return `FeedbackEvent`s: the hold is live, the press was refused, as
-   far as it goes, the jaws closed on something, the hold was ended for you, emergency stop, link lost, a take saved
-   or discarded. `AppModel.raise` passes each to the `CuePlayer`.
+   far as it goes, the jaws closed on something, the hold was ended for you, emergency stop, a take saved or
+   discarded. One more event, link lost, is raised by `AppModel` itself when the link controller reports
+   `linkLost` (`AppModel.fromServer`). `AppModel.raise` passes each to the `CuePlayer`.
 5. `CuePlayer` asks `CueScheduler` what to play now. The scheduler looks the event up in `CueTable` and resolves
    collisions: one haptic channel with a fixed priority, one voice with levels, sounds at once. It returns outputs,
    and `CuePlayer` gives them to `HapticsController`, `SoundPlayer` and `SpeechPlayer`.
@@ -170,11 +171,16 @@ the jaws must be to grasp, the cube's size, the jaw angles that count as fully o
 whether the scene starts with the jaws side by side. `RobotProfile.so101Simulator` is the one profile today, and
 nothing outside it should name the cube or the arm.
 
-The server model has its own copy of the same measurements in `ServerModelConfig`.
-`Tests/TeleopTests/ServerModelProfileTests.swift` fails when the two disagree, so re-measuring one forces the other.
+The server model has its own copy of most of the same measurements in `ServerModelConfig`.
+`Tests/TeleopTests/ServerModelProfileTests.swift` compares the ones both have (the tool offset, the base position,
+the grasp tolerance, the cube size and whether the jaws start side by side) and fails when they disagree, so
+re-measuring one forces the other. The jaw angles for fully open and closed on nothing are only in the profile:
+the model has no such numbers to compare.
 
 A few numbers that come from the server's rules rather than from the robot still sit next to the code that uses
 them: the 8 cm cap per server hold, the turn and tilt steps and speeds (`LiveLinkController`), the ranges the server
 accepts for `pose_start` (`PoseParams` in `TeleopLink.swift`), and the guide's holding radius and goal size
-(`Guidance`). The input rules keep every threshold in `InputConstants`; its two sign fields are robot numbers that
-the robot profile's owner passes in.
+(`Guidance`). The input rules keep every threshold in `InputConstants`. Two of its fields, `rollSign` and
+`tiltSign`, say which way a turn or a tilt of the phone moves the wrist; they belong to the robot rather than to the
+rules. Both default to +1 until a check on the live robot measures them, and at this commit nothing sets them,
+because nothing uses the input rules yet. They are not in `RobotProfile`.
