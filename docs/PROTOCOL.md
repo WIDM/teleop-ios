@@ -69,8 +69,9 @@ recordings is `scripts/trace_scenarios.py`, which speaks the same protocol as th
 order. Where the app's own payload differs, the text says so. Names and the server's session id are replaced by
 placeholders.
 
-In a server message, `seq` is the client message it answers, or the newest one it has seen. The app ignores it and
-reads the acknowledged number from `payload.seq` instead.
+In a server message, `seq` is the client message it answers, or the newest one it has seen. For an `ack` the app
+reads the acknowledged number from `payload.seq`. A `test` echo is the probe's own text sent back, so there the app
+reads the top-level `seq` to find which probe came back. In every other server message it ignores `seq`.
 
 ## Starting a conversation
 
@@ -388,12 +389,12 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `object_pos`, `goal_pos` | the cube's centre and the goal's centre, **world** frame, metres | the map and the guide, after subtracting the base's height |
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator |
 | `episode` | counts scene resets of this server run | a change means the scene started over (the jaws hold nothing) |
-| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` if not a number | "fully open" when opening, "closed on nothing" when closing |
+| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; the owner's copy of the server sends `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing |
 | `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | what the operator hears per take |
 | `rec_saved` | demonstrations in the output file, including earlier server runs | "saved", by comparing with the last value |
 | `rec_discarded` | takes thrown away since the server started | "discarded", the same way |
 | `rec_samples` | samples in the current take, 30 per simulated second | the length of the take, kept in `AppModel.recorder`, which no screen shows yet |
-| `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when not recording | read, not used yet |
+| `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when the server was started without recording (`rec: none`) | read, not used yet |
 | `orient_deg`, `gripper_delta` | appear after the first wrist or arm hold | not used |
 
 **A state without the key `rec` comes from an unknown server, never from one without a recorder.** The phone then
@@ -421,7 +422,8 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
   touch on an on-screen control, or the screen with the control goes away;
 - the round trip is slow twice in a row (400 ms or more);
 - the link is lost: the socket closed, no `welcome` in 5 s, or the silence above;
-- a resync whose old hold gets no final ack within 1.5 s;
+- a resync that does not finish within 1.5 s: in that time the old hold's final ack and then a `state` without
+  the emergency stop must both arrive, or the hold ends;
 - STOP.
 
 ## Limits the server enforces without saying so
@@ -430,9 +432,9 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
   gripper link origin's start position: in the base frame x from −0.059 to 0.101 m, y from −0.221 to −0.061 m and
   z from 0.080 to 0.240 m (`ServerModelConfig.armStart`, `workspaceHalfSize`). A hold asking for more just stops
   there; the only sign is `ik: pose_clamped` in `state`, which the control connection sees only after the hold.
-- **Directions the arm cannot go from its start pose.** Measured on the simulator, not enforced by any rule in
-  the server: from the reset pose the arm moves no more than about 1.9 cm toward the robot base, and it does not
-  move straight down. The server says nothing; the arm simply stops following. The app notices from the listening
+- **Directions the arm cannot go from its start pose.** Measured on the simulator: from the reset pose the arm
+  moves no more than about 1.9 cm toward the robot base, and it does not move straight down. The server model does
+  not have this limit. The server says nothing; the arm simply stops following. The app notices from the listening
   connection's positions (the target at least 10 mm ahead and the arm moving less than 2 mm in 1 s,
   `FeedbackMonitor`) and from a resync that finds the arm has not moved.
 - **One hold at a time.** The arm, the wrist and the gripper cannot move together. On the phone, starting one
@@ -444,8 +446,11 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
 
 ## Where the app relies on the owner's copy of the server
 
-The lab runs a copy of the published server with a few local changes. The app is built against that copy. Against
-the published server it still works, with these differences:
+The lab runs a copy of the published server with a few local changes. The app is built against that copy, and the
+server model and the recordings in this repository describe only that copy. Against the published server the app
+still works, with the differences below. The published server is not in this repository and nothing here tests
+against it: this table comes from the changes marked as local in the lab copy's source and from the lab's notes on
+the published one.
 
 | The owner's copy | The published server | Effect on the app |
 |---|---|---|
