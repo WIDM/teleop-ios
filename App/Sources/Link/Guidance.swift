@@ -27,10 +27,17 @@ struct RobotProfile: Equatable {
     var graspTolerance = SIMD2<Float>(0.006, 0.008)
     /// Edge of the task cube, metres.
     var cubeSize: Float = 0.025
+    /// A measured jaw angle at or above this while opening is fully open. The joint's limit is 100 degrees.
+    var gripperOpenDeg = 97.0
+    /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
+    /// 0.4 degrees on the S4 simulator (recording s15); this is that plus 2, until the device check sets it.
+    var gripperEmptyDeg = 2.0
     /// The scene's start pose already has the jaws side by side, which is the grasp `toolOffset` was measured
     /// for. True for the development simulator since 2026-11-11 (its start wrist roll is 90 degrees). The server
     /// as published starts them front to back, and there the operator has to turn them first: two full presses.
     var jawsStartSideways = true
+
+    var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
 
     /// Where the jaws pinch, robot base frame.
     func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }

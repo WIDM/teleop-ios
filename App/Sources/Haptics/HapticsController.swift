@@ -1,83 +1,74 @@
 // xcode: set sdk=iOS
 
+import AVFoundation
 import CoreHaptics
 import TeleopCore
 
 protocol HapticsPlaying: AnyObject {
-    func run(_ command: HapticCommand)
+    /// Plays the pattern now, stopping the one that plays.
+    func play(_ haptic: Haptic)
+    func stop()
 }
 
+/// Plays the six event patterns with Core Haptics. An audio interruption (a call, Siri) stops the engine, and
+/// Apple asks apps to restart it before the next pattern, so it is restarted when the interruption ends, from its
+/// own handlers, and before every pattern.
 final class HapticsController: HapticsPlaying {
     private var engine: CHHapticEngine?
-    private var loopPlayer: CHHapticAdvancedPatternPlayer?
+    private var player: CHHapticPatternPlayer?
+    private var interruptions: NSObjectProtocol?
 
     init() {
         guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
         engine = try? CHHapticEngine()
+        engine?.playsHapticsOnly = true
         engine?.resetHandler = { [weak self] in try? self?.engine?.start() }
         engine?.stoppedHandler = { _ in }
         try? engine?.start()
-    }
-
-    func run(_ command: HapticCommand) {
-        switch command {
-        case .play(let cue): play(cue.pattern)
-        case .cancel: cancel()
+        interruptions = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
+            if type == .ended { try? self?.engine?.start() }
         }
     }
 
-    private func play(_ pattern: HapticPattern) {
-        guard let engine, let core = try? makePattern(pattern) else { return }
+    deinit {
+        if let interruptions { NotificationCenter.default.removeObserver(interruptions) }
+    }
+
+    func play(_ haptic: Haptic) {
+        guard let engine, let pattern = try? Self.pattern(haptic.pattern) else { return }
         try? engine.start()
-        do {
-            if pattern.repeats {
-                let player = try engine.makeAdvancedPlayer(with: core)
-                player.loopEnabled = true
-                loopPlayer = player
-                try player.start(atTime: CHHapticTimeImmediate)
-            } else {
-                let player = try engine.makePlayer(with: core)
-                try player.start(atTime: CHHapticTimeImmediate)
-            }
-        } catch {
-            return
-        }
+        stop()
+        guard let player = try? engine.makePlayer(with: pattern) else { return }
+        self.player = player
+        try? player.start(atTime: CHHapticTimeImmediate)
     }
 
-    private func cancel() {
-        try? loopPlayer?.stop(atTime: CHHapticTimeImmediate)
-        loopPlayer = nil
+    func stop() {
+        try? player?.stop(atTime: CHHapticTimeImmediate)
+        player = nil
     }
 
-    private func makePattern(_ pattern: HapticPattern) throws -> CHHapticPattern {
-        let strong = [
-            CHHapticEventParameter(parameterID: .hapticIntensity, value: 1),
-            CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
-        ]
-        var events = pattern.pulses.map {
-            CHHapticEvent(
-                eventType: .hapticContinuous,
-                parameters: strong,
-                relativeTime: Double($0.startMs) / 1000,
-                duration: Double($0.durationMs) / 1000
-            )
-        }
-        if let loop = pattern.loopLengthMs, let last = pattern.pulses.last {
-            // A silent tail makes the loop cycle include the off time.
-            let tailStart = last.startMs + last.durationMs
-            events.append(
-                CHHapticEvent(
-                    eventType: .hapticContinuous,
-                    parameters: [CHHapticEventParameter(parameterID: .hapticIntensity, value: 0)],
-                    relativeTime: Double(tailStart) / 1000,
-                    duration: Double(loop - tailStart) / 1000
+    private static func pattern(_ pattern: HapticPattern) throws -> CHHapticPattern {
+        let events = pattern.pulses.map { pulse in
+            let parameters = [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: Float(pulse.intensity)),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(pulse.sharpness)),
+            ]
+            return pulse.isTransient
+                ? CHHapticEvent(eventType: .hapticTransient, parameters: parameters, relativeTime: Double(pulse.startMs) / 1000)
+                : CHHapticEvent(
+                    eventType: .hapticContinuous, parameters: parameters,
+                    relativeTime: Double(pulse.startMs) / 1000, duration: Double(pulse.durationMs) / 1000
                 )
-            )
         }
         return try CHHapticPattern(events: events, parameters: [])
     }
 }
 
 final class NoHaptics: HapticsPlaying {
-    func run(_ command: HapticCommand) {}
+    func play(_ haptic: Haptic) {}
+    func stop() {}
 }
