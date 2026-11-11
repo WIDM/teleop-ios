@@ -344,15 +344,26 @@ final class MiniMapLayoutTests: XCTestCase {
     }
 }
 
+/// How the phone is held is read a few times a second. Changes are not buzzed: the six event patterns are the
+/// only haptics. A translation pressed while the phone is held wrong is refused and says why.
 final class PostureHapticsTests: XCTestCase {
     private var camera: simd_float4x4? = TestPose.portrait
     private var spy: SpyHaptics!
     private var model: AppModel!
 
+    private var savedLanguage = L10n.language
+
     override func setUp() {
         camera = TestPose.portrait
         spy = SpyHaptics()
         model = AppModel(start: .p4, haptics: spy, pose: { [unowned self] in camera }, liveLink: false)
+        savedLanguage = L10n.language
+        L10n.language = .en
+    }
+
+    override func tearDown() {
+        L10n.language = savedLanguage
+        super.tearDown()
     }
 
     private var sideways: simd_float4x4 { TestPose.portrait(turned: 90, about: SIMD3(0, 0, 1)) }
@@ -360,37 +371,50 @@ final class PostureHapticsTests: XCTestCase {
     func testFirstReadingIsSilent() {
         model.refreshPosture()
         XCTAssertEqual(model.posture, .upright)
-        XCTAssertEqual(spy.commands, [])
+        XCTAssertEqual(spy.felt, [])
     }
 
-    func testTwoBuzzesWhenItGoesWrongOneWhenItComesBack() {
+    func testPostureChangesAreReadButNotBuzzed() {
         model.refreshPosture()
         camera = sideways
         model.refreshPosture()
-        model.refreshPosture()
         XCTAssertEqual(model.posture, .tilted)
-        XCTAssertEqual(spy.commands, [.play(.postureOff)], "once per change, not once per reading")
         camera = TestPose.portrait
         model.refreshPosture()
-        XCTAssertEqual(spy.commands, [.play(.postureOff), .play(.postureOk)])
+        XCTAssertEqual(model.posture, .upright)
+        XCTAssertEqual(spy.felt, [], "a posture buzz would read as GO or GRIP")
     }
 
     func testLosingAndRegainingTrackingIsSilent() {
         model.refreshPosture()
         camera = nil
         model.refreshPosture()
+        XCTAssertEqual(model.posture, .unknown)
         camera = TestPose.portrait
         model.refreshPosture()
-        XCTAssertEqual(spy.commands, [])
+        XCTAssertEqual(spy.felt, [])
     }
 
-    func testNoPostureBuzzOverTheEStopBuzz() {
-        model.refreshPosture()
-        model.session.state.markConnected()
-        model.send(.stop)
+    func testATranslationWithThePhoneHeldSidewaysIsRefused() {
+        let speech = SpySpeech()
+        let live = AppModel(
+            start: .p4, haptics: spy, speech: speech, pose: { [unowned self] in camera }, liveLink: true,
+            makeTransport: { _ in SilentTransport() }
+        )
+        live.session.state.markConnected()
         camera = sideways
-        model.refreshPosture()
-        XCTAssertEqual(model.posture, .tilted)
-        XCTAssertEqual(spy.commands, [.play(.emergencyLoop)])
+        live.send(.holdArmStart)
+        XCTAssertFalse(live.session.state.armMoving)
+        XCTAssertEqual(spy.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["Hold the phone upright."])
     }
+}
+
+/// A socket that is never answered.
+final class SilentTransport: LinkTransport {
+    var onText: ((String) -> Void)?
+    var onClose: (() -> Void)?
+    func open() {}
+    func send(_ text: String) {}
+    func close() {}
 }

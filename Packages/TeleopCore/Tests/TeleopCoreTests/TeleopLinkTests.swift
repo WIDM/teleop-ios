@@ -126,11 +126,142 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertFalse(link.holdActive)
     }
 
-    func testResetSceneStopsTheHoldFirst() {
+    /// The operator lets go first: a reset while the arm is held is refused and sends nothing.
+    func testResetSceneIsRefusedWhileTheArmIsHeld() {
         bringUp()
         link.poseStart(params)
+        XCTAssertFalse(link.resetScene())
+        XCTAssertEqual(types, ["hello", "pose_start"])
+        XCTAssertFalse(link.resetPending)
+    }
+
+    /// The server refuses a reset behind an unfinished hold and could swallow the stop: the reset waits for the
+    /// hold's final ack.
+    func testResetSceneWaitsForTheStoppedHoldsFinalAck() {
+        bringUp()
+        link.poseStart(params)
+        let start = lastSeq
+        link.poseStop()
+        XCTAssertTrue(link.resetScene())
+        XCTAssertEqual(types.last, "pose_stop")
+        link.service()
+        XCTAssertEqual(types.last, "pose_stop", "sent before the final ack")
+        XCTAssertEqual(finish(start), .holdStopped)
+        XCTAssertEqual(types.last, "reset_scene")
+        let reset = lastSeq
+        XCTAssertEqual(server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"]), .resetDone)
+        XCTAssertFalse(link.resetPending)
+    }
+
+    func testResetSceneGoesOutAfterTheWaitWhenNoFinalAckComes() {
+        bringUp()
+        link.gripperJogStart(.open)
+        link.gripperJogStop()
         link.resetScene()
-        XCTAssertEqual(types.suffix(2), ["pose_stop", "reset_scene"])
+        clock += TeleopLink.finishWaitMs - 1
+        link.service()
+        XCTAssertEqual(types.last, "gripper_jog_stop")
+        clock += 1
+        link.service()
+        XCTAssertEqual(types.last, "reset_scene")
+    }
+
+    func testABusyResetIsRetriedOnceThenReported() {
+        bringUp()
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        clock += TeleopLink.resetRetryMs - 1
+        link.service()
+        XCTAssertEqual(lastSeq, first, "retried too soon")
+        clock += 1
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
+        let second = lastSeq
+        XCTAssertEqual(
+            server("ack", seq: second, ["seq": second, "status": "rejected", "reason": "busy"]),
+            .resetRefused(reason: "busy")
+        )
+        clock += 1000
+        link.service()
+        XCTAssertEqual(lastSeq, second, "only one retry")
+    }
+
+    func testAResetTheSimulatorCannotTakeIsReported() {
+        bringUp()
+        link.resetScene()
+        let seq = lastSeq
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "rejected", "reason": "sim_not_ready"]),
+            .resetRefused(reason: "sim_not_ready")
+        )
+    }
+
+    /// C-R4: a start pressed while the reset waits for a final ack would be released by that same ack and go out
+    /// first, putting `reset_scene` behind an open hold. Starts are refused until the reset is answered.
+    func testEveryStartIsRefusedWhileAResetIsPending() {
+        bringUp()
+        link.poseStart(params)
+        let start = lastSeq
+        clock += 500
+        link.poseStop()
+        clock += 20
+        XCTAssertTrue(link.resetScene())
+        clock += 20
+        XCTAssertFalse(link.poseStart(params))
+        XCTAssertFalse(link.gripperJogStart(.closed))
+        XCTAssertFalse(link.orientStart())
+        clock += 20
+        finish(start)
+        XCTAssertEqual(types, ["hello", "pose_start", "pose_stop", "reset_scene"])
+        XCTAssertFalse(link.holdActive)
+        XCTAssertFalse(link.poseStart(params), "nor while the reset is in flight")
+        let reset = lastSeq
+        XCTAssertEqual(server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"]), .resetDone)
+        XCTAssertTrue(link.poseStart(params))
+    }
+
+    func testStartsAreRefusedDuringTheBusyRetryToo() {
+        bringUp()
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        XCTAssertFalse(link.poseStart(params))
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
+    }
+
+    func testAResetTheServerNeverAnswersStopsBlockingStarts() {
+        bringUp()
+        link.resetScene()
+        clock += TeleopLink.resetAnswerMs - 1
+        XCTAssertFalse(link.poseStart(params))
+        clock += 1
+        XCTAssertFalse(link.resetPending)
+        XCTAssertTrue(link.poseStart(params))
+    }
+
+    /// The server ends a control that is still held when the task succeeds, with `ok task_success` for its start.
+    func testAControlTheServerEndsWithASuccessIsNoLongerActive() {
+        bringUp()
+        link.poseStart(params)
+        var seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .holdRefused(reason: TeleopLink.successReason))
+        XCTAssertFalse(link.holdActive)
+        link.poseUpdate(positionMeters: [0, 0, 0.01])
+        XCTAssertEqual(types.last, "pose_start", "nothing more is streamed for it")
+        link.gripperJogStart(.open)
+        seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .gripperRefused(reason: "task_success"))
+        XCTAssertFalse(link.gripperJogActive)
+        link.orientStart()
+        seq = lastSeq
+        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+                       .turnRefused(reason: "task_success"))
+        XCTAssertFalse(link.turnActive)
     }
 
     func testClosedTransportDropsTheHoldAndReadiness() {
@@ -406,8 +537,9 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.last, "estop")
 
         link.orientStart()
-        link.resetScene()
-        XCTAssertEqual(types.suffix(2), ["orient_stop", "reset_scene"])
+        XCTAssertFalse(link.resetScene(), "a reset is refused while the wrist is held")
+        XCTAssertTrue(link.turnActive)
+        link.orientStop()
 
         link.orientStart()
         link.transportClosed()
@@ -636,16 +768,42 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.last, "orient_start")
     }
 
-    func testResetSceneDropsTheHeldBackStartAndThePendingAck() {
+    func testResetSceneIsRefusedWhileAStartIsHeldBack() {
         bringUp()
         link.gripperJogStart(.open)
         link.gripperJogStop()
         link.orientStart()
-        link.resetScene()
-        XCTAssertEqual(types.last, "reset_scene")
-        XCTAssertFalse(link.turnActive)
+        XCTAssertFalse(link.resetScene())
+        XCTAssertTrue(link.turnActive)
+        XCTAssertFalse(types.contains("reset_scene"))
+    }
+
+    func testStateFieldsAndTheServerRunAreKept() {
+        link.hello(name: "teleop-ios/1.0.0 observer")
+        XCTAssertEqual((sent[0]["payload"] as? [String: String])?["name"], "teleop-ios/1.0.0 observer")
+        _ = server("welcome", ["session": "run-1"])
+        XCTAssertEqual(link.serverSession, "run-1")
+        clock = 4321
+        _ = server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3, "gripper_deg": 8.5])
+        XCTAssertEqual(link.lastState?.activity, .gripperContact)
+        XCTAssertEqual(link.lastState?.recorder?.saved, 3)
+        XCTAssertEqual(link.lastState?.gripperDeg, 8.5)
+        XCTAssertEqual(link.lastStateAtMs, 4321)
+        XCTAssertEqual(link.lastGripper, .closed)
+    }
+
+    func testEachStartThatGoesOutIsRecorded() {
+        bringUp()
+        XCTAssertNil(link.lastStart)
+        link.gripperJogStart(.closed)
+        XCTAssertEqual(link.lastStart, SentStart(seq: lastSeq, kind: .gripper(.closed), atMs: clock))
+        let jog = lastSeq
+        link.gripperJogStop()
         link.orientStart()
-        XCTAssertEqual(types.last, "orient_start")
+        XCTAssertEqual(link.lastStart?.kind, .gripper(.closed), "held back, not sent yet")
+        clock += 20
+        finish(jog)
+        XCTAssertEqual(link.lastStart, SentStart(seq: lastSeq, kind: .wrist, atMs: clock))
     }
 
     func testClosedTransportDropsTheHeldBackStartAndThePendingAck() {
@@ -711,6 +869,17 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertTrue(link.isStale)
         _ = server("state", ["estop": false])
         XCTAssertFalse(link.isStale)
+    }
+
+    func testQuietTimeCountsFromTheLastMessage() {
+        XCTAssertNil(link.quietMs, "nothing heard before welcome")
+        bringUp()
+        clock += 700
+        XCTAssertEqual(link.quietMs, 700)
+        _ = server("state", ["estop": false])
+        XCTAssertEqual(link.quietMs, 0)
+        link.transportClosed()
+        XCTAssertNil(link.quietMs)
     }
 
     func testPoseParamsAreClampedToServerRanges() {

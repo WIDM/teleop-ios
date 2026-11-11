@@ -1,6 +1,11 @@
 public struct HapticPulse: Equatable, Sendable {
     public let startMs: Int
+    /// 0 for a transient: one tap with no length of its own.
     public let durationMs: Int
+    public var intensity = 1.0
+    public var sharpness = 0.5
+
+    public var isTransient: Bool { durationMs == 0 }
 }
 
 /// Timings from haptics-v1: short buzz 60 ms with 120 ms gaps; long buzz 400 ms on / 200 ms off, repeating.
@@ -58,4 +63,76 @@ public enum HapticCue: CaseIterable, Sendable {
 public enum HapticCommand: Equatable, Sendable {
     case play(HapticCue)
     case cancel
+}
+
+/// The six event patterns the operator feels (interaction specification §5.1), told apart by rhythm: how many,
+/// and whether each is a tick or a long buzz. Weight only reinforces it.
+public enum Haptic: String, CaseIterable, Sendable {
+    /// One crisp tick: your hold is live.
+    case go
+    /// Three quick ticks: your press did nothing.
+    case no
+    /// Two slow heavy thumps: the jaws closed on something.
+    case grip
+    /// One long buzz: as far as it goes.
+    case end
+    /// Two long buzzes: the app or the server ended your hold while you still hold it.
+    case letGo
+    /// A 1.5 s rattle: the robot is in emergency stop.
+    case alarm
+
+    /// A pulse this long or longer counts as long in the rhythm.
+    public static let longPulseMs = 200
+
+    public var pattern: HapticPattern {
+        switch self {
+        case .go:
+            return HapticPattern(pulses: [HapticPulse(startMs: 0, durationMs: 0, intensity: 0.8, sharpness: 0.9)], loopLengthMs: nil)
+        case .no:
+            return HapticPattern(
+                pulses: [0, 90, 180].map { HapticPulse(startMs: $0, durationMs: 0, intensity: 1, sharpness: 1) },
+                loopLengthMs: nil
+            )
+        case .grip:
+            return HapticPattern(
+                pulses: [0, 220].map { HapticPulse(startMs: $0, durationMs: 70, intensity: 1, sharpness: 0.15) },
+                loopLengthMs: nil
+            )
+        case .end:
+            return HapticPattern(pulses: [HapticPulse(startMs: 0, durationMs: 380, intensity: 0.9, sharpness: 0.5)], loopLengthMs: nil)
+        case .letGo:
+            return HapticPattern(
+                pulses: [0, 420].map { HapticPulse(startMs: $0, durationMs: 300, intensity: 0.9, sharpness: 0.5) },
+                loopLengthMs: nil
+            )
+        case .alarm:
+            return HapticPattern(
+                pulses: (0..<15).map { HapticPulse(startMs: $0 * 100, durationMs: 50, intensity: 1, sharpness: 0.8) },
+                loopLengthMs: nil
+            )
+        }
+    }
+
+    /// Higher wins the one haptic channel: ALARM > LETGO > NO > GRIP > END > GO.
+    public var priority: Int {
+        switch self {
+        case .alarm: return 6
+        case .letGo: return 5
+        case .no: return 4
+        case .grip: return 3
+        case .end: return 2
+        case .go: return 1
+        }
+    }
+
+    /// How long the pattern plays.
+    public var durationMs: Int {
+        pattern.pulses.map { $0.startMs + max($0.durationMs, Self.transientMs) }.max() ?? 0
+    }
+
+    /// The rhythm: one entry per pulse, true for a long one.
+    public var rhythm: [Bool] { pattern.pulses.map { $0.durationMs >= Self.longPulseMs } }
+
+    /// About how long one transient is felt.
+    static let transientMs = 20
 }

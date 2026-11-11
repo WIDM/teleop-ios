@@ -27,6 +27,13 @@ final class LiveLinkController {
     /// The server's clamp is 35 degrees per hold.
     static let tiltDegreesPerSecond = 15.0
     static let tiltStepDegrees = 10.0
+    /// How the listening connection names itself in the server's log.
+    static let observerName = "teleop-ios/1.0.0 observer"
+    /// A dropped listening connection is opened again this often, without a word to the operator.
+    static let observerRetryMs = 2000
+    /// With the listening connection up, the link is lost when neither connection has heard anything this long
+    /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
+    static let quietLinkMs = 1200
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -39,12 +46,37 @@ final class LiveLinkController {
     var onGuidance: ((Guidance?) -> Void)?
     /// Why the server E-stopped, just before the `stop` action is reported.
     var onServerStop: ((String) -> Void)?
+    /// What the operator should feel or hear about the engaged hold and the scene reset.
+    var onFeedback: ((FeedbackEvent) -> Void)?
+    /// Every `state` from either connection, in the order the server sent them, before the actions it leads to.
+    var onState: ((ServerState) -> Void)?
+    /// The control connection's `welcome`, with the server run it names.
+    var onWelcome: ((String?) -> Void)?
+    /// `gripping` changed.
+    var onGripping: ((Bool) -> Void)?
 
     private let makeTransport: (URL) -> LinkTransport
+    private let makeObserverTransport: (URL) -> LinkTransport
     private let pose: () -> simd_float4x4?
     private let nowMs: () -> Int
+    private var url: URL?
     private var transport: LinkTransport?
     private var link: TeleopLink?
+    /// The second connection: it says hello and then only listens, so the server sends it `state` every 200 ms,
+    /// holds included. Its closing can never stop the robot: it owns nothing.
+    private var observerTransport: LinkTransport?
+    private var observer: TeleopLink?
+    private var observerOpenedAtMs = 0
+    private var observerRetryAtMs: Int?
+    private var monitor: FeedbackMonitor
+    /// The seq of the newest start the monitor has been told about.
+    private var announcedStart: Int?
+    private var reportedGripping = false
+    /// The next start restarts a hold the operator still holds (a resync).
+    private var restarting = false
+    /// Server time (`ts`) of the newest state handed on. A state from the other connection that left the server
+    /// earlier is older news and is dropped.
+    private var newestStateServerMs: Int?
     private var timer: Timer?
     private var ticks = 0
     private var openedAtMs = 0
@@ -75,17 +107,30 @@ final class LiveLinkController {
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
 
+    /// - Parameter makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
     init(
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
+        makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
-        nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
+        nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
+        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits
     ) {
         self.makeTransport = makeTransport
+        self.makeObserverTransport = makeObserverTransport ?? makeTransport
         self.pose = pose
         self.nowMs = nowMs
+        monitor = FeedbackMonitor(limits: gripperLimits)
     }
 
     var isOpen: Bool { transport != nil }
+    /// The listening connection is up and receiving state.
+    var observerUp: Bool { observer?.ready == true }
+    /// The operator's hold the feedback belongs to, if one is engaged.
+    var engagedHold: Int? { monitor.engagedHold }
+    /// A close ended in contact and nothing has opened since, no scene reset and no new server run.
+    var gripping: Bool { monitor.gripping }
+    /// A scene reset is waiting to go out or for its answer; every start is refused meanwhile.
+    var resetPending: Bool { link?.resetPending == true }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
     var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
     /// Task object and goal from the server's newest state, robot base frame.
@@ -110,6 +155,7 @@ final class LiveLinkController {
     func connect(to address: String) -> Bool {
         guard let url = Self.url(from: address) else { return false }
         closeQuietly()
+        self.url = url
         let transport = makeTransport(url)
         let link = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
         self.transport = transport
@@ -145,6 +191,13 @@ final class LiveLinkController {
         transport?.close()
         transport = nil
         link = nil
+        url = nil
+        closeObserver()
+        observerRetryAtMs = nil
+        monitor.linkClosed()
+        announcedStart = nil
+        restarting = false
+        newestStateServerMs = nil
         holdStart = nil
         lastSample = nil
         resetSentAtMs = nil
@@ -164,6 +217,7 @@ final class LiveLinkController {
     func startHold(_ params: PoseParams) -> Bool {
         guard let link, let start = pose() else { return false }
         guard link.poseStart(params) else { return false }
+        syncStart()
         holdStart = Self.position(start)
         lastSample = (Self.position(start), nowMs())
         holdParams = params
@@ -179,6 +233,7 @@ final class LiveLinkController {
 
     func endHold() {
         link?.poseStop()
+        monitor.released(.pose)
         holdEnded()
     }
 
@@ -209,20 +264,31 @@ final class LiveLinkController {
             atEdge = simd_length(moved) < 0.005
         }
         resync = nil
+        restarting = true
         guard link.poseStart(holdParams) else {
+            restarting = false
             onLog?("link: could not continue the hold after a resync")
+            emit(monitor.endedByApp(.noAnswer))
             holdEnded()
             onAction?(.holdArmEnd)
             return
         }
+        syncStart()
         armAtSegmentStart = now
         segmentStartedMs = nowMs()
     }
 
-    func estop() {
+    /// Sends `estop` on the control connection and, when it is up, on the listening one too (the server takes it
+    /// from either). False when neither was up: nothing reached the robot.
+    @discardableResult
+    func estop() -> Bool {
+        let reached = link?.ready == true || observerUp
         link?.estop()
+        if observerUp { observer?.estop() }
+        monitor.released()
         turn = nil
         holdEnded()
+        return reached
     }
 
     func estopReset() {
@@ -238,14 +304,24 @@ final class LiveLinkController {
         if let arm = armPosition { publishGuidance(arm: arm) }
     }
     /// The gripper travels toward `target` while its control is held. Holding past the end is harmless:
-    /// the server clamps at the joint limit and stops squeezing on contact.
-    func startGripper(_ target: GripperState) { link?.gripperJogStart(target) }
-    func stopGripper() { link?.gripperJogStop() }
+    /// the server clamps at the joint limit and stops squeezing on contact. False when the move could not start.
+    @discardableResult
+    func startGripper(_ target: GripperState) -> Bool {
+        guard let link, link.gripperJogStart(target) else { return false }
+        syncStart()
+        return true
+    }
+
+    func stopGripper() {
+        link?.gripperJogStop()
+        monitor.released(.gripper(.open))
+    }
 
     /// The wrist moves toward `direction` while its control is held, by at most `turnStepDegrees` (roll) or
     /// `tiltStepDegrees` (pitch) from where it was when the press began. False when the move could not start.
     func startTurn(_ direction: TurnDirection) -> Bool {
         guard let link, link.orientStart() else { return false }
+        syncStart()
         turn = (direction, nowMs())
         if direction.isTilt, !wristTilted {
             wristTilted = true
@@ -256,6 +332,7 @@ final class LiveLinkController {
 
     func stopTurn() {
         link?.orientStop()
+        monitor.released(.wrist)
         turn = nil
     }
 
@@ -276,28 +353,34 @@ final class LiveLinkController {
     func tick() {
         guard let link else { return }
         ticks += 1
+        tickObserver()
         if !link.ready {
             if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome from server") }
             return
         }
-        if link.isStale {
+        if link.isStale || bothConnectionsQuiet {
             drop("server went quiet")
             return
         }
+        link.service()
         // Twice a second: the echo is the only thing the server sends during a hold, so it is also the heartbeat.
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
         if link.gripperJogActive, ticks % 4 == 0 { link.keepalive() }
         if let resync, holdStart != nil, nowMs() - resync.sinceMs > Self.resyncTimeoutMs {
             onLog?("link: server did not finish the hold during a resync, hold ended")
+            emit(monitor.endedByApp(.noAnswer))
             holdEnded()
             onAction?(.holdArmEnd)
             return
         }
         tickTurn(link)
+        syncStart()
+        emit(monitor.tick(at: nowMs()))
         guard link.holdActive, let holdStart else { return }
         guard let current = pose().map(Self.position) else {
             onLog?("link: tracking lost, hold ended")
+            emit(monitor.endedByApp(.tracking))
             onAction?(.holdArmEnd)
             return
         }
@@ -306,6 +389,7 @@ final class LiveLinkController {
             let speed = simd_distance(current, last.position) / (Float(now - last.atMs) / 1000)
             if speed > Self.maxSpeedMetersPerSecond {
                 onLog?(String(format: "link: phone moved too fast (%.2f m/s), hold ended", speed))
+                emit(monitor.endedByApp(.tooFast))
                 onAction?(.holdArmEnd)
                 return
             }
@@ -321,6 +405,11 @@ final class LiveLinkController {
         let catchingUp = distance > Self.maxLeadMeters
         let delta = catchingUp ? remaining / distance * Self.maxLeadMeters : remaining
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
+        syncStart()
+        if let start = armAtSegmentStart {
+            let target = start + SIMD3(delta.x, delta.y, -delta.z)
+            monitor.commanded(SIMD3(Double(target.x), Double(target.y), Double(target.z)))
+        }
         // serverOffset negates all three, so this is right, forward, up again.
         onOffset?(-(armProgress + delta))
         onCatchingUp?(catchingUp)
@@ -331,7 +420,19 @@ final class LiveLinkController {
     }
 
     private func handle(_ text: String) {
-        guard let event = link?.receive(text) else { return }
+        guard let link else { return }
+        let wasWelcomed = link.welcomed
+        let received = link.receive(text)
+        if !wasWelcomed, link.welcomed { welcomed(link) }
+        // A final ack can put a held-back start on the wire.
+        syncStart()
+        guard let event = received else { return }
+        switch event {
+        case .up, .state:
+            if let state = link.lastState { stateArrived(state, serverMs: link.lastStateServerMs) }
+        default:
+            break
+        }
         switch event {
         case .up(let estop, let gripper):
             onLog?("link: up")
@@ -362,23 +463,132 @@ final class LiveLinkController {
                 onAction?(.stop)
             }
         case .latency(let ms):
+            monitor.roundTrip(ms: ms)
             onAction?(.linkLatency(ms: ms))
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
             if type == "estop_reset" { resetSentAtMs = nil }
         case .gripperRefused(let reason):
             onLog?("link: gripper refused: \(reason)")
+            emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
             onLog?("link: jaw turn refused: \(reason)")
+            emit(monitor.startRefused(reason: reason, at: nowMs()))
             turn = nil
             onAction?(.turnEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
-            lastRefusal = (reason, nowMs())
+            // A success is not the cause of a later emergency stop.
+            if reason != TeleopLink.successReason { lastRefusal = (reason, nowMs()) }
+            emit(monitor.startRefused(reason: reason, at: nowMs()))
             holdEnded()
             onAction?(.holdArmEnd)
+        case .resetDone:
+            onLog?("link: scene reset")
+            monitor.sceneReset()
+            noteGripping()
+        case .resetRefused(let reason):
+            onLog?("link: scene reset refused: \(reason)")
+            emit([.notReset])
         }
+    }
+
+    private func welcomed(_ link: TeleopLink) {
+        monitor.welcomed(session: link.serverSession)
+        noteGripping()
+        onWelcome?(link.serverSession)
+        openObserver()
+    }
+
+    private func stateArrived(_ state: ServerState, serverMs: Int?) {
+        if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
+        if let serverMs { newestStateServerMs = serverMs }
+        emit(monitor.observe(state, at: nowMs()))
+        noteGripping()
+        onState?(state)
+    }
+
+    /// Tells the monitor about a start that has just gone on the wire.
+    private func syncStart() {
+        guard let start = link?.lastStart, start.seq != announcedStart else { return }
+        announcedStart = start.seq
+        monitor.startSent(start.kind, restart: restarting, at: start.atMs)
+        restarting = false
+        noteGripping()
+    }
+
+    private func noteGripping() {
+        guard monitor.gripping != reportedGripping else { return }
+        reportedGripping = monitor.gripping
+        onGripping?(reportedGripping)
+    }
+
+    private func emit(_ events: [FeedbackEvent]) {
+        for event in events { onFeedback?(event) }
+    }
+
+    // MARK: Listening connection
+
+    /// The listening connection is up and neither connection has heard anything for `quietLinkMs`.
+    private var bothConnectionsQuiet: Bool {
+        guard observerUp, let control = link?.quietMs, let listening = observer?.quietMs else { return false }
+        return min(control, listening) > Self.quietLinkMs
+    }
+
+    private func openObserver() {
+        guard let url, observerTransport == nil else { return }
+        let transport = makeObserverTransport(url)
+        let observer = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
+        observerTransport = transport
+        self.observer = observer
+        observerOpenedAtMs = nowMs()
+        observerRetryAtMs = nil
+        transport.onText = { [weak self, weak transport] text in
+            guard let self, self.observerTransport === transport else { return }
+            self.handleObserver(text)
+        }
+        transport.onClose = { [weak self, weak transport] in
+            guard let self, self.observerTransport === transport else { return }
+            self.observerDropped("socket closed")
+        }
+        transport.open()
+        observer.hello(name: Self.observerName)
+    }
+
+    private func handleObserver(_ text: String) {
+        guard let observer, let event = observer.receive(text) else { return }
+        switch event {
+        case .up, .state:
+            if let state = observer.lastState { stateArrived(state, serverMs: observer.lastStateServerMs) }
+        default:
+            break
+        }
+    }
+
+    /// Closes the listening connection and opens it again after `observerRetryMs`, without a word to the operator.
+    private func observerDropped(_ why: String) {
+        closeObserver()
+        observerRetryAtMs = nowMs() + Self.observerRetryMs
+        onLog?("link: listening connection lost (\(why))")
+    }
+
+    private func closeObserver() {
+        observer?.transportClosed()
+        observerTransport?.close()
+        observerTransport = nil
+        observer = nil
+    }
+
+    private func tickObserver() {
+        if let observer {
+            if observer.isStale {
+                observerDropped("server went quiet")
+            } else if !observer.ready, nowMs() - observerOpenedAtMs > Int(Self.connectTimeout * 1000) {
+                observerDropped("no welcome")
+            }
+        }
+        if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true { openObserver() }
     }
 
     private func drop(_ why: String) {

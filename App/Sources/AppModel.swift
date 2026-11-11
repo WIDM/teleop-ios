@@ -6,11 +6,23 @@ import TeleopCore
 @Observable
 final class AppModel {
     var session: TeleopSession
-    @ObservationIgnored private let haptics: HapticsPlaying
+    @ObservationIgnored private let cues: CuePlayer
     @ObservationIgnored private let pose: () -> simd_float4x4?
+    @ObservationIgnored private let nowMs: () -> Int
     @ObservationIgnored private var holdStartPose: simd_float4x4?
     @ObservationIgnored private var pendingServerCause: StopCause?
     @ObservationIgnored let link: LiveLinkController
+    @ObservationIgnored private var narrator = RecorderNarrator()
+    /// Why the press the session just refused was refused, when the app decided it.
+    @ObservationIgnored private var pendingRefusal: Refusal?
+    /// The last STOP reached a connection that was up.
+    @ObservationIgnored private var stopReached = true
+    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`.
+    @ObservationIgnored private var stopOwed = false
+    /// A hold was engaged when the link was last lost, so a stopped server found on reconnect is the link's doing.
+    @ObservationIgnored private var holdEngagedAtLoss = false
+    /// The built-in demo's hold count, for its GO.
+    @ObservationIgnored private var demoHold = 0
     /// Real server instead of the built-in demo. Changing it drops the current link and starts the other,
     /// so no session spans both.
     var liveLink: Bool {
@@ -48,13 +60,29 @@ final class AppModel {
     private(set) var stopCause: StopCause?
     /// Developer mode log: actions and haptics with times, newest last.
     private(set) var debugLog: [String] = []
+    /// The newest `state` from either connection: measured wrist and gripper angles, the arm, the recorder.
+    /// Nil before the first.
+    private(set) var serverState: ServerState?
+    /// What the server's recorder is doing, for the REC line.
+    private(set) var recorder: RecorderDisplay = .unknown
+    /// The exits the emergency-stop state may offer.
+    private(set) var stopExits = StopExits.offered(recorder: nil, practice: true)
+    /// A close ended in contact and nothing has opened since, no scene reset and no new server run. While true a
+    /// second close is refused (`raise(.limit(.alreadyGripping))`).
+    private(set) var gripping = false
 
+    /// - Parameters:
+    ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
+    ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
     init(
         start: Route = .s2,
         haptics: HapticsPlaying = HapticsController(),
+        sounds: SoundPlaying? = nil,
+        speech: SpeechPlaying? = nil,
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
         liveLink: Bool = UserDefaults.standard.bool(forKey: AppModel.liveLinkKey),
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
+        makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
     ) {
         var state = FakeTeleopState()
@@ -63,9 +91,21 @@ final class AppModel {
             state.serverAddress = saved
         }
         session = TeleopSession(state: state, start: start)
-        self.haptics = haptics
+        let audible = Self.opensSavedServerAtLaunch()
+        cues = CuePlayer(
+            haptics: haptics, sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
+            speech: speech ?? (audible ? SpeechPlayer() : NoSpeech()), nowMs: nowMs
+        )
         self.pose = pose
-        link = LiveLinkController(makeTransport: makeTransport, pose: pose, nowMs: nowMs)
+        self.nowMs = nowMs
+        link = LiveLinkController(makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs)
+        stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
+        cues.currentHold = { [weak self] in self?.currentHold }
+        cues.onLog = { [weak self] in self?.log("~ \($0)") }
+        link.onFeedback = { [weak self] in self?.raise($0) }
+        link.onState = { [weak self] in self?.stateArrived($0) }
+        link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
+        link.onGripping = { [weak self] in self?.gripping = $0 }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onOffset = { [weak self] in self?.holdOffset = $0 }
@@ -99,8 +139,23 @@ final class AppModel {
     }
 
     func send(_ action: TeleopAction) {
+        // A reset is refused while anything is held: the operator lets go first.
+        if action == .resetScene, Self.engaged(session.state) {
+            log("→ \(action) refused: something is held")
+            raise(.refused(.letGoFirst))
+            return
+        }
         perform(action, fromServer: false)
     }
+
+    /// Plays an event's cue: felt, heard or both. Other parts raise their own here, as the input does for a dead
+    /// input (`.refused(.deadInput)`) or a second close while gripping (`.limit(.alreadyGripping)`).
+    func raise(_ event: FeedbackEvent) {
+        cues.raise(event)
+    }
+
+    /// The cues decided so far, newest last.
+    var cueLog: [CueLogEntry] { cues.log }
 
     func foregroundChanged() { link.foregroundChanged() }
 
@@ -109,14 +164,7 @@ final class AppModel {
     func refreshPosture() {
         let now = PhonePosture.of(pose(), previous: posture)
         guard now != posture else { return }
-        let before = posture
         posture = now
-        // The E-stop buzz owns the haptics while latched, and gaining or losing tracking is not a posture change.
-        guard !session.state.emergencyStop, before != .unknown, now != .unknown else { return }
-        let command = HapticCommand.play(now == .upright ? .postureOk : .postureOff)
-        haptics.run(command)
-        hapticLog?.append(Self.logName(command))
-        log("~ \(Self.logName(command))")
     }
 
     /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
@@ -150,10 +198,61 @@ final class AppModel {
     /// Server-side changes. A server E-stop latches here too, but is not echoed back.
     private func fromServer(_ action: TeleopAction) {
         if action == .stop, session.state.emergencyStop { return }
+        if action == .linkLost, session.state.connected {
+            let engaged = Self.engaged(session.state)
+            holdEngagedAtLoss = engaged
+            narrator.linkLost()
+            raise(.linkLost(holdEngaged: engaged))
+        }
         perform(action, fromServer: true)
     }
 
+    /// A `state` from either connection.
+    private func stateArrived(_ state: ServerState) {
+        if serverState != state { serverState = state }
+        let now = nowMs()
+        for event in narrator.observe(state, moving: Self.engaged(session.state), at: now) + narrator.tick(at: now) {
+            raise(event)
+        }
+        refreshRecorder()
+    }
+
+    /// The control connection's welcome. A STOP pressed while no connection was up goes out first.
+    private func welcomed(session run: String?) {
+        narrator.welcomed(session: run)
+        guard stopOwed else { return }
+        stopOwed = false
+        narrator.emergencyStopLearned()
+        link.estop()
+        log("link: the STOP pressed while the link was down is sent now")
+        raise(.emergencyStop(.button, takeDiscarded: narrator.stopDiscardsTake))
+    }
+
+    private func refreshRecorder() {
+        if recorder != narrator.display { recorder = narrator.display }
+        let exits = StopExits.offered(recorder: narrator.recorder, practice: !session.state.liveLink)
+        if stopExits != exits { stopExits = exits }
+    }
+
+    /// The hold the feedback belongs to: the link's on a real server, the demo's own count otherwise.
+    private var currentHold: Int? {
+        if session.state.liveLink { return link.engagedHold }
+        return Self.engaged(session.state) ? demoHold : nil
+    }
+
+    private static func engaged(_ state: FakeTeleopState) -> Bool {
+        heldControl(state) != nil
+    }
+
+    /// The one control held now, if any.
+    private static func heldControl(_ state: FakeTeleopState) -> ControlKind? {
+        if state.armMoving { return .pose }
+        if let target = state.gripperMoving { return .gripper(target) }
+        return state.jawTurning != nil ? .wrist : nil
+    }
+
     private func perform(_ action: TeleopAction, fromServer: Bool) {
+        stopReached = true
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
@@ -172,10 +271,65 @@ final class AppModel {
         // The latency probe ticks every second; logging it would bury everything else.
         if !Self.isLatency(action) { log("→ \(action)") }
         logPose(wasMoving: wasMoving)
-        for command in session.drainHaptics() {
-            haptics.run(command)
+        let commands = session.drainHaptics()
+        for command in commands {
             hapticLog?.append(Self.logName(command))
             log("~ \(Self.logName(command))")
+            feedback(for: command, before: before)
+        }
+        pendingRefusal = nil
+        if commands.isEmpty, Self.isPress(action), !Self.engaged(before), !Self.engaged(session.state) {
+            // The session ignores a press while stopped or with no link; the operator still hears why.
+            if before.emergencyStop {
+                raise(.refused(.emergencyStop))
+            } else if !before.connected {
+                raise(.refused(.noLink))
+            }
+        }
+        if !session.state.liveLink, let held = Self.heldControl(session.state), held != Self.heldControl(before) {
+            // The demo has no server to accept the hold: it is live at once.
+            demoHold += 1
+            raise(.holdLive(hold: demoHold))
+        }
+        refreshRecorder()
+    }
+
+    /// The session asks for its own haptic commands; the operator feels and hears the events they stand for.
+    private func feedback(for command: HapticCommand, before: FakeTeleopState) {
+        switch command {
+        case .play(.emergencyLoop):
+            guard !session.state.liveLink || stopReached else {
+                stopOwed = true
+                raise(.refused(.notStopped))
+                return
+            }
+            narrator.emergencyStopLearned()
+            raise(.emergencyStop(emergencyCause, takeDiscarded: session.state.liveLink && narrator.stopDiscardsTake))
+        case .cancel:
+            cues.stopHaptics()
+        case .play(.stopReleased):
+            raise(.ready)
+        case .play(.commandBlocked):
+            raise(.refused(pendingRefusal ?? (before.commandsBlocked ? .slowLink : .deadInput)))
+        case .play(.gripperClosed), .play(.gripperOpened), .play(.postureOk), .play(.postureOff):
+            // A gripper press is live when the server accepts it (GO); the posture is a reason for a refusal.
+            break
+        }
+    }
+
+    private var emergencyCause: EmergencyCause {
+        switch stopCause {
+        case .button, nil: return .button
+        case .armBehind: return .behind
+        case .onConnect: return holdEngagedAtLoss ? .link : .onConnect
+        case .server: return .other
+        }
+    }
+
+    private static func isPress(_ action: TeleopAction) -> Bool {
+        switch action {
+        case .holdArmStart, .gripperStart, .turnStart: return true
+        default: return false
         }
     }
 
@@ -183,13 +337,21 @@ final class AppModel {
     private func driveLink(_ action: TeleopAction, before: FakeTeleopState, fromServer: Bool) {
         let after = session.state
         // E-stop goes out first. A server-side E-stop is not echoed, but our own hold still has to end.
-        if !before.emergencyStop, after.emergencyStop, !fromServer { link.estop() }
+        if !before.emergencyStop, after.emergencyStop, !fromServer { stopReached = link.estop() }
         if before.armMoving, !after.armMoving { link.endHold() }
         if before.emergencyStop, !after.emergencyStop { link.estopReset() }
         if !before.armMoving, after.armMoving {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
-            if !link.startHold(params) {
-                log("link: hold not started (no tracking or link)")
+            let held = PhonePosture.of(pose(), previous: posture)
+            if held == .tilted || !link.startHold(params) {
+                log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))")
+                if held == .tilted {
+                    pendingRefusal = .posture
+                } else if link.resetPending {
+                    pendingRefusal = .notReady
+                } else {
+                    pendingRefusal = held == .unknown ? .notTracking : .noLink
+                }
                 session.perform(.holdArmEnd)
                 session.pendingCue(.commandBlocked)
             }
@@ -197,7 +359,8 @@ final class AppModel {
         if before.jawTurning != after.jawTurning {
             if let direction = after.jawTurning {
                 if !link.startTurn(direction) {
-                    log("link: jaw turn not started (no link)")
+                    log("link: jaw turn not started (no link or a reset)")
+                    pendingRefusal = link.resetPending ? .notReady : .noLink
                     session.perform(.turnEnd)
                     session.pendingCue(.commandBlocked)
                 }
@@ -206,15 +369,25 @@ final class AppModel {
             }
         }
         if before.gripperMoving != after.gripperMoving {
-            if let target = after.gripperMoving { link.startGripper(target) } else { link.stopGripper() }
+            if let target = after.gripperMoving {
+                // The session keeps the press until it is released; nothing goes out, and the operator hears why.
+                if !link.startGripper(target), link.resetPending { raise(.refused(.notReady)) }
+            } else {
+                link.stopGripper()
+            }
         }
         switch action {
         case .resetScene where before.connected && !before.emergencyStop:
             link.resetScene()
+        case .releaseStop:
+            // Released before the link came back: the STOP owed to the server is no longer wanted.
+            stopOwed = false
         case .disconnect:
             link.closeQuietly()
+            holdEngagedAtLoss = false
         case .switchLink:
             link.closeQuietly()
+            holdEngagedAtLoss = false
             trySavedServer()
         default:
             break

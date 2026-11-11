@@ -27,29 +27,44 @@ private final class FakeTransport: LinkTransport {
 final class LiveLinkTests: XCTestCase {
     private var transport: FakeTransport!
     private var transports: [FakeTransport] = []
+    /// Listening connections, newest last. `transport` stays the control connection.
+    private var observers: [FakeTransport] = []
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
     private var savedLiveLink: Any?
+    private var savedLanguage = L10n.language
+    private var felt = SpyHaptics()
+    private var speech = SpySpeech()
+    private var sounds = SpySounds()
 
     // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
     override func setUp() {
         super.setUp()
         savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
+        savedLanguage = L10n.language
+        L10n.language = .en
     }
 
     override func tearDown() {
         UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
+        L10n.language = savedLanguage
         super.tearDown()
     }
 
     private func makeModel(at route: Route) {
         transports = []
+        observers = []
         position = .zero
         clock = 10_000
+        felt = SpyHaptics()
+        speech = SpySpeech()
+        sounds = SpySounds()
         model = AppModel(
             start: route,
-            haptics: NoHaptics(),
+            haptics: felt,
+            sounds: sounds,
+            speech: speech,
             pose: { [unowned self] in
                 position.map { p in
                     return TestPose.portrait(at: p)
@@ -62,6 +77,11 @@ final class LiveLinkTests: XCTestCase {
                 transport = made
                 return made
             },
+            makeObserverTransport: { [unowned self] _ in
+                let made = FakeTransport()
+                observers.append(made)
+                return made
+            },
             nowMs: { [unowned self] in clock }
         )
         model.session.state.serverAddress = "100.64.0.1:8765"
@@ -69,12 +89,13 @@ final class LiveLinkTests: XCTestCase {
         model.session.state.setSmoothing(0)
     }
 
-    /// Standby with the link up and tracking.
+    /// Standby with the link up and tracking. What was said on connecting is forgotten.
     private func bringUp(estop: Bool = false) {
         makeModel(at: .p4)
         model.connect()
         transport.server("welcome")
         transport.server("state", ["estop": estop, "gripper": "closed"])
+        speech.spoken = []
     }
 
     /// The server's final ack for a control it has finished; it names the control's start seq.
@@ -1093,5 +1114,319 @@ final class LiveLinkTests: XCTestCase {
         fake.send(.stop)
         XCTAssertTrue(fake.session.state.connected)
         XCTAssertTrue(transports.isEmpty)
+    }
+
+    // MARK: The listening connection
+
+    private var observer: FakeTransport { observers.last! }
+
+    /// The listening connection's own welcome and first state.
+    private func bringUpObserver(_ payload: [String: Any] = ["estop": false, "gripper": "closed"]) {
+        observer.server("welcome", ["session": "run-1"])
+        observer.server("state", payload)
+    }
+
+    func testTheListeningConnectionOpensAfterTheWelcomeAndOnlyListens() {
+        makeModel(at: .p4)
+        model.connect()
+        XCTAssertTrue(observers.isEmpty, "not before the control connection's welcome")
+        transport.server("welcome")
+        XCTAssertEqual(observers.count, 1)
+        XCTAssertTrue(observer.opened)
+        XCTAssertEqual(observer.types, ["hello"])
+        XCTAssertEqual((observer.sent[0]["payload"] as? [String: String])?["name"], "teleop-ios/1.0.0 observer")
+        transport.server("state", ["estop": false, "gripper": "closed"])
+        bringUpObserver()
+        model.send(.holdArmStart)
+        run(ticks: 20)
+        model.send(.holdArmEnd)
+        XCTAssertEqual(observer.types, ["hello"], "it never sends a command")
+        XCTAssertTrue(model.link.observerUp)
+    }
+
+    func testStopGoesOutOnBothConnections() {
+        bringUp()
+        bringUpObserver()
+        model.send(.stop)
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(observer.types.last, "estop")
+        XCTAssertEqual(felt.felt, [.play(.alarm)])
+    }
+
+    func testStopBeforeTheListeningConnectionIsUpGoesOutOnTheControlOne() {
+        bringUp()
+        model.send(.stop)
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(observer.types, ["hello"])
+    }
+
+    /// With no connection up nothing pretends the robot stopped: three ticks and "No link. Not stopped.", and the
+    /// `estop` goes out first after the next welcome, with the rattle.
+    func testStopWithNoLinkIsNotPretendedAndIsSentAfterTheNextWelcome() {
+        makeModel(at: .p4)
+        model.send(.stop)
+        XCTAssertTrue(model.session.state.emergencyStop)
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["No link. Not stopped."])
+        speech.finish()
+        model.connect()
+        XCTAssertEqual(transport.types, ["hello"])
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello", "estop"])
+        XCTAssertEqual(felt.felt, [.play(.no), .play(.alarm)])
+        XCTAssertEqual(speech.spoken.last, "Emergency stop. You pressed stop. Hold the top edge to reset.")
+        transport.server("state", ["estop": true, "gripper": "closed"])
+        XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 1, "the server's own stop is not told twice")
+    }
+
+    func testAStopReleasedBeforeTheLinkCameBackIsNotSentLater() {
+        makeModel(at: .p4)
+        model.send(.stop)
+        model.send(.releaseStop)
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello"])
+    }
+
+    func testADroppedListeningConnectionIsReopenedEvery2sWithoutAWord() {
+        bringUp()
+        bringUpObserver()
+        observer.onClose?()
+        XCTAssertFalse(model.link.observerUp)
+        XCTAssertTrue(model.session.state.connected)
+        run(ticks: 55)
+        XCTAssertEqual(observers.count, 1, "not before 2 s")
+        run(ticks: 10)
+        XCTAssertEqual(observers.count, 2)
+        XCTAssertEqual(observer.types, ["hello"])
+        XCTAssertTrue(speech.spoken.isEmpty)
+        XCTAssertTrue(felt.felt.isEmpty)
+        XCTAssertTrue(sounds.played.isEmpty)
+    }
+
+    func testAListeningConnectionThatGoesQuietIsReplaced() {
+        bringUp()
+        bringUpObserver()
+        run(ticks: 65)
+        XCTAssertEqual(observers.count, 1)
+        XCTAssertTrue(observers[0].closed, "closed after 2 s of silence")
+        run(ticks: 65)
+        XCTAssertEqual(observers.count, 2)
+        XCTAssertTrue(model.session.state.connected, "the control connection was answering all along")
+    }
+
+    func testTheNewestStateFromEitherConnectionIsUsed() {
+        bringUp()
+        bringUpObserver()
+        observer.server("state", seq: 0, ["estop": false, "rec": "capturing", "rec_saved": 7, "rec_discarded": 1, "rec_samples": 60,
+                                          "wrist_flex_deg": 41.5, "wrist_roll_deg": 88.0, "gripper_deg": 12.0])
+        XCTAssertEqual(model.serverState?.wristRollDeg, 88)
+        XCTAssertEqual(model.serverState?.gripperDeg, 12)
+        XCTAssertEqual(model.recorder, RecorderDisplay(mode: .capturing, saved: 7, discarded: 1, secondsCaptured: 2))
+        XCTAssertEqual(model.stopExits.exits, [.resetScene], "with a recorder only a reset leaves the stop")
+    }
+
+    func testAStateThatLeftTheServerEarlierIsNotTakenForNews() {
+        bringUp()
+        bringUpObserver()
+        let state = { (ts: Int, saved: Int) in
+            ["v": 1, "type": "state", "ts": ts, "seq": 0, "payload": ["estop": false, "rec": "armed", "rec_saved": saved]] as [String: Any]
+        }
+        let send = { (to: FakeTransport, message: [String: Any]) in
+            to.onText?(String(data: try! JSONSerialization.data(withJSONObject: message), encoding: .utf8)!)
+        }
+        send(observer, state(5000, 3))
+        send(observer, state(5200, 4))
+        send(transport, state(5100, 3))
+        XCTAssertEqual(model.recorder.saved, 4)
+        XCTAssertEqual(sounds.played, [.saved], "saved once, not twice")
+    }
+
+    // MARK: Feedback on a real server
+
+    func testGoPlaysWhenTheStartHasGoneOutAndNoRefusalCame() {
+        bringUp()
+        model.send(.holdArmStart)
+        XCTAssertEqual(felt.felt, [])
+        for _ in 0..<9 { tick() }
+        XCTAssertEqual(felt.felt, [], "297 ms: still inside the acceptance time")
+        tick()
+        XCTAssertEqual(felt.felt, [.play(.go)])
+    }
+
+    func testAStartRefusedAtOnceGetsThreeTicksAndTheReason() {
+        bringUp()
+        model.send(.gripperStart(.closed))
+        let start = lastSeq(of: "gripper_jog_start")
+        transport.server("ack", seq: start, ["seq": start, "status": "rejected", "reason": "busy"])
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["Wait."])
+        for _ in 0..<12 { tick() }
+        XCTAssertEqual(felt.felt, [.play(.no)], "no GO for a refused start")
+    }
+
+    func testTooFastEndsTheHoldWithTwoLongBuzzesAndTheReason() {
+        bringUp()
+        model.send(.holdArmStart)
+        for _ in 0..<10 { tick() }
+        position = SIMD3(0.2, 0, 0)
+        tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(felt.felt, [.play(.go), .play(.letGo)])
+        XCTAssertEqual(speech.spoken, ["Too fast."])
+    }
+
+    func testTheServersWatchdogEndingAHoldSaysLinkHiccup() {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        for _ in 0..<10 { tick() }
+        transport.server("ack", seq: start, ["seq": start, "status": "rejected", "reason": "pose_watchdog_timeout"])
+        XCTAssertEqual(felt.felt, [.play(.go), .play(.letGo)])
+        XCTAssertEqual(speech.spoken, ["Link hiccup."])
+    }
+
+    func testContactWhileClosingGripsAndTheModelKnowsItIsGripping() {
+        bringUp()
+        bringUpObserver()
+        model.send(.gripperStart(.closed))
+        for _ in 0..<10 { tick() }
+        observer.server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "gripper_deg": 8.0])
+        XCTAssertEqual(felt.felt, [.play(.go), .play(.grip)])
+        let close = lastSeq(of: "gripper_jog_start")
+        model.send(.gripperEnd)
+        XCTAssertTrue(model.gripping)
+        model.send(.gripperStart(.open))
+        XCTAssertTrue(model.gripping, "the open waits for the close's final ack")
+        serverFinished(close)
+        XCTAssertEqual(transport.types.last, "gripper_jog_start")
+        XCTAssertFalse(model.gripping, "an open ends it")
+    }
+
+    func testLosingTheLinkDuringAHoldLetsGoWithTheSound() {
+        bringUp()
+        model.send(.holdArmStart)
+        for _ in 0..<10 { tick() }
+        transport.onClose?()
+        XCTAssertEqual(felt.felt, [.play(.go), .play(.letGo)])
+        XCTAssertEqual(sounds.played, [.linkLost])
+        XCTAssertEqual(speech.spoken, ["Link lost."])
+    }
+
+    func testLosingAnIdleLinkIsHeardNotFelt() {
+        bringUp()
+        transport.onClose?()
+        XCTAssertEqual(felt.felt, [])
+        XCTAssertEqual(sounds.played, [.linkLost])
+    }
+
+    func testAStoppedServerFoundAfterADropDuringAHoldBlamesTheLink() {
+        bringUp()
+        model.send(.holdArmStart)
+        transport.onClose?()
+        speech.finish()
+        model.connect()
+        transport.server("welcome")
+        transport.server("state", ["estop": true, "gripper": "closed"])
+        XCTAssertEqual(speech.spoken.last, "Emergency stop. The link dropped during a move. Hold the top edge to reset.")
+    }
+
+    func testResetWaitsForTheStoppedHoldsFinalAck() {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        tick()
+        model.send(.holdArmEnd)
+        model.send(.resetScene)
+        XCTAssertEqual(transport.types.last, "pose_stop")
+        serverFinished(start)
+        XCTAssertEqual(transport.types.last, "reset_scene")
+    }
+
+    func testAResetTheServerCannotTakeSaysSo() {
+        bringUp()
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "rejected", "reason": "sim_not_ready"])
+        XCTAssertEqual(speech.spoken, ["Not reset. Wait."])
+    }
+
+    func testAResetWhileTheArmIsHeldIsRefusedAndNothingIsSent() {
+        bringUp()
+        model.send(.holdArmStart)
+        model.send(.resetScene)
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertFalse(transport.types.contains("reset_scene"))
+        XCTAssertFalse(transport.types.contains("pose_stop"))
+        XCTAssertEqual(speech.spoken, ["Let go first."])
+    }
+
+    func testAPressWithNoLinkSaysSo() {
+        makeModel(at: .p4)
+        model.send(.holdArmStart)
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["No link."])
+    }
+
+    /// C-R4: a press while the reset waits for a final ack is refused, so `reset_scene` never goes out behind a
+    /// start released by the same ack.
+    func testAPressWhileAResetIsPendingIsRefusedAndTheResetStillGoesOutAlone() throws {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        tick()
+        model.send(.holdArmEnd)
+        model.send(.resetScene)
+        model.send(.holdArmStart)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["Wait."])
+        clock += 400
+        model.send(.gripperStart(.closed))
+        XCTAssertEqual(felt.felt, [.play(.no), .play(.no)])
+        model.send(.gripperEnd)
+        serverFinished(start)
+        let stop = try XCTUnwrap(transport.types.lastIndex(of: "pose_stop"))
+        XCTAssertEqual(Array(transport.types[(stop + 1)...]), ["reset_scene"])
+    }
+
+    /// §5.4: a hold the server ends with a success plays no LETGO; the session's hold ends with it.
+    func testAHoldEndedBySuccessEndsQuietly() {
+        bringUp()
+        model.send(.holdArmStart)
+        let start = lastSeq(of: "pose_start")
+        for _ in 0..<10 { tick() }
+        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "task_success"])
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(felt.felt, [.play(.go)])
+        XCTAssertEqual(speech.spoken, [])
+        let sent = transport.sent.count
+        tick()
+        XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_update"), "nothing more is streamed for it")
+    }
+
+    /// I-7: with the listening connection up, 1.2 s with nothing on either connection is a lost link.
+    func testWithTheListeningConnectionUpTheLinkIsLostAfter1point2sOfSilence() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<36 { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.19 s")
+        tick()
+        XCTAssertFalse(model.session.state.connected, "1.22 s")
+        XCTAssertEqual(sounds.played, [.linkLost])
+    }
+
+    /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
+    /// its commands are not getting through.
+    func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
+        bringUp()
+        bringUpObserver()
+        for step in 0..<60 {
+            tick()
+            if step % 6 == 0 { observer.server("state", ["estop": false, "gripper": "closed"]) }
+        }
+        XCTAssertTrue(model.session.state.connected, "the control connection alone allows 2 s")
+        for _ in 0..<5 { tick() }
+        XCTAssertFalse(model.session.state.connected, "and no more")
     }
 }
