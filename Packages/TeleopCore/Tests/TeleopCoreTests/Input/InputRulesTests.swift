@@ -1,3 +1,4 @@
+import simd
 import XCTest
 @testable import TeleopCore
 
@@ -366,6 +367,29 @@ final class InputRulesTests: XCTestCase {
         // Without an engaged wrist hold it does nothing.
         keyTurns.release(.lower)
         XCTAssertEqual(keyTurns.send(.wristStartSent, after: 0.01), [])
+    }
+
+    func testANonFiniteAttitudeSampleIsIgnored() {
+        let broken = simd_quatd(vector: SIMD4(.nan, .nan, .nan, .nan))
+        var rig = Rig(.keyTurns)
+        rig.press(.lower)
+        rig.rotate(turn: 20)
+        XCTAssertEqual(rig.send(.attitude(broken), after: 1.0 / 60), [])
+        XCTAssertEqual(rig.send(.attitude(simd_quatd(vector: .zero)), after: 1.0 / 60), [])
+        var commands = rig.rotate(turn: 25, steps: 5)
+        for _ in 0..<20 { commands += rig.orient(after: 1.0 / 60) }
+        XCTAssertTrue(commands.wristTargets.allSatisfy { $0.degrees.isFinite })
+        XCTAssertEqual(commands.wristTargets.last?.degrees ?? 0, 25, accuracy: 1e-3)
+
+        // A thumb that lands before any sample is not anchored at a broken one.
+        var arbiter = InputArbiter(scheme: .screenTurns, layout: Rig.layout)
+        let facts = InputFacts()
+        let thumb = TouchSample(id: 1, phase: .began, x: Rig.middle.x, y: Rig.middle.y, majorRadius: 8)
+        _ = arbiter.handle(.touch(thumb), at: 0, facts: facts)
+        _ = arbiter.handle(.attitude(broken), at: 0.05, facts: facts)
+        _ = arbiter.handle(.attitude(Phone.rest), at: 0.15, facts: facts)
+        let turned = arbiter.handle(.attitude(Phone.attitude(turn: 8)), at: 0.2, facts: facts)
+        XCTAssertEqual(turned.withoutUpdates, [.startWrist])
     }
 
     func testOnAnUnknownServerTheTiltWindowCountsCommandedTiltUntilAReset() {

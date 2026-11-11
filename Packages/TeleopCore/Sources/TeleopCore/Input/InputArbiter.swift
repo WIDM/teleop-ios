@@ -383,6 +383,9 @@ public struct InputArbiter: Sendable {
     // MARK: Phone attitude (I-8, A-6, B-2)
 
     private mutating func attitudeSample(_ q: simd_quatd) {
+        // A sample that is not a rotation (NaN, infinite or zero) would poison every later target of the hold.
+        let length = simd_length(q.vector)
+        guard length.isFinite, length > 0.5 else { return }
         attitude = q
         for (id, role) in touches {
             if case .surface(var touch) = role, touch.mapper.anchor == nil {
