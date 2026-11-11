@@ -49,7 +49,13 @@ Every message in both directions is one JSON object with five keys:
 | `payload` | An object with the message's own fields; `{}` when there are none. |
 
 The app writes keys in sorted order. Its JSON encoder may print a decimal such as 0.3 as `0.29999999999999999`;
-the server reads both as the same number. The examples below are shortened to the plain form.
+the server reads both as the same number.
+
+The examples in this document are copied from the recordings of the real server in
+`Packages/TeleopCore/Tests/TeleopServerModelTests/Recordings` (the file is named with each). The client in those
+recordings is `scripts/trace_scenarios.py`, which speaks the same protocol as the app but writes keys in its own
+order. Where the app's own payload differs, the text says so. Names and the server's session id are replaced by
+placeholders.
 
 In a server message, `seq` is the client message it answers, or the newest one it has seen. The app ignores it and
 reads the acknowledged number from `payload.seq` instead.
@@ -62,6 +68,8 @@ The first message on a connection must be `hello`, with exactly these two fields
 {"v": 1, "type": "hello", "ts": 1794378668949, "seq": 1, "payload": {"client": "phone", "name": "<client name>"}}
 ```
 
+(`s00_hello`.)
+
 `name` is how the server's log names the connection (`TeleopLink.hello(name:)` has the app's default). Any other
 field in the payload, or any other message before `hello`, is answered with an `error` message.
 
@@ -71,6 +79,8 @@ The server answers with `welcome`, then a first `state` (described below):
 {"v": 1, "type": "welcome", "ts": 1794378668966, "seq": 1,
  "payload": {"session": "<uuid>", "config": {"coarse_cm": 2.0, "fine_cm": 0.5}}}
 ```
+
+(`s00_hello`.)
 
 `session` names the server run: it changes only when the server restarts. The app keeps it to notice a restart
 across a reconnect (the scene then starts over). It ignores `config`.
@@ -107,18 +117,22 @@ purpose: in the simulator one such command kept every other command waiting for 
 {"v": 1, "type": "test", "ts": 1794378679453, "seq": 3, "payload": {}}
 ```
 
-The server echoes the text unchanged. The app times the echo (`.latency`). Two round trips of 400 ms or more in a
+(`s01_idle`, sent and echoed.) The server echoes the text unchanged. The app times the echo (`.latency`). Two round trips of 400 ms or more in a
 row block commands and end anything held, until a faster one comes (`TeleopSession`, `linkLatency`). The echo is
 also what keeps the link counted as alive during a hold, when the server sends nothing else on this connection.
 
 ### `pose_start`, `pose_update`, `pose_stop`: moving the arm
 
 ```json
-{"v": 1, "type": "pose_start", "ts": 1794378700000, "seq": 3,
- "payload": {"control_mode": "translation", "deadband_deg": 0, "frame": "webxr_local", "gain": 1, "rate_hz": 30, "smoothing": 0.3}}
-{"v": 1, "type": "pose_update", "ts": 1794378700033, "seq": 4,
- "payload": {"gripper_delta": 0, "p_rel_m": [0.0012, -0.0102, 0], "q_rel": [0, 0, 0, 1]}}
+{"v": 1, "type": "pose_start", "ts": 1794378687456, "seq": 5,
+ "payload": {"frame": "webxr_local", "rate_hz": 30, "control_mode": "translation", "gain": 1.0, "deadband_deg": 2.5, "smoothing": 0.3}}
+{"v": 1, "type": "pose_update", "ts": 1794378688418, "seq": 34,
+ "payload": {"p_rel_m": [0.0, 0.0097, 0.0], "q_rel": [0, 0, 0, 1], "gripper_delta": 0}}
+{"v": 1, "type": "pose_stop", "ts": 1794378689520, "seq": 66, "payload": {}}
 ```
+
+(`s02_pose_hold`.) The app sends the same `pose_start` with `deadband_deg` 0 and the gain and smoothing chosen in
+its settings.
 
 `p_rel_m` is the hand's displacement since the hold began, in metres, rounded to 0.1 mm. It is an absolute target
 within the hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The
@@ -138,9 +152,12 @@ holding (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
 ### `gripper_jog_start`, `jog_keepalive`, `gripper_jog_stop`: the jaws
 
 ```json
-{"v": 1, "type": "gripper_jog_start", "ts": 1794378701066, "seq": 6, "payload": {"action": "open", "step": "coarse"}}
-{"v": 1, "type": "jog_keepalive", "ts": 1794378701199, "seq": 7, "payload": {}}
+{"v": 1, "type": "gripper_jog_start", "ts": 1794378699557, "seq": 100, "payload": {"action": "open", "step": "coarse"}}
+{"v": 1, "type": "jog_keepalive", "ts": 1794378700699, "seq": 102, "payload": {}}
+{"v": 1, "type": "gripper_jog_stop", "ts": 1794378701687, "seq": 110, "payload": {}}
 ```
+
+(`s03_busy_handoff`.)
 
 `action` is `open` or `close`. The jaws move until the stop. Closing on something does not end the hold: the
 server stops squeezing harder, holds what it has, and reports `ik: gripper_contact` in `state`. The server expects a
@@ -149,10 +166,13 @@ keepalive every 150 ms and ends the hold 750 ms after the last one; the app send
 ### `orient_start`, `orient_update`, `orient_stop`: the wrist
 
 ```json
-{"v": 1, "type": "orient_start", "ts": 1794378702332, "seq": 9,
- "payload": {"deadband_deg": 0, "frame": "phone_body", "gain": 1, "rate_hz": 30, "smoothing": 0}}
-{"v": 1, "type": "orient_update", "ts": 1794378702365, "seq": 10, "payload": {"q_rel": [0, -0.087156, 0, 0.996195]}}
+{"v": 1, "type": "orient_start", "ts": 1794378790763, "seq": 274,
+ "payload": {"frame": "phone_body", "rate_hz": 30, "gain": 1.0, "deadband_deg": 0.0, "smoothing": 0.0}}
+{"v": 1, "type": "orient_update", "ts": 1794378791761, "seq": 304, "payload": {"q_rel": [0, -0.087156, 0, 0.996195]}}
+{"v": 1, "type": "orient_stop", "ts": 1794378792827, "seq": 335, "payload": {}}
 ```
+
+(`s10_orient_hold`; the app sends the same `orient_start`.)
 
 `q_rel` is a quaternion (four numbers `[x, y, z, w]` that describe a rotation; their squares add up to 1). The
 server reads the rotation about y, negated, as a change of wrist roll, and the rotation about x as a change of
@@ -173,13 +193,25 @@ hold's keepalive.
 | `state` | the first one makes the link ready; every one updates the map, the guide, the feedback and the spoken narration of the recorder; `estop: true` latches the emergency stop on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
-| `error` | ignored. The server sends it for a malformed message, for example `{"code": "unknown_type", "msg": "unsupported type=no_such_type"}`. |
+| `error` | ignored. The server sends it for a malformed message (below). |
+
+### `error`
+
+The answer to a message the server cannot take, here one of an unknown type (`s12_invalid`):
+
+```json
+{"v": 1, "type": "error", "ts": 1794378841695, "seq": 369, "payload": {"code": "unknown_type", "msg": "unsupported type=no_such_type"}}
+```
+
+The app should never get one, and ignores it if it does (`TeleopLink.receive` returns no event for it).
 
 ### `ack`
 
 ```json
 {"v": 1, "type": "ack", "ts": 1794378689529, "seq": 5, "payload": {"seq": 5, "status": "ok", "reason": "pose_stopped"}}
 ```
+
+(`s02_pose_hold`: the final ack of the `pose_start` above.)
 
 `status` is `ok` or `rejected`, or `clamped` for messages the app does not send: a `jog_start` hold that reached
 the edge of the box, and a one-shot `move_delta`, `joint_delta` or `gripper` whose target was cut short. `reason`
@@ -237,7 +269,16 @@ means the phone stopped sending: the app was suspended, the radio stalled, or th
 ## The emergency stop
 
 STOP sends `estop`. The server answers at once with `ok estop_engaged` and a `state` with `estop: true`; the hold
-that was running ends with a final ack `rejected estop`. While the stop is latched, the server answers every start,
+that was running ends with a final ack `rejected estop`. From `s06_estop_in_hold`, the stop and, two seconds later,
+its release (the server's clock runs a few milliseconds behind the client's):
+
+```json
+{"v": 1, "type": "estop", "ts": 1794378738294, "seq": 210, "payload": {}}
+{"v": 1, "type": "ack", "ts": 1794378738290, "seq": 210, "payload": {"seq": 210, "status": "ok", "reason": "estop_engaged"}}
+{"v": 1, "type": "estop_reset", "ts": 1794378740297, "seq": 213, "payload": {}}
+{"v": 1, "type": "ack", "ts": 1794378740290, "seq": 213, "payload": {"seq": 213, "status": "ok", "reason": "estop_reset"}}
+```
+ While the stop is latched, the server answers every start,
 stop and keepalive with `rejected estop_active` and ignores updates. The arm holds its last commanded position.
 
 The app sends `estop` on both connections when both are up (the server takes it from either). If neither is up,
@@ -272,8 +313,11 @@ has gone up by one, `gripper` says `closed`, `task_success` is `false`, and a re
 take.
 
 ```json
+{"v": 1, "type": "reset_scene", "ts": 1794378712724, "seq": 145, "payload": {}}
 {"v": 1, "type": "ack", "ts": 1794378714464, "seq": 145, "payload": {"seq": 145, "status": "ok", "reason": "scene_reset"}}
 ```
+
+(`s04_stop_then_reset`. A first `reset_scene`, seq 144, sent right behind a `pose_stop`, had been refused `busy`.)
 
 How the app sends it (`TeleopLink.resetScene`):
 
@@ -305,6 +349,8 @@ control connection has heard nothing for 2 s or, while the listening connection 
 anything for 1.2 s.
 
 ## The `state` message
+
+From `s00_hello`, the first `state` after `welcome`:
 
 ```json
 {"v": 1, "type": "state", "ts": 1794378668967, "seq": 1, "payload": {
