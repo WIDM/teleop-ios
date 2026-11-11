@@ -40,6 +40,10 @@ silence, ack times, final positions and angles. Two stalls of the real server's 
 timing rules (`Exclusion.all`). In s11 the real jaws came down on the cube and stopped a move; the replay puts an
 obstacle at that height (`Replay.obstacles`) so the model fails the move the same way and the rest is compared.
 
+No recording so far has the recorder on (`rec` is "none" throughout) or reaches a success, so the recorder, the
+success rule and the tracking safety stop are checked only by the rule tests, against the server's source. A
+recording of a pick-and-place with the recorder on would close that gap.
+
 All 18 recordings come from one server run, so they are replayed in the order they were made, with the recording
 script's unrecorded steps between them (`Replay.plan`). That gives each scenario the history it had: the episode
 count, the fields earlier holds added, the step size.
