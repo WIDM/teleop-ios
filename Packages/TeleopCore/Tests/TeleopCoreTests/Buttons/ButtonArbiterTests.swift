@@ -91,6 +91,31 @@ final class ButtonArbiterTests: XCTestCase {
         XCTAssertEqual(pad.press(.close, atMs: 300, gripping: false), [.startGripper(.closed)])
     }
 
+    // MARK: The 20 pt drag-out
+
+    func testAFingerSlippingOffItsButtonEndsTheHoldOnce() {
+        let layout = ButtonPadLayout.make(width: 402, height: ButtonPadLayout.referenceHeight)
+        let forward = layout.buttons[.forward]!
+        var pad = ButtonArbiter()
+        _ = pad.press(.forward, atMs: 0, gripping: false)
+
+        var commands: [ButtonCommand] = []
+        var slipped = false
+        // The finger drifts straight up off the top edge, one point at a time.
+        for step in 0...40 {
+            let y = forward.minY - Double(step)
+            if !slipped, layout.hasSlipped(off: .forward, x: forward.midX, y: y) {
+                slipped = true
+                commands += pad.release(.forward)
+                XCTAssertEqual(step, 21, "slips when more than 20 pt outside, not before")
+            }
+        }
+        XCTAssertEqual(commands, [.stopTranslation])
+        XCTAssertEqual(pad.release(.forward), [], "the later lift sends nothing more")
+        XCTAssertEqual(pad.press(.back, atMs: 900, gripping: false), [.startTranslation(.back)],
+                       "a slipped finger no longer holds the pad")
+    }
+
     // MARK: Fine / Coarse
 
     func testTheSpeedSwitchIsRefusedWhileAnyButtonIsDown() {
