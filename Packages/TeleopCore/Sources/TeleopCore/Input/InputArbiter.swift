@@ -466,11 +466,11 @@ public struct InputArbiter: Sendable {
         max(abs(dx), abs(dy)) >= constants.openSlideMm - 1e-9
     }
 
-    /// B-3m: moving 10 mm within the dwell makes the touch a swipe.
+    /// B-3m: moving 10 mm within the dwell makes the touch a swipe. Unlike A-4, the rule names no measure, so it is
+    /// the straight distance from touch-down: a diagonal swipe counts as soon as it has gone 10 mm.
     private mutating func judgeKeyTurnsMove(_ id: Int) {
         guard case .surface(let touch)? = touches[id] else { return }
-        let d = touch.at - touch.down
-        guard reachedSlide(layout.millimetres(d.x), layout.millimetres(d.y)) else { return }
+        guard layout.millimetres(simd_length(touch.at - touch.down)) >= constants.openSlideMm - 1e-9 else { return }
         switch touch.phase {
         case .waiting:
             markDead(id)

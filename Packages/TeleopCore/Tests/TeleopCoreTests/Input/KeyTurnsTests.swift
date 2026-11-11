@@ -143,6 +143,16 @@ final class KeyTurnsTests: XCTestCase {
         XCTAssertEqual(rig.wait(0.06), [.startGripper(.closed)])
     }
 
+    func testB3mADiagonalSwipeCountsItsStraightDistance() {
+        // 10 mm at 45° is only 7.1 mm along either axis, but it is a swipe.
+        var rig = Rig(.keyTurns)
+        rig.touchDown(1, at: Rig.rightHalf)
+        rig.wait(0.1)
+        XCTAssertEqual(rig.slide(1, mm: 9, degrees: 45, dt: 0.004), [])
+        XCTAssertEqual(rig.slide(1, mm: 1, degrees: 45, dt: 0.004), [.cue(.dead)])
+        XCTAssertEqual(rig.wait(0.2), [], "the dwell cannot complete")
+    }
+
     func testB3uATapNeverMovesTheJaws() {
         var rig = Rig(.keyTurns)
         rig.touchDown(1, at: Rig.leftHalf)
