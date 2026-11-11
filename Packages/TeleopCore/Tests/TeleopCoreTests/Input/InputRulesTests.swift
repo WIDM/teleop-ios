@@ -128,6 +128,46 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.release(.upper), [])
     }
 
+    func testAnUndecidedThumbHeldThroughTheCountdownStaysDeadAfterTheReset() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.middle)
+        rig.wait(0.15)
+        rig.touchDown(2, at: Rig.topBand, after: 0.1)
+        XCTAssertEqual(rig.wait(0.1), [.resetCountdownStarted])
+        XCTAssertEqual(rig.phase(.touch(1)), .dead)
+        XCTAssertEqual(rig.wait(1.9), [.fireReset])
+        rig.lift(2, after: 0.05)
+        // The thumb was down through the whole reset: turning the phone now starts nothing.
+        XCTAssertEqual(rig.rotate(turn: 6, steps: 6).withoutUpdates, [.cue(.dead)])
+        XCTAssertEqual(rig.lift(1), [])
+    }
+
+    func testAHoldThatBeginsInsideTheTopBandPalmWindowKillsTheTouch() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.press(.upper, after: 0.02), [.startTranslation])
+        XCTAssertEqual(rig.release(.upper, after: 0.03), [.stopTranslation])
+        // Nothing is engaged when the window ends, but the touch was down during a hold.
+        XCTAssertEqual(rig.wait(0.05), [.cue(.refused(.letGoFirst))])
+        XCTAssertEqual(rig.wait(2.5), [])
+        // Lifted inside the window, the NO plays at the lift.
+        rig.lift(1)
+        rig.touchDown(2, at: Rig.topBand, after: 1)
+        rig.press(.upper, after: 0.02)
+        rig.release(.upper, after: 0.02)
+        XCTAssertEqual(rig.lift(2, after: 0.02), [.cue(.refused(.letGoFirst))])
+    }
+
+    func testARefusedKeyInsideTheTopBandPalmWindowLeavesTheCountdownAlone() {
+        var rig = Rig(.screenTurns)
+        rig.facts.refusal = .stopped
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.press(.upper, after: 0.02), [.cue(.refused(.stopped))])
+        rig.release(.upper, after: 0.03)
+        XCTAssertEqual(rig.wait(0.05), [.resetCountdownStarted])
+        XCTAssertEqual(rig.wait(1.9), [.fireReset])
+    }
+
     func testTheTopBandWhileSomethingIsEngagedIsDeadWithLetGoFirst() {
         var rig = Rig(.screenTurns)
         rig.press(.lower)

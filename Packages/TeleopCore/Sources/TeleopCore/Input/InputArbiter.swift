@@ -558,6 +558,14 @@ public struct InputArbiter: Sendable {
                     band.phase = .counting
                     engaged = .countdown(id)
                     out.append(.resetCountdownStarted)
+                    // A control-surface touch still undecided was down when the countdown began, so it is dead
+                    // until lifted, even after the reset; it plays NO if it would commit (I-2.1, I-2.3, I-3).
+                    for (other, role) in touches {
+                        if case .surface(var touch) = role, touch.phase == .waiting {
+                            touch.phase = .dead(owesNO: true)
+                            touches[other] = .surface(touch)
+                        }
+                    }
                 }
             case .live, .counting:
                 break
@@ -598,6 +606,14 @@ public struct InputArbiter: Sendable {
             return false
         }
         engaged = .hold(input, kind)
+        // A top band touch still in its palm window was down when this hold began: it never starts the countdown,
+        // and plays NO + "Let go first." when its window ends, as it would with the hold still engaged then.
+        for (id, role) in touches {
+            if case .band(var band) = role, !band.onGear, band.phase == .pending {
+                band.phase = .dead(owes: .letGoFirst)
+                touches[id] = .band(band)
+            }
+        }
         switch kind {
         case .translation:
             out.append(.startTranslation)
