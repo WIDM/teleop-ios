@@ -1209,6 +1209,31 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 1, "the server's own stop is not told twice")
     }
 
+    /// §6.5: with a recorder, estop_reset is not offered at all, so the model refuses a release whatever sends it, and
+    /// only the reset leaves the stop. With no recorder, and on a server that does not say (no `rec`), the release is
+    /// offered and works.
+    func testReleaseKeepSceneIsRefusedWithARecorderOnly() {
+        bringUp()
+        transport.server("state", ["estop": false, "gripper": "closed", "rec": "armed", "rec_saved": 0])
+        model.send(.stop)
+        XCTAssertEqual(model.stopExits.exits, [.resetScene])
+        XCTAssertFalse(model.operating.stopExits.exits.contains(.releaseKeepScene), "the screen offers only the reset")
+        model.send(.releaseStop)
+        XCTAssertTrue(model.session.state.emergencyStop)
+        XCTAssertFalse(transport.types.contains("estop_reset"))
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.deadInput), "the refused release is heard")
+
+        for state: [String: Any] in [["estop": false, "gripper": "closed", "rec": "none"], ["estop": false, "gripper": "closed"]] {
+            bringUp()
+            transport.server("state", state)
+            model.send(.stop)
+            XCTAssertEqual(model.stopExits.exits, [.resetScene, .releaseKeepScene], "\(state)")
+            model.send(.releaseStop)
+            XCTAssertFalse(model.session.state.emergencyStop, "\(state)")
+            XCTAssertEqual(transport.types.last, "estop_reset", "\(state)")
+        }
+    }
+
     func testAStopReleasedBeforeTheLinkCameBackIsNotSentLater() {
         makeModel(at: .p4)
         model.send(.stop)

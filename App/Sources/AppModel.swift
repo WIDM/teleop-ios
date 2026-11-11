@@ -411,6 +411,13 @@ final class AppModel {
             raise(.refused(.letGoFirst))
             return
         }
+        // §6.5: with a recorder, estop_reset would leave it off, so the release is not offered at all and the reset is
+        // the way out of the stop. The screen shows no release then; this keeps the rule whatever sends it.
+        if action == .releaseStop, session.state.emergencyStop, !stopExits.exits.contains(.releaseKeepScene) {
+            log("→ \(action) refused: the recorder needs a reset")
+            raise(.refused(.deadInput))
+            return
+        }
         perform(action, fromServer: false)
     }
 

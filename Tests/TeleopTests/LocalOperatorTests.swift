@@ -111,6 +111,11 @@ final class LocalOperatorTests: XCTestCase {
         hand.pump(1)
         XCTAssertEqual(model.stopExits.exits, [.resetScene], "with a recorder, release is not offered")
         XCTAssertTrue(model.session.state.emergencyStop)
+        model.send(.releaseStop)
+        hand.pump(1)
+        XCTAssertTrue(model.session.state.emergencyStop, "and refused whatever sends it")
+        XCTAssertTrue(serverStopped, "nothing released the server's stop")
+        XCTAssertTrue(heard(.refused(.deadInput)))
 
         let band = hand.topBand
         let touch = hand.touchDown(x: band.x, y: band.y)
