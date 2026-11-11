@@ -19,8 +19,8 @@ public struct GripperLimits: Equatable, Sendable {
 /// - END at a workspace or wrist clamp the server reports, at fully open, on an empty close, and when the arm is
 ///   blocked: during a translation hold the commanded point is at least 10 mm ahead and the measured arm moved
 ///   less than 2 mm in 1.0 s.
-/// - GRIP on contact while closing; from then on the jaws count as gripping until an open, a scene reset or a new
-///   server run.
+/// - GRIP on contact while closing, or in the states that follow letting go of a close; from then on the jaws count
+///   as gripping until an open, a scene reset or a new server run.
 /// - Nothing for a hold the server ends with a success, and nothing judged while the success shows.
 public struct FeedbackMonitor {
     public static let acceptMinMs = 100
@@ -56,6 +56,10 @@ public struct FeedbackMonitor {
     }
 
     private var engaged: Engaged?
+    /// A close the operator let go of before any contact showed. The server handles the stop a step later, and
+    /// with the listening connection down the first state comes only after the stop, so contact in the states
+    /// that follow still counts (§5.7).
+    private var releasedClose = false
     private var nextHold = 1
     private var roundTrips: [Int] = []
     private var episode: Int?
@@ -85,6 +89,7 @@ public struct FeedbackMonitor {
     /// A start went on the wire. `restart`: the app restarted a hold the operator still holds, as a translation
     /// resync does; it has already had its GO.
     public mutating func startSent(_ kind: ControlKind, restart: Bool, at now: Int) {
+        releasedClose = false
         if kind == .gripper(.open) { gripping = false }
         if restart, var current = engaged {
             current.kind = kind
@@ -120,10 +125,14 @@ public struct FeedbackMonitor {
     public mutating func released(_ kind: ControlKind? = nil) {
         guard let current = engaged, let kind else {
             engaged = nil
+            releasedClose = false
             return
         }
         switch (current.kind, kind) {
-        case (.pose, .pose), (.wrist, .wrist), (.gripper, .gripper): engaged = nil
+        case (.pose, .pose), (.wrist, .wrist): engaged = nil
+        case (.gripper(let target), .gripper):
+            engaged = nil
+            releasedClose = target == .closed && !current.contact
         default: break
         }
     }
@@ -154,6 +163,17 @@ public struct FeedbackMonitor {
         if let number = state.episode {
             if let before = episode, before != number { gripping = false }
             episode = number
+        }
+        if releasedClose {
+            switch state.activity {
+            case .gripperContact? where !state.estop:
+                releasedClose = false
+                gripping = true
+                return [.contact]
+            // The server has not handled the stop yet: the jaws are still closing.
+            case .gripperJogging? where !state.estop: break
+            default: releasedClose = false
+            }
         }
         // While the success shows nothing moves on purpose, and the hold has ended or is about to.
         guard var current = engaged, now >= current.sentAtMs, !state.estop, !state.simBusy else { return [] }
@@ -212,6 +232,7 @@ public struct FeedbackMonitor {
     /// The control connection is gone; nothing is engaged any more.
     public mutating func linkClosed() {
         engaged = nil
+        releasedClose = false
     }
 
     static let emergencyStopReasons: Set<String> = [

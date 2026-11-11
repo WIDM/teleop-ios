@@ -134,6 +134,34 @@ final class FeedbackMonitorTests: XCTestCase {
         XCTAssertTrue(monitor.gripping)
     }
 
+    /// §5.7: contact that shows only in the states after letting go of a close (the jaws met the cube in the last
+    /// moment, or the listening connection is down and the first state comes after the stop) still grips.
+    func testContactSeenJustAfterLettingGoOfACloseStillGrips() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        _ = monitor.tick(at: 300)
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 30), at: 400), [])
+        monitor.released(.gripper(.closed))
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 22), at: 480), [], "the server has not stopped yet")
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 18), at: 560), [.contact])
+        XCTAssertTrue(monitor.gripping)
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 18), at: 760), [], "once")
+    }
+
+    func testOnlyTheStatesRightAfterACloseCanStillGrip() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        monitor.released(.gripper(.closed))
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: 30), at: 200), [], "the server stopped the jaws first")
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 18), at: 400), [])
+        XCTAssertFalse(monitor.gripping)
+        monitor.startSent(.gripper(.open), restart: false, at: 600)
+        monitor.released(.gripper(.open))
+        XCTAssertEqual(monitor.observe(state(.gripperContact), at: 800), [], "after an open")
+        monitor.startSent(.gripper(.closed), restart: false, at: 1000)
+        monitor.released()
+        XCTAssertEqual(monitor.observe(state(.gripperContact), at: 1200), [], "after an emergency stop")
+        XCTAssertFalse(monitor.gripping)
+    }
+
     func testAnEmptyClose() {
         monitor.startSent(.gripper(.closed), restart: false, at: 0)
         XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 30), at: 200), [])
