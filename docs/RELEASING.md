@@ -12,8 +12,16 @@ Two numbers live in `project.yml`, under `settings.base`, and nowhere else:
 - `CURRENT_PROJECT_VERSION`: the build number, a whole number. iOS and App Store Connect use it to tell two builds
   of the same version apart.
 
-`CHANGELOG.md` states the rule for the version number. To change either number, edit `project.yml`, then
-regenerate the Xcode project, which is not committed:
+`CHANGELOG.md` states the rule for the version number, but only for 0.x: `0.x.0` adds or changes behaviour,
+`0.x.y` only fixes. No rule for versions after 1.0.0 is written down yet. Carrying the same idea over would make
+`1.x.0` a version that adds or changes behaviour and `1.x.y` one that only fixes; whoever cuts the first version
+after 1.0.0 should write the rule into `CHANGELOG.md` so it is decided once.
+
+The build number is not covered by any written rule either. In practice it has gone up by one with every version
+(0.9.1 was build 11, 0.10.0 build 12) and never goes back. Keep it that way: App Store Connect
+refuses an upload whose build number is not higher than every build already uploaded for that version.
+
+To change either number, edit `project.yml`, then regenerate the Xcode project, which is not committed:
 
     xcodegen generate
 
@@ -84,7 +92,12 @@ Check it:
     git show v1.0.0 --no-patch
 
 An annotated tag records who tagged and when; `git tag -n` lists every version with its summary. Push the tag
-together with the branch it is on.
+together with the branch it is on, in one push (not run for this document; `<branch>` is the branch that carries the
+version commit):
+
+    git push --atomic origin <branch> v1.0.0
+
+`--atomic` makes the push all or nothing, so the branch never arrives without its tag or the other way round.
 
 ## Putting a build on a phone
 
