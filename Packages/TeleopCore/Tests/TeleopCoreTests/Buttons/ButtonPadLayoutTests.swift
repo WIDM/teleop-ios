@@ -74,8 +74,10 @@ final class ButtonPadLayoutTests: XCTestCase {
             (390, padHeight(screen: 844, safeTop: 47, safeBottom: 34)),
             (440, padHeight(screen: 956, safeTop: 62, safeBottom: 34)),  // Pro Max
         ]
-        for width in stride(from: 375.0, through: 440, by: 5) {
-            for height in stride(from: 340.0, through: 720, by: 7) { sizes.append((width, height)) }
+        // Down to 320 pt wide (Display Zoom) and to the smallest pad height at which everything fits.
+        for width in stride(from: 320.0, through: 440, by: 5) {
+            for height in stride(from: 322.0, through: 720, by: 7) { sizes.append((width, height)) }
+            sizes.append((width, smallestFittingHeight))
         }
         for (width, height) in sizes {
             for hand in [true, false] {
@@ -100,6 +102,21 @@ final class ButtonPadLayoutTests: XCTestCase {
                     }
                 }
             }
+        }
+    }
+
+    /// Once the lift column is shorter than three 60 pt cross cells, the cells set the top row: 60 + 60 for the
+    /// gripper row and the switch, plus the column and gaps (304 pt at full size) at the factor where the column is
+    /// 180 pt. About 321 pt.
+    private let smallestFittingHeight = 120 + 304 * (180.0 / 272)
+
+    /// Below that the controls cannot all fit (iPhone SE with Display Zoom: 320 × 568 pt, a 300 pt pad). The 60 pt
+    /// minimum still holds.
+    func testBelowTheSmallestFittingHeightNoTargetGoesUnder60Points() {
+        let zoomedSE = ButtonPadLayout.make(width: 320, height: padHeight(screen: 568, safeTop: 20, safeBottom: 0))
+        for rect in Array(zoomedSE.buttons.values) + [zoomedSE.fineSegment, zoomedSE.coarseSegment] {
+            XCTAssertGreaterThanOrEqual(rect.width, 60 - 1e-9)
+            XCTAssertGreaterThanOrEqual(rect.height, 60 - 1e-9)
         }
     }
 

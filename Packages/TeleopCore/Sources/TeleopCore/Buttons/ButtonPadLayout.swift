@@ -110,6 +110,10 @@ public struct ButtonPadLayout: Equatable, Sendable {
 
     /// The largest factor, at most 1, at which the pad fits. Below about 0.83 the gripper row stays at the minimum
     /// height and only the cross and the lift column keep shrinking.
+    ///
+    /// Under a pad height of about 321 pt nothing fits: three 60 pt cross cells, the gripper row and the switch need
+    /// more. The 60 pt minimum wins and the pad runs past the bottom of its space. That is an iPhone SE with Display
+    /// Zoom (320 × 568 pt, a 300 pt pad); every phone §3.2 names, down to 667 pt tall, fits.
     static func scale(width: Double, height: Double) -> Double {
         // The lift column (taller than the cross), the gripper row and the gaps between: 376 pt at the reference.
         let scalingHeight = (2 * liftHeight + gap) + gap + gripperHeight + gap
