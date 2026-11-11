@@ -174,11 +174,23 @@ final class InputRulesTests: XCTestCase {
         rig.touchDown(1, at: Rig.gear)
         XCTAssertEqual(rig.wait(0.1), [.cue(.refused(.letGoFirst))])
         XCTAssertEqual(rig.lift(1, after: 0.1), [])
-        // Engaged at the lift, though not at the touch-down: Settings does not open.
+        // Engaged by the end of the palm window, though not at the touch-down: dead with NO, Settings does not open.
         rig.release(.upper, after: 1)
         rig.touchDown(2, at: Rig.gear, after: 0.5)
         rig.press(.upper, after: 0.05)
-        XCTAssertEqual(rig.lift(2, after: 0.1), [])
+        XCTAssertEqual(rig.lift(2, after: 0.1), [.cue(.refused(.letGoFirst))])
+        // Engaged only at the lift of a tap: dead with NO too.
+        rig.release(.upper, after: 1)
+        rig.touchDown(3, at: Rig.gear, after: 0.5)
+        rig.wait(0.15)
+        rig.press(.upper)
+        XCTAssertEqual(rig.lift(3, after: 0.1), [.cue(.refused(.letGoFirst))])
+        // Held 0.5 s or more, it is not a tap: silent.
+        rig.release(.upper, after: 1)
+        rig.touchDown(4, at: Rig.gear, after: 0.5)
+        rig.wait(0.15)
+        rig.press(.upper)
+        XCTAssertEqual(rig.lift(4, after: 0.4), [])
     }
 
     // MARK: I-11 Leaving

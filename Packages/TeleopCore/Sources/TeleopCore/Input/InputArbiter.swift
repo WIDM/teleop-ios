@@ -334,9 +334,14 @@ public struct InputArbiter: Sendable {
         case .band(let band):
             switch band.phase {
             case .pending, .live:
-                // A tap on the gear opens Settings when nothing is engaged.
-                if band.onGear, !cancelled, engaged == nil, now - band.downAt < constants.gearTapS {
-                    out.append(.openSettings)
+                // A tap on the gear opens Settings when nothing is engaged, and is dead (NO + "Let go first.")
+                // otherwise.
+                if band.onGear, !cancelled, now - band.downAt < constants.gearTapS {
+                    if engaged == nil {
+                        out.append(.openSettings)
+                    } else {
+                        cue(.refused(.letGoFirst))
+                    }
                 }
             case .counting:
                 engaged = nil
@@ -540,12 +545,12 @@ public struct InputArbiter: Sendable {
             case .dead(let owes):
                 if let owes { cue(.refused(owes)) }
                 band.phase = .dead(owes: nil)
-            case .pending where band.onGear:
-                band.phase = .live
             case .pending:
                 if engaged != nil {
                     band.phase = .dead(owes: nil)
                     cue(.refused(.letGoFirst))
+                } else if band.onGear {
+                    band.phase = .live
                 } else if let refusal = facts.resetRefusal {
                     band.phase = .dead(owes: nil)
                     cue(.refused(refusal))
