@@ -32,12 +32,13 @@ To see what a plan contains without running it, add `-enumerate-tests` to `xcode
 
 ## How the conformance tests compare
 
-Strictly: every ack (seq, status, reason, in the same order), every error and echo, no `state` while the client
-keeps sending at least every 200 ms except right after an ack, the same `state` keys and JSON types, and the
-final `estop`, `ik`, `episode`, `gripper`, `step`, `task_success` and recorder fields. Loosely, with the reason
-in the test's header: the number of states in a silence, ack times, final positions and angles. Two parts of the
-recordings are excluded, each with its reason in `Exclusion.all`: s11 after 8 s (the real jaws landed on the
-cube) and two stalls of the real server's event loop.
+Strictly: every ack (seq, status, reason, in the same order), whether a `state` came with each ack and that
+state's `estop` and `ik`, every error and echo, no other `state` while the client keeps sending at least every
+200 ms, the same `state` keys and JSON types, and the final `estop`, `ik`, `episode`, `gripper`, `step`,
+`task_success` and recorder fields. Loosely, with the reason in the test's header: the number of states in a
+silence, ack times, final positions and angles. Two stalls of the real server's event loop are exempt from the
+timing rules (`Exclusion.all`). In s11 the real jaws came down on the cube and stopped a move; the replay puts an
+obstacle at that height (`Replay.obstacles`) so the model fails the move the same way and the rest is compared.
 
 All 18 recordings come from one server run, so they are replayed in the order they were made, with the recording
 script's unrecorded steps between them (`Replay.plan`). That gives each scenario the history it had: the episode
@@ -67,7 +68,8 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
   moved the reported point 1.4 cm). Shoulder and elbow joint commands are accepted and acked but move nothing.
 - The `tool` frame of `jog_start` and `move_delta` is treated as `base`.
 - The jaws are a pinch point. They stop on the table but pass through the cube unless they close around it, so
-  lowering closed jaws onto the cube does not fail a move as it can on the real server.
+  lowering closed jaws onto the cube does not fail a move as it can on the real server. A test can put an
+  obstacle under the arm (`World.obstacleUnderArm`) to get that failure.
 - The cube is grasped only with the jaws side by side (wrist roll within 15 degrees of 90) and the wrist near its
   start pitch; front to back, where the real grasp worked 1 time in 16, it never holds. A held cube keeps its
   offset from the pinch point (the real one swings up to 2 cm when the shoulder turns) and drops straight down

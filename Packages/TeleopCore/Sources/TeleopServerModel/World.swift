@@ -27,6 +27,10 @@ public struct World: Equatable, Sendable {
     var gripOffset = SIMD3<Double>.zero
     /// How fast the cube moved in the last step, metres per simulated second.
     public internal(set) var cubeSpeed = 0.0
+    /// The lowest the reported point can go because something the model does not simulate is under the jaws.
+    /// Nil unless a test puts it there, as the conformance replay does where a recording shows the real jaws
+    /// landing on the cube. A reset clears it.
+    var obstacleUnderArm: Double?
 
     init(_ config: ServerModelConfig) {
         arm = config.armStart
@@ -52,6 +56,7 @@ public struct World: Equatable, Sendable {
         if holdingCube {
             lowest = max(lowest, tableTop - config.toolOffset.z - gripOffset.z + config.cubeSize / 2)
         }
+        if let obstacleUnderArm { lowest = max(lowest, obstacleUnderArm) }
         next.z = max(next.z, lowest)
         arm = next
     }

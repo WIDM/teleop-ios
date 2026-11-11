@@ -220,6 +220,17 @@ final class RuleTests: XCTestCase {
         XCTAssertEqual(phone.stateWithAck(hold)?["ik"], "stopped")
     }
 
+    func testAMoveThatCannotReachItsTargetFailsAndEngagesTheEmergencyStop() {
+        // Something under the jaws, as in recording s11, stops the arm 8 mm into a 2 cm move down.
+        bench.model.world.obstacleUnderArm = bench.config.armStart.z - 0.008
+        let move = phone.send("move_delta", .object(["axis": "z", "dir": -1, "step": "coarse", "frame": "base"]))
+        bench.wait(12)
+        XCTAssertEqual(phone.reason(move), "rejected position_tolerance_not_met")
+        XCTAssertEqual(phone.stateWithAck(move)?["estop"], true)
+        XCTAssertEqual(phone.stateWithAck(move)?["ik"], "stopped")
+        XCTAssertEqual(phone.reason(phone.poseStart()), "rejected estop_active")
+    }
+
     // MARK: The arm is slow
 
     func testTheArmMovesABoundedDistancePerStepAndStepsComeAtTheConfiguredPace() {

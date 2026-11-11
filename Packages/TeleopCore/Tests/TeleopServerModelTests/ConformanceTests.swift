@@ -64,13 +64,9 @@ struct Exclusion {
     var stalls: [ClosedRange<Double>] = []
 
     static let all: [String: Exclusion] = [
-        // At 7.1 s the client sends a coarse move down. The real arm's jaws came down on the cube's top face, 2 to 3 cm
-        // beside the pinch point, so the move missed its tolerance after 11 s and the server E-stopped (the cube is
-        // seen tilting in the recording). The model's only jaw geometry is the pinch point, so it completes that move,
-        // and everything after it differs: the next command is no longer refused busy, nothing is refused
-        // estop_active. Compared up to 8 s, which includes the `busy` refusal of the second move. That refusal is
-        // logged 0.3 s late: the server stalled from 6.8 s (its 200 ms states stop) to 7.4 s.
-        "s11_buttons_step_fails": Exclusion(until: 8.0, stalls: [6.81...7.43]),
+        // The `busy` refusal of the second move is logged 0.3 s late: the server stalled from 6.8 s (its 200 ms
+        // states stop) to 7.4 s. Everything after the stall is compared; see `Replay.obstacles` for the move down.
+        "s11_buttons_step_fails": Exclusion(stalls: [6.81...7.43]),
         // The real server's event loop stalled for about 0.4 s near the end of this hold (the state at 5.975 s carries
         // seq 537 while the client had sent up to 549), so its 200 ms timer fired with updates still queued. A stall
         // is not something to model.
@@ -109,6 +105,17 @@ final class Replay {
         for name in order[15...] { steps += [.settle, .scenario(name)] }
         return steps
     }()
+
+    /// What a recording shows under the jaws that the model's world does not simulate, put in by hand just before
+    /// the client message with this seq: the height below which the reported point cannot go.
+    ///
+    /// s11: the coarse move down (seq 349, at 7.1 s) brought the real jaws down on the cube's top face, 2 to 3 cm
+    /// beside the pinch point. The reported point stopped at 15.2 cm, the move missed its tolerance after 11 s
+    /// and the server E-stopped (the cube is seen tilting). The model's only jaw geometry is the pinch point, so
+    /// without this it completes the move. With it, the model fails the move the same way, and what follows
+    /// (the `busy` refusal while the move runs, the E-stop with the failure, the `estop_active` refusals) is
+    /// compared like everything else.
+    private static let obstacles: [String: (seq: Int, height: Double)] = ["s11_buttons_step_fails": (349, 0.152)]
 
     static let shared = Result { try Replay() }
 
@@ -175,6 +182,9 @@ final class Replay {
                 sockets.insert(socket)
                 lastSeq = 0
                 continue
+            }
+            if let obstacle = Self.obstacles[recording.name], obstacle.seq == seq {
+                model.world.obstacleUnderArm = obstacle.height
             }
             outputs += model.receive(line.message.text, from: socket, at: start + line.time)
             // The script's counter: its hand-made bad message (s12, seq 9999) used a number of its own.
