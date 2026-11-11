@@ -78,7 +78,8 @@ final class LiveLinkTests: XCTestCase {
                 observers.append(made)
                 return made
             },
-            nowMs: { [unowned self] in clock }
+            nowMs: { [unowned self] in clock },
+            clientName: "teleop-ios/1.0.0 (7)"
         )
         model.session.state.serverAddress = "100.64.0.1:8765"
         // Exact offsets in these tests; smoothing has its own test.
@@ -155,6 +156,15 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(LiveLinkController.url(from: "wss://host:1")?.absoluteString, "wss://host:1")
         XCTAssertNil(LiveLinkController.url(from: ""))
         XCTAssertNil(LiveLinkController.url(from: "http://host"))
+    }
+
+    /// The app names itself to the server by its version and build, read from the bundle: never a person's name.
+    func testTheAppsNameComesFromTheBundle() {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = try! XCTUnwrap(info["CFBundleShortVersionString"] as? String)
+        let build = try! XCTUnwrap(info["CFBundleVersion"] as? String)
+        XCTAssertEqual(LiveLinkController.clientName(), "teleop-ios/\(version) (\(build))")
+        XCTAssertNotNil(LiveLinkController.clientName().range(of: #"^teleop-ios/\d+(\.\d+)+ \(\d+\)$"#, options: .regularExpression))
     }
 
     func testConnectSaysHelloAndWaitsForTheServer() {
@@ -925,7 +935,8 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(observers.count, 1)
         XCTAssertTrue(observer.opened)
         XCTAssertEqual(observer.types, ["hello"])
-        XCTAssertEqual((observer.sent[0]["payload"] as? [String: String])?["name"], "teleop-ios/1.0.0 observer")
+        XCTAssertEqual((transport.sent[0]["payload"] as? [String: String])?["name"], "teleop-ios/1.0.0 (7)")
+        XCTAssertEqual((observer.sent[0]["payload"] as? [String: String])?["name"], "teleop-ios/1.0.0 (7) observer")
         transport.server("state", ["estop": false, "gripper": "closed"])
         bringUpObserver()
         model.send(.holdArmStart)

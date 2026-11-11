@@ -26,7 +26,7 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     private func bringUp(estop: Bool = false) {
-        link.hello()
+        link.hello(name: "test")
         _ = server("welcome")
         _ = server("state", ["estop": estop, "gripper": "closed"])
     }
@@ -46,7 +46,7 @@ final class TeleopLinkTests: XCTestCase {
     private let params = PoseParams(gain: 1, smoothing: 0.3)
 
     func testHelloThenWelcomeAndStateMakesTheLinkReady() {
-        link.hello()
+        link.hello(name: "test")
         XCTAssertEqual(sent[0]["v"] as? Int, 1)
         XCTAssertEqual((sent[0]["payload"] as? [String: String])?["client"], "phone")
         XCTAssertNil(server("welcome"))
@@ -57,7 +57,7 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     func testBothServerSpellingsOfAClosedGripperAreRead() {
-        link.hello()
+        link.hello(name: "test")
         _ = server("welcome")
         XCTAssertEqual(server("state", ["estop": false, "gripper": "close"]), .up(estop: false, gripper: .closed))
         XCTAssertEqual(server("state", ["estop": false, "gripper": "closed"]), .state(estop: false, gripper: .closed))

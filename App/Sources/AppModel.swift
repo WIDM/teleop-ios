@@ -127,6 +127,7 @@ final class AppModel {
     /// - Parameters:
     ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    ///   - clientName: how the app names itself to the server; the bundle's version and build unless a test passes one.
     init(
         start: Route = .s2,
         haptics: HapticsPlaying = HapticsController(),
@@ -137,7 +138,8 @@ final class AppModel {
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+        inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        clientName: String = LiveLinkController.clientName()
     ) {
         var state = FakeTeleopState()
         state.liveLink = liveLink
@@ -168,7 +170,10 @@ final class AppModel {
         )
         self.pose = pose
         self.nowMs = nowMs
-        link = LiveLinkController(makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs)
+        link = LiveLinkController(
+            makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
+            clientName: clientName
+        )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         cues.currentHold = { [weak self] in self?.currentHold }
         cues.onLog = { [weak self] in self?.log("~ \($0)") }

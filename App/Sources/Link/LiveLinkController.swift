@@ -18,8 +18,6 @@ final class LiveLinkController {
     static let resyncAfterMs = 1500
     /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
     static let resyncTimeoutMs = 1500
-    /// How the listening connection names itself in the server's log.
-    static let observerName = "teleop-ios/1.0.0 observer"
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
@@ -43,6 +41,8 @@ final class LiveLinkController {
     /// A wrist hold's `orient_start` has just gone on the wire, perhaps after waiting behind a finishing hold.
     var onWristStartSent: (() -> Void)?
 
+    /// How the control connection names itself in the server's log; the listening one adds " observer".
+    let clientName: String
     private let makeTransport: (URL) -> LinkTransport
     private let makeObserverTransport: (URL) -> LinkTransport
     private let pose: () -> simd_float4x4?
@@ -101,14 +101,18 @@ final class LiveLinkController {
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
 
-    /// - Parameter makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    /// - Parameters:
+    ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    ///   - clientName: the app's name and version from its bundle; tests pass a fixed one.
     init(
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits
+        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits,
+        clientName: String = LiveLinkController.clientName()
     ) {
+        self.clientName = clientName
         self.makeTransport = makeTransport
         self.makeObserverTransport = makeObserverTransport ?? makeTransport
         self.pose = pose
@@ -132,6 +136,14 @@ final class LiveLinkController {
     /// Task object and goal from the server's newest state, robot base frame.
     var cubePosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
     var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
+
+    /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.
+    static func clientName(bundle: Bundle = .main) -> String {
+        let info = bundle.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "teleop-ios/\(version) (\(build))"
+    }
 
     /// "host", "host:port" or a full ws:// URL. Nil when it cannot be a server address.
     static func url(from address: String) -> URL? {
@@ -166,7 +178,7 @@ final class LiveLinkController {
             self.drop("socket closed")
         }
         transport.open()
-        link.hello()
+        link.hello(name: clientName)
         onLog?("link: connecting \(url.absoluteString)")
         let timer = Timer(timeInterval: 1.0 / Double(TeleopLink.poseRateHz), repeats: true) { [weak self] _ in
             self?.tick()
@@ -596,7 +608,7 @@ final class LiveLinkController {
             self.observerDropped("socket closed")
         }
         transport.open()
-        observer.hello(name: Self.observerName)
+        observer.hello(name: clientName + " observer")
     }
 
     private func handleObserver(_ text: String) {

@@ -125,7 +125,7 @@ public final class TeleopLink {
     }
 
     /// - Parameter name: how the server's log names this connection.
-    public func hello(name: String = "thomas-app") {
+    public func hello(name: String) {
         emit("hello", ["client": "phone", "name": name])
     }
 
