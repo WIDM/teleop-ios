@@ -16,9 +16,9 @@ struct TutorialScreen: View {
         switch step {
         case 1:
             switch mode {
-            case .screenTurns: return Page(title: "tutorial.keys.title", lines: ["tutorial.keys.a", "tutorial.hold_rule"])
-            case .keyTurns: return Page(title: "tutorial.keys.title", lines: ["tutorial.keys.b", "tutorial.hold_rule"])
-            case .buttons: return Page(title: "tutorial.buttons.title", lines: ["tutorial.buttons.body", "tutorial.hold_rule"])
+            case .screenTurns: return Page(title: "tutorial.keys.title", lines: ["tutorial.keys.a", "tutorial.hold_rule", "tutorial.one_thing"])
+            case .keyTurns: return Page(title: "tutorial.keys.title", lines: ["tutorial.keys.b", "tutorial.hold_rule", "tutorial.one_thing"])
+            case .buttons: return Page(title: "tutorial.buttons.title", lines: ["tutorial.buttons.body", "tutorial.hold_rule", "tutorial.one_thing"])
             }
         case 2:
             switch mode {
@@ -28,8 +28,8 @@ struct TutorialScreen: View {
             }
         default:
             return Page(title: "tutorial.cues.title", lines: [
-                "tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go", "tutorial.cue.dead", "tutorial.cue.end",
-                "tutorial.cue.letgo", "tutorial.cue.grip", "tutorial.cue.alarm",
+                "tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go", "tutorial.cue.purr", "tutorial.cue.dead",
+                "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.grip", "tutorial.cue.alarm",
             ])
         }
     }

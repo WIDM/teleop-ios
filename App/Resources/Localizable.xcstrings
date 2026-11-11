@@ -2433,6 +2433,22 @@
         }
       }
     },
+    "tutorial.cue.purr": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold still to feel the arm: a purr means it is still on its way; quiet means it has arrived. Hold until quiet."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停住不動，感覺手臂：有低鳴＝還在跑；安靜＝到了。按到安靜再放。"
+          }
+        }
+      }
+    },
     "tutorial.cue.reset": {
       "localizations": {
         "en": {
@@ -2541,6 +2557,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "兩個音量鍵"
+          }
+        }
+      }
+    },
+    "tutorial.one_thing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One thing at a time: after the tick, any other press does nothing until you let go."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次一件事：感覺到輕點後，其他按鍵都沒用，直到放開。"
           }
         }
       }

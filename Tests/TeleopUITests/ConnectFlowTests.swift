@@ -17,6 +17,7 @@ final class ConnectFlowTests: XCTestCase {
 
         expect(app, "tutorial.skip")
         XCTAssertEqual(app.element("tutorial.title").label, "The two keys")
+        XCTAssertTrue(text(app, "One thing at a time"), "rule O8")
         attachScreenshot("02-tutorial-keys")
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Thumb and turn")
@@ -24,12 +25,17 @@ final class ConnectFlowTests: XCTestCase {
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
         XCTAssertFalse(app.element("tutorial.skip").exists, "the last page has Back, not Skip")
+        XCTAssertTrue(text(app, "a purr means it is still on its way"), "rule O3, the cue the pause rests on")
         attachScreenshot("04-tutorial-cues")
         app.element("tutorial.back").tap()
         expectLabel(app.element("tutorial.title"), "Thumb and turn")
         app.element("tutorial.next").tap()
         app.element("tutorial.next").tap()
         expect(app, "operating.state")
+    }
+
+    private func text(_ app: XCUIApplication, _ part: String) -> Bool {
+        app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", part)).firstMatch.exists
     }
 
     func testTheTutorialTeachesTheChosenMode() {
