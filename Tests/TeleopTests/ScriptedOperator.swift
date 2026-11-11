@@ -21,6 +21,8 @@ final class ScriptedOperator {
     let pace: Double
     /// The operating screen of the reference phone.
     let layout = SurfaceLayout(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+    /// Called on every turn of the run loop while the hand waits, so a test can watch what the app shows.
+    var watch: (() -> Void)?
     private var nextTouchID = 1
     private var lastFrame: TimeInterval = 0
     private let savedMode: String?
@@ -65,6 +67,7 @@ final class ScriptedOperator {
             if done() { return true }
             frame()
             RunLoop.main.run(until: Date().addingTimeInterval(1.0 / 240))
+            watch?()
         }
         return done()
     }
