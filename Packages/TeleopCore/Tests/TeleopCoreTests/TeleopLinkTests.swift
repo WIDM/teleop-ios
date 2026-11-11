@@ -43,7 +43,7 @@ final class TeleopLinkTests: XCTestCase {
         sent.last { $0["type"] as? String == type }!["seq"] as! Int
     }
 
-    private let params = PoseParams(gain: 1, deadbandDegrees: 2, smoothing: 0.3)
+    private let params = PoseParams(gain: 1, smoothing: 0.3)
 
     func testHelloThenWelcomeAndStateMakesTheLinkReady() {
         link.hello()
@@ -96,6 +96,7 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(start["rate_hz"] as? Int, 30)
         XCTAssertEqual(start["control_mode"] as? String, "translation")
         XCTAssertEqual(Set(start.keys), ["frame", "rate_hz", "control_mode", "gain", "deadband_deg", "smoothing"])
+        XCTAssertEqual(start["deadband_deg"] as? Double, 0.0)
         let update = sent[2]["payload"] as! [String: Any]
         XCTAssertEqual(Set(update.keys), ["p_rel_m", "q_rel", "gripper_delta"])
         XCTAssertEqual(update["p_rel_m"] as? [Double], [0.0123, 0, -0.02])
@@ -713,8 +714,8 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     func testPoseParamsAreClampedToServerRanges() {
-        let params = PoseParams(gain: 5, deadbandDegrees: -1, smoothing: 1)
-        XCTAssertEqual(params, PoseParams(gain: 2, deadbandDegrees: 0, smoothing: 0.95))
+        let params = PoseParams(gain: 5, smoothing: 1)
+        XCTAssertEqual(params, PoseParams(gain: 2, smoothing: 0.95))
     }
 
     func testGarbageIsIgnored() {

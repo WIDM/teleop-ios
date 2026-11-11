@@ -20,13 +20,11 @@ public enum LinkEvent: Equatable, Sendable {
 
 public struct PoseParams: Equatable, Sendable {
     public var gain: Double
-    public var deadbandDegrees: Double
     public var smoothing: Double
 
-    public init(gain: Double, deadbandDegrees: Double, smoothing: Double) {
+    public init(gain: Double, smoothing: Double) {
         // Ranges the server accepts; outside them it rejects pose_start.
         self.gain = min(max(gain, 0.1), 2.0)
-        self.deadbandDegrees = min(max(deadbandDegrees, 0), 15)
         self.smoothing = min(max(smoothing, 0), 0.95)
     }
 }
@@ -343,7 +341,8 @@ public final class TeleopLink {
                 "rate_hz": Self.poseRateHz,
                 "control_mode": "translation",
                 "gain": params.gain,
-                "deadband_deg": params.deadbandDegrees,
+                // Required by the server's validation (0 to 15) and ignored by it in every hold.
+                "deadband_deg": 0.0,
                 "smoothing": params.smoothing,
             ])
         case .gripperJog(let target):

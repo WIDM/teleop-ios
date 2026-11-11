@@ -153,7 +153,7 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
 }
 
 // The stack is left out on purpose. See "Why the stack is left out" in SKILL.md.
-// Not in key, because no action changes them: serverAddress sensitivity deadbandDegrees smoothing
+// Not in key, because no action changes them: serverAddress sensitivity smoothing
 // scripts/drift.py fails if FakeTeleopState gains a stored field that is in neither list.
 struct StateKey: Hashable {
     let mode: TeleopMode

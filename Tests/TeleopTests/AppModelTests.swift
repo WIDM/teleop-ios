@@ -39,11 +39,9 @@ final class AppModelTests: XCTestCase {
     func testSettingsSurviveLeavingS6() {
         let model = AppModel(start: .p4, haptics: SpyHaptics())
         model.send(.openSettings)
-        model.session.state.setDeadband(degrees: 6)
         model.session.state.setSmoothing(0.9)
         model.send(.settingsDone)
         model.send(.openSettings)
-        XCTAssertEqual(model.session.state.deadbandDegrees, 6)
         XCTAssertEqual(model.session.state.smoothing, 0.9)
     }
 

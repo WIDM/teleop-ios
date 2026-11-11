@@ -86,7 +86,7 @@ Bounds:
 
 Left out:
 
-- Settings sliders (`setDeadband`, `setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
+- Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier` and `HeldControlModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
 - Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`, used by `HeldControlModifier` and `VolumeKeyMapper`). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
 - The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`) or a refused hold (`holdArmEnd`) from any route on a live link. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.

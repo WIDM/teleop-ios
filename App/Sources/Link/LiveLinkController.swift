@@ -53,7 +53,7 @@ final class LiveLinkController {
     /// Set when estop_reset goes out. States sent before the server handled it still say estop, and must not re-latch.
     private var resetSentAtMs: Int?
     /// The server ignores gain and smoothing in translation mode, so they are applied here.
-    private var holdParams = PoseParams(gain: 1, deadbandDegrees: 0, smoothing: 0)
+    private var holdParams = PoseParams(gain: 1, smoothing: 0)
     private var smoothed = SIMD3<Float>.zero
     /// How far the arm really moved in earlier server holds of this press, in the frame offsets are sent in.
     private var armProgress = SIMD3<Float>.zero

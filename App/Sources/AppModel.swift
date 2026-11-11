@@ -159,9 +159,7 @@ final class AppModel {
         if before.armMoving, !after.armMoving { link.endHold() }
         if before.emergencyStop, !after.emergencyStop { link.estopReset() }
         if !before.armMoving, after.armMoving {
-            let params = PoseParams(
-                gain: after.sensitivity, deadbandDegrees: after.deadbandDegrees, smoothing: after.smoothing
-            )
+            let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
             if !link.startHold(params) {
                 log("link: hold not started (no tracking or link)")
                 session.perform(.holdArmEnd)

@@ -22,13 +22,6 @@ struct SettingsScreen: View {
                 sliderRow("settings.sensitivity", tag: "settings.gain_tag",
                           value: $model.session.state.sensitivity, range: 0...2,
                           label: String(format: "%.1f", model.session.state.sensitivity))
-                sliderRow("settings.deadband", tag: "settings.deadband_tag",
-                          value: Binding(
-                              get: { model.session.state.deadbandDegrees },
-                              set: { model.session.state.setDeadband(degrees: $0) }
-                          ),
-                          range: FakeTeleopState.deadbandRange,
-                          label: String(format: "%.0f°", model.session.state.deadbandDegrees))
                 sliderRow("settings.smoothing", tag: "settings.smoothing_tag",
                           value: Binding(
                               get: { model.session.state.smoothing },

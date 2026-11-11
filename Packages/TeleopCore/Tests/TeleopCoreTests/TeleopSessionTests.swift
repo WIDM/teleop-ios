@@ -504,31 +504,28 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertFalse(HapticCue.stopReleased.pattern.repeats)
     }
 
-    func testDeadbandAndSmoothingSurviveNavigation() {
+    func testSmoothingSurvivesNavigation() {
         var s = TeleopSession(start: .p4)
         s.perform(.openSettings)
-        s.state.setDeadband(degrees: 5)
         s.state.setSmoothing(0.8)
         s.perform(.settingsDone)
         s.perform(.openSettings)
         XCTAssertEqual(s.route, .s6)
-        XCTAssertEqual(s.state.deadbandDegrees, 5)
         XCTAssertEqual(s.state.smoothing, 0.8)
     }
 
     func testSettingsDefaultsMatchFigma() {
         let state = FakeTeleopState()
         XCTAssertEqual(state.sensitivity, 1.0)
-        XCTAssertEqual(state.deadbandDegrees, 2)
         XCTAssertEqual(state.smoothing, 0.3)
     }
 
     func testSettingsValuesAreClamped() {
         var state = FakeTeleopState()
-        state.setDeadband(degrees: 99)
         state.setSmoothing(-1)
-        XCTAssertEqual(state.deadbandDegrees, 10)
         XCTAssertEqual(state.smoothing, 0)
+        state.setSmoothing(2)
+        XCTAssertEqual(state.smoothing, 1)
     }
 
     func testResetFromHighLatencyReturnsToStandbyUnblocked() {

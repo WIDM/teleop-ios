@@ -1713,38 +1713,6 @@
         }
       }
     },
-    "settings.deadband": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deadband"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "死區"
-          }
-        }
-      }
-    },
-    "settings.deadband_tag": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "deadband"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "deadband"
-          }
-        }
-      }
-    },
     "settings.debug_log": {
       "localizations": {
         "en": {
