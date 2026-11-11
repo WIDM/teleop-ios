@@ -21,8 +21,6 @@ let actionTable: [(String, TeleopAction)] = [
     ("openKeyboard", .openKeyboard),
     ("keyboardDone", .keyboardDone),
     ("changeServer", .changeServer),
-    ("simulateHighLatency", .simulateHighLatency),
-    ("simulateNormalLatency", .simulateNormalLatency),
     ("resetScene", .resetScene),
     ("switchMode", .switchMode),
     ("connect", .connect),

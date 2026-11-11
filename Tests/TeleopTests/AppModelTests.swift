@@ -21,7 +21,7 @@ final class AppModelTests: XCTestCase {
         let spy = SpyHaptics()
         let model = AppModel(start: .s5, haptics: spy)
         model.session.state.markConnected()
-        model.send(.simulateHighLatency)
+        model.session.state.commandsBlocked = true
         model.send(.openFallback)
         model.send(.gripperStart(.closed))
         XCTAssertEqual(spy.commands, [.play(.commandBlocked)])

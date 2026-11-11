@@ -73,7 +73,7 @@ VARIANTS = [
     ),
     (
         "reset closes the gripper",
-        [("        gripper = .open\n        simulateNormalLatency()", "        gripper = .closed\n        simulateNormalLatency()")],
+        [("        gripper = .open\n        clearLatency()", "        gripper = .closed\n        clearLatency()")],
         ["FAIL S4"],
     ),
     (
@@ -228,24 +228,9 @@ VARIANTS = [
         ["FAIL S6"],
     ),
     (
-        "high latency leaves the arm moving",
-        [
-            (
-                "commandsBlocked = true\n        armMoving = false\n",
-                "commandsBlocked = true\n",
-            )
-        ],
-        ["FAIL S6"],
-    ),
-    (
         "second stop restarts the buzz",
         [(ONE_BUZZ, "pendingHaptics.append(.play(.emergencyLoop))")],
         ["FAIL S8", "FAIL U6"],
-    ),
-    (
-        "latency row hides S4",
-        [("go(state.emergencyStop ? .s4 : .p6)", "go(.p6)")],
-        ["FAIL U1"],
     ),
     (
         "stop cancels before restarting the buzz",

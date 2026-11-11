@@ -53,7 +53,6 @@ STRUCT = re.compile(
 
 def sends(text):
     found = set(re.findall(r"(?:send|perform)\(\.(\w+)", text))
-    found |= set(re.findall(r"debugButton\(.*, \.(\w+)\)", text))
     found |= set(re.findall(r"state\.(selectCloud|selectOnSite)\(\)", text))
     found |= set(re.findall(r"return \[\.(\w+)[\](]", text))
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.

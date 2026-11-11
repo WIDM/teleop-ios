@@ -43,21 +43,6 @@ final class StopFlowTests: XCTestCase {
         XCTAssertFalse(element("stop.release").exists)
     }
 
-    func testDebugSheetIsReachableFromModePill() {
-        expect("status.mode_pill")
-        element("status.mode_pill").press(forDuration: 1.3)
-        expect("standby.simulate_high_latency")
-    }
-
-    func testDebugSheetKeepsStopReachable() {
-        expect("status.mode_pill")
-        element("status.mode_pill").press(forDuration: 1.3)
-        expect("standby.simulate_high_latency")
-        expect("stop.debug")
-        element("stop.debug").tap()
-        expect("stop.release")
-    }
-
     func testFallbackHoldAreaMovesWhilePressedAndStopsOnRelease() {
         app.terminate()
         app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "s5_fallback", "-startConnected", "YES"]

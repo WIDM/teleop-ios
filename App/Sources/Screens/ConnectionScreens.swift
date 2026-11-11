@@ -25,8 +25,6 @@ struct ConnectionDetailsScreen: View {
                         label: "connection.latency",
                         value: latencyText(state)
                     )
-                    .contentShape(Rectangle())
-                    .onTapGesture { model.send(.simulateHighLatency) }
                     .accessibilityIdentifier("connection.latency_row")
                     detailRow(
                         dot: state.heartbeatOk ? TeleopColors.statusGreen : TeleopColors.statusAmber,

@@ -102,12 +102,4 @@ final class S1ConnectFlowTests: XCTestCase {
             )
         }
     }
-
-    func testHighLatencyIsSurfacedOnlyThroughState() {
-        var s = standby()
-        s.perform(.openConnection)
-        s.perform(.simulateHighLatency)
-        XCTAssertEqual(s.route, .p6)
-        XCTAssertEqual(s.state.latencyMs, 420)
-    }
 }

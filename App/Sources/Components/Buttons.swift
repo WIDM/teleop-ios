@@ -2,7 +2,6 @@ import SwiftUI
 import TeleopCore
 
 struct StopButton: View {
-    var accessibilityId = "stop"
     let action: () -> Void
 
     var body: some View {
@@ -21,7 +20,7 @@ struct StopButton: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(accessibilityId)
+        .accessibilityIdentifier("stop")
     }
 }
 

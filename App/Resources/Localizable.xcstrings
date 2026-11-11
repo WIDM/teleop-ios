@@ -993,38 +993,6 @@
         }
       }
     },
-    "debug.hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Demo shortcuts for the prototype. Not part of the Figma layout."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "原型用的示範捷徑，不在 Figma 版面裡。"
-          }
-        }
-      }
-    },
-    "debug.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Debug"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "除錯"
-          }
-        }
-      }
-    },
     "demo.simulate_fail": {
       "localizations": {
         "en": {
@@ -1037,38 +1005,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "模擬檢查失敗"
-          }
-        }
-      }
-    },
-    "demo.simulate_high_latency": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Simulate high latency"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模擬高延遲"
-          }
-        }
-      }
-    },
-    "demo.simulate_normal_latency": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Simulate normal latency"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模擬正常延遲"
           }
         }
       }
@@ -1245,22 +1181,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止錄製在左下角，和錄製按鈕同一個位置"
-          }
-        }
-      }
-    },
-    "fallback.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On-screen controls"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "螢幕操作"
           }
         }
       }

@@ -12,22 +12,24 @@ final class FakeTeleopStateTests: XCTestCase {
 
     func testMarkConnectedResetsLatency() {
         var s = FakeTeleopState()
-        s.simulateHighLatency()
+        s.latencyMs = 420
+        s.commandsBlocked = true
         s.markConnected()
         XCTAssertTrue(s.connected)
         XCTAssertEqual(s.latencyMs, 80)
         XCTAssertFalse(s.commandsBlocked)
     }
 
-    func testHighLatencyBlocksCommandsAndIsAmber() {
+    func testLatencyIsAmberWhenBlockedOrSlow() {
         var s = FakeTeleopState()
         XCTAssertFalse(s.latencyIsAmber)
-        s.simulateHighLatency()
-        XCTAssertEqual(s.latencyMs, 420)
-        XCTAssertTrue(s.commandsBlocked)
+        s.commandsBlocked = true
         XCTAssertTrue(s.latencyIsAmber)
-        s.simulateNormalLatency()
+        s.clearLatency()
+        XCTAssertFalse(s.commandsBlocked)
         XCTAssertFalse(s.latencyIsAmber)
+        s.latencyMs = FakeTeleopState.amberLatencyMs
+        XCTAssertTrue(s.latencyIsAmber)
     }
 
     func testCloudFailKeepsEstopOkAndDropsHeartbeat() {

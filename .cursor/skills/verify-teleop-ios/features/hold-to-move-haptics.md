@@ -12,7 +12,7 @@ Holding vol+ moves the arm and releasing stops it; holding vol- closes the gripp
 
 ## How to get to it (user POV)
 
-- From P4 Standby / S3m Teleop press the volume keys; S5 fallback via `standby.fallback`.
+- From P4 Standby / S3m Teleop press the volume keys; S5 fallback via `volume_hint`.
 
 ## Driving it with XCUITest / swift test
 

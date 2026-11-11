@@ -41,7 +41,6 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public init() {}
 
-    public static let highLatencyMs = 420
     public static let normalLatencyMs = 80
     public static let amberLatencyMs = 150
     /// Round trip at or above this blocks commands.
@@ -82,15 +81,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         connected = true
     }
 
-    public mutating func simulateHighLatency() {
-        latencyMs = Self.highLatencyMs
-        commandsBlocked = true
-        armMoving = false
-        gripperMoving = nil
-        jawTurning = nil
-    }
-
-    public mutating func simulateNormalLatency() {
+    public mutating func clearLatency() {
         latencyMs = Self.normalLatencyMs
         commandsBlocked = false
     }
@@ -103,7 +94,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         isRecording = false
         connected = false
         heartbeatOk = true
-        simulateNormalLatency()
+        clearLatency()
     }
 
     /// Reset scene: arm stopped, gripper back to open, latency block cleared. Recording keeps running.
@@ -112,7 +103,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         gripperMoving = nil
         jawTurning = nil
         gripper = .open
-        simulateNormalLatency()
+        clearLatency()
     }
 
     public mutating func setDeadband(degrees: Double) {

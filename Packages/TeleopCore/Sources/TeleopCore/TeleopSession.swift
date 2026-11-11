@@ -13,8 +13,6 @@ public enum TeleopAction: Equatable, Sendable {
     case openKeyboard
     case keyboardDone
     case changeServer
-    case simulateHighLatency
-    case simulateNormalLatency
     case connect
     case disconnect
     case s1Back
@@ -127,13 +125,6 @@ public struct TeleopSession: Equatable, Sendable {
             go(.p5)
         case .changeServer:
             go(.s1)
-        case .simulateHighLatency:
-            state.simulateHighLatency()
-            // E-stop latched: S4 must never be hidden.
-            go(state.emergencyStop ? .s4 : .p6)
-        case .simulateNormalLatency:
-            state.simulateNormalLatency()
-            go(.p4)
         case .connect:
             // Live link: the app opens the socket and `linkUp` reports success.
             guard !state.liveLink else { return }

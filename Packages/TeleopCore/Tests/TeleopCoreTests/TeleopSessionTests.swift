@@ -131,7 +131,7 @@ final class TeleopSessionTests: XCTestCase {
     func testGripperRefusedWhenCommandsBlocked() {
         var s = TeleopSession(start: .s5)
         s.state.markConnected()
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         _ = s.drainHaptics()
         s.perform(.gripperStart(.closed))
         XCTAssertEqual(s.state.gripper, .open)
@@ -187,6 +187,14 @@ final class TeleopSessionTests: XCTestCase {
         return s
     }
 
+    /// Two slow round trips in a row on a live link: the only thing that blocks commands.
+    private func blockOnLatency(_ s: inout TeleopSession) {
+        s.state.liveLink = true
+        s.perform(.linkLatency(ms: FakeTeleopState.blockLatencyMs))
+        s.perform(.linkLatency(ms: FakeTeleopState.blockLatencyMs))
+        XCTAssertTrue(s.state.commandsBlocked)
+    }
+
     func testHoldStartThenEndMovesAndStopsArm() {
         var s = connectedFallback()
         s.perform(.holdArmStart)
@@ -198,7 +206,7 @@ final class TeleopSessionTests: XCTestCase {
 
     func testHoldStartRefusedWhenLatencyBlockedBuzzesThreeShort() {
         var s = connectedFallback()
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         _ = s.drainHaptics()
         s.perform(.holdArmStart)
         XCTAssertFalse(s.state.armMoving)
@@ -222,7 +230,7 @@ final class TeleopSessionTests: XCTestCase {
     func testHoldEndStopsEvenWhenBlockedWhileHeld() {
         var s = connectedFallback()
         s.perform(.holdArmStart)
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         s.perform(.holdArmEnd)
         XCTAssertFalse(s.state.armMoving)
     }
@@ -230,7 +238,7 @@ final class TeleopSessionTests: XCTestCase {
     func testHighLatencyWhileHeldStopsArm() {
         var s = connectedFallback()
         s.perform(.holdArmStart)
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         XCTAssertFalse(s.state.armMoving)
     }
 
@@ -244,8 +252,7 @@ final class TeleopSessionTests: XCTestCase {
     func testHighLatencyWhileEStoppedKeepsS4Visible() {
         var s = connectedFallback()
         s.perform(.stop)
-        s.perform(.openConnection)
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         XCTAssertEqual(s.route, .s4)
         XCTAssertTrue(s.state.emergencyStop)
         XCTAssertTrue(s.state.commandsBlocked)
@@ -314,7 +321,7 @@ final class TeleopSessionTests: XCTestCase {
 
         var slow = connectedFallback()
         slow.perform(.gripperStart(.closed))
-        slow.perform(.simulateHighLatency)
+        blockOnLatency(&slow)
         XCTAssertNil(slow.state.gripperMoving)
 
         var offline = connectedFallback()
@@ -355,7 +362,7 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(stopped.drainHaptics(), [])
 
         var slow = connectedFallback()
-        slow.perform(.simulateHighLatency)
+        blockOnLatency(&slow)
         slow.perform(.turnStart(.positive))
         XCTAssertNil(slow.state.jawTurning)
         XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
@@ -413,17 +420,21 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertEqual(stopped.drainHaptics(), [])
 
         var slow = connectedFallback()
-        slow.perform(.simulateHighLatency)
+        blockOnLatency(&slow)
         slow.perform(.turnStart(.tiltDown))
         XCTAssertNil(slow.state.jawTurning)
         XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
 
-        for end in [TeleopAction.stop, .simulateHighLatency, .disconnect, .switchMode, .resetScene] {
+        for end in [TeleopAction.stop, .disconnect, .switchMode, .resetScene] {
             var s = connectedFallback()
             s.perform(.turnStart(.tiltUp))
             s.perform(end)
             XCTAssertNil(s.state.jawTurning, "\(end)")
         }
+        var slowed = connectedFallback()
+        slowed.perform(.turnStart(.tiltUp))
+        blockOnLatency(&slowed)
+        XCTAssertNil(slowed.state.jawTurning)
     }
 
     func testStopLatencyBlockAndDisconnectEndTheJawTurn() {
@@ -434,7 +445,7 @@ final class TeleopSessionTests: XCTestCase {
 
         var slow = connectedFallback()
         slow.perform(.turnStart(.positive))
-        slow.perform(.simulateHighLatency)
+        blockOnLatency(&slow)
         XCTAssertNil(slow.state.jawTurning)
 
         var offline = connectedFallback()
@@ -523,7 +534,7 @@ final class TeleopSessionTests: XCTestCase {
     func testResetFromHighLatencyReturnsToStandbyUnblocked() {
         var s = TeleopSession(start: .p4)
         s.state.markConnected()
-        s.perform(.simulateHighLatency)
+        blockOnLatency(&s)
         XCTAssertEqual(s.route, .p6)
         s.perform(.resetScene)
         XCTAssertEqual(s.route, .p4)

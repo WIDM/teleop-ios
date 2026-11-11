@@ -25,22 +25,17 @@ final class ManualCheckTests: XCTestCase {
         return log.isEmpty ? [] : log.components(separatedBy: ",")
     }
 
-    private func openDebugSheet() {
-        expect("status.mode_pill")
-        element("status.mode_pill").press(forDuration: 1.3)
-    }
-
-    private func simulateHighLatency() {
-        openDebugSheet()
-        expect("standby.simulate_high_latency")
-        element("standby.simulate_high_latency").tap()
+    /// Relaunches with commands blocked, as after two slow round trips on a live link.
+    private func relaunchBlocked(at route: String = "p4_standby") {
+        app.terminate()
+        app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", route, "-startConnected", "YES", "-startBlocked", "YES", "-recordHaptics", "YES"]
+        app.launch()
         expect("standby.blocked_banner")
     }
 
     private func openHoldPad() -> XCUIElement {
-        openDebugSheet()
-        expect("standby.fallback")
-        element("standby.fallback").tap()
+        expect("volume_hint")
+        element("volume_hint").tap()
         expect("fallback.hold")
         return element("fallback.hold")
     }
@@ -70,7 +65,7 @@ final class ManualCheckTests: XCTestCase {
         XCTAssertEqual(haptics, ["emergencyLoop", "cancel", "stopReleased"])
     }
 
-    func testHoldPadFromDebugSheetMovesWhilePressed() {
+    func testHoldPadMovesWhilePressed() {
         let pad = openHoldPad()
         XCTAssertEqual(pad.value as? String, "stopped")
         XCTAssertTrue(pad.valuesDuringPress().contains("moving"))
@@ -78,7 +73,7 @@ final class ManualCheckTests: XCTestCase {
     }
 
     func testHighLatencyBlocksHoldPadWithThreeShort() {
-        simulateHighLatency()
+        relaunchBlocked()
         let pad = openHoldPad()
         let values = pad.valuesDuringPress()
         XCTAssertFalse(values.isEmpty, "the pad was never read during the press")
@@ -89,7 +84,7 @@ final class ManualCheckTests: XCTestCase {
 
     /// A real finger drifts while held. One press should give one cue.
     func testBlockedHoldWithMovingFingerBuzzesOnce() {
-        simulateHighLatency()
+        relaunchBlocked()
         let pad = openHoldPad()
         let start = pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         let end = pad.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
@@ -121,7 +116,7 @@ final class ManualCheckTests: XCTestCase {
 
     /// docs/figma-map.md P6: "tap Reset scene -> P4."
     func testResetFromHighLatencyReturnsToStandby() {
-        simulateHighLatency()
+        relaunchBlocked(at: "p6_high_latency")
         element("standby.reset").tap()
         XCTAssertTrue(element("standby.blocked_banner").waitForNonExistence(timeout: 3))
         expect("standby.settings")

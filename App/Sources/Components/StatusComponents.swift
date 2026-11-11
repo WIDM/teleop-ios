@@ -71,7 +71,6 @@ struct ControlStatusBar: View {
     var amber = false
     var heartbeatOk = true
     var recording = false
-    var onModeLongPress: (() -> Void)? = nil
     let onConnectionTap: () -> Void
 
     var body: some View {
@@ -85,21 +84,12 @@ struct ControlStatusBar: View {
         .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
     }
 
-    @ViewBuilder
     private var pill: some View {
-        let base = ModePill(
+        ModePill(
             textKey: modeKey,
             color: recording ? TeleopColors.recording : TeleopColors.primary,
             showsDot: recording
         )
-        if let onModeLongPress {
-            base
-                .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 1, perform: onModeLongPress)
-                .accessibilityIdentifier("status.mode_pill")
-        } else {
-            base
-        }
     }
 }
 

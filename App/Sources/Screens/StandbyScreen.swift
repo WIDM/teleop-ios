@@ -2,25 +2,20 @@ import SwiftUI
 import TeleopCore
 
 /// P4 and P6 (high latency). No latency number here; it lives on P5 and P7.
-/// The prototype shortcuts (simulate latency, on-screen controls) are not in Figma; they live in a
-/// debug sheet opened by holding the mode pill for 1 second.
 struct StandbyScreen: View {
     let model: AppModel
     var highLatency = false
     var showStop = true
-    @State private var showDebug = false
 
     var body: some View {
         let state = model.session.state
         let blocked = highLatency || state.commandsBlocked
-        let openDebug: (() -> Void)? = showStop ? { showDebug = true } : nil
         VStack(spacing: 8) {
             ControlStatusBar(
                 modeKey: "control.standby",
                 connected: state.connected,
                 amber: blocked,
-                heartbeatOk: state.heartbeatOk,
-                onModeLongPress: openDebug
+                heartbeatOk: state.heartbeatOk
             ) { model.send(.openConnection) }
 
             RoundedRectangle(cornerRadius: TeleopMetrics.corner)
@@ -70,45 +65,13 @@ struct StandbyScreen: View {
                     .accessibilityIdentifier("standby.settings")
             }
 
-            if showStop && !showDebug {
+            if showStop {
                 StopButton { model.send(.stop) }
             }
         }
         .padding(.horizontal, TeleopMetrics.margin)
         .padding(.vertical, 12)
         .volumeKeys(model: model, enabled: showStop)
-        .sheet(isPresented: $showDebug) { debugSheet }
-    }
-
-    private var debugSheet: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("debug.title").font(.system(size: 20, weight: .semibold))
-            Text("debug.hint")
-                .font(.system(size: 14))
-                .foregroundStyle(TeleopColors.textSecondary)
-            if highLatency {
-                debugButton("demo.simulate_normal_latency", id: "standby.simulate_normal_latency", .simulateNormalLatency)
-            } else {
-                debugButton("demo.simulate_high_latency", id: "standby.simulate_high_latency", .simulateHighLatency)
-            }
-            debugButton("fallback.title", id: "standby.fallback", .openFallback)
-            Spacer()
-            StopButton(accessibilityId: "stop.debug") {
-                showDebug = false
-                model.send(.stop)
-            }
-        }
-        .padding(20)
-        .presentationDetents([.height(280 + TeleopMetrics.stopHeight)])
-    }
-
-    private func debugButton(_ title: LocalizedStringKey, id: String, _ action: TeleopAction) -> some View {
-        Button {
-            showDebug = false
-            model.send(action)
-        } label: { Text(title) }
-            .buttonStyle(OutlineButtonStyle())
-            .accessibilityIdentifier(id)
     }
 }
 

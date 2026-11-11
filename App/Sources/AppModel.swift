@@ -75,6 +75,9 @@ final class AppModel {
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
+        // UI tests only: `-startBlocked YES` starts with commands blocked, as a slow live link does.
+        // The built-in demo has no latency of its own, so there is no other way to reach that state without a server.
+        if UserDefaults.standard.bool(forKey: "startBlocked") { session.state.commandsBlocked = true }
         // UI tests and screenshots only: `-demoGuidance YES` shows the task map without a server.
         if UserDefaults.standard.bool(forKey: "demoGuidance") {
             guidance = Guidance.make(
