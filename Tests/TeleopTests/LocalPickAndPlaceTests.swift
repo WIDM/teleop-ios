@@ -25,6 +25,10 @@ final class LocalPickAndPlaceTests: XCTestCase {
     }
 
     func testPickAndPlaceByScript() throws {
+        // The script skips without these, which suits the live server; against the local one it is a failure.
+        _ = try XCTUnwrap(hand.model.link.cubePosition, "the local server reported no cube")
+        _ = try XCTUnwrap(hand.model.link.goalPosition, "the local server reported no goal")
+        _ = try XCTUnwrap(hand.model.link.armPosition, "the local server reported no arm position")
         try hand.pickAndPlace(warmUpHolds: 0)
         XCTAssertEqual(server.inspect { $0.episode }, 1, "the scene reset once, after the success")
         XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
