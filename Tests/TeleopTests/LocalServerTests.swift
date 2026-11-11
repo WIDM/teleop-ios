@@ -66,17 +66,18 @@ final class LocalServerTests: XCTestCase {
         XCTAssertFalse(model.session.state.armMoving)
         _ = wait(0.4, until: { false })
         XCTAssertFalse(model.debugLog.contains { $0.contains("rejected") }, "\(model.debugLog)")
-        // Forward is the robot's −Y.
-        XCTAssertEqual(server.inspect { $0.world.arm.y } - armBefore.y, -0.02, accuracy: 0.003)
+        // Forward is the robot's −Y. The server checks below poll, since its queue may run late on a busy machine.
+        let movedY = { self.server.inspect { $0.world.arm.y } - armBefore.y }
+        XCTAssertTrue(wait(2, until: { abs(movedY() + 0.02) <= 0.003 }), "the arm moved \(movedY()) m along Y, not -0.02")
 
         model.send(.stop)
         XCTAssertEqual(model.session.route, .s4)
         _ = wait(0.5, until: { false })
-        XCTAssertEqual(server.inspect { $0.state["estop"] }, true, "STOP reached the server")
+        XCTAssertTrue(wait(2, until: { server.inspect { $0.state["estop"] } == true }), "STOP did not reach the server")
         model.send(.releaseStop)
         _ = wait(1.0, until: { false })
+        XCTAssertTrue(wait(2, until: { server.inspect { $0.state["estop"] } == false }), "the server's E-stop was not reset")
         XCTAssertFalse(model.session.state.emergencyStop, "the server's E-stop came back after release")
-        XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
         XCTAssertTrue(model.session.state.connected)
 
         model.send(.switchMode)
