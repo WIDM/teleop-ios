@@ -11,10 +11,10 @@ Each run resets the scene, opens the gripper, moves the reported gripper point t
 cube, closes, lifts, carries to the goal, lowers and opens. A run counts as placed when the server itself
 reports the task done (it resets the cube when that happens).
 
-The script cannot see how the jaws are turned (the server reports no joint angles), so it has to be told how
-the scene starts them: --scene-starts side for the development simulator, whose start pose has had the jaws
-side by side since 2026-11-11, or --scene-starts front for the server as published. It turns the wrist by
-the difference before the grasp.
+The script cannot see how the jaws are turned (it reads no joint angles), so it has to be told how the scene
+starts them: --scene-starts side for a scene whose start pose has the jaws side by side (a start wrist roll of
+90 degrees), or --scene-starts front for one that starts them front to back. It turns the wrist by the
+difference before the grasp.
 
 Usage:
   scripts/sim_pick_place.py --jaws side --runs 5

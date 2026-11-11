@@ -463,7 +463,7 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(after.cues, [.limit])
     }
 
-    func testOnAPatchedServerTheWindowsComeFromTheMeasuredAngles() {
+    func testOnAServerThatReportsWristAnglesTheWindowsComeFromTheMeasuredAngles() {
         var rig = Rig(.keyTurns)
         rig.facts.wrist = WristReadings(rollDeg: 130, flexDeg: 0, flexAtResetDeg: 0)
         rig.press(.lower)

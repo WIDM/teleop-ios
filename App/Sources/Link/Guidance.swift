@@ -34,9 +34,9 @@ struct RobotProfile: Equatable {
     /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
     /// 0.4 degrees on the S4 simulator (recording s15); this is that plus 2, until the device check sets it.
     var gripperEmptyDeg = 2.0
-    /// The scene's start pose already has the jaws side by side, which is the grasp `toolOffset` was measured
-    /// for. True for the development simulator since 2026-11-11 (its start wrist roll is 90 degrees). The server
-    /// as published starts them front to back, and there the operator has to turn them first: two full presses.
+    /// The scene's start pose has the jaws side by side (a start wrist roll of 90 degrees), the grasp `toolOffset` was
+    /// measured for. A scene that starts them front to back needs a quarter turn of the wrist before this grasp point
+    /// means anything; its profile sets this false.
     var jawsStartSideways = true
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
     /// reports to 8 cm either way of where that point is after a reset (`WORKSPACE_RADIUS_M` around
