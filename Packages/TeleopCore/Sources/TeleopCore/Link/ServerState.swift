@@ -159,6 +159,7 @@ public struct ServerState: Equatable, Sendable {
     }
 
     private static func integer(_ value: Any?) -> Int? {
-        number(value).map { Int($0) }
+        // Int(_:) traps on a number an Int cannot hold; a broken server must not crash the app.
+        number(value).flatMap { Int(exactly: $0.rounded(.towardZero)) }
     }
 }

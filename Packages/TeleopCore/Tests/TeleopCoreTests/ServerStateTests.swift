@@ -40,6 +40,14 @@ final class ServerStateTests: XCTestCase {
         XCTAssertNil(state.endEffector)
     }
 
+    /// A count too large for an Int must not crash the app.
+    func testANumberTooLargeForACountIsMissing() {
+        let state = parse(#"{"episode": 1e300, "rec": "armed", "rec_saved": -1e30, "rec_discarded": 2.9}"#)
+        XCTAssertNil(state.episode)
+        XCTAssertEqual(state.recorder?.saved, 0)
+        XCTAssertEqual(state.recorder?.discarded, 2)
+    }
+
     func testEveryActivityLabelTheAppActsOn() {
         let labels: [String: ServerActivity] = [
             "pose_tracking": .poseTracking, "pose_clamped": .poseClamped, "orienting": .orienting,
