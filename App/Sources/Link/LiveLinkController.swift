@@ -133,8 +133,9 @@ final class LiveLinkController {
     var resetPending: Bool { link?.resetPending == true }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
     var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
-    /// Task object and goal from the server's newest state, robot base frame.
-    var cubePosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
+    /// Task object and goal from the server's newest state, in the world frame (`RobotProfile.inBase` moves them into
+    /// the robot base frame).
+    var objectPosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
     var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
 
     /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.

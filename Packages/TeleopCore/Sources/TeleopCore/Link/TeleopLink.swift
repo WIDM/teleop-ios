@@ -90,7 +90,8 @@ public final class TeleopLink {
 
     /// Arm tip position from the newest `state`, in metres. The server sends none during a hold.
     public private(set) var lastEndEffector: [Double]?
-    /// Task object and goal positions from the newest `state`, in metres in the robot base frame.
+    /// Task object and goal positions from the newest `state`, in metres in the world frame (the arm is reported in the
+    /// robot base frame).
     public private(set) var lastObject: [Double]?
     public private(set) var lastGoal: [Double]?
     /// Gripper as the newest `state` named it.

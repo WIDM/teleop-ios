@@ -287,7 +287,7 @@ final class ScriptedOperator {
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = model.profile
-        guard let cubeStart = model.link.cubePosition, let goal = model.link.goalPosition,
+        guard let cubeStart = model.link.objectPosition, let goal = model.link.goalPosition,
               let armStart = model.link.armPosition else {
             throw XCTSkip("the server did not report the cube, goal and arm positions")
         }
@@ -299,7 +299,7 @@ final class ScriptedOperator {
             moveArm(to: armStart + SIMD3(0, 0, up), "warm-up hold \(hold + 1)", maxHolds: 1)
         }
         // Where the reported gripper point has to be for the guide's ring to sit on the cube.
-        let cube = model.link.cubePosition ?? cubeStart
+        let cube = model.link.objectPosition ?? cubeStart
         let grasp = profile.inBase(world: cube) - profile.toolOffset
         moveArm(to: grasp + lift, "above the grasp point")
         guard moveArm(to: grasp, "grasp point", maxHolds: 3) else {
@@ -310,14 +310,14 @@ final class ScriptedOperator {
         XCTAssertTrue(model.gripping, "\(mode): the jaws did not close on the cube")
         moveArm(to: grasp + lift, "lift 3 cm", maxHolds: 2)
         pump(1.0)
-        let lifted = (model.link.cubePosition ?? cube).z - cube.z
+        let lifted = (model.link.objectPosition ?? cube).z - cube.z
         guard lifted > 0.015 else {
             XCTFail("\(mode): the cube was not lifted (rose \(lifted * 100) cm)")
             return
         }
         var overGoal = grasp + SIMD3(goal.x - cube.x, goal.y - cube.y, 0)
         moveArm(to: overGoal + lift, "to the goal")
-        if let carried = model.link.cubePosition {
+        if let carried = model.link.objectPosition {
             let miss = SIMD3(goal.x - carried.x, goal.y - carried.y, 0)
             if simd_length(miss) > 0.005, carried.z - cube.z > 0.015 {
                 overGoal += miss
@@ -329,7 +329,7 @@ final class ScriptedOperator {
         // A success shows for a moment and refuses every press meanwhile ("Wait."), so lift away only without one.
         if model.serverState?.taskSuccess != true { moveArm(to: overGoal + lift, "lift away", maxHolds: 1) }
         pump(4)
-        let cubeEnd = model.link.cubePosition ?? cubeStart
+        let cubeEnd = model.link.objectPosition ?? cubeStart
         let inGoal = abs(cubeEnd.x - goal.x) <= 0.025 && abs(cubeEnd.y - goal.y) <= 0.025
         // A success resets the scene at once, which also puts the cube back at its start.
         let resetBySuccess = simd_distance(cubeEnd, cubeStart) < 0.005
