@@ -13,7 +13,9 @@ final class ServerModelProfileTests: XCTestCase {
         XCTAssertEqual(SIMD3<Float>(model.baseInWorld), profile.baseInWorld)
         XCTAssertEqual(Float(model.graspToleranceAcross), profile.graspTolerance.x)
         XCTAssertEqual(Float(model.graspToleranceHeight), profile.graspTolerance.y)
-        XCTAssertEqual(Float(model.cubeSize), profile.cubeSize)
+        XCTAssertEqual(Float(model.cubeSize), profile.targetSize)
+        XCTAssertEqual(Float(model.goalHalfExtents.x * 2), profile.goalSize)
+        XCTAssertEqual(Float(model.goalHalfExtents.y * 2), profile.goalSize)
         XCTAssertEqual(model.wristRollStart == model.sidewaysRoll, profile.jawsStartSideways)
     }
 }

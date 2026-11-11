@@ -137,7 +137,7 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertFalse(p.lines.contains(.onTarget))
         let box = profile.workspaceMax - profile.workspaceMin
         let viewWidth = Double(box.x) + 2 * GuidePicture.marginShare * Double(max(box.x, box.y))
-        XCTAssertEqual(p.targetEdge, Double(profile.cubeSize) / viewWidth, accuracy: 1e-6, "true to size, from the profile")
+        XCTAssertEqual(p.targetEdge, Double(profile.targetSize) / viewWidth, accuracy: 1e-6, "true to size, from the profile")
     }
 
     func testOnTargetOnlyInsideTheProfilesTolerance() {
@@ -164,7 +164,18 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertTrue(p.lines.contains { if case .target = $0 { return true } else { return false } })
         XCTAssertFalse(p.lines.contains { if case .goal = $0 { return true } else { return false } })
         XCTAssertFalse(p.holding)
-        XCTAssertEqual(p.goalEdge / p.targetEdge, Double(Guidance.goalHalfExtent * 2 / profile.cubeSize), accuracy: 1e-6)
+        XCTAssertEqual(p.goalEdge / p.targetEdge, Double(profile.goalSize / profile.targetSize), accuracy: 1e-6)
+    }
+
+    /// The sizes come from the robot profile alone, so another task draws its own object and goal.
+    func testTheTargetAndGoalSizesComeFromTheProfile() {
+        var other = profile
+        other.targetSize *= 2
+        other.goalSize *= 3
+        let r = reading(target: centre + SIMD3(0, 0.03, -0.02), goal: centre + SIMD3(0.06, 0.03, -0.02))
+        let base = GuidePicture(reading: r, profile: profile), bigger = GuidePicture(reading: r, profile: other)
+        XCTAssertEqual(bigger.targetEdge, base.targetEdge * 2, accuracy: 1e-6)
+        XCTAssertEqual(bigger.goalEdge, base.goalEdge * 3, accuracy: 1e-6)
     }
 
     func testHoldingSteersToTheGoal() {

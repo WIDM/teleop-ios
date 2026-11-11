@@ -25,8 +25,10 @@ struct RobotProfile: Equatable {
     /// How close the pinch point must be to an object's centre, across the table and in height, for closing
     /// the jaws to take hold of it. In the simulator the window is a few millimetres either way.
     var graspTolerance = SIMD2<Float>(0.006, 0.008)
-    /// Edge of the task cube, metres.
-    var cubeSize: Float = 0.025
+    /// Size across of the task object and of the goal area on the table, metres, for drawing them true to size.
+    /// The goal is the box the server judges success in.
+    var targetSize: Float = 0.025
+    var goalSize: Float = 0.05
     /// A measured jaw angle at or above this while opening is fully open. The joint's limit is 100 degrees.
     var gripperOpenDeg = 97.0
     /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
@@ -90,7 +92,7 @@ struct Guidance: Equatable {
     /// The jaws have to be turned sideways before this grasp point means anything; the guide says so.
     var turnJawsFirst = false
     /// Edge of the cube, metres, for drawing it true to size.
-    var cubeSize = RobotProfile.so101Simulator.cubeSize
+    var cubeSize = RobotProfile.so101Simulator.targetSize
     /// Jaw tips this close to the target's height, metres, count as level with it.
     var heightTolerance = RobotProfile.so101Simulator.graspTolerance.y
 
@@ -111,7 +113,7 @@ struct Guidance: Equatable {
         if abs(cubeToGoal.x) <= goalHalfExtent, abs(cubeToGoal.y) <= goalHalfExtent {
             return Guidance(
                 target: .done, offset: .zero, arm: places.0, cube: places.1, goal: places.2,
-                wristTilted: wristTilted, cubeSize: profile.cubeSize, heightTolerance: profile.graspTolerance.y
+                wristTilted: wristTilted, cubeSize: profile.targetSize, heightTolerance: profile.graspTolerance.y
             )
         }
         let flat = SIMD2(cube.x - arm.x, cube.y - arm.y)
@@ -124,7 +126,7 @@ struct Guidance: Equatable {
             target: holding ? .goal : .cube, offset: operatorOffset(base),
             arm: places.0, cube: places.1, goal: places.2, readyToGrasp: ready,
             wristTilted: wristTilted, turnJawsFirst: !profile.jawsStartSideways,
-            cubeSize: profile.cubeSize, heightTolerance: profile.graspTolerance.y
+            cubeSize: profile.targetSize, heightTolerance: profile.graspTolerance.y
         )
     }
 

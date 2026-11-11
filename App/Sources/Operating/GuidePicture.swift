@@ -122,8 +122,8 @@ struct GuidePicture: Equatable {
         jawOpening = reading.jawOpening.map { min(max($0, 0), 1) }
         target = reading.target.map(mark)
         goal = reading.goal.map(mark)
-        targetEdge = Double(profile.cubeSize) / width
-        goalEdge = Double(Guidance.goalHalfExtent * 2) / width
+        targetEdge = Double(profile.targetSize) / width
+        goalEdge = Double(profile.goalSize) / width
         outside = (0..<3).contains {
             pinchPoint[$0] < boxLow[$0] - Self.boxSlack || pinchPoint[$0] > boxHigh[$0] + Self.boxSlack
         }
