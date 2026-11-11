@@ -32,22 +32,18 @@ final class LiveLinkTests: XCTestCase {
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
-    private var savedLiveLink: Any?
     private var savedLanguage = L10n.language
     private var felt = SpyHaptics()
     private var speech = SpySpeech()
     private var sounds = SpySounds()
 
-    // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
     override func setUp() {
         super.setUp()
-        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
         savedLanguage = L10n.language
         L10n.language = .en
     }
 
     override func tearDown() {
-        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
         L10n.language = savedLanguage
         super.tearDown()
     }
@@ -133,13 +129,24 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(transports.isEmpty)
     }
 
-    func testAddressStartsEmptyAndASavedOneLoadsForTheRealServer() {
+    /// The saved address loads in practice too, so leaving practice connects to it. It used to load only when the
+    /// launch was on the real server, and switching after a practice launch left the address empty.
+    func testASavedAddressLoadsSoLeavingPracticeConnectsToIt() {
+        let saved = UserDefaults.standard.string(forKey: AppModel.serverAddressKey)
         UserDefaults.standard.set("100.64.0.7:8765", forKey: AppModel.serverAddressKey)
-        defer { UserDefaults.standard.removeObject(forKey: AppModel.serverAddressKey) }
+        defer { UserDefaults.standard.set(saved, forKey: AppModel.serverAddressKey) }
         let live = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: true, makeTransport: { _ in FakeTransport() })
         XCTAssertEqual(live.session.state.serverAddress, "100.64.0.7:8765")
-        let demo = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: false)
-        XCTAssertEqual(demo.session.state.serverAddress, "")
+        var opened: [URL] = []
+        let practice = AppModel(
+            start: .p4, haptics: NoHaptics(), pose: { nil }, liveLink: false,
+            makeTransport: { opened.append($0); return FakeTransport() }
+        )
+        XCTAssertEqual(practice.session.state.serverAddress, "100.64.0.7:8765")
+        XCTAssertTrue(practice.operating.practice)
+        practice.leavePractice()
+        XCTAssertFalse(practice.operating.practice)
+        XCTAssertEqual(opened.map(\.absoluteString), ["ws://100.64.0.7:8765"])
     }
 
     func testAddressForms() {
@@ -1093,6 +1100,27 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(transports.isEmpty)
     }
 
+    /// I-8.3: the tilt window counts from the flex measured after the last reset. A reconnect to the same run keeps
+    /// it; only a new `welcome.session` starts it again. A server that names no run never does on a reconnect.
+    func testOnlyANewServerRunStartsTheTiltWindowAgain() {
+        for named in [false, true] {
+            makeModel(at: .p4)
+            model.connect()
+            transport.server("welcome", named ? ["session": "run-1"] : [:])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 40.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 40)
+            model.connect()
+            transport.server("welcome", named ? ["session": "run-1"] : [:])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 55.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 40, "a reconnect, named: \(named)")
+            guard named else { continue }
+            model.connect()
+            transport.server("welcome", ["session": "run-2"])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 55.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 55, "a new run")
+        }
+    }
+
     func testReconnectDropsTheOldSocket() {
         bringUp()
         let first = transport!
@@ -1168,11 +1196,13 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.emergencyStop)
         XCTAssertEqual(felt.felt, [.play(.no)])
         XCTAssertEqual(speech.spoken, ["No link. Not stopped."])
+        XCTAssertEqual(model.operating.state, .notConnected(reason: nil), "the screen does not say stopped either")
         speech.finish()
         model.connect()
         XCTAssertEqual(transport.types, ["hello"])
         transport.server("welcome")
         XCTAssertEqual(transport.types, ["hello", "estop"])
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
         XCTAssertEqual(felt.felt, [.play(.no), .play(.alarm)])
         XCTAssertEqual(speech.spoken.last, "Emergency stop. You pressed stop. Hold the top edge to reset.")
         transport.server("state", ["estop": true, "gripper": "closed"])

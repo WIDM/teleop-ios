@@ -55,13 +55,11 @@ final class ObserverTests: XCTestCase {
 
     private var server: LocalTeleopServer!
     private var position = SIMD3<Float>.zero
-    private var savedLiveLink: Any?
     private var log: [Entry] = []
     private var observers: [RecordingTransport] = []
     private var models: [AppModel] = []
 
     override func setUpWithError() throws {
-        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
         server = LocalTeleopServer()
         try server.start()
         log = []
@@ -73,7 +71,6 @@ final class ObserverTests: XCTestCase {
         models = []
         server.stop()
         server = nil
-        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
         super.tearDown()
     }
 

@@ -27,6 +27,13 @@ final class HeldControlsTests: XCTestCase {
         session.perform(.holdArmStart)
         XCTAssertTrue(session.state.isHolding(.holdArmStart))
         XCTAssertFalse(session.state.isHolding(.gripperStart(.open)))
+
+        session.perform(.holdArmEnd)
+        session.perform(.wristStart)
+        XCTAssertTrue(session.state.isHolding(.wristStart))
+        XCTAssertFalse(session.state.isHolding(.holdArmStart))
+        session.perform(.gripperStart(.open))
+        XCTAssertFalse(session.state.isHolding(.wristStart))
     }
 
     func testATurnTakenOverByTheOtherDirectionIsNotHeldByTheFirstControl() {

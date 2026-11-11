@@ -1,8 +1,8 @@
 # route	screen struct	actions the screen itself can send
 # scripts/drift.py compares each row with RootView.screen(for:) and with the model.send calls in that struct.
-p4	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
+p4	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd,wristStart,wristEnd
 p5	ConnectionDetailsScreen	changeServer,openKeyboard,closeConnection,stop
-p6	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd
+p6	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd,wristStart,wristEnd
 p7	ConnectionDetailsScreen	keyboardDone,stop
 t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
 t2	TutorialScreen	stop,tutorialSkip,tutorialNext2

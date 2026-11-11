@@ -20,6 +20,9 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var serverAddress = ""
     public var tutorialDone = false
     public var emergencyStop = false
+    /// A scene reset was asked for while E-stopped, and no STOP has come since: the server's confirmation of it
+    /// (`sceneResetDone`) releases the stop (§6.5). A reset asked for before a STOP never does.
+    public var resetClearsStop = false
     public var developerMode = false
     public var sensitivity = 1.0
     public private(set) var smoothing = 0.3
@@ -29,6 +32,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var gripperMoving: GripperState?
     /// Which way the wrist is moving while a wrist control is held (roll or pitch); nil when still.
     public var jawTurning: TurnDirection?
+    /// True while a wrist hold that takes its angle from the phone's rotation is engaged.
+    public var wristMoving = false
     public var serverInputError = false
     /// Live link only: a working link dropped. S1 says so until the next connection or a Disconnect.
     public var connectionLost = false
@@ -54,10 +59,13 @@ public struct FakeTeleopState: Equatable, Sendable {
     }
 
     public mutating func markDisconnected() {
+        // The answer to a reset asked for on this connection cannot come on the next one.
+        resetClearsStop = false
         connected = false
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
     }
 
     public mutating func clearLatency() {
@@ -70,6 +78,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
         connected = false
         connectionLost = false
         clearLatency()
@@ -80,6 +89,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
         gripper = .open
         clearLatency()
     }
@@ -99,4 +109,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func turnJaws(toward direction: TurnDirection) { jawTurning = direction }
 
     public mutating func stopTurn() { jawTurning = nil }
+
+    public mutating func stopWrist() { wristMoving = false }
 }

@@ -24,9 +24,17 @@ public enum TeleopAction: Equatable, Sendable {
     /// A wrist control is pressed: the wrist rolls or pitches toward `direction` until `turnEnd`.
     case turnStart(TurnDirection)
     case turnEnd
+    /// A wrist hold whose angle follows the phone's rotation (or another source of targets) is engaged, until
+    /// `wristEnd`.
+    case wristStart
+    case wristEnd
     case holdArmStart
     case holdArmEnd
     case resetScene
+    /// The server confirmed a scene reset (`ok scene_reset`), or the practice link ran one. A reset asked for in the
+    /// stop state (`resetScene` while E-stopped) clears the stop (specification §6.5), so this is the eyes-free way
+    /// out of it; a STOP pressed after the request keeps the stop latched.
+    case sceneResetDone
     /// The Settings switch between the demo and a real server: the old link is dropped with anything held, and the
     /// new one starts. Sent after `liveLink` has changed.
     case switchLink
@@ -108,13 +116,17 @@ public struct TeleopSession: Equatable, Sendable {
         case .stop:
             // Already latched means the long buzz is playing; a second loop could outlive the release.
             if !state.emergencyStop { pendingHaptics.append(.play(.emergencyLoop)) }
+            // A reset asked for before this STOP must not release it.
+            state.resetClearsStop = false
             state.emergencyStop = true
             state.armMoving = false
             state.stopGripper()
             state.stopTurn()
+            state.stopWrist()
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
+            state.resetClearsStop = false
             // H15: the long buzz ends and one short buzz confirms the release.
             pendingHaptics.append(.cancel)
             pendingHaptics.append(.play(.stopReleased))
@@ -141,6 +153,7 @@ public struct TeleopSession: Equatable, Sendable {
             }
             // The server runs one held control at a time: the gripper takes over from a jaw turn.
             state.stopTurn()
+            state.stopWrist()
             state.moveGripper(toward: target)
         case .gripperEnd:
             // Release always stops, even if the session got blocked while held.
@@ -153,10 +166,24 @@ public struct TeleopSession: Equatable, Sendable {
                 return
             }
             state.stopGripper()
+            state.stopWrist()
             state.turnJaws(toward: direction)
         case .turnEnd:
             // Release always stops, even if the session got blocked while held.
             state.stopTurn()
+        case .wristStart:
+            guard acceptsControl else { return }
+            // The arm is moving, so the wrist cannot turn.
+            guard canControl, !state.armMoving else {
+                pendingHaptics.append(.play(.commandBlocked))
+                return
+            }
+            state.stopGripper()
+            state.stopTurn()
+            state.wristMoving = true
+        case .wristEnd:
+            // Release always stops, even if the session got blocked while held.
+            state.stopWrist()
         case .holdArmStart:
             guard acceptsControl else { return }
             guard canControl else {
@@ -166,15 +193,32 @@ public struct TeleopSession: Equatable, Sendable {
             // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
             state.stopGripper()
             state.stopTurn()
+            state.stopWrist()
             state.armMoving = true
         case .holdArmEnd:
             // Release always stops, even if the session got blocked while held.
             state.armMoving = false
         case .resetScene:
+            // While E-stopped nothing changes until the server confirms the reset, and that confirmation releases the
+            // stop (§6.5).
+            if state.emergencyStop {
+                if state.connected { state.resetClearsStop = true }
+                return
+            }
             // Not refused while latency-blocked: clearing that block is part of the reset (P6 -> P4).
             guard acceptsControl else { return }
             state.resetScene()
             if route == .p6 { go(.p4) }
+        case .sceneResetDone:
+            // Only the reset asked for in the stop state, with no STOP since, releases it.
+            guard state.emergencyStop, state.resetClearsStop else { return }
+            state.emergencyStop = false
+            state.resetClearsStop = false
+            // The long buzz ends. "Ready." comes from the server's new episode, not from here.
+            pendingHaptics.append(.cancel)
+            // As a release does: S4 shows only while the stop is latched, and a connection screen opened from S4
+            // must not lead back to it.
+            go(.p4)
         case .switchLink:
             // Never while E-stopped: the stop is released first, on the link that set it.
             guard !state.emergencyStop else { return }
@@ -210,6 +254,7 @@ public struct TeleopSession: Equatable, Sendable {
                 state.armMoving = false
                 state.stopGripper()
                 state.stopTurn()
+                state.stopWrist()
                 if route == .p4 { go(.p6) }
             } else if !slow {
                 state.commandsBlocked = false

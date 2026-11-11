@@ -23,18 +23,22 @@ final class AppModel {
     @ObservationIgnored private var holdEngagedAtLoss = false
     /// The built-in demo's hold count, for its GO.
     @ObservationIgnored private var demoHold = 0
-    /// Real server instead of the built-in demo. Changing it drops the current link and starts the other,
-    /// so no session spans both.
+    /// Real server instead of the practice demo. Changing it drops the current link and starts the other, so no
+    /// session spans both. Not kept across launches: every launch is on the real server.
     var liveLink: Bool {
         get { session.state.liveLink }
         set {
             guard newValue != session.state.liveLink, !session.state.emergencyStop else { return }
             link.closeQuietly()
             session.state.liveLink = newValue
+            if newValue, session.state.serverAddress.isEmpty,
+               let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+                session.state.serverAddress = saved
+            }
             send(.switchLink)
-            UserDefaults.standard.set(newValue, forKey: Self.liveLinkKey)
         }
     }
+    /// UI tests only: `-liveLink NO` launches in practice. It was once a saved setting; a saved value is ignored.
     static let liveLinkKey = "liveLink"
     static let serverAddressKey = "serverAddress"
     /// Set the first time standby is reached: after the tutorial, or by any other way such as releasing an E-stop
@@ -70,6 +74,73 @@ final class AppModel {
     /// A close ended in contact and nothing has opened since, no scene reset and no new server run. While true a
     /// second close is refused (`raise(.limit(.alreadyGripping))`).
     private(set) var gripping = false
+    /// Everything the operating screen draws.
+    private(set) var operating: OperatingDisplay
+    /// UI tests only: `-operatingFixture <name>` shows that display, and nothing overwrites it.
+    @ObservationIgnored private let fixture: OperatingDisplay?
+    private var modeSetting: ControlMode
+    private var handSetting: Hand
+    private var taskAidSetting: Bool
+    private var surfaceLayout: SurfaceLayout?
+    @ObservationIgnored let profile = RobotProfile.so101Simulator
+    /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
+    @ObservationIgnored private(set) var controller: OperatingController!
+    /// The measured flex in the first state after the last reset, for the tilt window (I-8.3).
+    @ObservationIgnored private var flexAtReset: Double?
+    @ObservationIgnored private var flexAtResetOwed = true
+    @ObservationIgnored private var lastEpisode: Int?
+    @ObservationIgnored private var lastWelcomeSession: String?
+    /// The newest refusal the operator heard, and when, for the one-second display.
+    @ObservationIgnored private var lastRefusal: (refusal: Refusal, atMs: Int)?
+    /// The newest saved take, and when, for the two-second display.
+    @ObservationIgnored private var lastSaved: (count: Int, atMs: Int)?
+    /// The arm hold being started comes from a button, not the phone.
+    @ObservationIgnored private var pendingButtonHold = false
+    @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
+
+    static let controlModeKey = "controlMode"
+    static let handKey = "hand"
+    static let taskAidKey = "taskAid"
+    static let operatingFixtureKey = "operatingFixture"
+
+    /// Settings → Control → Mode, kept across launches. A change while anything is engaged is refused.
+    var controlMode: ControlMode {
+        get { modeSetting }
+        set {
+            guard newValue != modeSetting else { return }
+            guard !Self.engaged(session.state), !controller.isEngaged else {
+                raise(.refused(.letGoFirst))
+                return
+            }
+            modeSetting = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.controlModeKey)
+            controller.modeChanged(newValue, hand: handSetting)
+            refreshOperating()
+        }
+    }
+
+    /// Settings → Hand, kept across launches.
+    var hand: Hand {
+        get { handSetting }
+        set {
+            guard newValue != handSetting else { return }
+            handSetting = newValue
+            UserDefaults.standard.set(newValue == .left ? "left" : "right", forKey: Self.handKey)
+            controller.modeChanged(modeSetting, hand: newValue)
+            refreshOperating()
+        }
+    }
+
+    /// Settings → Task aid, kept across launches. On by default.
+    var taskAid: Bool {
+        get { taskAidSetting }
+        set {
+            guard newValue != taskAidSetting else { return }
+            taskAidSetting = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.taskAidKey)
+            refreshOperating()
+        }
+    }
 
     /// - Parameters:
     ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
@@ -80,17 +151,34 @@ final class AppModel {
         sounds: SoundPlaying? = nil,
         speech: SpeechPlaying? = nil,
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
-        liveLink: Bool = UserDefaults.standard.bool(forKey: AppModel.liveLinkKey),
+        liveLink: Bool = AppModel.launchesOnTheRealServer(),
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
-        nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
+        nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
+        inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         var state = FakeTeleopState()
         state.liveLink = liveLink
-        if liveLink, let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+        // Loaded in practice too, so leaving practice connects to it.
+        if let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
             state.serverAddress = saved
         }
         session = TeleopSession(state: state, start: start)
+        let defaults = UserDefaults.standard
+        let mode = defaults.string(forKey: Self.controlModeKey).flatMap(ControlMode.init(rawValue:)) ?? .screenTurns
+        let hand: Hand = defaults.string(forKey: Self.handKey) == "left" ? .left : .right
+        let taskAid = defaults.object(forKey: Self.taskAidKey) as? Bool ?? true
+        let fixture = defaults.string(forKey: Self.operatingFixtureKey).flatMap(OperatingDisplay.fixture(named:))
+        modeSetting = mode
+        handSetting = hand
+        taskAidSetting = taskAid
+        self.fixture = fixture
+        operating = fixture ?? OperatingDisplay(
+            mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
+            resetCountdown: nil, heldButton: nil, speed: .coarse, recorder: .unknown,
+            stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
+            address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
+        )
         let audible = Self.opensSavedServerAtLaunch()
         cues = CuePlayer(
             haptics: haptics, sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
@@ -105,18 +193,28 @@ final class AppModel {
         link.onFeedback = { [weak self] in self?.raise($0) }
         link.onState = { [weak self] in self?.stateArrived($0) }
         link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
-        link.onGripping = { [weak self] in self?.gripping = $0 }
+        link.onGripping = { [weak self] in
+            self?.gripping = $0
+            self?.refreshOperating()
+        }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onOffset = { [weak self] in self?.holdOffset = $0 }
         link.onCatchingUp = { [weak self] in
             // Set only on a change: this runs 30 times a second and every write redraws the readout.
-            if self?.catchingUp != $0 { self?.catchingUp = $0 }
+            if self?.catchingUp != $0 {
+                self?.catchingUp = $0
+                self?.refreshOperating()
+            }
         }
         link.onGuidance = { [weak self] in
             if self?.guidance != $0 { self?.guidance = $0 }
         }
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
+        link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
+        controller = OperatingController(
+            model: self, mode: mode, hand: hand, constants: profile.inputConstants, now: inputClock
+        )
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }
@@ -136,6 +234,174 @@ final class AppModel {
                 goal: SIMD3(0.075, -0.200, 0.1035), gripper: .open
             )
         }
+        // A setting from before practice stopped being one.
+        UserDefaults.standard.removeObject(forKey: Self.liveLinkKey)
+        PoseTracker.shared.onFrame = { [weak self] camera, time in self?.poseFrame(camera, at: time) }
+        PoseTracker.shared.onInterruption = { [weak self] in self?.controller.cameraInterrupted($0) }
+        controller.startTicking()
+        let center = NotificationCenter.default
+        lifecycleObservers = [
+            center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) {
+                [weak self] _ in self?.activeChanged(false)
+            },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) {
+                [weak self] _ in self?.activeChanged(true)
+            },
+        ]
+        refreshOperating()
+    }
+
+    deinit {
+        for observer in lifecycleObservers { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    /// The launch is on the real server, except when a UI test passes `-liveLink NO` for practice.
+    static func launchesOnTheRealServer(_ defaults: UserDefaults = .standard) -> Bool {
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        return arguments[liveLinkKey] == nil || defaults.bool(forKey: liveLinkKey)
+    }
+
+    // MARK: Operating screen intents
+
+    /// The operating screen's size and safe-area insets, in points, whenever they change.
+    func surfaceChanged(width: Double, height: Double, safeTop: Double, safeBottom: Double) {
+        let layout = SurfaceLayout(
+            width: width, height: height, safeTop: safeTop, safeBottom: safeBottom, constants: profile.inputConstants
+        )
+        guard layout != surfaceLayout else { return }
+        surfaceLayout = layout
+        controller.layoutChanged(layout)
+        refreshOperating()
+    }
+
+    /// One raw touch on the operating screen, with `UITouch.timestamp`.
+    func touch(_ sample: TouchSample, at time: TimeInterval) {
+        controller.touch(sample, at: time)
+    }
+
+    /// Buttons mode: a finger came down on `button`.
+    func buttonDown(_ button: ButtonID) {
+        controller.buttonDown(button)
+    }
+
+    /// Buttons mode: the finger lifted, the touch was cancelled, or the finger slid off `button`.
+    func buttonUp(_ button: ButtonID) {
+        controller.buttonUp(button)
+    }
+
+    /// Buttons mode: the Fine / Coarse switch. Refused while a button is down.
+    func selectSpeed(_ speed: ButtonSpeed) {
+        controller.selectSpeed(speed)
+    }
+
+    /// Practice without a robot: the built-in demo. Never the default and never kept across launches; no message
+    /// reaches any server while it runs. Refused while the robot is in emergency stop.
+    func startPractice() {
+        guard session.state.liveLink else { return }
+        liveLink = false
+    }
+
+    /// Back to the real server at the saved address.
+    func leavePractice() {
+        guard !session.state.liveLink else { return }
+        liveLink = true
+    }
+
+    // MARK: Raw inputs from the device
+
+    /// A volume key's capture event: `down` for began, false for ended or cancelled.
+    func keyEvent(_ key: InputKey, down: Bool) {
+        controller.key(key, down: down)
+    }
+
+    /// An ARKit frame: the camera's transform while tracking is normal, nil otherwise, and the frame's timestamp.
+    func poseFrame(_ camera: simd_float4x4?, at time: TimeInterval) {
+        guard let camera else { return }
+        controller.attitude(PhoneAttitude.portrait(cameraTransform: camera), at: time)
+    }
+
+    /// The scene phase became active or left it. Every hold ends on leaving; inputs held across it stay dead.
+    func activeChanged(_ active: Bool) {
+        controller.activeChanged(active)
+        link.foregroundChanged()
+    }
+
+    // MARK: What the input rules are told
+
+    /// The facts of this moment for the input rules (§2.3 I-5, A-2g, I-8.3).
+    func inputFacts() -> InputFacts {
+        let s = session.state
+        let settingsOpen = session.route == .s6
+        let notReady = s.liveLink && (link.resetPending || serverState?.simBusy == true)
+        var refusal: InputRefusal?
+        if s.emergencyStop {
+            refusal = .stopped
+        } else if !s.connected {
+            refusal = .noLink
+        } else if settingsOpen {
+            refusal = .settingsOpen
+        } else if s.commandsBlocked {
+            refusal = .slowLink
+        } else if notReady {
+            refusal = .wait
+        }
+        let camera = pose()
+        var resetRefusal: InputRefusal?
+        if controller.buttons.engaged != nil {
+            // The input rules do not see the pad's holds, and the top band is dead while one runs (I-3).
+            resetRefusal = .letGoFirst
+        } else if !s.connected {
+            resetRefusal = .noLink
+        } else if settingsOpen {
+            resetRefusal = .settingsOpen
+        } else if notReady {
+            resetRefusal = .wait
+        }
+        return InputFacts(
+            refusal: refusal,
+            trackingRefusal: controller.isCameraStopped || camera == nil ? .notTracking : nil,
+            translationRefusal: PhonePosture.of(camera, previous: posture) == .tilted ? .posture : nil,
+            resetRefusal: resetRefusal,
+            gripping: profile.recloseLoosensGrip && gripping,
+            wrist: WristReadings(
+                rollDeg: serverState?.wristRollDeg, flexDeg: serverState?.wristFlexDeg, flexAtResetDeg: flexAtReset
+            ),
+            connectionUp: !s.liveLink || link.isUp || link.observerUp
+        )
+    }
+
+    /// The controller handled an input; what the screen draws may have changed.
+    func inputsChanged() {
+        refreshOperating()
+    }
+
+    /// Buttons mode: a direction button's hold. The link streams the pad's ramp instead of the phone's movement.
+    func startButtonTranslation() {
+        pendingButtonHold = true
+        send(.holdArmStart)
+        pendingButtonHold = false
+    }
+
+    /// The top band was held 2 s (§6.4): reset the scene. In the stop state the server's reset clears the stop
+    /// once it confirms it (`sceneResetDone`), unless STOP is pressed again first; the practice link resets at once.
+    func runReset() {
+        let s = session.state
+        guard s.liveLink else {
+            send(.resetScene)
+            perform(.sceneResetDone, fromServer: false)
+            controller.sceneReset()
+            raise(.ready)
+            return
+        }
+        if s.emergencyStop {
+            if link.resetScene() {
+                perform(.resetScene, fromServer: false)
+            } else {
+                raise(.notReset)
+            }
+        } else {
+            send(.resetScene)
+        }
     }
 
     func send(_ action: TeleopAction) {
@@ -152,11 +418,18 @@ final class AppModel {
     /// input (`.refused(.deadInput)`) or a second close while gripping (`.limit(.alreadyGripping)`).
     func raise(_ event: FeedbackEvent) {
         cues.raise(event)
+        switch event {
+        case .refused(let refusal): lastRefusal = (refusal, nowMs())
+        case .takeSaved(let count): lastSaved = (count, nowMs())
+        default: return
+        }
+        refreshOperating()
     }
 
     /// The cues decided so far, newest last.
     var cueLog: [CueLogEntry] { cues.log }
 
+    /// RootView calls this on every scene phase change; `activeChanged` is the input side of it.
     func foregroundChanged() { link.foregroundChanged() }
 
     /// Reads how the phone is held, from the same pose the arm follows. Called a few times a second on
@@ -193,6 +466,7 @@ final class AppModel {
         } else {
             session.state.serverInputError = true
         }
+        refreshOperating()
     }
 
     /// Server-side changes. A server E-stop latches here too, but is not echoed back.
@@ -210,6 +484,14 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
+        if let episode = state.episode {
+            if let last = lastEpisode, episode != last { sceneWasReset() }
+            lastEpisode = episode
+        }
+        if flexAtResetOwed, !state.estop, !state.simBusy, let flex = state.wristFlexDeg {
+            flexAtReset = flex
+            flexAtResetOwed = false
+        }
         let now = nowMs()
         for event in narrator.observe(state, moving: Self.engaged(session.state), at: now) + narrator.tick(at: now) {
             raise(event)
@@ -220,18 +502,91 @@ final class AppModel {
     /// The control connection's welcome. A STOP pressed while no connection was up goes out first.
     private func welcomed(session run: String?) {
         narrator.welcomed(session: run)
+        // A new server run starts from its own reset pose. A server that names no run cannot tell a reconnect from a
+        // new run, so the tilt window keeps counting from the last reset seen (I-8.3).
+        if let run, run != lastWelcomeSession {
+            lastWelcomeSession = run
+            lastEpisode = nil
+            sceneWasReset()
+        }
         guard stopOwed else { return }
         stopOwed = false
         narrator.emergencyStopLearned()
         link.estop()
         log("link: the STOP pressed while the link was down is sent now")
         raise(.emergencyStop(.button, takeDiscarded: narrator.stopDiscardsTake))
+        refreshOperating()
     }
 
     private func refreshRecorder() {
         if recorder != narrator.display { recorder = narrator.display }
         let exits = StopExits.offered(recorder: narrator.recorder, practice: !session.state.liveLink)
         if stopExits != exits { stopExits = exits }
+        refreshOperating()
+    }
+
+    /// Recomputes what the operating screen draws, and writes it only on a change: every write redraws.
+    private func refreshOperating() {
+        guard fixture == nil, let controller else { return }
+        let s = session.state
+        let display = OperatingDisplay(
+            mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
+            engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
+            resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
+            speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
+            latencyMs: s.latencyMs, address: s.serverAddress,
+            arm: s.liveLink
+                ? OperatingRules.arm(serverState, commanded: link.commandedArm, gripping: gripping, profile: profile)
+                : nil,
+            practice: !s.liveLink, taskAid: taskAidSetting
+        )
+        if operating != display { operating = display }
+    }
+
+    private var operatingFacts: OperatingFacts {
+        let s = session.state
+        var facts = OperatingFacts()
+        facts.connected = s.connected
+        facts.connecting = s.liveLink && link.isOpen
+        facts.connectionLost = s.connectionLost
+        facts.address = s.serverAddress
+        facts.emergencyStop = s.emergencyStop
+        facts.stopOwed = stopOwed
+        facts.stopCause = s.emergencyStop ? emergencyCause : nil
+        facts.cameraStopped = controller.isCameraStopped
+        facts.commandsBlocked = s.commandsBlocked
+        facts.latencyMs = s.latencyMs
+        facts.engaged = controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind)
+        facts.wristTarget = controller.wristTarget
+        facts.wristMeasured = serverState?.wristRollDeg != nil
+        facts.catchingUp = catchingUp
+        facts.gripping = gripping
+        if s.liveLink {
+            facts.serverSaving = serverState?.taskSuccess == true || serverState?.activity == .taskSuccess
+            facts.serverResetting = link.resetPending || serverState?.activity == .resetting
+        }
+        facts.lastRefusal = lastRefusal
+        facts.lastSaved = lastSaved
+        facts.nowMs = nowMs()
+        facts.turnLimit = profile.inputConstants.rollClampDeg
+        facts.tiltLimit = profile.inputConstants.tiltClampDeg
+        return facts
+    }
+
+    private static func holdKind(_ control: ControlKind) -> HoldKind {
+        switch control {
+        case .pose: return .translation
+        case .gripper(let target): return .gripper(target)
+        case .wrist: return .wrist
+        }
+    }
+
+    /// A reset, a new episode or a new server run: the tilt window and the wrist lead start again.
+    private func sceneWasReset() {
+        flexAtReset = nil
+        flexAtResetOwed = true
+        link.sceneWasReset()
+        controller.sceneReset()
     }
 
     /// The hold the feedback belongs to: the link's on a real server, the demo's own count otherwise.
@@ -248,7 +603,7 @@ final class AppModel {
     private static func heldControl(_ state: FakeTeleopState) -> ControlKind? {
         if state.armMoving { return .pose }
         if let target = state.gripperMoving { return .gripper(target) }
-        return state.jawTurning != nil ? .wrist : nil
+        return state.jawTurning != nil || state.wristMoving ? .wrist : nil
     }
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
@@ -292,6 +647,7 @@ final class AppModel {
             raise(.holdLive(hold: demoHold))
         }
         refreshRecorder()
+        controller.sessionChanged()
     }
 
     /// The session asks for its own haptic commands; the operator feels and hears the events they stand for.
@@ -328,7 +684,7 @@ final class AppModel {
 
     private static func isPress(_ action: TeleopAction) -> Bool {
         switch action {
-        case .holdArmStart, .gripperStart, .turnStart: return true
+        case .holdArmStart, .gripperStart, .turnStart, .wristStart: return true
         default: return false
         }
     }
@@ -336,11 +692,20 @@ final class AppModel {
     /// Mirrors what the session just decided onto the wire. The session decides; the link only follows.
     private func driveLink(_ action: TeleopAction, before: FakeTeleopState, fromServer: Bool) {
         let after = session.state
-        // E-stop goes out first. A server-side E-stop is not echoed, but our own hold still has to end.
-        if !before.emergencyStop, after.emergencyStop, !fromServer { stopReached = link.estop() }
+        // E-stop goes out first, on every STOP (I-3): with the stop already latched, a reset asked for from it may
+        // have cleared the server's stop. A server-side E-stop is not echoed, but our own hold still has to end.
+        if action == .stop, !fromServer { stopReached = link.estop() }
         if before.armMoving, !after.armMoving { link.endHold() }
-        if before.emergencyStop, !after.emergencyStop { link.estopReset() }
-        if !before.armMoving, after.armMoving {
+        // Release, keep scene. A reset that cleared the stop needs no estop_reset.
+        if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
+        if !before.armMoving, after.armMoving, pendingButtonHold {
+            if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) {
+                log("link: button hold not started (no link or a reset)")
+                pendingRefusal = link.resetPending ? .notReady : .noLink
+                session.perform(.holdArmEnd)
+                session.pendingCue(.commandBlocked)
+            }
+        } else if !before.armMoving, after.armMoving {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
             let held = PhonePosture.of(pose(), previous: posture)
             if held == .tilted || !link.startHold(params) {
@@ -366,6 +731,18 @@ final class AppModel {
                 }
             } else {
                 link.stopTurn()
+            }
+        }
+        if before.wristMoving != after.wristMoving {
+            if after.wristMoving {
+                if !link.startWristHold() {
+                    log("link: wrist hold not started (no link or a reset)")
+                    pendingRefusal = link.resetPending ? .notReady : .noLink
+                    session.perform(.wristEnd)
+                    session.pendingCue(.commandBlocked)
+                }
+            } else {
+                link.stopWristHold()
             }
         }
         if before.gripperMoving != after.gripperMoving {
