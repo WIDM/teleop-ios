@@ -96,17 +96,28 @@ final class ServerMotionTests: XCTestCase {
     }
 
     /// Tipping the phone with the wrist input held tilts the jaws, and tipping it back brings them back; neither is
-    /// refused. The server reports the measured flex when it has `wrist_flex_deg`.
+    /// refused. With `wrist_flex_deg` the measured flex must follow; without it only the holds are checked.
     func testTiltingThePhoneTiltsTheWristBothWays() {
+        var held = 0
+        var wasHolding = false
+        hand.watch = { [unowned self] in
+            if model.session.state.wristMoving, !wasHolding { held += 1 }
+            wasHolding = model.session.state.wristMoving
+        }
+        defer { hand.watch = nil }
         let before = model.serverState?.wristFlexDeg
         hand.wrist(.tilt, by: 10, hold: 3)
         let tilted = model.serverState?.wristFlexDeg
         hand.wrist(.tilt, by: -10, hold: 3)
-        if let before, let tilted, let after = model.serverState?.wristFlexDeg {
-            print(String(format: "MOTION tilt: flex %.1f, then %.1f, then %.1f", before, tilted, after))
-        }
+        XCTAssertEqual(held, 2, "each tilt was a wrist hold. log: \(model.debugLog.suffix(4))")
+        XCTAssertFalse(model.debugLog.contains { $0.contains("wrist hold refused") }, "the server took both")
         XCTAssertFalse(model.session.state.wristMoving)
         XCTAssertFalse(model.session.state.emergencyStop)
+        if let before, let tilted, let after = model.serverState?.wristFlexDeg {
+            print(String(format: "MOTION tilt: flex %.1f, then %.1f, then %.1f", before, tilted, after))
+            XCTAssertGreaterThan(abs(tilted - before), 5, "the wrist tilted")
+            XCTAssertEqual(after, before, accuracy: 3, "and came back")
+        }
     }
 
     /// The whole task in as few holds as it takes.
