@@ -532,7 +532,8 @@ private struct ReleaseButton: View {
     let scale: Double
     let action: () -> Void
 
-    static func height(_ scale: Double) -> Double { max(48, 56 * scale) }
+    /// A hold the operator needs while stopped: never under 60 pt.
+    static func height(_ scale: Double) -> Double { max(60, 60 * scale) }
 
     var body: some View {
         HoldButton(
