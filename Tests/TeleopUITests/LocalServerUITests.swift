@@ -23,10 +23,12 @@ final class LocalServerUITests: XCTestCase {
             "-appLanguage", "en", "-liveLink", "YES", "-serverAddress", server.address, "-startRoute", "s1_connect",
         ]
         app.launch()
-        // With a saved address the app opens the socket at launch, so there is no Connect to press.
-        // P5 comes up only once the server has answered hello with welcome and a state.
-        XCTAssertTrue(app.descendants(matching: .any)["connection.change_server"].firstMatch.waitForExistence(timeout: 5),
-                      "the app did not connect to \(server.address)")
+        // With a saved address the app opens the socket at launch, so there is no Connect to press. The operating
+        // screen comes up only once the server has answered hello with welcome and a state.
+        let state = app.descendants(matching: .any)["operating.state"].firstMatch
+        XCTAssertTrue(state.waitForExistence(timeout: 5), "the app did not connect to \(server.address)")
+        expectLabel(state, "Ready")
+        XCTAssertEqual(app.descendants(matching: .any)["operating.link"].firstMatch.label, "Link up")
         // The control connection, and the listening one the app opens right after its welcome.
         let deadline = Date().addingTimeInterval(3)
         while server.inspect({ $0.welcomedClients }) < 2, Date() < deadline {
