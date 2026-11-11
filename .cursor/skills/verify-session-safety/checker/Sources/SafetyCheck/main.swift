@@ -121,19 +121,24 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
         session.perform(.switchLink)
     default: session.perform(actionsByName[name]!)
     }
-    // ArmHoldModifier.onDisappear sends holdArmEnd when the hold area leaves the screen.
-    if shippedUI, session.route != node.session.route, session.state.armMoving {
+    // OperatingController ends the holds of the keys, the touches and the pad only when the operating screens
+    // (BackStackRules.controlRoutes) go away, so moving between them keeps a hold. ArmHoldModifier and
+    // HeldControlModifier end an on-screen handle's hold on any route change, but the checker cannot tell who started
+    // a hold, so it models the narrower rule for the arm, the gripper and the wrist. The end actions stay offered while
+    // a control is held (shippedActions), so what a handle's own end reaches is still explored.
+    let leftOperating = BackStackRules.controlRoutes.contains(node.session.route)
+        && !BackStackRules.controlRoutes.contains(session.route)
+    if shippedUI, leftOperating, session.state.armMoving {
         session.perform(.holdArmEnd)
     }
-    // HeldControlModifier.onDisappear and VolumeKeyModifier.onDisappear do the same for the gripper and the jaw turn.
-    if shippedUI, session.route != node.session.route, session.state.gripperMoving != nil {
+    if shippedUI, leftOperating, session.state.gripperMoving != nil {
         session.perform(.gripperEnd)
     }
+    // Only JawTurnHandle runs a jaw turn, and HeldControlModifier.onDisappear ends it on any route change.
     if shippedUI, session.route != node.session.route, session.state.jawTurning != nil {
         session.perform(.turnEnd)
     }
-    // OperatingController ends every hold when the operating screen goes away, the wrist hold included.
-    if shippedUI, session.route != node.session.route, session.state.wristMoving {
+    if shippedUI, leftOperating, session.state.wristMoving {
         session.perform(.wristEnd)
     }
     // Commands run in order, so a cancel only counts for a play that comes after it.
