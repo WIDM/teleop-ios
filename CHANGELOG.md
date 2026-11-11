@@ -6,6 +6,37 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## Unreleased
+
+What was left from the design mock-up and only pretended is gone, so every control on screen now does something
+real.
+
+- No mode choice on every launch. Cloud mode was simulated: its two safety checks were hard-coded to pass, and a
+  hidden long press faked a failure. A fresh install opens on the permissions screen, then the tutorial; once the
+  tutorial is finished or skipped, every launch opens straight on standby. On a real server the app tries the saved
+  address at launch, as choosing a mode used to. "Switch mode" is gone from Settings, and the Real server switch
+  now changes the link where you are instead of going back to a mode choice.
+- No base mode. The Base panel on the right edge of the camera view opened a screen that sent nothing, and the
+  simulated arm has no mobile base. The hint no longer says "Hold right edge: move base".
+- No Record, recording screens, timer, Save or Discard. Nothing was ever stored or sent.
+- No "Recent" servers on the connect screen: they were two labels that could not be tapped.
+- No errors screen. It always showed the same three cards and said "Reconnecting..." when nothing reconnected.
+  Disconnect now ends the link and stays on the connect screen. When a working link to the server drops on
+  standby, high latency or the on-screen controls, the app goes to the connect screen and says "Connection lost.
+  The arm stopped." E-stop still stays on screen when the link drops.
+- No faked latency. Tapping the latency row used to set 420 ms and block commands, even on a real server, and
+  holding the mode pill opened a debug sheet with "Simulate high latency". The high-latency screen stays; it comes
+  from two slow round trips in a row on a real link.
+- No "Robot heartbeat: Received just now" on the connection sheet; it was fixed text. The connection chip now
+  follows the connection alone, so the demo no longer says "Not connected" after Disconnect and Connect.
+- No Motion permission. The answer was never used, and its card claimed phone rotation turns the wrist, which it
+  does not. First launch asks for the camera only.
+- No "Send hello" in developer mode; it logged a made-up line.
+- The server address starts empty, with 192.168.0.10:8765 greyed as the expected form, instead of the placeholder
+  value 192.168.x.x:8765. A saved address still loads.
+- No Deadband slider: the server ignores the value in every hold. `pose_start` always sends 0, which the server
+  accepts.
+
 ## 0.10.0 (2026-11-11)
 
 The wrist can tilt, and the guide shows how high the jaws are.
