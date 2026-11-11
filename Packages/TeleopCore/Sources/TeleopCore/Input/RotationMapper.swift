@@ -79,15 +79,18 @@ public struct RotationMapper: Equatable, Sendable {
     /// I-8.2: the axis that has reached `axisLockDeg` while the other is below `axisLockRatio` of it, if any.
     public func dominantAxis(_ angles: WristAngles) -> WristAxis? {
         let turn = abs(angles.turn), tilt = abs(angles.tilt)
-        if turn >= constants.axisLockDeg, tilt < constants.axisLockRatio * turn { return .turn }
-        if tilt >= constants.axisLockDeg, turn < constants.axisLockRatio * tilt { return .tilt }
+        if reached(turn), tilt < constants.axisLockRatio * turn { return .turn }
+        if reached(tilt), turn < constants.axisLockRatio * tilt { return .tilt }
         return nil
     }
 
     /// True once turn or tilt has reached `axisLockDeg`, whether or not one dominates.
     public func reachedLockAngle(_ angles: WristAngles) -> Bool {
-        max(abs(angles.turn), abs(angles.tilt)) >= constants.axisLockDeg
+        reached(max(abs(angles.turn), abs(angles.tilt)))
     }
+
+    /// Angles from quaternions carry rounding of about 1e-14°; 5° reached is 5° reached.
+    private func reached(_ angle: Double) -> Bool { angle >= constants.axisLockDeg - 1e-9 }
 
     /// The first attitude seen anchors a hold that began before tracking delivered one.
     public mutating func anchorIfNeeded(_ attitude: simd_quatd) {
