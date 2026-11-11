@@ -35,6 +35,13 @@ final class LocalTeleopServerTests: XCTestCase {
     }
 
     func testAHoldThroughTheSocketMovesTheArmAndASocketClosedDuringItEStops() throws {
+        // A watchdog longer than any delay on a busy machine, so that the close, not the watchdog, ends the hold.
+        server.stop()
+        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60)
+        config.holdWatchdog = 30
+        server = LocalTeleopServer(config: config)
+        try server.start()
+
         let client = try SocketClient(port: server.port)
         client.send(#"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"test"}}"#)
         _ = try client.next()
@@ -44,12 +51,21 @@ final class LocalTeleopServerTests: XCTestCase {
             client.send(#"{"v":1,"type":"pose_update","ts":0,"seq":\#(seq),"payload":{"p_rel_m":[0,0,0.02],"q_rel":[0,0,0,1],"gripper_delta":0}}"#)
             Thread.sleep(forTimeInterval: 1.0 / 30)
         }
-        let moved = server.inspect { $0.world.arm } - start
-        XCTAssertEqual(moved.z, -0.02, accuracy: 0.002, "phone z is robot −z")
+        let movedZ = { self.server.inspect { $0.world.arm.z } - start.z }
+        XCTAssertTrue(eventually(within: 3) { abs(movedZ() + 0.02) <= 0.002 }, "the arm moved \(movedZ()) m along z; phone z is robot −z")
         client.close()
-        Thread.sleep(forTimeInterval: 0.2)
-        XCTAssertEqual(server.inspect { $0.state["estop"] }, true)
+        XCTAssertTrue(eventually(within: 3) { self.server.inspect { $0.state["estop"] } == true }, "no E-stop after the close")
     }
+}
+
+/// Polls `condition` every 10 ms until it holds or `seconds` have passed.
+private func eventually(within seconds: TimeInterval, _ condition: () -> Bool) -> Bool {
+    let deadline = Date().addingTimeInterval(seconds)
+    while !condition() {
+        if Date() >= deadline { return false }
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    return true
 }
 
 /// A plain URLSession WebSocket client that reads frames one at a time.
