@@ -16,6 +16,9 @@ struct RootView: View {
         // Rebuild every screen on a language change, so format strings looked up at runtime follow too.
         .id(model.language)
         .foregroundStyle(TeleopColors.textPrimary)
+        // The colours are fixed, so system parts (Settings' form, text fields) must not turn dark with the phone. The
+        // operating screen's dark top band needs the light status bar, which iOS 17 and 18 give only to a dark scheme.
+        .preferredColorScheme(Self.operatingRoutes.contains(model.session.route) ? .dark : .light)
         .overlay(alignment: .topLeading) {
             if let log = model.hapticLog {
                 Text(verbatim: "log:" + log.joined(separator: ","))
@@ -84,6 +87,8 @@ private struct TestFrame<Content: View>: View {
                 .clipped()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .ignoresSafeArea()
+                // The test device's status bar is taller than the frame's top inset and would cover the top band.
+                .statusBarHidden(true)
         } else {
             content
         }
