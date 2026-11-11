@@ -169,6 +169,18 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.wait(1.9), [.fireReset])
     }
 
+    func testASecondTopBandFingerStillInItsPalmWindowWhenTheCountdownStartsIsDead() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        rig.touchDown(2, at: Rig.topBand + SIMD2(60, 0), after: 0.05)
+        XCTAssertEqual(rig.wait(0.05), [.resetCountdownStarted])
+        XCTAssertEqual(rig.lift(1, after: 0.02), [.resetCountdownCancelled])
+        // The second finger was down when the countdown began: it never starts one of its own.
+        XCTAssertEqual(rig.wait(0.03), [.cue(.refused(.letGoFirst))])
+        XCTAssertEqual(rig.wait(3), [])
+        XCTAssertEqual(rig.phase(.touch(2)), .dead)
+    }
+
     func testTheTopBandWhileSomethingIsEngagedIsDeadWithLetGoFirst() {
         var rig = Rig(.screenTurns)
         rig.press(.lower)

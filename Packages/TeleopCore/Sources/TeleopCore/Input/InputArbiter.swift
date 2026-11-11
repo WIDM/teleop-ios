@@ -599,6 +599,11 @@ public struct InputArbiter: Sendable {
                             touch.phase = .dead(owesNO: true)
                             touches[other] = .surface(touch)
                         }
+                        // So is another top band touch still in its palm window, which owes "Let go first." (I-3).
+                        if other != id, case .band(var otherBand) = role, !otherBand.onGear, otherBand.phase == .pending {
+                            otherBand.phase = .dead(owes: .letGoFirst)
+                            touches[other] = .band(otherBand)
+                        }
                     }
                 }
             case .live, .counting:
