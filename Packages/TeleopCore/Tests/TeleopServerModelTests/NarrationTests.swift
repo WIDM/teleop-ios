@@ -153,8 +153,9 @@ final class NarrationTests: XCTestCase {
         XCTAssertEqual(heard, [.successNotSaved])
         let said = try XCTUnwrap(heardAt.last { $0.event == .successNotSaved }?.atMs)
         let success = try XCTUnwrap(successAt)
-        XCTAssertGreaterThanOrEqual(said - success, RecorderNarrator.notSavedWaitMs, "the save might still have come")
-        XCTAssertLessThan(said - success, RecorderNarrator.notSavedWaitMs + 300)
+        // §6.2: no rec_saved rise within 2 s. The spec's number, not the constant, so changing one is caught.
+        XCTAssertGreaterThanOrEqual(said - success, 2000, "the save might still have come")
+        XCTAssertLessThan(said - success, 2300)
         wait(10)
         XCTAssertEqual(heard, [.successNotSaved, .ready])
         XCTAssertEqual(narrator.display, RecorderDisplay(mode: .armed, saved: 4, discarded: 0))

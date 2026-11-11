@@ -58,6 +58,10 @@ public struct RecorderNarrator {
     private var stopNoted = false
     private var absorbDiscard = false
     private var pendingSuccess: (sinceMs: Int, saved: Int)?
+    /// A connection or a new episode began while the state did not read ready: "Ready." comes with the first state
+    /// that does. The real server sends the state right after `ok scene_reset` with the new episode but the
+    /// recorder fields of the take it just threw away.
+    private var readyOwed = false
     private var notRecordingSaid = false
     private var connections = 0
     /// The link was lost since the last welcome: the next one is a reconnect, not the operator's own.
@@ -76,10 +80,9 @@ public struct RecorderNarrator {
         self.session = session
     }
 
-    /// The control connection dropped. An unsaved success in flight is judged again after the reconnect.
+    /// The control connection dropped. A success still waiting for its save is judged after the reconnect.
     public mutating func linkLost() {
         lost = true
-        pendingSuccess = nil
     }
 
     /// The app learned of an emergency stop before any state showed it, as STOP on the phone does.
@@ -89,7 +92,11 @@ public struct RecorderNarrator {
 
     /// A `state` from either connection. `moving`: a hold is engaged.
     public mutating func observe(_ state: ServerState, moving: Bool, at now: Int) -> [FeedbackEvent] {
-        if state.estop { noteStop() }
+        if state.estop {
+            noteStop()
+            // Releasing the stop, or the reset that clears it, says "Ready." itself.
+            readyOwed = false
+        }
         var events: [FeedbackEvent] = []
         if let greeting {
             self.greeting = nil
@@ -129,15 +136,31 @@ public struct RecorderNarrator {
 
     /// The first state on a new connection.
     private mutating func greet(_ state: ServerState, reconnect: Bool, newRun: Bool) -> [FeedbackEvent] {
+        let success = pendingSuccess
+        pendingSuccess = nil
+        readyOwed = false
+        let sameRun = reconnect && !newRun
+        let before = sameRun ? last?.recorder : nil
         // An emergency stop found on arrival, or one the app is sending now, is announced by its own event,
         // which says enough.
-        guard !state.estop, !stopNoted else { return [] }
+        guard !state.estop, !stopNoted else {
+            // The stop's own discard may already be counted here; it must not swallow a later one.
+            if let before, let now = state.recorder, now.discarded > before.discarded { absorbDiscard = false }
+            if !sameRun { absorbDiscard = false }
+            return []
+        }
         var events: [FeedbackEvent] = []
         if reconnect { events.append(.reconnected) }
-        if reconnect, !newRun, let before = last?.recorder, let now = state.recorder {
-            if now.saved > before.saved { events.append(.offlineSaved(now.saved - before.saved)) }
-            let discarded = now.discarded - before.discarded - (absorbDiscard ? 1 : 0)
+        if let before, let now = state.recorder {
+            var discarded = now.discarded - before.discarded - (absorbDiscard ? 1 : 0)
             absorbDiscard = false
+            if now.saved > before.saved {
+                events.append(.offlineSaved(now.saved - before.saved))
+            } else if success != nil {
+                events.append(.successNotSaved)
+                // A take too short to save was discarded at the success; "Success, but not saved." covers it.
+                discarded -= 1
+            }
             if discarded > 0 { events.append(.offlineDiscarded(discarded)) }
             if now.label == .capturing {
                 events.append(.takeContinues)
@@ -148,7 +171,11 @@ public struct RecorderNarrator {
             if newRun { events.append(.serverRestarted) }
             if let recorder = state.recorder, recorder.records { events.append(.recordingSession(saved: recorder.saved)) }
         }
-        if Self.ready(state) { events.append(.ready) }
+        if Self.ready(state) {
+            events.append(.ready)
+        } else {
+            readyOwed = true
+        }
         return events
     }
 
@@ -168,18 +195,29 @@ public struct RecorderNarrator {
                 events.append(.taskSuccess)
             }
         }
-        // A take too short to save is discarded at the success; "Success, but not saved." covers it.
-        if before.recorder != nil, state.recorder != nil,
-           (state.recorder?.discarded ?? 0) > (before.recorder?.discarded ?? 0) {
+        let discarded = before.recorder != nil && state.recorder != nil
+            && (state.recorder?.discarded ?? 0) > (before.recorder?.discarded ?? 0)
+        let newEpisode = state.episode != nil && before.episode != nil && state.episode != before.episode
+        if pendingSuccess != nil, discarded || newEpisode {
+            // The save comes with the success or not at all. A discard (a take too short to save) or the automatic
+            // reset settles it before the 2 s are up, and "Success, but not saved." must come before "Ready.".
+            // It also covers the discard.
+            pendingSuccess = nil
+            events.append(.successNotSaved)
+        } else if discarded {
             if absorbDiscard {
                 absorbDiscard = false
-            } else if pendingSuccess == nil {
+            } else {
                 events.append(.takeDiscarded)
             }
         }
-        if let episode = state.episode, let previous = before.episode, episode != previous {
+        if newEpisode {
             notRecordingSaid = false
-            if Self.ready(state) { events.append(.ready) }
+            readyOwed = true
+        }
+        if readyOwed, Self.ready(state) {
+            readyOwed = false
+            events.append(.ready)
         }
         return events
     }
