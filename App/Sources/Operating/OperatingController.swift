@@ -35,6 +35,8 @@ final class OperatingController {
         case press(ButtonID)
         case release(ButtonID)
         case speed(ButtonSpeed)
+        /// The pad's running hold ends with its stop, and its button stays dead until lifted (I-11).
+        case endButtonHold
     }
 
     init(model: AppModel, mode: ControlMode, hand: Hand, constants: InputConstants, now: @escaping () -> TimeInterval) {
@@ -110,7 +112,7 @@ final class OperatingController {
     /// The app left or returned to the active state (I-11): every hold ends on leaving, and every input held across
     /// it stays dead until released.
     func activeChanged(_ active: Bool) {
-        releaseAllButtons()
+        if !active { enqueue(.endButtonHold) }
         feed([active ? .becameActive : .endAllHolds], at: now())
     }
 
@@ -118,6 +120,7 @@ final class OperatingController {
     func cameraInterrupted(_ interrupted: Bool) {
         guard interrupted != cameraStopped else { return }
         cameraStopped = interrupted
+        if interrupted { enqueue(.endButtonHold) }
         feed([interrupted ? .endAllHolds : .becameActive], at: now())
     }
 
@@ -139,7 +142,13 @@ final class OperatingController {
         let onScreen = Self.operatingRoutes.contains(model.session.route)
         let left = wasOnOperatingScreen && !onScreen
         wasOnOperatingScreen = onScreen
-        if let held = buttons.engaged, left || !Self.holds(held, model.session.state) { buttons.holdEnded() }
+        if let held = buttons.engaged {
+            if !Self.holds(held, model.session.state) {
+                buttons.holdEnded()
+            } else if left {
+                enqueue(.endButtonHold)
+            }
+        }
         if left || (arbiter.engagedHold.map { !Self.holds($0, model.session.state) } ?? false) {
             feed([.endAllHolds], at: now())
         }
@@ -197,6 +206,8 @@ final class OperatingController {
                 for command in buttons.release(button) { carry(command) }
             case .speed(let speed):
                 for command in buttons.selectSpeed(speed) { carry(command) }
+            case .endButtonHold:
+                endButtonHold()
             }
             model.inputsChanged()
         }
@@ -266,6 +277,14 @@ final class OperatingController {
         }
     }
 
+    /// Stops the pad's running hold as a lift would. Its button stays down and dead until it is lifted.
+    private func endButtonHold() {
+        guard let held = buttons.engaged else { return }
+        buttons.holdEnded()
+        carry(held.direction == nil ? ButtonCommand.stopGripper : .stopTranslation)
+    }
+
+    /// A mode or hand change, refused while a hold runs: the pad goes away, so nothing on it stays down.
     private func releaseAllButtons() {
         buttons.holdEnded()
         for button in buttons.down { _ = buttons.release(button) }

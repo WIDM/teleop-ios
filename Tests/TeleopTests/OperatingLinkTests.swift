@@ -96,6 +96,10 @@ final class OperatingLinkTests: XCTestCase {
         transport.sent.last { $0["type"] as? String == type }!["seq"] as! Int
     }
 
+    private func touch(_ id: Int, _ phase: TouchSample.Phase, x: Double, y: Double) {
+        model.touch(TouchSample(id: id, phase: phase, x: x, y: y, majorRadius: 8), at: Double(clock) / 1000)
+    }
+
     func testThePhoneOffsetTakesItsSignsFromTheOperatorFrame() {
         let right = simd_normalize(SIMD3<Float>(0.8, 0, 0.6))
         let forward = simd_cross(SIMD3<Float>(0, 1, 0), right)
@@ -189,6 +193,61 @@ final class OperatingLinkTests: XCTestCase {
         model.buttonUp(.up)
         XCTAssertFalse(model.session.state.armMoving)
         XCTAssertTrue(transport.types.contains("pose_stop"))
+    }
+
+    /// I-11: opening Settings ends a pad hold with its stop, and the lift that comes later has nothing left to stop.
+    func testAPadHoldEndsWithItsStopWhenSettingsOpens() {
+        bringUp(.buttons, state: ["ee_pos": [0.02, -0.14, 0.16]])
+        step()
+        model.buttonDown(.up)
+        step(3)
+        XCTAssertTrue(model.session.state.armMoving)
+        let before = transport.sent.count
+        model.send(.openSettings)
+        XCTAssertEqual(model.session.route, .s6)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(transport.types.dropFirst(before).contains("pose_stop"))
+        XCTAssertNil(model.operating.heldButton)
+        let stopped = transport.sent.count
+        model.buttonUp(.up)
+        XCTAssertEqual(transport.sent.count, stopped, "the lift has nothing left to stop")
+    }
+
+    /// I-11: leaving the active state ends a pad hold with its stop; the button held across it stays down and dead, so
+    /// another button does nothing until it is lifted.
+    func testAPadHoldEndsWithItsStopWhenTheAppLeavesTheActiveState() {
+        bringUp(.buttons)
+        step()
+        model.buttonDown(.close)
+        step(3)
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        model.activeChanged(false)
+        XCTAssertNil(model.session.state.gripperMoving)
+        XCTAssertTrue(transport.types.contains("gripper_jog_stop"))
+        model.activeChanged(true)
+        let stopped = transport.sent.count
+        step(10)
+        XCTAssertFalse(transport.types.dropFirst(stopped).contains("jog_keepalive"), "the jaws are not kept moving")
+        model.buttonDown(.open)
+        XCTAssertNil(model.session.state.gripperMoving, "a press while the held-across button is down is dead")
+        model.buttonUp(.open)
+        model.buttonUp(.close)
+        model.buttonDown(.open)
+        XCTAssertEqual(model.session.state.gripperMoving, .open, "lifted, the pad works again")
+        model.buttonUp(.open)
+    }
+
+    func testAPadHoldEndsWithItsStopWhenTheCameraStops() {
+        bringUp(.buttons, state: ["ee_pos": [0.02, -0.14, 0.16]])
+        step()
+        model.buttonDown(.left)
+        XCTAssertTrue(model.session.state.armMoving)
+        let before = transport.sent.count
+        model.controller.cameraInterrupted(true)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(transport.types.dropFirst(before).contains("pose_stop"))
+        model.controller.cameraInterrupted(false)
+        model.buttonUp(.left)
     }
 
     func testFineAndCoarseAreRefusedWhileAButtonIsDown() {
