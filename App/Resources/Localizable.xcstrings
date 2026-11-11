@@ -769,6 +769,54 @@
         }
       }
     },
+    "control.jaw_tilt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilt"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "俯仰"
+          }
+        }
+      }
+    },
+    "control.jaw_tilt_down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilt the jaws down"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪往下傾"
+          }
+        }
+      }
+    },
+    "control.jaw_tilt_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilt the jaws up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪往上抬"
+          }
+        }
+      }
+    },
     "control.jaw_turn": {
       "localizations": {
         "en": {
@@ -1249,6 +1297,86 @@
         }
       }
     },
+    "guide.from_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From above"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從上面看"
+          }
+        }
+      }
+    },
+    "guide.from_behind": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From behind"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從後面看"
+          }
+        }
+      }
+    },
+    "guide.gap_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ cm above"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.gap_below": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ cm below"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.gap_level": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "level"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等高"
+          }
+        }
+      }
+    },
     "guide.hold_upright": {
       "localizations": {
         "en": {
@@ -1286,13 +1414,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ring = where the jaws close. Move it onto the red square, here and on the bar."
+            "value": "Ring = where the jaws close. Put it on the red square in both views."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "白圈是夾爪夾的位置。把它移到紅色方塊上，左圖和右邊直條都要對到。"
+            "value": "白圈是夾爪夾的位置。兩張圖都要把它移到紅色方塊上。"
           }
         }
       }
@@ -1341,6 +1469,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "先把夾爪轉成左右夾：按住「轉」到停，共兩次"
+          }
+        }
+      }
+    },
+    "guide.wrist_tilted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrist tilted: the map no longer shows the jaw tips. Reset to use it again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手腕已傾斜：地圖不再代表夾爪尖端，按 Reset 後才準"
           }
         }
       }

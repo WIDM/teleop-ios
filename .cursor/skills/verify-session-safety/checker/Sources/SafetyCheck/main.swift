@@ -51,6 +51,8 @@ let actionTable: [(String, TeleopAction)] = [
     ("gripperEnd", .gripperEnd),
     ("turnStartPositive", .turnStart(.positive)),
     ("turnStartNegative", .turnStart(.negative)),
+    ("turnStartTiltDown", .turnStart(.tiltDown)),
+    ("turnStartTiltUp", .turnStart(.tiltUp)),
     ("turnEnd", .turnEnd),
     ("holdArmStart", .holdArmStart),
     ("holdArmEnd", .holdArmEnd),

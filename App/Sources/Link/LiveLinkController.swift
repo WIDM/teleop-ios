@@ -23,6 +23,10 @@ final class LiveLinkController {
     /// the quarter turn a grasp needs. The server's own clamp is 60 degrees per hold.
     static let turnDegreesPerSecond = 30.0
     static let turnStepDegrees = 45.0
+    /// The same for the wrist pitch, in smaller steps: a tilt is a fine correction of the jaws' height.
+    /// The server's clamp is 35 degrees per hold.
+    static let tiltDegreesPerSecond = 15.0
+    static let tiltStepDegrees = 10.0
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -62,8 +66,11 @@ final class LiveLinkController {
     /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
     private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
-    /// The jaw turn being held: which way, and when the press began (the ramp runs from there).
-    private var turn: (sign: Double, startedMs: Int)?
+    /// The wrist move being held: which way, and when the press began (the ramp runs from there).
+    private var turn: (direction: TurnDirection, startedMs: Int)?
+    /// The wrist was tilted since the scene was reset or the link came up. The guide's pinch point was measured
+    /// at the start pitch, so it stops meaning anything after a tilt.
+    private(set) var wristTilted = false
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
@@ -146,6 +153,7 @@ final class LiveLinkController {
         resync = nil
         atEdge = false
         turn = nil
+        wristTilted = false
         onGuidance?(nil)
     }
 
@@ -222,17 +230,27 @@ final class LiveLinkController {
         resetSentAtMs = nowMs()
     }
 
-    func resetScene() { link?.resetScene() }
+    func resetScene() {
+        link?.resetScene()
+        guard wristTilted else { return }
+        // The scene reset puts the wrist back at its start pitch.
+        wristTilted = false
+        if let arm = armPosition { publishGuidance(arm: arm) }
+    }
     /// The gripper travels toward `target` while its control is held. Holding past the end is harmless:
     /// the server clamps at the joint limit and stops squeezing on contact.
     func startGripper(_ target: GripperState) { link?.gripperJogStart(target) }
     func stopGripper() { link?.gripperJogStop() }
 
-    /// The jaws turn toward `direction` while its control is held, by at most `turnStepDegrees` from where they
-    /// were when the press began. False when the turn could not start.
+    /// The wrist moves toward `direction` while its control is held, by at most `turnStepDegrees` (roll) or
+    /// `tiltStepDegrees` (pitch) from where it was when the press began. False when the move could not start.
     func startTurn(_ direction: TurnDirection) -> Bool {
         guard let link, link.orientStart() else { return false }
-        turn = (direction == .positive ? 1 : -1, nowMs())
+        turn = (direction, nowMs())
+        if direction.isTilt, !wristTilted {
+            wristTilted = true
+            if let arm = armPosition { publishGuidance(arm: arm) }
+        }
         return true
     }
 
@@ -244,8 +262,14 @@ final class LiveLinkController {
     private func tickTurn(_ link: TeleopLink) {
         guard let run = turn, link.turnActive else { return }
         let elapsed = Double(nowMs() - run.startedMs) / 1000
-        let angle = min(Self.turnDegreesPerSecond * elapsed, Self.turnStepDegrees)
-        link.orientUpdate(rollDegrees: run.sign * angle)
+        switch run.direction {
+        case .positive, .negative:
+            let angle = min(Self.turnDegreesPerSecond * elapsed, Self.turnStepDegrees)
+            link.orientUpdate(rollDegrees: run.direction == .positive ? angle : -angle)
+        case .tiltDown, .tiltUp:
+            let angle = min(Self.tiltDegreesPerSecond * elapsed, Self.tiltStepDegrees)
+            link.orientUpdate(pitchDegrees: run.direction == .tiltDown ? angle : -angle)
+        }
     }
 
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
@@ -311,6 +335,7 @@ final class LiveLinkController {
         switch event {
         case .up(let estop, let gripper):
             onLog?("link: up")
+            wristTilted = false
             onAction?(.linkUp(gripper: gripper))
             if let arm = armPosition { publishGuidance(arm: arm) }
             if estop {
@@ -386,7 +411,7 @@ final class LiveLinkController {
             onGuidance?(nil)
             return
         }
-        var guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: link.lastGripper)
+        var guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: link.lastGripper, wristTilted: wristTilted)
         guidance.atEdge = atEdge && holdStart != nil
         onGuidance?(guidance)
     }

@@ -1,8 +1,14 @@
 public enum TeleopMode: Sendable { case onSite, cloud }
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
-/// Which way the jaws turn about the forearm axis. Positive is the direction the server's wrist roll increases.
-public enum TurnDirection: Sendable { case positive, negative }
+/// Which way the wrist moves under a held wrist control. `positive` and `negative` roll it, turning the jaws about
+/// the forearm axis (positive is the direction the server's wrist roll increases). `tiltDown` and `tiltUp` pitch it,
+/// pointing the jaws more toward the table or away from it.
+public enum TurnDirection: Sendable {
+    case positive, negative, tiltDown, tiltUp
+
+    public var isTilt: Bool { self == .tiltDown || self == .tiltUp }
+}
 
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
@@ -27,7 +33,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var armMoving = false
     /// Direction the gripper is travelling while its control is held; nil when still.
     public var gripperMoving: GripperState?
-    /// Direction the jaws are turning while a turn control is held; nil when still.
+    /// Which way the wrist is moving while a wrist control is held (roll or pitch); nil when still.
     public var jawTurning: TurnDirection?
     public var serverInputError = false
     /// True when a real server drives the link. Then only `linkUp` marks the session connected.

@@ -118,7 +118,7 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
         )
     # tutorialNext1 -> tutorialNext, gripperStartClosed -> gripperStart: the table names one case per payload.
     names = {
-        re.sub(r"^(gripperStart)(Closed|Open)$|^(turnStart)(Positive|Negative)$", lambda m: m.group(1) or m.group(3), re.sub(r"\d+$", "", a))
+        re.sub(r"^(gripperStart)(Closed|Open)$|^(turnStart)(Positive|Negative|TiltDown|TiltUp)$", lambda m: m.group(1) or m.group(3), re.sub(r"\d+$", "", a))
         for a in actions.split(",")
     }
     for name in sorted(names - struct_sends.get(screen, set())):

@@ -37,6 +37,17 @@ final class HeldControlsTests: XCTestCase {
         XCTAssertTrue(session.state.isHolding(.turnStart(.negative)))
     }
 
+    func testATiltIsHeldOnlyByItsOwnDirection() {
+        var session = session()
+        session.perform(.turnStart(.tiltDown))
+        XCTAssertTrue(session.state.isHolding(.turnStart(.tiltDown)))
+        XCTAssertFalse(session.state.isHolding(.turnStart(.tiltUp)))
+        XCTAssertFalse(session.state.isHolding(.turnStart(.positive)))
+        session.perform(.turnStart(.tiltUp))
+        XCTAssertFalse(session.state.isHolding(.turnStart(.tiltDown)))
+        XCTAssertTrue(session.state.isHolding(.turnStart(.tiltUp)))
+    }
+
     func testActionsThatAreNotStartsAreNeverHeld() {
         var session = session()
         session.perform(.holdArmStart)

@@ -6,6 +6,33 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.10.0 (2026-11-11)
+
+The wrist can tilt, and the guide shows how high the jaws are.
+
+- Two new hold-to-tilt handles sit under the two Turn handles: Tilt down points the jaws more toward the table,
+  Tilt up lifts them away from it. They work like Turn: one press tilts by up to 10 degrees from where the wrist
+  was when the press began, and it stays there on release. Press again to tilt further.
+- The guide now has two views, one under the other, lined up left to right and at the same scale. "From above" is
+  the map you had, with a small grey square for the robot base so you can tell which side the arm is on. "From
+  behind" shows the table as a line, the cube sitting on it, the goal on the table, the ring at the height of the jaw
+  tips with a pair of jaws above it, and one number: how far the jaw tips are above or below the cube's centre, for
+  example "2.1 cm above", "0.6 cm below" or "level". While you carry the cube it measures to the goal's height. The
+  old height bar is gone.
+- After you tilt the wrist the map no longer shows where the jaw tips are, because it was measured at the start
+  tilt. The guide stops saying "On the cube" and says so instead. Press Reset to use it again.
+- The development simulator now starts with the jaws already side by side (its start wrist roll is 90
+  degrees), so the caption "Jaws sideways first" is gone there and nothing has to be turned before a grasp.
+  The app only shows that caption for a setup whose scene starts the jaws front to back.
+- Known limit, in the server as published: when a hold ends it copies the measured arm and gripper angles
+  into their targets. The arm then sinks about half a centimetre and bounces, and a cube held at the jaw
+  tips is shaken out: through the app's own code the cube was dropped in 3 of 6 runs and the task succeeded
+  1 time in 4. With the targets left as commanded (running on the development simulator since 2026-11-11)
+  there were no drops and it succeeded 10 times in 10 (seven plain runs and three after a dozen extra holds).
+- Why: in a hand test the jaws were closed 1 to 2 cm from the grasp point and not side by side, because
+  nothing on the screen showed how high they were, the turn had to be remembered after every Reset, and the
+  wrist tilt could not be moved at all. The cube, wedged between the jaws and the table, trembled by 4 to 7 mm.
+
 ## 0.9.1 (2026-11-11)
 
 Two fixes to the held controls.

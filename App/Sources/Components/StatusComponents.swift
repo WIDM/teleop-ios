@@ -204,6 +204,11 @@ struct AimOrOffset: View {
                 MiniMap(guidance: guidance)
                 if guidance.target == .done {
                     Text("guide.done").font(.system(size: 15, weight: .semibold))
+                } else if guidance.wristTilted {
+                    Text("guide.wrist_tilted")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TeleopColors.statusAmber)
+                        .accessibilityIdentifier("guide.wrist_tilted")
                 } else if guidance.readyToGrasp {
                     Text("guide.ready_to_grasp")
                         .font(.system(size: 15, weight: .bold))
@@ -213,7 +218,7 @@ struct AimOrOffset: View {
                     Text(guidance.target == .goal ? "guide.map_caption_carry" : "guide.map_caption")
                         .font(.system(size: 11)).opacity(0.8)
                 }
-                if guidance.target == .cube {
+                if guidance.target == .cube, guidance.turnJawsFirst {
                     Text("guide.turn_jaws_hint")
                         .font(.system(size: 11, weight: .semibold))
                         .accessibilityIdentifier("guide.turn_jaws_hint")
@@ -232,8 +237,8 @@ struct AimOrOffset: View {
             }
             .multilineTextAlignment(.center)
             .foregroundStyle(.white)
-            // No wider than the map and its bar, so the text wraps instead of running under the side handles.
-            .frame(width: 198)
+            // No wider than the two views, so the text wraps instead of running under the side handles.
+            .frame(width: CGFloat(MiniMapLayout.guideWidth))
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("control.centre")
@@ -249,62 +254,150 @@ struct AimOrOffset: View {
     }
 }
 
-/// Top-down picture of the task: a ring where the jaws pinch, a red square for the cube, a dashed green square
-/// for the goal. Up is the operator's forward. The bar on the right is height. Ring on the red square in both,
-/// and the ring turns green: close the jaws.
+/// The task in two pictures that share one left-right axis and one scale, so a thing is at the same x in both.
+/// From above: a ring where the jaws pinch, a red square for the cube, a dashed green square for the goal, a grey
+/// marker for the robot base. From behind: the table as a line, the cube sitting on it, the goal on it, the ring
+/// at the height of the jaw tips with a plain pair of jaws above it, and the gap in height between the jaw tips and
+/// the cube. Ring on the red square in both and the ring turns green: close the jaws.
 struct MiniMap: View {
     let guidance: Guidance
-    private let side: CGFloat = 168
-    private let barWidth: CGFloat = 22
+    private let jawsColor: Color
+
+    init(guidance: Guidance) {
+        self.guidance = guidance
+        jawsColor = guidance.readyToGrasp ? TeleopColors.statusGreen : .white
+    }
 
     var body: some View {
         let layout = MiniMapLayout(guidance)
-        HStack(spacing: 8) {
+        VStack(spacing: 3) {
+            caption("guide.from_above")
+            topView(layout)
+            caption("guide.from_behind")
+            sideView(layout)
+        }
+    }
+
+    private func caption(_ key: LocalizedStringKey) -> some View {
+        Text(key).font(.system(size: 11, weight: .semibold)).opacity(0.7)
+    }
+
+    private func panel<Content: View>(width: Float, height: Float, @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(width: CGFloat(width), height: CGFloat(height))
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+    }
+
+    private func point(_ p: SIMD2<Float>) -> CGPoint { CGPoint(x: CGFloat(p.x), y: CGFloat(p.y)) }
+
+    private func box(centre: SIMD2<Float>, width: Float, height: Float) -> CGRect {
+        CGRect(x: CGFloat(centre.x - width / 2), y: CGFloat(centre.y - height / 2), width: CGFloat(width), height: CGFloat(height))
+    }
+
+    private func topView(_ layout: MiniMapLayout) -> some View {
+        panel(width: layout.width, height: layout.topHeight) {
             Canvas { context, _ in
-                let side = Float(self.side)
-                func rect(_ place: SIMD3<Float>, _ meters: Float) -> CGRect {
-                    let centre = layout.point(place, side: side)
-                    let edge = CGFloat(layout.length(meters, side: side))
-                    return CGRect(x: CGFloat(centre.x) - edge / 2, y: CGFloat(centre.y) - edge / 2, width: edge, height: edge)
+                func square(_ place: SIMD3<Float>, _ meters: Float) -> CGRect {
+                    let edge = layout.length(meters)
+                    return box(centre: layout.top(place), width: edge, height: edge)
                 }
                 context.stroke(
-                    Path(roundedRect: rect(layout.goal, MiniMapLayout.goalSize), cornerRadius: 3),
+                    Path(roundedRect: square(layout.goal, MiniMapLayout.goalSize), cornerRadius: 3),
                     with: .color(TeleopColors.statusGreen), style: StrokeStyle(lineWidth: 2, dash: [5, 4])
                 )
                 context.fill(
-                    Path(roundedRect: rect(layout.cube, MiniMapLayout.cubeSize), cornerRadius: 2),
+                    Path(roundedRect: square(layout.cube, layout.cubeSize), cornerRadius: 2),
                     with: .color(TeleopColors.emergency)
                 )
-                // The ring is a little wider than the cube, like open jaws around it.
-                // The ring is where the jaws pinch. It is a little wider than the cube, like open jaws around it,
-                // and turns green when closing now would take hold.
-                let jaws: Color = guidance.readyToGrasp ? TeleopColors.statusGreen : .white
-                let ring = rect(layout.arm, MiniMapLayout.cubeSize * 1.9)
-                context.stroke(Path(ellipseIn: ring), with: .color(jaws), lineWidth: guidance.readyToGrasp ? 4 : 2.5)
-                context.fill(Path(ellipseIn: CGRect(x: ring.midX - 2, y: ring.midY - 2, width: 4, height: 4)), with: .color(jaws))
+                let base = box(centre: layout.base, width: 9, height: 9)
+                context.fill(Path(roundedRect: base, cornerRadius: 2), with: .color(.gray))
+                let ring = square(layout.arm, layout.cubeSize * MiniMapLayout.ringToCube)
+                context.stroke(Path(ellipseIn: ring), with: .color(jawsColor), lineWidth: guidance.readyToGrasp ? 4 : 2.5)
+                context.fill(Path(ellipseIn: CGRect(x: ring.midX - 2, y: ring.midY - 2, width: 4, height: 4)), with: .color(jawsColor))
             }
-            .frame(width: side, height: side)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-
-            Canvas { context, size in
-                let height = Float(size.height)
-                let mid = size.width / 2
-                context.stroke(
-                    Path { $0.move(to: CGPoint(x: mid, y: 0)); $0.addLine(to: CGPoint(x: mid, y: size.height)) },
-                    with: .color(.white.opacity(0.3)), lineWidth: 2
-                )
-                let cubeY = CGFloat(layout.barOffset(layout.cube.z, height: height))
-                context.fill(Path(CGRect(x: mid - 6, y: cubeY - 5, width: 12, height: 10)), with: .color(TeleopColors.emergency))
-                let armY = CGFloat(layout.barOffset(layout.arm.z, height: height))
-                context.stroke(
-                    Path(ellipseIn: CGRect(x: mid - 8, y: armY - 8, width: 16, height: 16)),
-                    with: .color(guidance.readyToGrasp ? TeleopColors.statusGreen : .white), lineWidth: 2.5
-                )
-            }
-            .frame(width: barWidth, height: side)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("guide.map")
+    }
+
+    private func sideView(_ layout: MiniMapLayout) -> some View {
+        panel(width: layout.width, height: layout.sideHeight) {
+            ZStack {
+                Canvas { context, size in
+                    let table = layout.tableY
+                    context.stroke(
+                        Path { $0.move(to: CGPoint(x: 0, y: CGFloat(table))); $0.addLine(to: CGPoint(x: size.width, y: CGFloat(table))) },
+                        with: .color(.white.opacity(0.5)), lineWidth: 2
+                    )
+                    let goal = layout.sideGoal
+                    context.stroke(
+                        Path { $0.move(to: CGPoint(x: CGFloat(goal.minX), y: CGFloat(goal.y))); $0.addLine(to: CGPoint(x: CGFloat(goal.maxX), y: CGFloat(goal.y))) },
+                        with: .color(TeleopColors.statusGreen), style: StrokeStyle(lineWidth: 4, dash: [5, 4])
+                    )
+                    let cube = layout.sideCube
+                    context.fill(
+                        Path(roundedRect: box(centre: cube.centre, width: cube.edge, height: cube.edge), cornerRadius: 2),
+                        with: .color(TeleopColors.emergency)
+                    )
+                    if let line = layout.gapLine {
+                        let ink = Color.white.opacity(0.85)
+                        // The cube's centre height, carried across to the line, then the line itself between the two heights.
+                        context.stroke(
+                            Path { $0.move(to: CGPoint(x: CGFloat(layout.sideCube.centre.x), y: CGFloat(line.targetY))); $0.addLine(to: CGPoint(x: CGFloat(line.x), y: CGFloat(line.targetY))) },
+                            with: .color(ink.opacity(0.5)), style: StrokeStyle(lineWidth: 1, dash: [2, 3])
+                        )
+                        context.stroke(
+                            Path {
+                                $0.move(to: CGPoint(x: CGFloat(line.x), y: CGFloat(line.ringY)))
+                                $0.addLine(to: CGPoint(x: CGFloat(line.x), y: CGFloat(line.targetY)))
+                                for y in [line.ringY, line.targetY] {
+                                    $0.move(to: CGPoint(x: CGFloat(line.x - 3), y: CGFloat(y)))
+                                    $0.addLine(to: CGPoint(x: CGFloat(line.x + 3), y: CGFloat(y)))
+                                }
+                            },
+                            with: .color(ink), lineWidth: 1
+                        )
+                    }
+                    let ring = layout.ring
+                    let radius = layout.length(layout.cubeSize * MiniMapLayout.ringToCube) / 2
+                    // Two jaws: bars hanging from a bar across the top, their tips on the ring.
+                    context.stroke(
+                        Path {
+                            $0.move(to: CGPoint(x: CGFloat(ring.x - radius), y: CGFloat(ring.y)))
+                            $0.addLine(to: CGPoint(x: CGFloat(ring.x - radius), y: CGFloat(ring.y - MiniMapLayout.jawRise)))
+                            $0.addLine(to: CGPoint(x: CGFloat(ring.x + radius), y: CGFloat(ring.y - MiniMapLayout.jawRise)))
+                            $0.addLine(to: CGPoint(x: CGFloat(ring.x + radius), y: CGFloat(ring.y)))
+                        },
+                        with: .color(jawsColor), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+                    )
+                    let ringBox = box(centre: ring, width: radius * 2, height: MiniMapLayout.ringThickness)
+                    context.stroke(Path(ellipseIn: ringBox), with: .color(jawsColor), lineWidth: guidance.readyToGrasp ? 3.5 : 2)
+                    context.fill(Path(ellipseIn: CGRect(x: ringBox.midX - 2, y: ringBox.midY - 2, width: 4, height: 4)), with: .color(jawsColor))
+                }
+                if let gap = layout.heightGap, let line = layout.gapLine {
+                    Text(Self.gapText(gap))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: CGFloat(MiniMapLayout.labelWidth), height: CGFloat(MiniMapLayout.labelHeight))
+                        .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 4))
+                        .position(point(line.label))
+                        .accessibilityIdentifier("guide.height_gap")
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("guide.side_view")
+    }
+
+    static func gapText(_ gap: MiniMapLayout.HeightGap) -> String {
+        switch gap.kind {
+        case .level: L10n.string("guide.gap_level")
+        case .above: String(format: L10n.string("guide.gap_above"), String(format: "%.1f", gap.centimetres))
+        case .below: String(format: L10n.string("guide.gap_below"), String(format: "%.1f", gap.centimetres))
+        }
     }
 }
 

@@ -25,6 +25,12 @@ struct RobotProfile: Equatable {
     /// How close the pinch point must be to an object's centre, across the table and in height, for closing
     /// the jaws to take hold of it. In the simulator the window is a few millimetres either way.
     var graspTolerance = SIMD2<Float>(0.006, 0.008)
+    /// Edge of the task cube, metres.
+    var cubeSize: Float = 0.025
+    /// The scene's start pose already has the jaws side by side, which is the grasp `toolOffset` was measured
+    /// for. True for the development simulator since 2026-11-11 (its start wrist roll is 90 degrees). The server
+    /// as published starts them front to back, and there the operator has to turn them first: two full presses.
+    var jawsStartSideways = true
 
     /// Where the jaws pinch, robot base frame.
     func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }
@@ -48,6 +54,15 @@ struct Guidance: Equatable {
     var atEdge = false
     /// The jaws are around the cube: closing them now takes hold of it.
     var readyToGrasp = false
+    /// The wrist was tilted since the scene was reset or the link came up. `arm` is the pinch point measured at the
+    /// start pitch, so it no longer says where the jaw tips are.
+    var wristTilted = false
+    /// The jaws have to be turned sideways before this grasp point means anything; the guide says so.
+    var turnJawsFirst = false
+    /// Edge of the cube, metres, for drawing it true to size.
+    var cubeSize = RobotProfile.so101Simulator.cubeSize
+    /// Jaw tips this close to the target's height, metres, count as level with it.
+    var heightTolerance = RobotProfile.so101Simulator.graspTolerance.y
 
     /// How close, flat on the table, the gripper must be to the cube to count as holding it once closed.
     static let holdingRadius: Float = 0.03
@@ -57,24 +72,29 @@ struct Guidance: Equatable {
     /// Positions as the server reports them, metres: the arm in the robot base frame, cube and goal in the world.
     static func make(
         arm reported: SIMD3<Float>, cube worldCube: SIMD3<Float>, goal worldGoal: SIMD3<Float>,
-        gripper: GripperState?, profile: RobotProfile = .so101Simulator
+        gripper: GripperState?, wristTilted: Bool = false, profile: RobotProfile = .so101Simulator
     ) -> Guidance {
         let arm = profile.toolPoint(reported: reported)
         let cube = profile.inBase(world: worldCube), goal = profile.inBase(world: worldGoal)
         let cubeToGoal = goal - cube
         let places = (operatorOffset(arm), operatorOffset(cube), operatorOffset(goal))
         if abs(cubeToGoal.x) <= goalHalfExtent, abs(cubeToGoal.y) <= goalHalfExtent {
-            return Guidance(target: .done, offset: .zero, arm: places.0, cube: places.1, goal: places.2)
+            return Guidance(
+                target: .done, offset: .zero, arm: places.0, cube: places.1, goal: places.2,
+                wristTilted: wristTilted, cubeSize: profile.cubeSize, heightTolerance: profile.graspTolerance.y
+            )
         }
         let flat = SIMD2(cube.x - arm.x, cube.y - arm.y)
         let holding = gripper == .closed && simd_length(flat) <= holdingRadius
         // Carrying: steer the cube, which moves with the gripper, to the goal. Otherwise steer the gripper to the cube.
         let base = holding ? cubeToGoal : cube - arm
-        let ready = !holding && gripper != .closed
+        let ready = !holding && gripper != .closed && !wristTilted
             && simd_length(flat) <= profile.graspTolerance.x && abs(cube.z - arm.z) <= profile.graspTolerance.y
         return Guidance(
             target: holding ? .goal : .cube, offset: operatorOffset(base),
-            arm: places.0, cube: places.1, goal: places.2, readyToGrasp: ready
+            arm: places.0, cube: places.1, goal: places.2, readyToGrasp: ready,
+            wristTilted: wristTilted, turnJawsFirst: !profile.jawsStartSideways,
+            cubeSize: profile.cubeSize, heightTolerance: profile.graspTolerance.y
         )
     }
 
@@ -84,52 +104,149 @@ struct Guidance: Equatable {
     }
 }
 
-/// Where to draw the gripper, the cube and the goal on a square top-down map, and on the height bar beside it.
-/// Up on the map is forward for the operator, right is right. The map zooms to keep all three in view.
+/// Where to draw the gripper, the cube and the goal in the two guide views: from above, and from behind the robot.
+/// Both views are `width` points wide and share one scale (points per metre) and one left-right axis, so a thing
+/// sits at the same x in both. Up in the top view is the operator's forward, right is right. In the side view up is up,
+/// with the table drawn as a line. The scale zooms out to keep the gripper, the cube and the goal in the top view.
+/// Anything that would fall outside a view is pinned to its edge.
 struct MiniMapLayout: Equatable {
-    /// Edge of the cube and of the goal area, metres.
-    static let cubeSize: Float = 0.025
+    /// Edge of the goal area, metres.
     static let goalSize: Float = 0.05
-    /// The map never shows less than this across, so small moves do not look huge.
+    /// The views never cover less than this across, so small moves do not look huge.
     static let minimumSpan: Float = 0.14
     /// Room kept around the outermost thing.
     static let margin: Float = 0.03
-    /// Height the bar covers above the cube's resting height.
-    static let barHeight: Float = 0.14
+    /// Width of both views, points. The text under them wraps at this width too.
+    static let guideWidth: Float = 198
+    /// Points kept between a marker pinned to an edge and that edge.
+    static let pinInset: Float = 7
+    /// Points from the bottom of the side view to the table line.
+    static let tableInset: Float = 12
+    /// Points the jaw schematic rises above the pinch point in the side view.
+    static let jawRise: Float = 28
+    /// Height of the ring in the side view, points. The ring lies flat, so it is seen edge on.
+    static let ringThickness: Float = 10
+    /// The ring is a little wider than the cube, like open jaws around it.
+    static let ringToCube: Float = 1.9
 
+    /// How the jaw tips compare with the cube's centre, or with the goal's resting height while carrying.
+    struct HeightGap: Equatable {
+        enum Kind: Equatable { case above, below, level }
+        var kind: Kind
+        /// Size of the gap in centimetres, never negative.
+        var centimetres: Float
+    }
+
+    /// A dimension line in the side view and where its label goes.
+    struct GapLine: Equatable {
+        /// The line is vertical at this x, from the ring's height to the target's height.
+        var x: Float
+        var ringY: Float
+        var targetY: Float
+        /// Where the label's centre goes.
+        var label: SIMD2<Float>
+    }
+
+    let width: Float
+    let topHeight: Float
+    let sideHeight: Float
+    let cubeSize: Float
+    let heightTolerance: Float
+    let target: Guidance.Target
     let centre: SIMD2<Float>
-    let span: Float
-    let floor: Float
+    /// Points per metre, in both views and both directions.
+    let scale: Float
+    /// Height of the table surface.
+    let tableZ: Float
     let arm: SIMD3<Float>
     let cube: SIMD3<Float>
     let goal: SIMD3<Float>
 
-    init(_ guidance: Guidance) {
+    init(_ guidance: Guidance, width: Float = guideWidth, topHeight: Float = 124, sideHeight: Float = 124) {
+        self.width = width
+        self.topHeight = topHeight
+        self.sideHeight = sideHeight
+        cubeSize = guidance.cubeSize
+        heightTolerance = guidance.heightTolerance
+        target = guidance.target
         arm = guidance.arm
         goal = guidance.goal
         // A held cube travels with the gripper; the server's last word on it is from before the hold.
-        cube = guidance.target == .goal ? SIMD3(guidance.arm.x, guidance.arm.y, guidance.cube.z) : guidance.cube
+        cube = guidance.target == .goal ? guidance.arm : guidance.cube
         let xs = [arm.x, cube.x, goal.x], ys = [arm.y, cube.y, goal.y]
         centre = SIMD2((xs.min()! + xs.max()!) / 2, (ys.min()! + ys.max()!) / 2)
-        span = max(xs.max()! - xs.min()!, ys.max()! - ys.min()!, Self.minimumSpan - 2 * Self.margin) + 2 * Self.margin
-        floor = min(guidance.cube.z, guidance.goal.z) - Self.cubeSize / 2
+        let spanX = max(xs.max()! - xs.min()! + 2 * Self.margin, Self.minimumSpan)
+        let spanY = ys.max()! - ys.min()! + 2 * Self.margin
+        scale = min(width / spanX, topHeight / spanY)
+        tableZ = min(guidance.cube.z, guidance.goal.z) - guidance.cubeSize / 2
     }
 
-    /// Position on a map `side` points square, origin top-left.
-    func point(_ place: SIMD3<Float>, side: Float) -> SIMD2<Float> {
-        SIMD2(
-            (place.x - centre.x) / span * side + side / 2,
-            // Forward is up, and screen y grows downward.
-            side / 2 - (place.y - centre.y) / span * side
-        )
+    var carrying: Bool { target == .goal }
+
+    func length(_ meters: Float) -> Float { meters * scale }
+
+    /// Distance from the left edge, in either view.
+    func x(_ meters: Float) -> Float { (meters - centre.x) * scale + width / 2 }
+
+    /// Position in the top view, origin top-left.
+    func top(_ place: SIMD3<Float>) -> SIMD2<Float> {
+        SIMD2(x(place.x), topHeight / 2 - (place.y - centre.y) * scale)
     }
 
-    func length(_ meters: Float, side: Float) -> Float { meters / span * side }
+    /// The robot base (the base frame's origin) in the top view. Off the map it sits on the nearest edge.
+    var base: SIMD2<Float> {
+        let at = top(.zero), inset = Self.pinInset
+        return SIMD2(min(max(at.x, inset), width - inset), min(max(at.y, inset), topHeight - inset))
+    }
 
-    /// Distance down from the top of a bar `height` points tall; clamped so a marker never leaves the bar.
-    func barOffset(_ z: Float, height: Float) -> Float {
-        let share = min(max((z - floor) / Self.barHeight, 0), 1)
-        return height * (1 - share)
+    // MARK: Side view
+
+    var tableY: Float { sideHeight - Self.tableInset }
+
+    /// Distance from the top of the side view for a height, not pinned.
+    func sideY(_ z: Float) -> Float { tableY - (z - tableZ) * scale }
+
+    /// Where the pinch point is drawn. Too high or too low, it stays where the jaw schematic still fits.
+    var ring: SIMD2<Float> {
+        SIMD2(x(arm.x), min(max(sideY(arm.z), Self.jawRise + Self.pinInset), sideHeight - Self.pinInset))
+    }
+
+    /// The cube in the side view: sitting on the table, or in the jaws while carried.
+    var sideCube: (centre: SIMD2<Float>, edge: Float) {
+        (SIMD2(x(cube.x), carrying ? ring.y : sideY(cube.z)), length(cubeSize))
+    }
+
+    /// The goal area as a segment on the table.
+    var sideGoal: (minX: Float, maxX: Float, y: Float) {
+        (x(goal.x - Self.goalSize / 2), x(goal.x + Self.goalSize / 2), tableY)
+    }
+
+    /// Height the jaw tips are measured against: the cube's centre, or the goal's resting height while carrying.
+    var targetZ: Float { carrying ? goal.z : cube.z }
+
+    var heightGap: HeightGap? {
+        guard target != .done else { return nil }
+        let gap = arm.z - targetZ
+        let kind: HeightGap.Kind = abs(gap) <= heightTolerance ? .level : (gap > 0 ? .above : .below)
+        return HeightGap(kind: kind, centimetres: abs(gap) * 100)
+    }
+
+    /// Room the gap label needs beside the line, points.
+    static let labelWidth: Float = 74
+    static let labelHeight: Float = 16
+
+    var gapLine: GapLine? {
+        guard heightGap != nil else { return nil }
+        let ring = self.ring
+        let reach = length(cubeSize * Self.ringToCube) / 2 + 10
+        // Beside the ring, on the side of it with more room, with the label further out so it stays off the ring and the cube.
+        let toRight = ring.x < width / 2
+        let lineX = min(max(toRight ? ring.x + reach : ring.x - reach, Self.pinInset), width - Self.pinInset)
+        let targetY = min(max(sideY(targetZ), Self.pinInset), sideHeight - Self.pinInset)
+        let half = Self.labelWidth / 2
+        let labelX = min(max(toRight ? lineX + 5 + half : lineX - 5 - half, half), width - half)
+        let labelY = min(max((ring.y + targetY) / 2, Self.labelHeight / 2), sideHeight - Self.labelHeight / 2)
+        return GapLine(x: lineX, ringY: ring.y, targetY: targetY, label: SIMD2(labelX, labelY))
     }
 }
 

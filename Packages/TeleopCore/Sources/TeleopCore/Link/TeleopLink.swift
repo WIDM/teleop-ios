@@ -179,9 +179,9 @@ public final class TeleopLink {
         emit("gripper_jog_stop", [:])
     }
 
-    /// Starts turning the jaws, replacing any turn already running. The server rolls the wrist by the rotation
-    /// about y that `orientUpdate` asks for, at most 60 degrees from where the wrist was when this hold began.
-    /// Returns false, sending nothing, if the link is not ready or an arm hold is active.
+    /// Starts a wrist move, replacing any already running. The server moves the wrist by the rotation that
+    /// `orientUpdate` asks for: about y it rolls the wrist (at most 60 degrees from where it was when this hold began),
+    /// about x it pitches it (at most 35 degrees). Returns false, sending nothing, if the link is not ready or an arm hold is active.
     @discardableResult
     public func orientStart() -> Bool {
         guard ready, !holdActive else { return false }
@@ -196,14 +196,25 @@ public final class TeleopLink {
     /// Roll asked for, in degrees from the wrist as it was when the hold began. Positive turns the same way
     /// as the server's wrist roll increases. Also the keepalive: the server drops the hold 750 ms after the last one.
     public func orientUpdate(rollDegrees: Double) {
-        releaseHeldStart(force: false)
-        guard turnActive, heldBack == nil, rollDegrees.isFinite else { return }
-        // The server reads the rotation about y, negated, as the wrist roll. x and z stay 0: x would pitch the wrist.
+        // The server reads the rotation about y, negated, as the wrist roll.
         let half = rollDegrees * .pi / 360
-        // Adding 0 turns a negative zero into 0, so a roll of 0 sends [0, 0, 0, 1].
-        let y = (-sin(half) * 1_000_000).rounded() / 1_000_000 + 0
-        let w = (cos(half) * 1_000_000).rounded() / 1_000_000
-        emit("orient_update", ["q_rel": [0, y, 0, w]])
+        orientUpdate(rollDegrees.isFinite ? [0, -sin(half), 0, cos(half)] : nil)
+    }
+
+    /// Pitch asked for, in degrees from the wrist as it was when the hold began. Positive points the jaws
+    /// toward the table. Also the keepalive, like `orientUpdate(rollDegrees:)`.
+    public func orientUpdate(pitchDegrees: Double) {
+        // The server reads the rotation about x as the wrist pitch.
+        let half = pitchDegrees * .pi / 360
+        orientUpdate(pitchDegrees.isFinite ? [sin(half), 0, 0, cos(half)] : nil)
+    }
+
+    /// Only one axis of `q` is ever non-zero, so a roll never pitches the wrist and the other way round.
+    private func orientUpdate(_ q: [Double]?) {
+        releaseHeldStart(force: false)
+        guard turnActive, heldBack == nil, let q else { return }
+        // Adding 0 turns a negative zero into 0, so an angle of 0 sends [0, 0, 0, 1].
+        emit("orient_update", ["q_rel": q.map { ($0 * 1_000_000).rounded() / 1_000_000 + 0 }])
     }
 
     /// Ends the turn; the joint stays where it is. Safe to call when none is active.

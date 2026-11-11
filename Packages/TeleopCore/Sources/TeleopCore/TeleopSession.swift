@@ -39,7 +39,7 @@ public enum TeleopAction: Equatable, Sendable {
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
     case gripperStart(GripperState)
     case gripperEnd
-    /// The jaw turn control is pressed: the wrist rolls toward `direction` until `turnEnd`.
+    /// A wrist control is pressed: the wrist rolls or pitches toward `direction` until `turnEnd`.
     case turnStart(TurnDirection)
     case turnEnd
     case holdArmStart

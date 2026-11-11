@@ -375,6 +375,57 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertTrue(s.state.armMoving)
     }
 
+    func testWristTiltRunsOnlyWhileHeldAndTakesOverFromEveryOtherControl() {
+        var s = connectedFallback()
+        s.perform(.turnStart(.tiltDown))
+        XCTAssertEqual(s.state.jawTurning, .tiltDown)
+        s.perform(.turnStart(.tiltUp))
+        XCTAssertEqual(s.state.jawTurning, .tiltUp)
+        s.perform(.turnStart(.positive))
+        XCTAssertEqual(s.state.jawTurning, .positive, "roll and tilt are one wrist move at a time")
+        s.perform(.turnStart(.tiltDown))
+        s.perform(.gripperStart(.open))
+        XCTAssertNil(s.state.jawTurning)
+        s.perform(.turnStart(.tiltUp))
+        XCTAssertNil(s.state.gripperMoving)
+        s.perform(.holdArmStart)
+        XCTAssertNil(s.state.jawTurning)
+        s.perform(.turnStart(.tiltDown))
+        XCTAssertNil(s.state.jawTurning, "refused while the arm is held")
+        XCTAssertEqual(s.drainHaptics().last, .play(.commandBlocked))
+        s.perform(.holdArmEnd)
+        s.perform(.turnStart(.tiltDown))
+        s.perform(.turnEnd)
+        XCTAssertNil(s.state.jawTurning)
+    }
+
+    func testWristTiltHasTheSameExclusionsAsTheRoll() {
+        var offline = TeleopSession()
+        offline.perform(.turnStart(.tiltUp))
+        XCTAssertNil(offline.state.jawTurning)
+        XCTAssertEqual(offline.drainHaptics(), [])
+
+        var stopped = connectedFallback()
+        stopped.perform(.stop)
+        _ = stopped.drainHaptics()
+        stopped.perform(.turnStart(.tiltDown))
+        XCTAssertNil(stopped.state.jawTurning)
+        XCTAssertEqual(stopped.drainHaptics(), [])
+
+        var slow = connectedFallback()
+        slow.perform(.simulateHighLatency)
+        slow.perform(.turnStart(.tiltDown))
+        XCTAssertNil(slow.state.jawTurning)
+        XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
+
+        for end in [TeleopAction.stop, .simulateHighLatency, .disconnect, .switchMode, .resetScene] {
+            var s = connectedFallback()
+            s.perform(.turnStart(.tiltUp))
+            s.perform(end)
+            XCTAssertNil(s.state.jawTurning, "\(end)")
+        }
+    }
+
     func testStopLatencyBlockAndDisconnectEndTheJawTurn() {
         var stopped = connectedFallback()
         stopped.perform(.turnStart(.positive))

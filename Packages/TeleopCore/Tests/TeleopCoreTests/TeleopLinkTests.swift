@@ -284,6 +284,47 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(Set((sent.last!["payload"] as! [String: Any]).keys), ["q_rel"])
     }
 
+    func testOrientUpdatePitchesAboutXAndTiltsTheJawsDownForAPositiveAngle() {
+        bringUp()
+        link.orientStart()
+        link.orientUpdate(pitchDegrees: 0)
+        XCTAssertEqual(qRel(sent.last!), [0, 0, 0, 1])
+        // The exact message the server moved wrist_flex from 40 to 50 degrees for.
+        link.orientUpdate(pitchDegrees: 10)
+        XCTAssertEqual(qRel(sent.last!), [0.087156, 0, 0, 0.996195])
+        XCTAssertEqual(Set((sent.last!["payload"] as! [String: Any]).keys), ["q_rel"])
+        link.orientUpdate(pitchDegrees: -10)
+        XCTAssertEqual(qRel(sent.last!), [-0.087156, 0, 0, 0.996195])
+    }
+
+    func testEveryOrientUpdateMovesOneAxisOnly() {
+        bringUp()
+        link.orientStart()
+        for degrees in [-45.0, -10, -0.5, 0, 0.5, 10, 45] {
+            link.orientUpdate(rollDegrees: degrees)
+            var q = qRel(sent.last!)
+            XCTAssertEqual(q[0], 0, "roll \(degrees) pitched")
+            XCTAssertEqual(q[2], 0)
+            link.orientUpdate(pitchDegrees: degrees)
+            q = qRel(sent.last!)
+            XCTAssertEqual(q[1], 0, "pitch \(degrees) rolled")
+            XCTAssertEqual(q[2], 0)
+            XCTAssertEqual(sqrt(q.map { $0 * $0 }.reduce(0, +)), 1, accuracy: 1e-5)
+        }
+    }
+
+    func testAPitchUpdateIsDroppedOutsideATurnAndWhenNotFinite() {
+        bringUp()
+        link.orientUpdate(pitchDegrees: 10)
+        XCTAssertFalse(types.contains("orient_update"))
+        link.orientStart()
+        link.orientUpdate(pitchDegrees: .infinity)
+        link.orientUpdate(pitchDegrees: .nan)
+        XCTAssertFalse(types.contains("orient_update"))
+        link.orientUpdate(pitchDegrees: 5)
+        XCTAssertEqual(types.last, "orient_update")
+    }
+
     func testOrientUpdateIsNotRememberedAndIsDroppedOutsideATurn() {
         bringUp()
         link.orientUpdate(rollDegrees: 10)

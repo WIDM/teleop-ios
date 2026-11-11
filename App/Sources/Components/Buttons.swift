@@ -255,19 +255,20 @@ struct GripperOpenHandle: View {
     }
 }
 
-/// Left edge of the camera view, under the open handle: hold to roll the wrist, which turns the jaws about the forearm.
-/// One press turns them by up to 45 degrees and they stay where they are on release. The server reports no wrist
-/// angle, so the handle cannot show how far they have turned.
+/// Left edge of the camera view, under the open handle: hold to move the wrist. Two handles roll it, which turns the
+/// jaws about the forearm; two tilt it, which points the jaws more toward the table or away from it.
+/// One press moves it by up to 45 degrees (roll) or 10 degrees (tilt) and it stays where it is on release.
+/// The server reports no wrist angle, so the handle cannot show how far it has moved.
 struct JawTurnHandle: View {
     let model: AppModel
     let direction: TurnDirection
 
     var body: some View {
         let active = model.session.state.jawTurning == direction
-        let positive = direction == .positive
+        let look = Self.look(direction)
         VStack(spacing: 2) {
-            Image(systemName: positive ? "arrow.counterclockwise" : "arrow.clockwise").font(.system(size: 22))
-            Text("control.jaw_turn").font(.system(size: 13))
+            Image(systemName: look.symbol).font(.system(size: 22))
+            Text(look.label).font(.system(size: 13))
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
@@ -277,13 +278,23 @@ struct JawTurnHandle: View {
         )
         // One element for the whole handle: iOS 18 otherwise exposes the icon as a second, untappable one.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(positive ? "control.jaw_turn_positive" : "control.jaw_turn_negative"))
+        .accessibilityLabel(Text(look.spoken))
         .turnHold(model: model, direction: direction)
-        .accessibilityIdentifier(positive ? "jaw.turn_positive" : "jaw.turn_negative")
+        .accessibilityIdentifier(look.identifier)
+    }
+
+    private static func look(_ direction: TurnDirection) -> (symbol: String, label: LocalizedStringKey, spoken: LocalizedStringKey, identifier: String) {
+        switch direction {
+        case .positive: ("arrow.counterclockwise", "control.jaw_turn", "control.jaw_turn_positive", "jaw.turn_positive")
+        case .negative: ("arrow.clockwise", "control.jaw_turn", "control.jaw_turn_negative", "jaw.turn_negative")
+        case .tiltDown: ("arrow.down.to.line", "control.jaw_tilt", "control.jaw_tilt_down", "jaw.tilt_down")
+        case .tiltUp: ("arrow.up.to.line", "control.jaw_tilt", "control.jaw_tilt_up", "jaw.tilt_up")
+        }
     }
 }
 
-/// The hold-to-act handles down the left edge of the camera view: open the gripper, turn the jaws each way.
+/// The hold-to-act handles down the left edge of the camera view: open the gripper, turn the jaws each way,
+/// tilt them down and up.
 struct LeftHandles: View {
     let model: AppModel
 
@@ -292,6 +303,8 @@ struct LeftHandles: View {
             GripperOpenHandle(model: model)
             JawTurnHandle(model: model, direction: .positive)
             JawTurnHandle(model: model, direction: .negative)
+            JawTurnHandle(model: model, direction: .tiltDown)
+            JawTurnHandle(model: model, direction: .tiltUp)
         }
     }
 }

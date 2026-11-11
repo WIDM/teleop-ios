@@ -191,6 +191,21 @@ final class ServerMotionTests: XCTestCase {
         XCTAssertFalse(model.session.state.emergencyStop)
     }
 
+    /// The wrist pitch handles: a press tilts the jaws and is not refused, and the opposite press follows it at once.
+    /// The angles themselves are only in the server's log (it reports none): 40 to 50 and back on 2026-11-11.
+    func testTiltPressesAreAcceptedBothWays() {
+        model.send(.turnStart(.tiltDown))
+        pump(4)
+        XCTAssertEqual(model.session.state.jawTurning, .tiltDown, "the tilt was refused. log: \(model.debugLog.suffix(4))")
+        model.send(.turnEnd)
+        model.send(.turnStart(.tiltUp))
+        pump(4)
+        XCTAssertEqual(model.session.state.jawTurning, .tiltUp, "the tilt back was refused. log: \(model.debugLog.suffix(4))")
+        model.send(.turnEnd)
+        pump(1.0)
+        XCTAssertFalse(model.session.state.emergencyStop)
+    }
+
     /// The whole task in as few holds as it takes.
     func testPickAndPlaceByScript() throws {
         try pickAndPlace(warmUpHolds: 0)
@@ -223,8 +238,10 @@ final class ServerMotionTests: XCTestCase {
             let up: Float = hold % 2 == 0 ? 0.03 : 0.015
             moveArm(to: armStart + SIMD3(0, 0, up), "warm-up hold \(hold + 1)", maxHolds: 1)
         }
-        turnJaws(.positive)
-        turnJaws(.positive)
+        if !profile.jawsStartSideways {
+            turnJaws(.positive)
+            turnJaws(.positive)
+        }
         // Where the reported gripper point has to be for the map's ring to sit on the cube, from where the cube
         // is now, as the map shows it.
         let cube = model.link.cubePosition ?? cubeStart
@@ -245,8 +262,19 @@ final class ServerMotionTests: XCTestCase {
             XCTFail("the cube was not lifted")
             return
         }
-        let overGoal = grasp + SIMD3(goal.x - cube.x, goal.y - cube.y, 0)
+        var overGoal = grasp + SIMD3(goal.x - cube.x, goal.y - cube.y, 0)
         moveArm(to: overGoal + lift, "to the goal")
+        // The cube sits ahead of the reported point, so it swings further than that point when the arm turns.
+        // Steer the cube itself onto the goal, as the guide does while carrying.
+        if let carried = model.link.cubePosition {
+            let miss = SIMD3(goal.x - carried.x, goal.y - carried.y, 0)
+            print(String(format: "PICK carried: cube at (%.1f, %.1f, %.1f) cm, %.1f cm from the goal across the table",
+                         carried.x * 100, carried.y * 100, carried.z * 100, simd_length(miss) * 100))
+            if simd_length(miss) > 0.005, carried.z - cube.z > 0.015 {
+                overGoal += miss
+                moveArm(to: overGoal + lift, "cube over the goal", maxHolds: 1)
+            }
+        }
         moveArm(to: overGoal + SIMD3(0, 0, 0.002), "down onto the goal", maxHolds: 1)
         gripper(.open, seconds: 5)
         moveArm(to: overGoal + lift, "lift away", maxHolds: 1)
