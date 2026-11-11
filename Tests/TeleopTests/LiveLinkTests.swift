@@ -1100,6 +1100,27 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(transports.isEmpty)
     }
 
+    /// I-8.3: the tilt window counts from the flex measured after the last reset. A reconnect to the same run keeps
+    /// it; only a new `welcome.session` starts it again. A server that names no run never does on a reconnect.
+    func testOnlyANewServerRunStartsTheTiltWindowAgain() {
+        for named in [false, true] {
+            makeModel(at: .p4)
+            model.connect()
+            transport.server("welcome", named ? ["session": "run-1"] : [:])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 40.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 40)
+            model.connect()
+            transport.server("welcome", named ? ["session": "run-1"] : [:])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 55.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 40, "a reconnect, named: \(named)")
+            guard named else { continue }
+            model.connect()
+            transport.server("welcome", ["session": "run-2"])
+            transport.server("state", ["estop": false, "wrist_flex_deg": 55.0])
+            XCTAssertEqual(model.inputFacts().wrist.flexAtResetDeg, 55, "a new run")
+        }
+    }
+
     func testReconnectDropsTheOldSocket() {
         bringUp()
         let first = transport!

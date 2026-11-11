@@ -502,8 +502,9 @@ final class AppModel {
     /// The control connection's welcome. A STOP pressed while no connection was up goes out first.
     private func welcomed(session run: String?) {
         narrator.welcomed(session: run)
-        // A new server run starts from its own reset pose.
-        if run == nil || run != lastWelcomeSession {
+        // A new server run starts from its own reset pose. A server that names no run cannot tell a reconnect from a
+        // new run, so the tilt window keeps counting from the last reset seen (I-8.3).
+        if let run, run != lastWelcomeSession {
             lastWelcomeSession = run
             lastEpisode = nil
             sceneWasReset()
