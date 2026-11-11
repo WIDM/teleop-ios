@@ -29,6 +29,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var gripperMoving: GripperState?
     /// Which way the wrist is moving while a wrist control is held (roll or pitch); nil when still.
     public var jawTurning: TurnDirection?
+    /// True while a wrist hold that takes its angle from the phone's rotation is engaged.
+    public var wristMoving = false
     public var serverInputError = false
     /// Live link only: a working link dropped. S1 says so until the next connection or a Disconnect.
     public var connectionLost = false
@@ -58,6 +60,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
     }
 
     public mutating func clearLatency() {
@@ -70,6 +73,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
         connected = false
         connectionLost = false
         clearLatency()
@@ -80,6 +84,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         armMoving = false
         gripperMoving = nil
         jawTurning = nil
+        wristMoving = false
         gripper = .open
         clearLatency()
     }
@@ -99,4 +104,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func turnJaws(toward direction: TurnDirection) { jawTurning = direction }
 
     public mutating func stopTurn() { jawTurning = nil }
+
+    public mutating func stopWrist() { wristMoving = false }
 }

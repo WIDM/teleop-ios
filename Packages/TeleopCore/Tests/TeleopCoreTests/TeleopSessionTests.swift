@@ -444,6 +444,74 @@ final class TeleopSessionTests: XCTestCase {
         XCTAssertNil(slow.state.jawTurning)
     }
 
+    func testWristHoldRunsOnlyWhileHeldAndTakesOverFromEveryOtherControl() {
+        var s = connectedFallback()
+        s.perform(.wristStart)
+        XCTAssertTrue(s.state.wristMoving)
+        s.perform(.wristEnd)
+        XCTAssertFalse(s.state.wristMoving)
+        s.perform(.turnStart(.positive))
+        s.perform(.wristStart)
+        XCTAssertNil(s.state.jawTurning, "one wrist move at a time")
+        XCTAssertTrue(s.state.wristMoving)
+        s.perform(.gripperStart(.open))
+        XCTAssertFalse(s.state.wristMoving)
+        s.perform(.wristStart)
+        XCTAssertNil(s.state.gripperMoving)
+        s.perform(.turnStart(.tiltUp))
+        XCTAssertFalse(s.state.wristMoving)
+        s.perform(.wristStart)
+        s.perform(.holdArmStart)
+        XCTAssertFalse(s.state.wristMoving)
+        _ = s.drainHaptics()
+        s.perform(.wristStart)
+        XCTAssertFalse(s.state.wristMoving, "refused while the arm is held")
+        XCTAssertEqual(s.drainHaptics(), [.play(.commandBlocked)])
+    }
+
+    func testWristHoldHasTheSameExclusionsAsAJawTurn() {
+        var offline = disconnected()
+        offline.perform(.wristStart)
+        XCTAssertFalse(offline.state.wristMoving)
+        XCTAssertEqual(offline.drainHaptics(), [])
+
+        var stopped = connectedFallback()
+        stopped.perform(.stop)
+        _ = stopped.drainHaptics()
+        stopped.perform(.wristStart)
+        XCTAssertFalse(stopped.state.wristMoving)
+        XCTAssertEqual(stopped.drainHaptics(), [])
+
+        var slow = connectedFallback()
+        blockOnLatency(&slow)
+        slow.perform(.wristStart)
+        XCTAssertFalse(slow.state.wristMoving)
+        XCTAssertEqual(slow.drainHaptics(), [.play(.commandBlocked)])
+
+        for end in [TeleopAction.stop, .disconnect, .switchLink, .resetScene, .wristEnd] {
+            var s = connectedFallback()
+            s.perform(.wristStart)
+            s.perform(end)
+            XCTAssertFalse(s.state.wristMoving, "\(end)")
+        }
+        var slowed = connectedFallback()
+        slowed.perform(.wristStart)
+        blockOnLatency(&slowed)
+        XCTAssertFalse(slowed.state.wristMoving)
+
+        var lost = connectedFallback()
+        lost.state.liveLink = true
+        lost.perform(.wristStart)
+        lost.perform(.linkLost)
+        XCTAssertFalse(lost.state.wristMoving)
+
+        var blocked = connectedFallback()
+        blocked.perform(.wristStart)
+        blocked.state.commandsBlocked = true
+        blocked.perform(.wristEnd)
+        XCTAssertFalse(blocked.state.wristMoving, "release always stops")
+    }
+
     func testJawTurnEndWorksEvenWhenBlocked() {
         var s = connectedFallback()
         s.perform(.turnStart(.positive))
@@ -532,6 +600,44 @@ final class TeleopSessionTests: XCTestCase {
         offline.state.gripper = .closed
         offline.perform(.resetScene)
         XCTAssertEqual(offline.state.gripper, .closed)
+    }
+
+    /// §6.5: a scene reset clears the emergency stop, so a reset the server confirmed releases the latch, ends the long
+    /// buzz and leaves S4. "Ready." comes with the server's new episode.
+    func testAConfirmedResetReleasesTheStop() {
+        var s = TeleopSession(start: .p4)
+        s.state.markConnected()
+        s.perform(.stop)
+        _ = s.drainHaptics()
+        s.perform(.resetScene)
+        XCTAssertTrue(s.state.emergencyStop, "asking for a reset releases nothing")
+        s.perform(.sceneResetDone)
+        XCTAssertFalse(s.state.emergencyStop)
+        XCTAssertEqual(s.route, .p4)
+        XCTAssertEqual(s.drainHaptics(), [.cancel])
+    }
+
+    func testAConfirmedResetOutsideTheStopChangesNothing() {
+        var s = connectedFallback()
+        s.perform(.holdArmStart)
+        _ = s.drainHaptics()
+        let before = s
+        s.perform(.sceneResetDone)
+        XCTAssertEqual(s, before)
+    }
+
+    /// Found by the safety checker: staying on P5 would let Close lead back to S4 with no stop latched.
+    func testAConfirmedResetOnAConnectionScreenGoesToStandby() {
+        var s = TeleopSession(start: .p4)
+        s.state.markConnected()
+        s.perform(.stop)
+        s.perform(.openConnection)
+        s.perform(.sceneResetDone)
+        XCTAssertFalse(s.state.emergencyStop)
+        XCTAssertEqual(s.route, .p4)
+        s.perform(.openConnection)
+        s.perform(.closeConnection)
+        XCTAssertEqual(s.route, .p4)
     }
 
     func testSwitchingToTheRealServerDropsTheDemoAndStaysOnSettings() {

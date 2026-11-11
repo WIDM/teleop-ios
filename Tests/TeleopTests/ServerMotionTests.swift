@@ -43,13 +43,13 @@ final class ServerMotionTests: XCTestCase {
         hand.pump(0.5)
         let before = model.link.armPosition
         let started = Date()
-        model.send(.holdArmStart)
+        hand.press(.upper)
         XCTAssertTrue(model.session.state.armMoving, "\(name): hold did not start")
         motion()
         let asked = hand.position
         hand.pump(settle)
         XCTAssertTrue(model.session.state.armMoving, "\(name): hold ended by itself. log: \(model.debugLog.suffix(6))")
-        model.send(.holdArmEnd)
+        hand.release(.upper)
         hand.pump(1.0)
         XCTAssertFalse(model.session.state.emergencyStop, "\(name): E-stopped, cause \(String(describing: model.stopCause))")
         XCTAssertTrue(model.session.state.connected, "\(name): link lost")

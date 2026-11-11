@@ -32,22 +32,18 @@ final class LiveLinkTests: XCTestCase {
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
-    private var savedLiveLink: Any?
     private var savedLanguage = L10n.language
     private var felt = SpyHaptics()
     private var speech = SpySpeech()
     private var sounds = SpySounds()
 
-    // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
     override func setUp() {
         super.setUp()
-        savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
         savedLanguage = L10n.language
         L10n.language = .en
     }
 
     override func tearDown() {
-        UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
         L10n.language = savedLanguage
         super.tearDown()
     }
@@ -133,13 +129,24 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(transports.isEmpty)
     }
 
-    func testAddressStartsEmptyAndASavedOneLoadsForTheRealServer() {
+    /// The saved address loads in practice too, so leaving practice connects to it. It used to load only when the
+    /// launch was on the real server, and switching after a practice launch left the address empty.
+    func testASavedAddressLoadsSoLeavingPracticeConnectsToIt() {
+        let saved = UserDefaults.standard.string(forKey: AppModel.serverAddressKey)
         UserDefaults.standard.set("100.64.0.7:8765", forKey: AppModel.serverAddressKey)
-        defer { UserDefaults.standard.removeObject(forKey: AppModel.serverAddressKey) }
+        defer { UserDefaults.standard.set(saved, forKey: AppModel.serverAddressKey) }
         let live = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: true, makeTransport: { _ in FakeTransport() })
         XCTAssertEqual(live.session.state.serverAddress, "100.64.0.7:8765")
-        let demo = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: false)
-        XCTAssertEqual(demo.session.state.serverAddress, "")
+        var opened: [URL] = []
+        let practice = AppModel(
+            start: .p4, haptics: NoHaptics(), pose: { nil }, liveLink: false,
+            makeTransport: { opened.append($0); return FakeTransport() }
+        )
+        XCTAssertEqual(practice.session.state.serverAddress, "100.64.0.7:8765")
+        XCTAssertTrue(practice.operating.practice)
+        practice.leavePractice()
+        XCTAssertFalse(practice.operating.practice)
+        XCTAssertEqual(opened.map(\.absoluteString), ["ws://100.64.0.7:8765"])
     }
 
     func testAddressForms() {

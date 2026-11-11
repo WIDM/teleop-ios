@@ -43,7 +43,9 @@ for name in sorted(stored - key_fields - excluded):
 
 
 HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
-KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
+# The volume keys reach the input rules (OperatingController): vol+ moves the arm; vol- closes the jaws (scheme A) or
+# holds the wrist (scheme B).
+KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd"}
 GRIPPER_ACTIONS = {"gripperStart", "gripperEnd"}
 TURN_ACTIONS = {"turnStart", "turnEnd"}
 ROOT_VIEW_ACTIONS = {"holdArmEnd"}
@@ -88,10 +90,15 @@ for path in APP.rglob("*.swift"):
         outside_structs[str(path.relative_to(APP))] = leftover
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
-    # connect: the fake link's S1 Connect. holdArmEnd, turnEnd: a hold or turn the link could not start.
-    # switchLink: the live-link switch.
-    "AppModel.swift": {"connect", "holdArmEnd", "turnEnd", "switchLink"},
-    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "linkUp", "linkLost", "linkLatency", "stop"},
+    # connect: the fake link's S1 Connect. holdArmEnd, turnEnd, wristEnd: a hold or turn the link could not start.
+    # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
+    # sceneResetDone: the top band's reset (the practice link confirms it at once).
+    "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "turnEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
+    # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS). stop, openSettings and the
+    # reset come only from touches on the bands, which no shipped screen feeds yet; a screen that installs the touch
+    # surface adds them to its ui-map row.
+    "Operating/OperatingController.swift": {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings"},
 }
 for path, names in sorted(outside_structs.items()):
     if allowed_outside.get(path) != names:
@@ -134,8 +141,7 @@ for screen, names in sorted(listed_by_struct.items()):
 allowed = {
     "RootView": ROOT_VIEW_ACTIONS,
     "ArmHoldModifier": HOLD_ACTIONS,
-    "VolumeKeyMapper": KEY_ACTIONS,
-    "VolumeKeyModifier": {"holdArmEnd", "gripperEnd"},
+    "VolumeKeyModifier": set(),
     "HeldControlModifier": set(),
     "GripperHoldButton": GRIPPER_ACTIONS,
     "GripperOpenHandle": GRIPPER_ACTIONS,

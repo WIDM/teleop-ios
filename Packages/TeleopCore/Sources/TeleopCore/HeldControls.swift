@@ -6,6 +6,7 @@ extension FakeTeleopState {
         case .holdArmStart: return armMoving
         case .gripperStart(let target): return gripperMoving == target
         case .turnStart(let direction): return jawTurning == direction
+        case .wristStart: return wristMoving
         default: return false
         }
     }

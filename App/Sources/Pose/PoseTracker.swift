@@ -11,6 +11,12 @@ final class PoseTracker: NSObject, ARSessionDelegate {
     private var running = false
     /// Latest camera pose in world space; nil until tracking is normal.
     private(set) var current: simd_float4x4?
+    /// Every frame: the camera pose while tracking is normal (nil otherwise), and the frame's timestamp on the
+    /// uptime clock, the clock touches carry too.
+    var onFrame: ((simd_float4x4?, TimeInterval) -> Void)?
+    /// The system stopped the camera (true) or gave it back (false). While it is stopped the volume keys change the
+    /// volume again and no pose arrives.
+    var onInterruption: ((Bool) -> Void)?
 
     override private init() {
         super.init()
@@ -38,6 +44,16 @@ final class PoseTracker: NSObject, ARSessionDelegate {
         } else {
             current = nil
         }
+        onFrame?(current, frame.timestamp)
+    }
+
+    func sessionWasInterrupted(_ session: ARSession) {
+        current = nil
+        onInterruption?(true)
+    }
+
+    func sessionInterruptionEnded(_ session: ARSession) {
+        onInterruption?(false)
     }
 }
 

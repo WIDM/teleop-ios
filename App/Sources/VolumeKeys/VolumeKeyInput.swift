@@ -2,14 +2,15 @@ import AVKit
 import SwiftUI
 import TeleopCore
 
-/// Adds the hardware key interaction to a plain UIView behind the screen.
+/// Adds the hardware key interaction to a plain UIView behind the screen. iOS sends the volume keys here only while
+/// the camera is in use, which `PoseTracker` keeps it.
 @available(iOS 17.2, *)
 private struct CaptureEventCatcher: UIViewRepresentable {
     let enabled: Bool
-    let onEvent: (VolumeKey, VolumeKeyPhase) -> Void
+    let onEvent: (InputKey, Bool) -> Void
 
     final class Coordinator {
-        var onEvent: (VolumeKey, VolumeKeyPhase) -> Void = { _, _ in }
+        var onEvent: (InputKey, Bool) -> Void = { _, _ in }
         var interaction: AVCaptureEventInteraction?
     }
 
@@ -19,10 +20,10 @@ private struct CaptureEventCatcher: UIViewRepresentable {
         let view = UIView()
         view.isUserInteractionEnabled = false
         let coordinator = context.coordinator
-        // Primary is the volume-down button, secondary the volume-up button.
+        // Primary is the volume-down button, secondary the volume-up button. Cancelled counts as ended (§2.1).
         let interaction = AVCaptureEventInteraction(
-            primary: { event in coordinator.onEvent(.down, Self.phase(event.phase)) },
-            secondary: { event in coordinator.onEvent(.up, Self.phase(event.phase)) }
+            primary: { event in coordinator.onEvent(.lower, event.phase == .began) },
+            secondary: { event in coordinator.onEvent(.upper, event.phase == .began) }
         )
         view.addInteraction(interaction)
         coordinator.interaction = interaction
@@ -33,36 +34,19 @@ private struct CaptureEventCatcher: UIViewRepresentable {
         context.coordinator.onEvent = onEvent
         context.coordinator.interaction?.isEnabled = enabled
     }
-
-    private static func phase(_ phase: AVCaptureEventPhase) -> VolumeKeyPhase {
-        switch phase {
-        case .began: return .began
-        case .ended: return .ended
-        default: return .cancelled
-        }
-    }
 }
 
-/// Volume keys drive the same session path as the on-screen hold area.
+/// Hands the volume keys' raw began and ended events to the model, which judges them with the input rules.
 private struct VolumeKeyModifier: ViewModifier {
     let model: AppModel
     let enabled: Bool
-    @State private var mapper = VolumeKeyMapper()
 
     func body(content: Content) -> some View {
         content
             .background {
                 if #available(iOS 17.2, *) {
-                    CaptureEventCatcher(enabled: enabled) { key, phase in
-                        for action in mapper.actions(for: key, phase: phase, in: model.session.state) { model.send(action) }
-                    }
+                    CaptureEventCatcher(enabled: enabled) { key, down in model.keyEvent(key, down: down) }
                 }
-            }
-            .onDisappear {
-                // Same rule as the hold area: leaving the screen ends the hold, a new press is needed.
-                mapper = VolumeKeyMapper()
-                if model.session.state.armMoving { model.send(.holdArmEnd) }
-                if model.session.state.gripperMoving != nil { model.send(.gripperEnd) }
             }
     }
 }

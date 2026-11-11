@@ -24,9 +24,16 @@ public enum TeleopAction: Equatable, Sendable {
     /// A wrist control is pressed: the wrist rolls or pitches toward `direction` until `turnEnd`.
     case turnStart(TurnDirection)
     case turnEnd
+    /// A wrist hold whose angle follows the phone's rotation (or another source of targets) is engaged, until
+    /// `wristEnd`.
+    case wristStart
+    case wristEnd
     case holdArmStart
     case holdArmEnd
     case resetScene
+    /// The server confirmed a scene reset (`ok scene_reset`), or the practice link ran one. A reset clears an
+    /// emergency stop (specification §6.5), so this is the eyes-free way out of the stop state.
+    case sceneResetDone
     /// The Settings switch between the demo and a real server: the old link is dropped with anything held, and the
     /// new one starts. Sent after `liveLink` has changed.
     case switchLink
@@ -112,6 +119,7 @@ public struct TeleopSession: Equatable, Sendable {
             state.armMoving = false
             state.stopGripper()
             state.stopTurn()
+            state.stopWrist()
             go(.s4)
         case .releaseStop:
             state.emergencyStop = false
@@ -141,6 +149,7 @@ public struct TeleopSession: Equatable, Sendable {
             }
             // The server runs one held control at a time: the gripper takes over from a jaw turn.
             state.stopTurn()
+            state.stopWrist()
             state.moveGripper(toward: target)
         case .gripperEnd:
             // Release always stops, even if the session got blocked while held.
@@ -153,10 +162,24 @@ public struct TeleopSession: Equatable, Sendable {
                 return
             }
             state.stopGripper()
+            state.stopWrist()
             state.turnJaws(toward: direction)
         case .turnEnd:
             // Release always stops, even if the session got blocked while held.
             state.stopTurn()
+        case .wristStart:
+            guard acceptsControl else { return }
+            // The arm is moving, so the wrist cannot turn.
+            guard canControl, !state.armMoving else {
+                pendingHaptics.append(.play(.commandBlocked))
+                return
+            }
+            state.stopGripper()
+            state.stopTurn()
+            state.wristMoving = true
+        case .wristEnd:
+            // Release always stops, even if the session got blocked while held.
+            state.stopWrist()
         case .holdArmStart:
             guard acceptsControl else { return }
             guard canControl else {
@@ -166,6 +189,7 @@ public struct TeleopSession: Equatable, Sendable {
             // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
             state.stopGripper()
             state.stopTurn()
+            state.stopWrist()
             state.armMoving = true
         case .holdArmEnd:
             // Release always stops, even if the session got blocked while held.
@@ -175,6 +199,14 @@ public struct TeleopSession: Equatable, Sendable {
             guard acceptsControl else { return }
             state.resetScene()
             if route == .p6 { go(.p4) }
+        case .sceneResetDone:
+            guard state.emergencyStop else { return }
+            state.emergencyStop = false
+            // The long buzz ends. "Ready." comes from the server's new episode, not from here.
+            pendingHaptics.append(.cancel)
+            // As a release does: S4 shows only while the stop is latched, and a connection screen opened from S4
+            // must not lead back to it.
+            go(.p4)
         case .switchLink:
             // Never while E-stopped: the stop is released first, on the link that set it.
             guard !state.emergencyStop else { return }
@@ -210,6 +242,7 @@ public struct TeleopSession: Equatable, Sendable {
                 state.armMoving = false
                 state.stopGripper()
                 state.stopTurn()
+                state.stopWrist()
                 if route == .p4 { go(.p6) }
             } else if !slow {
                 state.commandsBlocked = false
