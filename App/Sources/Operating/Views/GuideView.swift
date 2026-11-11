@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The guide in the control surface: the workspace from above and from behind, one under the other on one left-right
 /// axis, and the read-outs under them. It draws `GuidePicture` and decides nothing. Translucent, so the state colour
-/// shows through; it takes no touches.
+/// shows through; its words and drawings sit on dark backing, so they read on every state colour, gold included. It
+/// takes no touches.
 struct GuideView: View {
     let picture: GuidePicture
     /// The operating screen's height over the reference 874 pt.
@@ -14,7 +15,7 @@ struct GuideView: View {
     var body: some View {
         GeometryReader { proxy in
             let lineHeight = lineSize * 1.45
-            let words = 2 * (captionSize * 1.4 + 2) + Double(picture.lines.count) * lineHeight + 4 * 4
+            let words = 2 * (captionSize * 1.4 + 2 + 2) + Double(picture.lines.count) * lineHeight + 2 * 4 + 4 * 4
             let room = max(0, proxy.size.height - words)
             let width = max(0, min(proxy.size.width, room / (1 / picture.aboveAspect + 1 / picture.behindAspect)))
             VStack(spacing: 4) {
@@ -29,6 +30,9 @@ struct GuideView: View {
                         lineView(line)
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(GuideInk.words, in: RoundedRectangle(cornerRadius: 8))
                 .padding(.top, 4)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
@@ -41,6 +45,9 @@ struct GuideView: View {
         Text(key)
             .font(.system(size: captionSize, weight: .semibold))
             .foregroundStyle(.white.opacity(0.85))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 1)
+            .background(GuideInk.words, in: Capsule())
     }
 
     private func lineView(_ line: GuidePicture.Line) -> some View {
@@ -74,7 +81,9 @@ struct GuideView: View {
 
 /// Shared drawing for the two views.
 private enum GuideInk {
-    static let panel = Color.black.opacity(0.32)
+    /// Dark enough that white, the orange target and the green flags stay readable over the gold Saved state too.
+    static let panel = Color.black.opacity(0.45)
+    static let words = Color.black.opacity(0.55)
     static let frame = Color.white.opacity(0.25)
     static let box = Color.white.opacity(0.55)
 

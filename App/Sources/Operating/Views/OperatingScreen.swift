@@ -371,10 +371,17 @@ private struct PhoneSurface: View {
     /// Smaller than §7.2's 56 pt, so the guide has room under it.
     static func wordSize(_ scale: Double) -> Double { max(30, 44 * scale) }
 
+    /// The faint hints: dark on gold, as the state words are.
+    static func hintInk(_ look: OperatingWords.Look) -> Color {
+        look.darkText ? TeleopColors.textPrimary.opacity(0.75) : .white.opacity(0.7)
+    }
+
     var body: some View {
         let stopped = { if case .stopped = display.state { return true } else { return false } }()
         ZStack(alignment: .top) {
-            if display.mode == .keyTurns, !stopped { SchemeBHints(display: display, layout: layout, scale: scale) }
+            if display.mode == .keyTurns, !stopped {
+                SchemeBHints(display: display, layout: layout, scale: scale, ink: Self.hintInk(look))
+            }
             VStack(spacing: 8 * scale) {
                 StateWords(look: look, practice: display.practice, wordSize: Self.wordSize(scale), detailSize: max(15, 20 * scale))
                 if display.taskAid, let arm = display.arm {
@@ -387,7 +394,7 @@ private struct PhoneSurface: View {
                 } else if display.mode == .screenTurns, !stopped {
                     Text("hint.scheme_a")
                         .font(.system(size: max(12, 14 * scale), weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(Self.hintInk(look))
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("operating.hint")
@@ -406,6 +413,7 @@ private struct SchemeBHints: View {
     let display: OperatingDisplay
     let layout: SurfaceLayout
     let scale: Double
+    let ink: Color
 
     var body: some View {
         let cs = layout.controlSurface
@@ -429,7 +437,7 @@ private struct SchemeBHints: View {
     private func hint(_ key: LocalizedStringKey, id: String) -> some View {
         Text(key)
             .font(.system(size: max(13, 16 * scale), weight: .semibold))
-            .foregroundStyle(.white.opacity(0.7))
+            .foregroundStyle(ink)
             .accessibilityIdentifier(id)
     }
 }
