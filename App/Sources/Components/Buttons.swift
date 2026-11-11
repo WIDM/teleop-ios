@@ -155,6 +155,8 @@ private struct ArmHoldModifier: ViewModifier {
 
 /// Press = start a held control, release = stop it. One press sends `start` once, for the same reasons as the arm hold:
 /// finger drift must not repeat a blocked cue. Same session path as the volume keys, so `end` is what releasing sends.
+/// A release ends only the hold this control started: another finger may have taken over with a different control,
+/// and the session state at release time says whether that happened.
 private struct HeldControlModifier: ViewModifier {
     let model: AppModel
     let start: TeleopAction
@@ -176,13 +178,13 @@ private struct HeldControlModifier: ViewModifier {
                     }
                     .onEnded { _ in
                         startSent = false
-                        model.send(end)
+                        release()
                     }
             )
             .onChange(of: pressing) { _, isPressing in
                 guard !isPressing else { return }
                 startSent = false
-                model.send(end)
+                release()
             }
             .onDisappear {
                 guard isActive else { return }
@@ -190,6 +192,11 @@ private struct HeldControlModifier: ViewModifier {
             }
             .accessibilityAddTraits(.isButton)
             .accessibilityValue(isActive ? "moving" : "stopped")
+    }
+
+    private func release() {
+        guard model.session.state.isHolding(start) else { return }
+        model.send(end)
     }
 }
 

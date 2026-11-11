@@ -6,6 +6,18 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 `0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## 0.9.1 (2026-11-11)
+
+Two fixes to the held controls.
+
+- Fixed: pressing Turn twice in a row, or going from the Open handle to vol−, or from the gripper to the arm
+  hold, no longer needs a pause. The server takes a moment to finish the control you just let go of and refuses
+  a new one until then, so the second press could be refused and nothing moved. The app now holds the new
+  press back until the server says the old one is done (at most 0.8 s), then starts it.
+- Fixed: letting go of one control no longer stops another. With one finger on Turn and a second finger taking
+  over on the other Turn handle, lifting the first finger used to stop the turn the second was still holding.
+  The same went for the Open handle and vol−. A release now only ends the hold that its own control started.
+
 ## 0.9.0 (2026-11-11)
 
 The jaws can turn now, so the cube can be held.

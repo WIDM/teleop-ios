@@ -54,7 +54,7 @@ private struct VolumeKeyModifier: ViewModifier {
             .background {
                 if #available(iOS 17.2, *) {
                     CaptureEventCatcher(enabled: enabled) { key, phase in
-                        for action in mapper.actions(for: key, phase: phase) { model.send(action) }
+                        for action in mapper.actions(for: key, phase: phase, in: model.session.state) { model.send(action) }
                     }
                 }
             }

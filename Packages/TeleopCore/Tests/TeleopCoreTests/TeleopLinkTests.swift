@@ -31,6 +31,18 @@ final class TeleopLinkTests: XCTestCase {
         _ = server("state", ["estop": estop, "gripper": "closed"])
     }
 
+    /// The server's final ack for a control it has finished: it names the control's start seq.
+    @discardableResult
+    private func finish(_ startSeq: Int, status: String = "ok") -> LinkEvent? {
+        server("ack", seq: startSeq, ["seq": startSeq, "status": status, "reason": status == "ok" ? "done" : "busy"])
+    }
+
+    private var lastSeq: Int { sent.last!["seq"] as! Int }
+
+    private func seq(ofLast type: String) -> Int {
+        sent.last { $0["type"] as? String == type }!["seq"] as! Int
+    }
+
     private let params = PoseParams(gain: 1, deadbandDegrees: 2, smoothing: 0.3)
 
     func testHelloThenWelcomeAndStateMakesTheLinkReady() {
@@ -178,7 +190,10 @@ final class TeleopLinkTests: XCTestCase {
     func testGripperJogUsesTheServerActionNamesAndReplacesARunningJog() {
         bringUp()
         link.gripperJogStart(.closed)
+        let first = lastSeq
         link.gripperJogStart(.open)
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
+        finish(first)
         XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
         let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map { $0["payload"] as! [String: String] }
         XCTAssertEqual(starts.map { $0["action"] }, ["close", "open"])
@@ -200,9 +215,12 @@ final class TeleopLinkTests: XCTestCase {
     func testArmHoldStopsTheGripperJogFirst() {
         bringUp()
         link.gripperJogStart(.closed)
+        let jog = lastSeq
         XCTAssertTrue(link.poseStart(params))
-        XCTAssertEqual(types.suffix(2), ["gripper_jog_stop", "pose_start"])
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
         XCTAssertFalse(link.gripperJogActive)
+        finish(jog)
+        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "pose_start"])
     }
 
     func testGripperJogIsRefusedDuringAnArmHold() {
@@ -303,24 +321,37 @@ final class TeleopLinkTests: XCTestCase {
     func testArmHoldAndGripperJogStopTheTurnFirst() {
         bringUp()
         link.orientStart()
+        let turn = lastSeq
         XCTAssertTrue(link.poseStart(params))
-        XCTAssertEqual(types.suffix(2), ["orient_stop", "pose_start"])
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
         XCTAssertFalse(link.turnActive)
+        finish(turn)
+        XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "pose_start"])
 
         link.poseStop()
+        finish(seq(ofLast: "pose_start"))
         link.orientStart()
+        let second = lastSeq
         link.gripperJogStart(.open)
-        XCTAssertEqual(types.suffix(2), ["orient_stop", "gripper_jog_start"])
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
         XCTAssertFalse(link.turnActive)
+        finish(second)
+        XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "gripper_jog_start"])
     }
 
     func testTurnStopsAGripperJogAndReplacesARunningTurn() {
         bringUp()
         link.gripperJogStart(.closed)
+        let jog = lastSeq
         link.orientStart()
-        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "orient_start"])
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
         XCTAssertFalse(link.gripperJogActive)
+        finish(jog)
+        XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "orient_start"])
+        let turn = lastSeq
         link.orientStart()
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        finish(turn)
         XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "orient_start"])
     }
 
@@ -379,6 +410,237 @@ final class TeleopLinkTests: XCTestCase {
             .rejected(type: "pose_start", reason: "busy")
         )
         XCTAssertTrue(link.turnActive)
+    }
+
+    func testNewTurnWaitsForTheFinalAckOfTheOldOne() {
+        bringUp()
+        link.orientStart()
+        let first = lastSeq
+        link.orientStop()
+        link.orientStart()
+        XCTAssertTrue(link.turnActive)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        XCTAssertNil(finish(first))
+        XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "orient_start"])
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.last, "orient_update")
+    }
+
+    func testARejectedFinalAckAlsoReleasesTheHeldBackStart() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        let first = lastSeq
+        link.gripperJogStop()
+        link.gripperJogStart(.open)
+        XCTAssertEqual(types.last, "gripper_jog_stop")
+        XCTAssertEqual(finish(first, status: "rejected"), .rejected(type: "gripper_jog_start", reason: "busy"))
+        XCTAssertEqual(types.last, "gripper_jog_start")
+        XCTAssertEqual((sent.last!["payload"] as! [String: String])["action"], "open")
+        XCTAssertTrue(link.gripperJogActive)
+    }
+
+    func testStartAfterAnAckedStopGoesOutAtOnce() {
+        bringUp()
+        link.orientStart()
+        let first = lastSeq
+        link.orientStop()
+        finish(first)
+        link.orientStart()
+        XCTAssertEqual(types.suffix(3), ["orient_start", "orient_stop", "orient_start"])
+    }
+
+    func testHeldBackStartGoesOutAfterEightHundredMillisecondsOnTheNextUpdate() {
+        bringUp()
+        link.orientStart()
+        link.orientStop()
+        link.orientStart()
+        clock += TeleopLink.finishWaitMs - 1
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        clock += 1
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_update"])
+        XCTAssertEqual(types.filter { $0 == "orient_start" }.count, 2)
+    }
+
+    func testTheWaitIsTimedFromTheStopAndAHeldBackGripperStartIsReleasedByKeepalive() {
+        bringUp()
+        link.orientStart()
+        link.orientStop()
+        clock += 900
+        link.gripperJogStart(.open)
+        XCTAssertEqual(types.last, "gripper_jog_start")
+
+        link.gripperJogStop()
+        link.gripperJogStart(.closed)
+        link.keepalive()
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
+        clock += TeleopLink.finishWaitMs
+        link.keepalive()
+        XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "jog_keepalive"])
+    }
+
+    func testHeldBackArmHoldSendsNothingUntilItsStartGoesOut() {
+        bringUp()
+        link.orientStart()
+        let turn = lastSeq
+        link.orientStop()
+        XCTAssertTrue(link.poseStart(params))
+        XCTAssertTrue(link.holdActive)
+        XCTAssertFalse(link.poseStart(params))
+        link.poseUpdate(positionMeters: [0.01, 0, 0])
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        finish(turn)
+        link.poseUpdate(positionMeters: [0.01, 0, 0])
+        XCTAssertEqual(types.suffix(2), ["pose_start", "pose_update"])
+    }
+
+    func testStoppingAHeldBackStartSendsNothingAtAll() {
+        bringUp()
+        link.orientStart()
+        let turn = lastSeq
+        link.orientStop()
+        link.orientStart()
+        link.orientStop()
+        XCTAssertFalse(link.turnActive)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        XCTAssertEqual(types.count, 3)
+        finish(turn)
+        XCTAssertEqual(types.count, 3)
+        clock += 5000
+        link.orientUpdate(rollDegrees: 10)
+        XCTAssertEqual(types.count, 3)
+
+        link.poseStart(params)
+        link.poseStop()
+        link.poseStart(params)
+        link.poseStop()
+        XCTAssertEqual(types.suffix(2), ["pose_start", "pose_stop"])
+        XCTAssertEqual(types.count, 5)
+        link.gripperJogStart(.open)
+        link.gripperJogStop()
+        XCTAssertEqual(types.count, 5)
+    }
+
+    func testStopsAreSentForAStartThatWasOnTheWireEvenWhileAnotherIsHeldBack() {
+        bringUp()
+        link.orientStart()
+        let turn = lastSeq
+        link.orientStop()
+        link.gripperJogStart(.open)
+        link.poseStart(params)
+        XCTAssertFalse(link.gripperJogActive)
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        finish(turn)
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "pose_start"])
+        XCTAssertEqual(types.filter { $0 == "gripper_jog_start" }.count, 0)
+    }
+
+    func testAnAckOfAnOlderSeqDoesNotReleaseTheHeldBackStart() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        let jog = lastSeq
+        link.gripperJogStop()
+        link.orientStart()
+        link.orientStop()
+        XCTAssertEqual(types.last, "gripper_jog_stop")
+        // The jog is the only control that was on the wire; the turn start never was. An unrelated seq changes nothing.
+        XCTAssertNil(finish(jog + 100))
+        XCTAssertEqual(types.last, "gripper_jog_stop")
+        link.orientStart()
+        XCTAssertEqual(types.last, "gripper_jog_stop")
+        XCTAssertNil(finish(jog))
+        XCTAssertEqual(types.last, "orient_start")
+    }
+
+    func testALateFinalAckAfterTheWaitReleasesNothingThatBelongsToALaterStop() {
+        bringUp()
+        link.orientStart()
+        let first = lastSeq
+        link.orientStop()
+        link.orientStart()
+        clock += TeleopLink.finishWaitMs
+        link.orientUpdate(rollDegrees: 1)
+        let second = lastSeq - 1
+        XCTAssertEqual(sent[sent.count - 2]["type"] as? String, "orient_start")
+        XCTAssertEqual(second, sent[sent.count - 2]["seq"] as! Int)
+        link.orientStop()
+        link.gripperJogStart(.open)
+        XCTAssertEqual(types.last, "orient_stop")
+        XCTAssertNil(finish(first))
+        XCTAssertEqual(types.last, "orient_stop")
+        XCTAssertNil(finish(second))
+        XCTAssertEqual(types.last, "gripper_jog_start")
+    }
+
+    func testEstopDropsTheHeldBackStartAndThePendingAck() {
+        bringUp()
+        link.orientStart()
+        let turn = lastSeq
+        link.orientStop()
+        link.orientStart()
+        link.estop()
+        XCTAssertFalse(link.turnActive)
+        finish(turn)
+        link.orientUpdate(rollDegrees: 5)
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "estop"])
+        clock += 5000
+        link.orientUpdate(rollDegrees: 5)
+        XCTAssertEqual(types.last, "estop")
+        // Nothing is pending any more, so a new start is not held back.
+        link.orientStart()
+        XCTAssertEqual(types.last, "orient_start")
+    }
+
+    func testResetSceneDropsTheHeldBackStartAndThePendingAck() {
+        bringUp()
+        link.gripperJogStart(.open)
+        link.gripperJogStop()
+        link.orientStart()
+        link.resetScene()
+        XCTAssertEqual(types.last, "reset_scene")
+        XCTAssertFalse(link.turnActive)
+        link.orientStart()
+        XCTAssertEqual(types.last, "orient_start")
+    }
+
+    func testClosedTransportDropsTheHeldBackStartAndThePendingAck() {
+        bringUp()
+        link.orientStart()
+        link.orientStop()
+        link.orientStart()
+        link.transportClosed()
+        let count = sent.count
+        clock += 5000
+        link.orientUpdate(rollDegrees: 5)
+        XCTAssertEqual(sent.count, count)
+        bringUp()
+        link.orientStart()
+        XCTAssertEqual(types.last, "orient_start")
+    }
+
+    func testTheResyncStopStillReportsHoldStoppedAndTheNextHoldGoesOutAtOnce() {
+        bringUp()
+        link.poseStart(params)
+        let hold = lastSeq
+        link.poseStop()
+        XCTAssertEqual(finish(hold), .holdStopped)
+        XCTAssertTrue(link.poseStart(params))
+        XCTAssertEqual(types.suffix(3), ["pose_start", "pose_stop", "pose_start"])
+    }
+
+    func testOnlyAnArmHoldsFinalAckReportsHoldStopped() {
+        bringUp()
+        link.gripperJogStart(.closed)
+        let jog = lastSeq
+        link.gripperJogStop()
+        XCTAssertNil(finish(jog))
+        link.orientStart()
+        let turn = lastSeq
+        link.orientStop()
+        XCTAssertNil(finish(turn))
     }
 
     func testProbeMeasuresTheRoundTrip() {

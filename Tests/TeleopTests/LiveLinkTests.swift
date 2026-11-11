@@ -65,6 +65,15 @@ final class LiveLinkTests: XCTestCase {
         transport.server("state", ["estop": estop, "gripper": "closed"])
     }
 
+    /// The server's final ack for a control it has finished; it names the control's start seq.
+    private func serverFinished(_ startSeq: Int) {
+        transport.server("ack", seq: startSeq, ["seq": startSeq, "status": "ok", "reason": "stopped"])
+    }
+
+    private func lastSeq(of type: String) -> Int {
+        transport.sent.last { $0["type"] as? String == type }!["seq"] as! Int
+    }
+
     /// One pose tick, 33 ms later.
     private func tick() {
         clock += 33
@@ -208,6 +217,7 @@ final class LiveLinkTests: XCTestCase {
     func testServerEstopEndsOurHoldSoTheNextPressWorks() {
         bringUp()
         model.send(.holdArmStart)
+        let hold = lastSeq(of: "pose_start")
         transport.server("state", ["estop": true])
         let sentAtEstop = transport.sent.count
         position = SIMD3(0.001, 0, 0)
@@ -215,6 +225,7 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(transport.types.dropFirst(sentAtEstop).contains("pose_update"))
         model.send(.releaseStop)
         transport.server("state", ["estop": false])
+        serverFinished(hold)
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)
         XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2)
@@ -293,9 +304,60 @@ final class LiveLinkTests: XCTestCase {
     func testSwitchingDirectionStopsTheOldJogFirst() {
         bringUp()
         model.send(.gripperStart(.closed))
+        let first = lastSeq(of: "gripper_jog_start")
         model.send(.gripperStart(.open))
-        XCTAssertEqual(transport.types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
+        XCTAssertEqual(transport.types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
         XCTAssertEqual(model.session.state.gripperMoving, .open)
+        serverFinished(first)
+        XCTAssertEqual(transport.types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
+        XCTAssertEqual((transport.sent.last!["payload"] as! [String: String])["action"], "open")
+    }
+
+    func testGoingFromTheOpenHandleToVolumeDownWaitsForTheServerAndKeepsHolding() {
+        bringUp()
+        model.send(.gripperStart(.open))
+        let open = lastSeq(of: "gripper_jog_start")
+        run(ticks: 10)
+        model.send(.gripperStart(.closed))
+        let sent = transport.sent.count
+        run(ticks: 8)
+        XCTAssertEqual(transport.types.dropFirst(sent).filter { $0 != "test" }, [], "no keepalive for a start the server has not seen")
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        serverFinished(open)
+        XCTAssertEqual(transport.types.last, "gripper_jog_start")
+        XCTAssertEqual((transport.sent.last!["payload"] as! [String: String])["action"], "close")
+        run(ticks: 8)
+        XCTAssertGreaterThan(transport.types.dropFirst(sent).filter { $0 == "jog_keepalive" }.count, 0)
+    }
+
+    func testHeldBackStartGoesOutAfterEightHundredMillisecondsWithoutTheAck() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        model.send(.turnEnd)
+        model.send(.turnStart(.positive))
+        XCTAssertEqual(model.session.state.jawTurning, .positive)
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 1)
+        clock += TeleopLink.finishWaitMs - 100
+        model.link.tick()
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 1)
+        clock += 100
+        model.link.tick()
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 2)
+        XCTAssertEqual(transport.types.last, "orient_update")
+    }
+
+    func testReleasingBeforeTheServerFinishedSendsNothingMoreAndTheNextPressStillWorks() {
+        bringUp()
+        model.send(.turnStart(.positive))
+        let first = lastSeq(of: "orient_start")
+        model.send(.turnEnd)
+        model.send(.turnStart(.positive))
+        model.send(.turnEnd)
+        XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 1)
+        XCTAssertEqual(transport.types.filter { $0 == "orient_stop" }.count, 1)
+        serverFinished(first)
+        model.send(.turnStart(.positive))
+        XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "orient_start"])
     }
 
     func testServerRefusingTheGripperEndsTheHoldHere() {
@@ -322,7 +384,10 @@ final class LiveLinkTests: XCTestCase {
     func testArmHoldDuringAGripperJogStopsItAndStarts() {
         bringUp()
         model.send(.gripperStart(.open))
+        let jog = lastSeq(of: "gripper_jog_start")
         model.send(.holdArmStart)
+        XCTAssertEqual(transport.types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
+        serverFinished(jog)
         XCTAssertEqual(transport.types.suffix(2), ["gripper_jog_stop", "pose_start"])
         run(ticks: 200)
         XCTAssertEqual(transport.types.filter { $0 == "gripper_jog_stop" }.count, 1)
@@ -391,10 +456,12 @@ final class LiveLinkTests: XCTestCase {
     func testASecondPressStartsANewServerHoldFromZero() {
         bringUp()
         model.send(.turnStart(.positive))
+        let first = lastOrientStartSeq()
         run(ticks: 60)
         model.send(.turnEnd)
         let before = transport.sent.count
         model.send(.turnStart(.positive))
+        serverFinished(first)
         XCTAssertEqual(transport.types.filter { $0 == "orient_start" }.count, 2)
         XCTAssertEqual(transport.types.last, "orient_start")
         run(ticks: 3)
@@ -438,11 +505,18 @@ final class LiveLinkTests: XCTestCase {
         bringUp()
         model.send(.turnStart(.positive))
         model.send(.holdArmStart)
-        XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "pose_start"])
+        XCTAssertEqual(transport.types.suffix(2), ["orient_start", "orient_stop"])
         XCTAssertNil(model.session.state.jawTurning)
+        serverFinished(lastOrientStartSeq())
+        XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "pose_start"])
+        let hold = lastSeq(of: "pose_start")
         model.send(.holdArmEnd)
+        serverFinished(hold)
         model.send(.turnStart(.positive))
+        let turn = lastOrientStartSeq()
         model.send(.gripperStart(.open))
+        XCTAssertEqual(transport.types.suffix(2), ["orient_start", "orient_stop"])
+        serverFinished(turn)
         XCTAssertEqual(transport.types.suffix(2), ["orient_stop", "gripper_jog_start"])
         XCTAssertEqual(transport.types.filter { $0 == "orient_stop" }.count, 2)
     }

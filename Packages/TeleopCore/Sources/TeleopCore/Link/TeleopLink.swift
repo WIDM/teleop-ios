@@ -40,6 +40,16 @@ public final class TeleopLink {
     /// This long without any message means the link is dead. The server is quiet during a hold
     /// (it only broadcasts state when idle), so the owner must keep probing at least twice in this time.
     public static let staleAfterMs = 2000
+    /// The server finishes a stopped control a moment after it acks the stop, and refuses every start until then.
+    /// A start waits this long for that final ack, then goes out anyway and the server answers for itself.
+    public static let finishWaitMs = 800
+
+    /// A control's start, built when it goes out.
+    private enum HeldStart {
+        case pose(PoseParams)
+        case gripperJog(GripperState)
+        case orient
+    }
 
     private let send: (String) -> Void
     private let now: () -> Int
@@ -49,8 +59,10 @@ public final class TeleopLink {
     private var probes: [Int: Int] = [:]
     private var lastHeardAt: Int?
     private var holdSeq: Int?
-    /// The hold `poseStop` just ended, until the server confirms it has finished.
-    private var stoppingSeq: Int?
+    /// The control a stop just ended, named by its start's seq, until the server's final ack says it has finished.
+    private var stopping: (seq: Int, sentAtMs: Int, isPose: Bool)?
+    /// The start of the active control, kept off the wire until `stopping` is over. At most one: only one control is active.
+    private var heldBack: HeldStart?
 
     /// Arm tip position from the newest `state`, in metres. The server sends none during a hold.
     public private(set) var lastEndEffector: [Double]?
@@ -90,20 +102,14 @@ public final class TeleopLink {
         gripperJogStop()
         orientStop()
         holdActive = true
-        holdSeq = emit("pose_start", [
-            "frame": "webxr_local",
-            "rate_hz": Self.poseRateHz,
-            "control_mode": "translation",
-            "gain": params.gain,
-            "deadband_deg": params.deadbandDegrees,
-            "smoothing": params.smoothing,
-        ])
+        begin(.pose(params))
         return true
     }
 
     /// Phone position relative to the start of the hold, in metres. Ignored outside a hold.
     public func poseUpdate(positionMeters p: [Double]) {
-        guard holdActive, p.count == 3, p.allSatisfy(\.isFinite) else { return }
+        releaseHeldStart(force: false)
+        guard holdActive, heldBack == nil, p.count == 3, p.allSatisfy(\.isFinite) else { return }
         emit("pose_update", [
             "p_rel_m": p.map { ($0 * 10000).rounded() / 10000 },
             // Translation mode: the server ignores rotation, so send none.
@@ -116,7 +122,8 @@ public final class TeleopLink {
     public func poseStop() {
         guard holdActive else { return }
         holdActive = false
-        stoppingSeq = holdSeq
+        if cancelHeldBack(.pose) { return }
+        stopping = holdSeq.map { ($0, now(), true) }
         holdSeq = nil
         emit("pose_stop", [:])
     }
@@ -128,6 +135,8 @@ public final class TeleopLink {
         gripperJogSeq = nil
         turnActive = false
         turnSeq = nil
+        stopping = nil
+        heldBack = nil
         emit("estop", [:])
     }
 
@@ -138,6 +147,8 @@ public final class TeleopLink {
         gripperJogStop()
         orientStop()
         emit("reset_scene", [:])
+        stopping = nil
+        heldBack = nil
     }
 
     /// Starts moving the gripper toward `target`, replacing any jog already running.
@@ -149,18 +160,21 @@ public final class TeleopLink {
         orientStop()
         gripperJogStop()
         gripperJogActive = true
-        gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
+        begin(.gripperJog(target))
     }
 
     /// Must go out at least every 750 ms while a gripper jog runs; the server expects every 150 ms.
     public func keepalive() {
-        guard gripperJogActive else { return }
+        releaseHeldStart(force: false)
+        guard gripperJogActive, heldBack == nil else { return }
         emit("jog_keepalive", [:])
     }
 
     public func gripperJogStop() {
         guard gripperJogActive else { return }
         gripperJogActive = false
+        if cancelHeldBack(.gripperJog) { return }
+        stopping = gripperJogSeq.map { ($0, now(), false) }
         gripperJogSeq = nil
         emit("gripper_jog_stop", [:])
     }
@@ -175,20 +189,15 @@ public final class TeleopLink {
         gripperJogStop()
         orientStop()
         turnActive = true
-        turnSeq = emit("orient_start", [
-            "frame": "phone_body",
-            "rate_hz": Self.poseRateHz,
-            "gain": 1.0,
-            "deadband_deg": 0.0,
-            "smoothing": 0.0,
-        ])
+        begin(.orient)
         return true
     }
 
     /// Roll asked for, in degrees from the wrist as it was when the hold began. Positive turns the same way
     /// as the server's wrist roll increases. Also the keepalive: the server drops the hold 750 ms after the last one.
     public func orientUpdate(rollDegrees: Double) {
-        guard turnActive, rollDegrees.isFinite else { return }
+        releaseHeldStart(force: false)
+        guard turnActive, heldBack == nil, rollDegrees.isFinite else { return }
         // The server reads the rotation about y, negated, as the wrist roll. x and z stay 0: x would pitch the wrist.
         let half = rollDegrees * .pi / 360
         // Adding 0 turns a negative zero into 0, so a roll of 0 sends [0, 0, 0, 1].
@@ -201,6 +210,8 @@ public final class TeleopLink {
     public func orientStop() {
         guard turnActive else { return }
         turnActive = false
+        if cancelHeldBack(.orient) { return }
+        stopping = turnSeq.map { ($0, now(), false) }
         turnSeq = nil
         emit("orient_stop", [:])
     }
@@ -231,7 +242,8 @@ public final class TeleopLink {
         welcomed = false
         holdActive = false
         holdSeq = nil
-        stoppingSeq = nil
+        stopping = nil
+        heldBack = nil
         gripperJogActive = false
         gripperJogSeq = nil
         turnActive = false
@@ -270,9 +282,13 @@ public final class TeleopLink {
             return .latency(ms: max(0, now() - sent))
         case "ack":
             guard let seq = payload["seq"] as? Int, let sentType = sentTypes.removeValue(forKey: seq) else { return nil }
-            let finishedStop = seq == stoppingSeq
-            if finishedStop { stoppingSeq = nil }
-            guard payload["status"] as? String == "rejected" else { return finishedStop ? .holdStopped : nil }
+            let finishedStop = seq == stopping?.seq
+            let finishedPose = finishedStop && stopping?.isPose == true
+            if finishedStop {
+                stopping = nil
+                releaseHeldStart(force: true)
+            }
+            guard payload["status"] as? String == "rejected" else { return finishedPose ? .holdStopped : nil }
             let reason = payload["reason"] as? String ?? ""
             // Only the current hold's refusal ends it. A late refusal of an earlier press must not cancel this one.
             if sentType == "pose_start", seq == holdSeq {
@@ -296,6 +312,54 @@ public final class TeleopLink {
             return nil
         }
     }
+
+    /// Sends the start now, or keeps it back while the server is still finishing the control a stop just ended.
+    private func begin(_ start: HeldStart) {
+        heldBack = start
+        releaseHeldStart(force: stopping == nil)
+    }
+
+    /// Puts the held-back start on the wire once the final ack has come (`force`) or the wait is over.
+    private func releaseHeldStart(force: Bool) {
+        guard let start = heldBack else { return }
+        if !force, let stopping, now() - stopping.sentAtMs < Self.finishWaitMs { return }
+        heldBack = nil
+        stopping = nil
+        switch start {
+        case .pose(let params):
+            holdSeq = emit("pose_start", [
+                "frame": "webxr_local",
+                "rate_hz": Self.poseRateHz,
+                "control_mode": "translation",
+                "gain": params.gain,
+                "deadband_deg": params.deadbandDegrees,
+                "smoothing": params.smoothing,
+            ])
+        case .gripperJog(let target):
+            gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
+        case .orient:
+            turnSeq = emit("orient_start", [
+                "frame": "phone_body",
+                "rate_hz": Self.poseRateHz,
+                "gain": 1.0,
+                "deadband_deg": 0.0,
+                "smoothing": 0.0,
+            ])
+        }
+    }
+
+    /// Stopping a control whose start never went out: nothing was started, so nothing is stopped.
+    private func cancelHeldBack(_ kind: HeldKind) -> Bool {
+        switch (heldBack, kind) {
+        case (.pose?, .pose), (.gripperJog?, .gripperJog), (.orient?, .orient):
+            heldBack = nil
+            return true
+        default:
+            return false
+        }
+    }
+
+    private enum HeldKind { case pose, gripperJog, orient }
 
     private static func gripperState(_ text: String) -> GripperState? {
         switch text {

@@ -4,29 +4,54 @@ import XCTest
 @testable import Teleop
 
 final class VolumeKeyMapperTests: XCTestCase {
+    private func holding(arm: Bool = false, gripper: GripperState? = nil) -> FakeTeleopState {
+        var state = FakeTeleopState()
+        state.armMoving = arm
+        state.gripperMoving = gripper
+        return state
+    }
+
     func testHoldUpStartsOnceAndReleaseStops() {
         var mapper = VolumeKeyMapper()
-        XCTAssertEqual(mapper.actions(for: .up, phase: .began), [.holdArmStart])
-        XCTAssertEqual(mapper.actions(for: .up, phase: .began), [])
-        XCTAssertEqual(mapper.actions(for: .up, phase: .ended), [.holdArmEnd])
-        XCTAssertEqual(mapper.actions(for: .up, phase: .began), [.holdArmStart])
+        let idle = holding()
+        XCTAssertEqual(mapper.actions(for: .up, phase: .began, in: idle), [.holdArmStart])
+        XCTAssertEqual(mapper.actions(for: .up, phase: .began, in: idle), [])
+        XCTAssertEqual(mapper.actions(for: .up, phase: .ended, in: holding(arm: true)), [.holdArmEnd])
+        XCTAssertEqual(mapper.actions(for: .up, phase: .began, in: idle), [.holdArmStart])
     }
 
     func testCancelledUpStops() {
         var mapper = VolumeKeyMapper()
-        _ = mapper.actions(for: .up, phase: .began)
-        XCTAssertEqual(mapper.actions(for: .up, phase: .cancelled), [.holdArmEnd])
+        _ = mapper.actions(for: .up, phase: .began, in: holding())
+        XCTAssertEqual(mapper.actions(for: .up, phase: .cancelled, in: holding(arm: true)), [.holdArmEnd])
         XCTAssertFalse(mapper.upHeld)
     }
 
     func testDownClosesWhileHeldAndStopsOnRelease() {
         var mapper = VolumeKeyMapper()
-        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [.gripperStart(.closed)])
-        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [], "key repeat must not start again")
-        XCTAssertEqual(mapper.actions(for: .down, phase: .ended), [.gripperEnd])
-        XCTAssertEqual(mapper.actions(for: .down, phase: .began), [.gripperStart(.closed)])
-        XCTAssertEqual(mapper.actions(for: .down, phase: .cancelled), [.gripperEnd])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began, in: holding()), [.gripperStart(.closed)])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began, in: holding(gripper: .closed)), [], "key repeat must not start again")
+        XCTAssertEqual(mapper.actions(for: .down, phase: .ended, in: holding(gripper: .closed)), [.gripperEnd])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began, in: holding()), [.gripperStart(.closed)])
+        XCTAssertEqual(mapper.actions(for: .down, phase: .cancelled, in: holding(gripper: .closed)), [.gripperEnd])
         XCTAssertFalse(mapper.downHeld)
+    }
+
+    func testReleasingDownDoesNotEndAnOpenHoldThatTookOver() {
+        var mapper = VolumeKeyMapper()
+        _ = mapper.actions(for: .down, phase: .began, in: holding())
+        XCTAssertEqual(mapper.actions(for: .down, phase: .ended, in: holding(gripper: .open)), [])
+        XCTAssertFalse(mapper.downHeld)
+        _ = mapper.actions(for: .down, phase: .began, in: holding())
+        XCTAssertEqual(mapper.actions(for: .down, phase: .cancelled, in: holding(gripper: .open)), [])
+        XCTAssertFalse(mapper.downHeld)
+        XCTAssertEqual(mapper.actions(for: .down, phase: .began, in: holding()), [.gripperStart(.closed)], "the key is free again")
+    }
+
+    func testReleasingDownAfterAnythingElseEndedTheHoldSendsNothing() {
+        var mapper = VolumeKeyMapper()
+        _ = mapper.actions(for: .down, phase: .began, in: holding())
+        XCTAssertEqual(mapper.actions(for: .down, phase: .ended, in: holding()), [])
     }
 
     /// Through the real session: vol+ moves the arm, vol− while held is refused with three short pulses.
@@ -35,7 +60,7 @@ final class VolumeKeyMapperTests: XCTestCase {
         model.session.state.markConnected()
         var mapper = VolumeKeyMapper()
         let press = { (key: VolumeKey, phase: VolumeKeyPhase) in
-            for action in mapper.actions(for: key, phase: phase) { model.send(action) }
+            for action in mapper.actions(for: key, phase: phase, in: model.session.state) { model.send(action) }
         }
         press(.up, .began)
         XCTAssertTrue(model.session.state.armMoving)
@@ -50,6 +75,20 @@ final class VolumeKeyMapperTests: XCTestCase {
         press(.down, .ended)
         XCTAssertNil(model.session.state.gripperMoving)
         XCTAssertEqual(model.session.state.gripper, .closed)
+    }
+
+    /// vol− closes, a finger on the Open handle takes over, then vol− is released: the gripper keeps opening.
+    func testReleasingDownKeepsAnOpenHoldFromTheHandle() {
+        let model = AppModel(start: .p4, haptics: NoHaptics())
+        model.session.state.markConnected()
+        var mapper = VolumeKeyMapper()
+        for action in mapper.actions(for: .down, phase: .began, in: model.session.state) { model.send(action) }
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        model.send(.gripperStart(.open))
+        for action in mapper.actions(for: .down, phase: .ended, in: model.session.state) { model.send(action) }
+        XCTAssertEqual(model.session.state.gripperMoving, .open)
+        model.send(.gripperEnd)
+        XCTAssertNil(model.session.state.gripperMoving)
     }
 }
 
