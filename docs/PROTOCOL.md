@@ -63,8 +63,9 @@ Every message in both directions is one JSON object with five keys:
 The app writes keys in sorted order. Its JSON encoder may print a decimal such as 0.3 as `0.29999999999999999`;
 the server reads both as the same number.
 
-The examples in this document are copied from the recordings of the real server in
-`Packages/TeleopCore/Tests/TeleopServerModelTests/Recordings` (the file is named with each). The client in those
+The example above, and every other example in this document, is copied from the recordings of the real server in
+`Packages/TeleopCore/Tests/TeleopServerModelTests/Recordings` (the file is named with each; this one is from
+`s02_pose_hold`). The client in those
 recordings is `scripts/trace_scenarios.py`, which speaks the same protocol as the app but writes keys in its own
 order. Where the app's own payload differs, the text says so. Names and the server's session id are replaced by
 placeholders.
