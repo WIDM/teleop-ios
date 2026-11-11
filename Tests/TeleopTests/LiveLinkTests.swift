@@ -1132,6 +1132,32 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.gripping, "an open ends it")
     }
 
+    /// Gripping belongs to the real jaws: practice has none, so a close there is never refused for a grip the server
+    /// reported, and the real server's grip is known again on leaving practice.
+    func testGrippingOnTheRealServerDoesNotCarryIntoPractice() {
+        bringUp()
+        bringUpObserver()
+        model.send(.gripperStart(.closed))
+        for _ in 0..<10 { tick() }
+        observer.server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "gripper_deg": 8.0])
+        model.send(.gripperEnd)
+        XCTAssertTrue(model.gripping)
+        XCTAssertTrue(model.inputFacts().gripping)
+
+        model.startPractice()
+        XCTAssertFalse(model.gripping, "practice has no grip")
+        XCTAssertFalse(model.inputFacts().gripping, "so a second close is not refused there")
+        model.send(.gripperStart(.closed))
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        XCTAssertNotEqual(model.cueLog.last?.event, .limit(.alreadyGripping))
+        model.send(.gripperEnd)
+
+        model.leavePractice()
+        transport.server("welcome")
+        transport.server("state", ["estop": false, "gripper": "close"])
+        XCTAssertTrue(model.gripping, "the same server run: its jaws still grip")
+    }
+
     func testLosingTheLinkDuringAHoldLetsGoWithTheSound() {
         bringUp()
         model.send(.holdArmStart)

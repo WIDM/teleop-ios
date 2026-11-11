@@ -53,9 +53,9 @@ final class AppModel {
     private(set) var recorder: RecorderDisplay = .unknown
     /// The exits the emergency-stop state may offer.
     private(set) var stopExits = StopExits.offered(recorder: nil, practice: true)
-    /// A close ended in contact and nothing has opened since, no scene reset and no new server run. While true a
-    /// second close is refused (`raise(.limit(.alreadyGripping))`).
-    private(set) var gripping = false
+    /// On a real server: a close ended in contact and nothing has opened since, no scene reset and no new server run.
+    /// While true a second close is refused (`raise(.limit(.alreadyGripping))`). Practice has no jaws to grip with.
+    var gripping: Bool { session.state.liveLink && link.gripping }
     /// Everything the operating screen draws.
     private(set) var operating: OperatingDisplay
     /// UI tests only: `-operatingFixture <name>` shows that display, and nothing overwrites it.
@@ -181,10 +181,7 @@ final class AppModel {
         link.onFeedback = { [weak self] in self?.raise($0) }
         link.onState = { [weak self] in self?.stateArrived($0) }
         link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
-        link.onGripping = { [weak self] in
-            self?.gripping = $0
-            self?.refreshOperating()
-        }
+        link.onGripping = { [weak self] _ in self?.refreshOperating() }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onCatchingUp = { [weak self] in
