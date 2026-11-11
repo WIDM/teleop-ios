@@ -24,7 +24,7 @@ final class GuideAndHandlesTests: XCTestCase {
     /// Frames of everything on the screen that the handle column or the guide must stay clear of.
     private func neighbours() -> [(name: String, frame: CGRect)] {
         var found: [(String, CGRect)] = []
-        for id in ["standby.base", "base.release", "stop", "volume_hint", "standby.blocked_banner"] where element(id).exists {
+        for id in ["stop", "volume_hint", "standby.blocked_banner"] where element(id).exists {
             found.append((id, element(id).frame))
         }
         // Only the tappable hint box has an identifier; the others are plain text inside a 12 pt padded box.
@@ -55,7 +55,6 @@ final class GuideAndHandlesTests: XCTestCase {
     }
 
     func testFiveHandlesStayClearOfTheOtherControlsOnStandby() { assertFiveHandlesClear(of: "p4_standby") }
-    func testFiveHandlesStayClearOfTheOtherControlsOnTheBaseScreen() { assertFiveHandlesClear(of: "s3m_base") }
     func testFiveHandlesStayClearOfTheOtherControlsWhileRecording() { assertFiveHandlesClear(of: "s3a_recording") }
     func testFiveHandlesStayClearOfTheOtherControlsUnderTheLatencyBanner() { assertFiveHandlesClear(of: "p6_high_latency") }
 
@@ -93,7 +92,6 @@ final class GuideAndHandlesTests: XCTestCase {
             XCTAssertFalse(guide.intersects(frame), "the guide \(guide) covers \(frame)")
         }
         XCTAssertTrue(element("stop").isHittable)
-        XCTAssertTrue(element("standby.base").isHittable)
         for id in handleIds { XCTAssertTrue(element(id).isHittable, id) }
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

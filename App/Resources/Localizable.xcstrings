@@ -17,22 +17,6 @@
         }
       }
     },
-    "base.volume_hint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold vol+: move the arm\nHold vol−: close. Left edge: open\nHold right edge: move the base"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。左側：夾爪開\n按住右側邊緣：移動底座"
-          }
-        }
-      }
-    },
     "cloud.enter_standby": {
       "localizations": {
         "en": {
@@ -577,22 +561,6 @@
         }
       }
     },
-    "control.base": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Base"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "底座"
-          }
-        }
-      }
-    },
     "control.catching_up": {
       "localizations": {
         "en": {
@@ -934,13 +902,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold vol+: move arm\nHold vol−: close. Left edge: open\nHold right edge: move base"
+            "value": "Hold vol+: move arm\nHold vol−: close. Left edge: open"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。左側：夾爪開\n按住右側邊緣：移動底座"
+            "value": "按住音量＋：移動手臂\n按住音量－：夾爪關。左側：夾爪開"
           }
         }
       }

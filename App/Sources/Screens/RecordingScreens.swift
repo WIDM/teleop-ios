@@ -194,53 +194,6 @@ struct RecordEndScreen: View {
     }
 }
 
-/// S3m: base handle held. Tapping the handle again releases it.
-struct BaseTeleopScreen: View {
-    let model: AppModel
-
-    var body: some View {
-        let state = model.session.state
-        VStack(spacing: 12) {
-            ControlStatusBar(
-                modeKey: "control.standby",
-                connected: state.connected,
-                heartbeatOk: state.heartbeatOk
-            ) { model.send(.openConnection) }
-            RoundedRectangle(cornerRadius: TeleopMetrics.corner)
-                .fill(TeleopColors.camera)
-                // Same centre as standby, so entering base mode does not look like a toggle.
-                .overlay { AimOrOffset(model: model) }
-                .overlay(alignment: .trailing) {
-                    BaseHandle(accessibilityId: "base.release") { model.send(.releaseBase) }
-                        .frame(width: 72)
-                        .padding(.vertical, 56)
-                }
-                .overlay(alignment: .leading) {
-                    // Lower than centre: the latency banner sits across the top of the view.
-                    LeftHandles(model: model)
-                        .frame(width: 72)
-                        .padding(.top, 170)
-                        .padding(.bottom, 130)
-                }
-                .overlay(alignment: .top) { GripperCard(gripper: state.gripper).padding(.top, 12) }
-                .overlay(alignment: .bottom) { VolumeHintBox(textKey: "base.volume_hint").padding(.bottom, 16) }
-            HStack(spacing: 8) {
-                RecordButton(isRecording: state.isRecording, elapsed: state.recordingTimeLabel) {
-                    model.send(.openRecording)
-                }
-                Button { model.send(.resetScene) } label: { Label("control.reset", systemImage: "arrow.counterclockwise") }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("base.reset")
-                Button { model.send(.openSettings) } label: { Label("control.settings", systemImage: "gearshape") }
-                    .buttonStyle(OutlineButtonStyle())
-            }
-            StopButton { model.send(.stop) }
-        }
-        .padding(TeleopMetrics.margin)
-        .volumeKeys(model: model)
-    }
-}
-
 /// S5: on-screen controls when volume keys are unavailable.
 struct FallbackControlScreen: View {
     let model: AppModel

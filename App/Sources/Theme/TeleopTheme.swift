@@ -25,7 +25,7 @@ enum TeleopColors {
     static let textSecondary = Color(hex: 0x475569)
     static let chevronMuted = Color(hex: 0x64748B)
     static let recording = Color(hex: 0x0F172A)
-    static let basePanel = Color(hex: 0x0F172A, opacity: 0.8)
+    static let handle = Color(hex: 0x0F172A, opacity: 0.8)
     static let scrim = Color(hex: 0x0F172A, opacity: 0.6)
     static let gripperCard = Color(hex: 0xE2E8F0)
     static let camera = Color(hex: 0x14213D)

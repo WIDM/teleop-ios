@@ -244,7 +244,7 @@ struct GripperOpenHandle: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch, maxHeight: .infinity)
         .background(
-            active ? TeleopColors.primary : TeleopColors.basePanel,
+            active ? TeleopColors.primary : TeleopColors.handle,
             in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
         )
         .accessibilityElement(children: .ignore)
@@ -272,7 +272,7 @@ struct JawTurnHandle: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
         .background(
-            active ? TeleopColors.primary : TeleopColors.basePanel,
+            active ? TeleopColors.primary : TeleopColors.handle,
             in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
         )
         // One element for the whole handle: iOS 18 otherwise exposes the icon as a second, untappable one.

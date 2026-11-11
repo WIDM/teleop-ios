@@ -52,7 +52,7 @@ struct RootView: View {
 
     /// Control screens track the phone. That also keeps the camera in use for the volume keys.
     private static func tracksPose(_ route: Route) -> Bool {
-        [.p4, .p6, .s3a, .s3m, .s5, .s5a].contains(route)
+        [.p4, .p6, .s3a, .s5, .s5a].contains(route)
     }
 
     @ViewBuilder
@@ -72,7 +72,6 @@ struct RootView: View {
         case .s2: PermissionsScreen(model: model)
         case .s3a: RecordingScreen(model: model, fallback: false)
         case .s3b: RecordEndScreen(model: model)
-        case .s3m: BaseTeleopScreen(model: model)
         case .s4: EStopScreen(model: model)
         case .s5: FallbackControlScreen(model: model)
         case .s5a: RecordingScreen(model: model, fallback: true)

@@ -53,8 +53,8 @@ final class BackStackRulesTests: XCTestCase {
         XCTAssertFalse(edges(.p4).contains(.s1))
     }
 
-    func testAllTwentyRoutesReachableFromP1() {
-        XCTAssertEqual(Route.allCases.count, 20)
+    func testEveryRouteReachableFromP1() {
+        XCTAssertEqual(Route.allCases.count, 19)
         XCTAssertEqual(BackStackRules.reachable(from: .p1), Set(Route.allCases))
     }
 

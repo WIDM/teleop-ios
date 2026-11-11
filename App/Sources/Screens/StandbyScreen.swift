@@ -25,11 +25,6 @@ struct StandbyScreen: View {
                 .overlay(alignment: .bottom) {
                     VolumeHintBox(textKey: "control.volume_hint") { model.send(.openFallback) }.padding(.bottom, 16)
                 }
-                .overlay(alignment: .trailing) {
-                    BaseHandle { model.send(.openBase) }
-                        .frame(width: 72)
-                        .padding(.vertical, 56)
-                }
                 .overlay(alignment: .leading) {
                     // Lower than centre: the latency banner sits across the top of the view.
                     LeftHandles(model: model)
@@ -72,28 +67,6 @@ struct StandbyScreen: View {
         .padding(.horizontal, TeleopMetrics.margin)
         .padding(.vertical, 12)
         .volumeKeys(model: model, enabled: showStop)
-    }
-}
-
-struct BaseHandle: View {
-    var accessibilityId = "standby.base"
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 4) {
-                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right").font(.system(size: 22))
-                Text("control.base").font(.system(size: 17))
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                TeleopColors.basePanel,
-                in: UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(accessibilityId)
     }
 }
 

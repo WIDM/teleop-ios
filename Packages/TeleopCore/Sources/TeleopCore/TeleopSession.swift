@@ -30,8 +30,6 @@ public enum TeleopAction: Equatable, Sendable {
     case stopRecording
     case saveRecording
     case discardRecording
-    case openBase
-    case releaseBase
     case openFallback
     case startFallbackRecording
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
@@ -169,10 +167,8 @@ public struct TeleopSession: Equatable, Sendable {
         case .stopRecording:
             state.stopRecording()
             go(.s3b)
-        case .saveRecording, .discardRecording, .releaseBase:
+        case .saveRecording, .discardRecording:
             go(.p4)
-        case .openBase:
-            go(.s3m)
         case .openFallback:
             go(.s5)
         case .startFallbackRecording:

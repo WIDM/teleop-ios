@@ -40,8 +40,6 @@ let actionTable: [(String, TeleopAction)] = [
     ("stopRecording", .stopRecording),
     ("saveRecording", .saveRecording),
     ("discardRecording", .discardRecording),
-    ("openBase", .openBase),
-    ("releaseBase", .releaseBase),
     ("openFallback", .openFallback),
     ("startFallbackRecording", .startFallbackRecording),
     ("gripperStartClosed", .gripperStart(.closed)),

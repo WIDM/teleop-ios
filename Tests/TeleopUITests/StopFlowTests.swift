@@ -94,7 +94,6 @@ final class StopFlowTests: XCTestCase {
         XCTAssertTrue(handle.isHittable)
         XCTAssertTrue(handle.valuesDuringPress().contains("moving"))
         XCTAssertEqual(handle.value as? String, "stopped")
-        XCTAssertTrue(element("standby.base").isHittable, "the base handle must stay reachable")
     }
 
     func testStandbyOffersTheJawTurnHandles() {
@@ -117,13 +116,6 @@ final class StopFlowTests: XCTestCase {
         expect("tutorial.back")
         expect("tutorial.next")
         XCTAssertFalse(element("tutorial.skip").exists)
-    }
-
-    func testBaseHandleTapReleasesToStandby() {
-        relaunch(at: "s3m_base")
-        expect("base.release")
-        element("base.release").tap()
-        expect("standby.base")
     }
 
     func testCloudCheckTitleLongPressReachesFailScreen() {
