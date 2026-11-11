@@ -184,8 +184,9 @@ public struct InputArbiter: Sendable {
         let previousBegan = keyBeganAt[other]
         keyBeganAt[key] = now
         // One key at a time (I-2.4), then first press wins (I-2.1).
-        let chord = previousBegan.map { now - $0 <= constants.keyChordMs / 1000 } ?? false
-        let replay = constants.keyReplayGuard && (keyEndedAt[other].map { now - $0 <= constants.keyReplayMs / 1000 } ?? false)
+        let chord = previousBegan.map { now - $0 <= constants.keyChordMs / 1000 + Self.slack } ?? false
+        let replay = constants.keyReplayGuard
+            && (keyEndedAt[other].map { now - $0 <= constants.keyReplayMs / 1000 + Self.slack } ?? false)
         if keys[other] != nil || chord || replay || engaged != nil {
             keys[key] = .dead
             cue(.dead)
@@ -325,7 +326,7 @@ public struct InputArbiter: Sendable {
     }
 
     private func insidePalmWindow(_ downAt: TimeInterval) -> Bool {
-        now < downAt + constants.palmWindowMs / 1000
+        now < downAt + constants.palmWindowMs / 1000 - Self.slack
     }
 
     // MARK: Phone attitude (I-8, A-6, B-2)
@@ -454,6 +455,9 @@ public struct InputArbiter: Sendable {
 
     private enum Timer { case surfaceWindow, dwell, bandWindow, countdown }
 
+    /// Times are sums of seconds in floating point; a timer due within a nanosecond is due.
+    private static let slack: TimeInterval = 1e-9
+
     private func deadline(_ role: TouchRole) -> (at: TimeInterval, timer: Timer)? {
         let window = constants.palmWindowMs / 1000
         switch role {
@@ -491,7 +495,7 @@ public struct InputArbiter: Sendable {
 
     /// Runs every timer that has run out by `time`, each at its own moment.
     private mutating func advance(to time: TimeInterval) {
-        while let next = earliestDeadline(), next.at <= time {
+        while let next = earliestDeadline(), next.at <= time + Self.slack {
             now = max(now, next.at)
             fire(next.timer, for: next.id)
         }
