@@ -52,6 +52,10 @@ targets:
     dependencies:
       - target: Teleop
       - package: TeleopCore
+      - package: TeleopCore
+        product: TeleopServerModel
+      - package: TeleopCore
+        product: TeleopServerHost
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.tests
@@ -63,6 +67,8 @@ targets:
       - path: Tests/TeleopUITests
     dependencies:
       - target: Teleop
+      - package: TeleopCore
+        product: TeleopServerHost
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.uitests
