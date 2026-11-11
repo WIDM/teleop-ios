@@ -35,7 +35,7 @@ Each property prints one status:
 Two groups of properties:
 
 - **S properties, every action in every state.** The session rules on their own. They guard paths that do not go through today's screens, such as volume keys and a real link.
-- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, a gripper hold and a jaw turn, as `ArmHoldModifier.onDisappear` and `HeldControlModifier.onDisappear` do. A U failure is reachable by a user tapping today.
+- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `holdArmEnd` while the arm is moving. Leaving a screen ends an arm hold, a gripper hold, a jaw turn and a wrist hold, as `ArmHoldModifier.onDisappear`, `HeldControlModifier.onDisappear` and `OperatingController` (every hold ends when the operating screen goes away) do. A U failure is reachable by a user tapping today.
 
 ## Real bug or checker error
 
@@ -51,7 +51,7 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 
 | Id | Promise | Harm if broken |
 | --- | --- | --- |
-| S1 | E-stop stays latched until `releaseStop`. | Commands accepted after STOP with no deliberate release. |
+| S1 | E-stop stays latched until `releaseStop` or a scene reset the server confirmed (`sceneResetDone`, §6.5: a reset clears the stop and arms the recorder again). | Commands accepted after STOP with no deliberate release. |
 | S2 | The arm starts only on `holdArmStart` while connected, not E-stopped, not latency-blocked. | Motion when the operator was told it cannot move. |
 | S3 | The arm is never moving while E-stopped. | STOP does not stop the arm. |
 | S4 | The gripper changes only on `gripperStart` while connected, not E-stopped, not blocked, arm not moving; or opens on `resetScene` while connected and not E-stopped (the scene reset puts objects back too); or takes the server's value when a live link comes up. | The gripper drops or grabs unexpectedly. |
@@ -59,9 +59,11 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
 | S10, U7 | The gripper starts moving only on `gripperStart`, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving. | The gripper squeezes or drops something when the operator was told it cannot move. |
 | S11 | `gripperEnd` always leaves the gripper still. | Releasing the control does not stop the gripper. |
-| S12, U8 | At most one of the arm hold, the gripper hold and the jaw turn is active. | The server runs one held control at a time; the phone would show two working while one is. |
-| S13, U8 | A jaw turn is active only while connected and not E-stopped. | The jaws keep turning after STOP or over a lost link. |
+| S12, U8 | At most one of the arm hold, the gripper hold, the jaw turn and the wrist hold is active. | The server runs one held control at a time; the phone would show two working while one is. |
+| S13, U8 | A jaw turn or a wrist hold (`wristMoving`) is active only while connected and not E-stopped. | The jaws keep turning after STOP or over a lost link. |
 | S14 | `turnEnd` always leaves the jaws still. | Releasing the control does not stop the jaws. |
+| S15 | `wristEnd` always ends the wrist hold. | Releasing the input does not stop the wrist. |
+| S16 | A wrist hold starts only on `wristStart` while connected, not E-stopped, not latency-blocked and the arm not moving. | The wrist turns when the operator was told it cannot. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
 | S8, U6 | The E-stop long buzz never starts while already playing. | `HapticsController.play` overwrites `loopPlayer` without stopping it, so an older buzz may survive release. |
 | S9 | The long buzz plays exactly while E-stop is latched. | The haptic signal disagrees with the safety state. |
@@ -88,7 +90,7 @@ Left out:
 - Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `ArmHoldModifier` and `HeldControlModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
 - Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`, used by `HeldControlModifier` and `VolumeKeyMapper`). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
-- The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`) or a refused hold (`holdArmEnd`) from any route on a live link. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
+- The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`), a refused hold (`holdArmEnd`, `wristEnd`) or a confirmed scene reset (`sceneResetDone`) from any route on a live link. `sceneResetDone` is offered in every state, more often than a server can send it, which only makes the check stricter. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
 - Launch arguments for UI tests (`-startRoute`, `-startConnected`, `-startBlocked`, `-startConnectionLost`, `-firstRunDone`).
 
 A pass covers the session rules under these limits, not the robot.
