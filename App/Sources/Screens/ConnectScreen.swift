@@ -7,6 +7,9 @@ struct ConnectScreen: View {
 
     var body: some View {
         let state = model.session.state
+        let practice = model.operating.practice
+        // Practice cannot start or end while the stop is latched (AppModel.startPractice): say so, never fall through.
+        let practiceBlocked = state.emergencyStop && !practice
         VStack(alignment: .leading, spacing: 0) {
             PracticeBanner(practice: model.operating.practice)
             ScrollView {
@@ -47,9 +50,18 @@ struct ConnectScreen: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .accessibilityIdentifier("connect.failure")
                         }
+                        if practice {
+                            // In practice Connect only reconnects the demo, whatever the address says.
+                            Text("settings.practice_no_server")
+                                .font(.system(size: 14))
+                                .foregroundStyle(TeleopColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("connect.in_practice")
+                        }
                         HStack(spacing: 8) {
                             Button { model.connect() } label: { Text("connect.connect") }
                                 .buttonStyle(FilledButtonStyle())
+                                .disabled(practice)
                                 .accessibilityIdentifier("connect.connect")
                             Button { model.send(.s1Back) } label: { Text("common.back") }
                                 .buttonStyle(OutlineButtonStyle())
@@ -60,11 +72,21 @@ struct ConnectScreen: View {
                     .card()
                     Button {
                         model.startPractice()
+                        // Refused while the robot is stopped: then Connect would reach the real server.
+                        guard !model.session.state.liveLink else { return }
                         // Practice is the built-in demo: it is there at once, so go straight to the operating screen.
                         model.connect()
                     } label: { Text("connect.practice") }
                         .buttonStyle(OutlineButtonStyle(color: TeleopColors.practice))
+                        .disabled(practiceBlocked)
                         .accessibilityIdentifier("connect.practice")
+                    if practiceBlocked {
+                        Text("settings.practice_blocked")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TeleopColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("connect.practice_stopped")
+                    }
                 }
                 .padding(.horizontal, TeleopMetrics.margin)
                 .padding(.top, 12)

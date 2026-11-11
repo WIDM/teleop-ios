@@ -46,9 +46,40 @@ final class PracticeTests: XCTestCase {
         app.element("operating.gear").tap()
         app.swipeUp()
         app.swipeUp()
+        XCTAssertTrue(app.element("settings.server_practice").exists, "Connect would reach no server in practice")
+        XCTAssertFalse(app.element("settings.connect").exists)
         app.element("settings.leave_practice").tap()
         XCTAssertTrue(app.element("practice.mark").waitForNonExistence(timeout: 3))
         expect(app, "settings.start_practice")
+        XCTAssertTrue(app.element("settings.connect").exists)
+        XCTAssertTrue(app.element("settings.disconnect").exists)
+    }
+
+    /// While the robot is stopped the link cannot change, so practice is offered greyed out with the reason, and
+    /// tapping it never opens the real server.
+    func testPracticeIsRefusedWhileStoppedAndSaysWhy() {
+        let app = launchOnTheRealServer()
+        expect(app, "stop")
+        app.element("stop").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+        app.element("operating.gear").tap()
+        expect(app, "settings.done")
+        app.swipeUp()
+        app.swipeUp()
+        expect(app, "settings.start_practice")
+        XCTAssertFalse(app.element("settings.start_practice").isEnabled)
+        XCTAssertTrue(app.element("settings.practice_stopped").exists, "the reason")
+        app.element("settings.start_practice").tap()
+        XCTAssertFalse(app.element("practice.mark").exists)
+        app.element("settings.disconnect").tap()
+
+        expect(app, "connect.practice")
+        XCTAssertFalse(app.element("connect.practice").isEnabled)
+        XCTAssertTrue(app.element("connect.practice_stopped").exists, "the reason")
+        attachScreenshot("practice-refused-while-stopped")
+        app.element("connect.practice").tap()
+        XCTAssertTrue(app.element("connect.practice").waitForExistence(timeout: 2), "still on Connect")
+        XCTAssertFalse(app.element("practice.mark").exists)
     }
 
     func testPracticeIsNotKeptAcrossALaunch() {

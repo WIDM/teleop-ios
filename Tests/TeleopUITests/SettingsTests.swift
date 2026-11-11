@@ -68,9 +68,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.element("stop").exists, "a STOP band is pinned to the bottom")
         app.swipeUp()
         app.swipeUp()
-        for id in ["settings.rec_status", "settings.address", "settings.connect", "settings.disconnect", "settings.leave_practice", "settings.language", "settings.version"] {
+        // These tests run in practice, where Connect would reach no server: the row says so instead.
+        for id in ["settings.rec_status", "settings.address", "settings.server_practice", "settings.leave_practice", "settings.language", "settings.version"] {
             XCTAssertTrue(app.element(id).exists, id)
         }
+        XCTAssertFalse(app.element("settings.connect").exists)
+        XCTAssertFalse(app.element("settings.disconnect").exists)
         XCTAssertTrue(app.element("stop").isHittable, "the band stays put while the rows scroll")
         attachScreenshot("settings-lower-rows")
     }

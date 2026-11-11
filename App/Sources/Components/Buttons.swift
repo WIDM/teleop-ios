@@ -34,6 +34,7 @@ struct StopBand: View {
 
 struct FilledButtonStyle: ButtonStyle {
     var color: Color = TeleopColors.primary
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -41,12 +42,13 @@ struct FilledButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
             .background(color, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
     }
 }
 
 struct OutlineButtonStyle: ButtonStyle {
     var color: Color = TeleopColors.textPrimary
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -58,7 +60,7 @@ struct OutlineButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                     .strokeBorder(color.opacity(0.4), lineWidth: 1.5)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }
 

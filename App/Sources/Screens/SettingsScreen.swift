@@ -131,7 +131,8 @@ struct SettingsScreen: View {
     }
 
     private var server: some View {
-        Section {
+        let practice = model.operating.practice
+        return Section {
             TextField(text: $model.session.state.serverAddress, prompt: Text(verbatim: "192.168.0.10:8765")) {
                 Text("connection.server_address")
             }
@@ -140,17 +141,24 @@ struct SettingsScreen: View {
             .autocorrectionDisabled()
             .keyboardType(.numbersAndPunctuation)
             .accessibilityIdentifier("settings.address")
-            HStack(spacing: 8) {
-                Button { model.connect() } label: { Text("connect.connect") }
-                    .buttonStyle(FilledButtonStyle())
-                    .accessibilityIdentifier("settings.connect")
-                Button {
-                    // Disconnect goes back to Connect, with no error (§7.3).
-                    model.send(.disconnect)
-                    model.send(.changeServer)
-                } label: { Text("connect.disconnect") }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("settings.disconnect")
+            if practice {
+                // In practice Connect would only reconnect the demo, whatever the address says.
+                Text("settings.practice_no_server")
+                    .foregroundStyle(TeleopColors.textSecondary)
+                    .accessibilityIdentifier("settings.server_practice")
+            } else {
+                HStack(spacing: 8) {
+                    Button { model.connect() } label: { Text("connect.connect") }
+                        .buttonStyle(FilledButtonStyle())
+                        .accessibilityIdentifier("settings.connect")
+                    Button {
+                        // Disconnect goes back to Connect, with no error (§7.3).
+                        model.send(.disconnect)
+                        model.send(.changeServer)
+                    } label: { Text("connect.disconnect") }
+                        .buttonStyle(OutlineButtonStyle())
+                        .accessibilityIdentifier("settings.disconnect")
+                }
             }
         } header: {
             Text("settings.server")
@@ -158,13 +166,22 @@ struct SettingsScreen: View {
     }
 
     private var practiceSection: some View {
-        Section {
+        // Practice cannot start or end while the stop is latched (AppModel.startPractice): say so.
+        let stopped = model.session.state.emergencyStop
+        return Section {
             if model.operating.practice {
                 Button { model.leavePractice() } label: { Text("settings.leave_practice") }
+                    .disabled(stopped)
                     .accessibilityIdentifier("settings.leave_practice")
             } else {
                 Button { model.startPractice() } label: { Text("settings.start_practice") }
+                    .disabled(stopped)
                     .accessibilityIdentifier("settings.start_practice")
+            }
+            if stopped {
+                Text("settings.practice_blocked")
+                    .foregroundStyle(TeleopColors.textSecondary)
+                    .accessibilityIdentifier("settings.practice_stopped")
             }
         } header: {
             Text("settings.practice")

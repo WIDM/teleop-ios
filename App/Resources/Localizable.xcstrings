@@ -1697,6 +1697,38 @@
         }
       }
     },
+    "settings.practice_blocked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not while the robot is stopped. Release the stop or reset first."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人急停時不能切換。請先解除急停或重置。"
+          }
+        }
+      }
+    },
+    "settings.practice_no_server": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Practice uses no server. Leave practice to connect."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "練習時不連伺服器。要連線，請先結束練習。"
+          }
+        }
+      }
+    },
     "settings.rec_discarded": {
       "localizations": {
         "en": {
