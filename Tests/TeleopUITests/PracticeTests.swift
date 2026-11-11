@@ -61,7 +61,9 @@ final class PracticeTests: XCTestCase {
         let app = launchOnTheRealServer()
         expect(app, "stop")
         app.element("stop").tap()
-        expectLabel(app.element("operating.state"), "STOPPED")
+        // No server answers, so the STOP reached no robot: the screen says Not connected, never STOPPED (J7), and
+        // the stop stays latched in the app until it is sent or released.
+        expectLabel(app.element("operating.state"), "Not connected")
         app.element("operating.gear").tap()
         expect(app, "settings.done")
         app.swipeUp()
