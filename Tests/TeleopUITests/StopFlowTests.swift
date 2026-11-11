@@ -66,13 +66,7 @@ final class StopFlowTests: XCTestCase {
         XCTAssertTrue(pad.waitForExistence(timeout: 5))
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "fallback.hold").count, 1)
         XCTAssertEqual(pad.value as? String, "stopped")
-        // press(forDuration:) pumps the run loop, so a main-queue block can sample the value mid-press.
-        var duringPress: String?
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            duringPress = pad.value as? String
-        }
-        pad.press(forDuration: 2.0)
-        XCTAssertEqual(duringPress, "moving")
+        XCTAssertTrue(pad.valuesDuringPress().contains("moving"))
         XCTAssertEqual(pad.value as? String, "stopped")
     }
 
@@ -88,12 +82,7 @@ final class StopFlowTests: XCTestCase {
         XCTAssertTrue(pad.waitForExistence(timeout: 5))
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "fallback.hold_recording").count, 1)
         XCTAssertEqual(pad.value as? String, "stopped")
-        var duringPress: String?
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            duringPress = pad.value as? String
-        }
-        pad.press(forDuration: 2.0)
-        XCTAssertEqual(duringPress, "moving")
+        XCTAssertTrue(pad.valuesDuringPress().contains("moving"))
         XCTAssertEqual(pad.value as? String, "stopped")
         for id in ["gripper.close", "gripper.open"] {
             expect(id)
@@ -108,12 +97,7 @@ final class StopFlowTests: XCTestCase {
             let button = element(id)
             XCTAssertTrue(button.waitForExistence(timeout: 5), id)
             XCTAssertEqual(button.value as? String, "stopped", id)
-            var duringPress: String?
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                duringPress = button.value as? String
-            }
-            button.press(forDuration: 2.0)
-            XCTAssertEqual(duringPress, "moving", id)
+            XCTAssertTrue(button.valuesDuringPress().contains("moving"), id)
             XCTAssertEqual(button.value as? String, "stopped", id)
         }
     }
@@ -123,12 +107,7 @@ final class StopFlowTests: XCTestCase {
         let handle = element("gripper.open")
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
         XCTAssertTrue(handle.isHittable)
-        var duringPress: String?
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            duringPress = handle.value as? String
-        }
-        handle.press(forDuration: 2.0)
-        XCTAssertEqual(duringPress, "moving")
+        XCTAssertTrue(handle.valuesDuringPress().contains("moving"))
         XCTAssertEqual(handle.value as? String, "stopped")
         XCTAssertTrue(element("standby.base").isHittable, "the base handle must stay reachable")
     }
@@ -142,12 +121,7 @@ final class StopFlowTests: XCTestCase {
             XCTAssertTrue(handle.isHittable, id)
             XCTAssertGreaterThanOrEqual(handle.frame.height, 48, id)
             XCTAssertEqual(handle.value as? String, "stopped", id)
-            var duringPress: String?
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                duringPress = handle.value as? String
-            }
-            handle.press(forDuration: 2.0)
-            XCTAssertEqual(duringPress, "moving", id)
+            XCTAssertTrue(handle.valuesDuringPress().contains("moving"), id)
             XCTAssertEqual(handle.value as? String, "stopped", id)
         }
         XCTAssertTrue(element("gripper.open").isHittable, "the open handle must stay reachable")

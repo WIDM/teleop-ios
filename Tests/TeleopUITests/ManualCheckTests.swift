@@ -45,14 +45,6 @@ final class ManualCheckTests: XCTestCase {
         return element("fallback.hold")
     }
 
-    /// Reads the pad value one second into a two second press.
-    private func valueDuringPress(of pad: XCUIElement) -> String? {
-        var value: String?
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { value = pad.value as? String }
-        pad.press(forDuration: 2.0)
-        return value
-    }
-
     func testStopRequestsLongBuzz() {
         expect("stop")
         element("stop").tap()
@@ -81,14 +73,16 @@ final class ManualCheckTests: XCTestCase {
     func testHoldPadFromDebugSheetMovesWhilePressed() {
         let pad = openHoldPad()
         XCTAssertEqual(pad.value as? String, "stopped")
-        XCTAssertEqual(valueDuringPress(of: pad), "moving")
+        XCTAssertTrue(pad.valuesDuringPress().contains("moving"))
         XCTAssertEqual(pad.value as? String, "stopped")
     }
 
     func testHighLatencyBlocksHoldPadWithThreeShort() {
         simulateHighLatency()
         let pad = openHoldPad()
-        XCTAssertEqual(valueDuringPress(of: pad), "stopped")
+        let values = pad.valuesDuringPress()
+        XCTAssertFalse(values.isEmpty, "the pad was never read during the press")
+        XCTAssertFalse(values.contains("moving"), "the pad moved although the hold was blocked")
         XCTAssertEqual(pad.value as? String, "stopped")
         XCTAssertEqual(haptics, ["commandBlocked"])
     }
