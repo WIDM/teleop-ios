@@ -166,7 +166,7 @@ hold's keepalive.
 | Message | What the app does with it |
 |---|---|
 | `welcome` | marks the connection welcomed, keeps `session`, opens the listening connection (below) |
-| `state` | the first one makes the link ready; every one updates the map, the feedback and the recorder line; `estop: true` latches the emergency stop on the phone |
+| `state` | the first one makes the link ready; every one updates the map, the guide, the feedback and the spoken narration of the recorder; `estop: true` latches the emergency stop on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
 | `error` | ignored. The server sends it for a malformed message, for example `{"code": "unknown_type", "msg": "unsupported type=no_such_type"}`. |
@@ -253,9 +253,10 @@ There are two ways out:
   the release can still say `estop: true`; the app ignores those for 2 seconds after it sent the release. If the
   release was refused, the next `state` still says `estop: true` and the phone latches the stop again.
 - **`reset_scene`** clears the stop and resets the scene in one go. The server accepts it during a stop. The phone
-  does not send it while stopped today; `StopExits` (`Packages/TeleopCore/Sources/TeleopCore/Recording/StopExits.swift`)
-  already decides when it should be the only way out: on a recording server, `estop_reset` alone leaves the
-  recorder off, so the next success would not be saved.
+  does not send it while stopped today: the stop screen offers only the release. `StopExits`
+  (`Packages/TeleopCore/Sources/TeleopCore/Recording/StopExits.swift`) already works out which ways out to offer,
+  and `AppModel.stopExits` keeps its answer up to date, but no screen reads it yet. The reason it exists: on a
+  recording server, `estop_reset` alone leaves the recorder off, so the next success would not be saved.
 
 ## The scene reset
 
@@ -322,16 +323,16 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator |
 | `episode` | counts scene resets of this server run | a change means the scene started over (the jaws hold nothing) |
 | `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` if not a number | "fully open" when opening, "closed on nothing" when closing |
-| `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | the recorder line and what the operator hears per take |
+| `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | what the operator hears per take |
 | `rec_saved` | demonstrations in the output file, including earlier server runs | "saved", by comparing with the last value |
 | `rec_discarded` | takes thrown away since the server started | "discarded", the same way |
-| `rec_samples` | samples in the current take, 30 per simulated second | the length of the take |
+| `rec_samples` | samples in the current take, 30 per simulated second | the length of the take, kept in `AppModel.recorder`, which no screen shows yet |
 | `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when not recording | read, not used yet |
 | `orient_deg`, `gripper_delta` | appear after the first wrist or arm hold | not used |
 
 **A state without the key `rec` comes from an unknown server, never from one without a recorder.** The phone then
-shows no recorder line and says nothing about takes, and the emergency stop offers both ways out with a warning that
-recording, if any, stays off until a reset.
+says nothing about takes. (`StopExits` would offer both ways out of an emergency stop, with a warning that recording,
+if any, stays off until a reset; as said above, no screen shows that choice yet.)
 
 When `state` arrives: right after `welcome`, after every ack, and after every 200 ms of silence from the client.
 On the control connection that means about five times a second when idle and never while a hold streams; on the
@@ -381,7 +382,7 @@ the published server it still works, with these differences:
 
 | The owner's copy | The published server | Effect on the app |
 |---|---|---|
-| `state` carries `rec`, `rec_saved`, `rec_discarded`, `rec_samples`, `rec_session`, `rec_mode` | none of them | an unknown server: no recorder line, no take narration, both ways out of a stop offered with a warning |
+| `state` carries `rec`, `rec_saved`, `rec_discarded`, `rec_samples`, `rec_session`, `rec_mode` | none of them | an unknown server: no take narration |
 | `state` carries `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | none of them | no "fully open" and no "closed on nothing" cues |
 | the wrist starts rolled 90 degrees, jaws side by side | jaws start front to back | `RobotProfile.jawsStartSideways` is true for the owner's copy; on the published server the operator must turn the jaws a quarter turn before a grasp |
 | a take starts at the first command of any kind | a take starts only at the first gripper, jog or move command; arm and wrist holds never start one | none on the phone; on the published server a take misses the approach to the cube |
