@@ -393,7 +393,8 @@ let known = Set(
 
 let allNames = actionTable.map(\.0) + stateCalls
 let sessionRun = explore(actions: { _ in allNames }, shippedUI: false, check: sessionChecks)
-// RootView sends holdArmEnd from any route when the app leaves the foreground.
+// While a control is held its end action is offered from any route: the input's release, or the hold ending when
+// the app leaves the active state (AppModel.activeChanged) or the camera stops.
 func shippedActions(_ node: Node) -> [String] {
     var names = uiMap[node.session.route]!
     if node.session.state.armMoving, !names.contains("holdArmEnd") { names.append("holdArmEnd") }

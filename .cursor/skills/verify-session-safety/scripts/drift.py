@@ -45,7 +45,7 @@ for name in sorted(stored - key_fields - excluded):
 # The volume keys reach the input rules (OperatingController): vol+ moves the arm; vol- closes the jaws (scheme A) or
 # holds the wrist (scheme B).
 KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd"}
-ROOT_VIEW_ACTIONS = {"holdArmEnd"}
+ROOT_VIEW_ACTIONS = set()
 # The operating screen feeds every touch to the input rules (OperatingController) and the pad's buttons to its rules,
 # so it can cause whatever those send; the top band's reset reaches the session through AppModel.runReset.
 TOUCH_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings", "resetScene"}

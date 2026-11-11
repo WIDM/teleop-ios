@@ -34,19 +34,9 @@ struct RootView: View {
         }
         .onChange(of: tracksPose) { _, tracks in PoseTracker.shared.setActive(tracks) }
         .onChange(of: scenePhase) { _, phase in
-            // Leaving the foreground (home, call, Control Center) must never leave the arm moving.
-            if phase != .active, model.session.state.armMoving { model.send(.holdArmEnd) }
-            model.foregroundChanged()
-            // Camera access granted in the Settings app only shows up on return.
+            // Camera access granted in the Settings app only shows up on return. Holds end on leaving the active
+            // state in AppModel.activeChanged.
             if phase == .active { PoseTracker.shared.setActive(tracksPose) }
-        }
-        .task(id: tracksPose) {
-            // ARKit is not something SwiftUI observes, so the posture is polled while the operating screen is up.
-            guard tracksPose else { return }
-            while !Task.isCancelled {
-                model.refreshPosture()
-                try? await Task.sleep(nanoseconds: 200_000_000)
-            }
         }
     }
 

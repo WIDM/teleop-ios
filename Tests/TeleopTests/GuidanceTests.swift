@@ -344,8 +344,7 @@ final class MiniMapLayoutTests: XCTestCase {
     }
 }
 
-/// How the phone is held is read a few times a second. Changes are not buzzed: the six event patterns are the
-/// only haptics. A translation pressed while the phone is held wrong is refused and says why.
+/// A translation pressed while the phone is held wrong is refused and says why.
 final class PostureHapticsTests: XCTestCase {
     private var camera: simd_float4x4? = TestPose.portrait
     private var spy: SpyHaptics!
@@ -367,33 +366,6 @@ final class PostureHapticsTests: XCTestCase {
     }
 
     private var sideways: simd_float4x4 { TestPose.portrait(turned: 90, about: SIMD3(0, 0, 1)) }
-
-    func testFirstReadingIsSilent() {
-        model.refreshPosture()
-        XCTAssertEqual(model.posture, .upright)
-        XCTAssertEqual(spy.felt, [])
-    }
-
-    func testPostureChangesAreReadButNotBuzzed() {
-        model.refreshPosture()
-        camera = sideways
-        model.refreshPosture()
-        XCTAssertEqual(model.posture, .tilted)
-        camera = TestPose.portrait
-        model.refreshPosture()
-        XCTAssertEqual(model.posture, .upright)
-        XCTAssertEqual(spy.felt, [], "a posture buzz would read as GO or GRIP")
-    }
-
-    func testLosingAndRegainingTrackingIsSilent() {
-        model.refreshPosture()
-        camera = nil
-        model.refreshPosture()
-        XCTAssertEqual(model.posture, .unknown)
-        camera = TestPose.portrait
-        model.refreshPosture()
-        XCTAssertEqual(spy.felt, [])
-    }
 
     func testATranslationWithThePhoneHeldSidewaysIsRefused() {
         let speech = SpySpeech()

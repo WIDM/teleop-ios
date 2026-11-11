@@ -42,8 +42,6 @@ final class AppModel {
     }
     /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
     private(set) var holdOffset: SIMD3<Float>?
-    /// How the phone is held, as of the last `refreshPosture`.
-    private(set) var posture: PhonePosture = .unknown
     /// Live link only: where the cube or the goal is from the gripper.
     private(set) var guidance: Guidance?
     /// True while the command is held back so the arm can catch up with the phone.
@@ -318,7 +316,8 @@ final class AppModel {
         controller.attitude(PhoneAttitude.portrait(cameraTransform: camera), at: time)
     }
 
-    /// The scene phase became active or left it. Every hold ends on leaving; inputs held across it stay dead.
+    /// The app became active or left the active state (a call, the home screen, Control Center). Every hold ends, with
+    /// its stop, on leaving; inputs held across it stay dead; the link's old latency probes are dropped.
     func activeChanged(_ active: Bool) {
         controller.activeChanged(active)
         link.foregroundChanged()
@@ -358,7 +357,7 @@ final class AppModel {
         return InputFacts(
             refusal: refusal,
             trackingRefusal: controller.isCameraStopped || camera == nil ? .notTracking : nil,
-            translationRefusal: PhonePosture.of(camera, previous: posture) == .tilted ? .posture : nil,
+            translationRefusal: PhonePosture.of(camera) == .tilted ? .posture : nil,
             resetRefusal: resetRefusal,
             gripping: profile.recloseLoosensGrip && gripping,
             wrist: WristReadings(
@@ -433,17 +432,6 @@ final class AppModel {
 
     /// The cues decided so far, newest last.
     var cueLog: [CueLogEntry] { cues.log }
-
-    /// RootView calls this on every scene phase change; `activeChanged` is the input side of it.
-    func foregroundChanged() { link.foregroundChanged() }
-
-    /// Reads how the phone is held, from the same pose the arm follows. Called a few times a second on
-    /// control screens. A change between held right and not is felt: one short buzz for right, two for not.
-    func refreshPosture() {
-        let now = PhonePosture.of(pose(), previous: posture)
-        guard now != posture else { return }
-        posture = now
-    }
 
     /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
     /// screen. Called at launch and when the Settings switch turns the real server on.
@@ -712,7 +700,7 @@ final class AppModel {
             }
         } else if !before.armMoving, after.armMoving {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
-            let held = PhonePosture.of(pose(), previous: posture)
+            let held = PhonePosture.of(pose())
             if held == .tilted || !link.startHold(params) {
                 log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))")
                 if held == .tilted {
