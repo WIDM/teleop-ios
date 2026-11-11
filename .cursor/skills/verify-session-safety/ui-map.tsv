@@ -1,14 +1,16 @@
 # route	screen struct	actions the screen itself can send
 # scripts/drift.py compares each row with RootView.screen(for:) and with the model.send calls in that struct.
-p4	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd,wristStart,wristEnd
-p5	ConnectionDetailsScreen	changeServer,openKeyboard,closeConnection,stop
-p6	StandbyScreen	openConnection,openSettings,stop,openFallback,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,turnStartPositive,turnStartNegative,turnStartTiltDown,turnStartTiltUp,turnEnd,wristStart,wristEnd
-p7	ConnectionDetailsScreen	keyboardDone,stop
+# The operating screen draws every operating route. Its touches and pad go through the input rules, which can send
+# any control, STOP, Settings and the reset; Release, keep scene shows only while stopped, which can be on any of them.
+p4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+p5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+p6	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+p7	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
 t1	TutorialScreen	stop,tutorialSkip,tutorialNext1
 t2	TutorialScreen	stop,tutorialSkip,tutorialNext2
 t3	TutorialScreen	stop,back,tutorialNext3
-s1	ConnectScreen	openConnection,connect,disconnect,s1Back,stop
-s2	PermissionsScreen	openConnection,permissionsContinue,stop
-s4	EStopScreen	openConnection,releaseStop,stop
-s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,openSettings,stop
-s6	SettingsScreen	back,settingsDone,replayTutorial,stop,toggleLiveLink
+s1	ConnectScreen	connect,s1Back,stop,toggleLiveLink
+s2	PermissionsScreen	permissionsContinue,stop
+s4	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+s5	OperatingScreen	stop,openSettings,resetScene,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,wristStart,wristEnd,releaseStop
+s6	SettingsScreen	settingsDone,stop,connect,disconnect,changeServer,toggleLiveLink

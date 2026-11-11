@@ -42,13 +42,16 @@ for name in sorted(stored - key_fields - excluded):
     problems.append(f"FakeTeleopState.{name} is not in StateKey or the excluded list")
 
 
-HOLD_ACTIONS = {"holdArmStart", "holdArmEnd"}
 # The volume keys reach the input rules (OperatingController): vol+ moves the arm; vol- closes the jaws (scheme A) or
 # holds the wrist (scheme B).
 KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd"}
-GRIPPER_ACTIONS = {"gripperStart", "gripperEnd"}
-TURN_ACTIONS = {"turnStart", "turnEnd"}
 ROOT_VIEW_ACTIONS = {"holdArmEnd"}
+# The operating screen feeds every touch to the input rules (OperatingController) and the pad's buttons to its rules,
+# so it can cause whatever those send; the top band's reset reaches the session through AppModel.runReset.
+TOUCH_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings", "resetScene"}
+BUTTON_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
+# Release, keep scene: the one control the operating screen sends itself.
+RELEASE_ACTIONS = {"releaseStop"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
 )
@@ -60,8 +63,8 @@ def sends(text):
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
     if "model.connect()" in text:
         found.add("connect")
-    # The Settings switch: AppModel.liveLink flips the flag, then sends switchLink.
-    if "$model.liveLink" in text:
+    # Practice on and off: AppModel.liveLink flips the flag, then sends switchLink.
+    if "$model.liveLink" in text or "model.startPractice()" in text or "model.leavePractice()" in text:
         found.add("toggleLiveLink")
     # LiveLinkController reports what the server did.
     found |= set(re.findall(r"onAction\?\(\.(\w+)", text))
@@ -75,16 +78,17 @@ for path in APP.rglob("*.swift"):
     text = path.read_text()
     for match in STRUCT.finditer(text):
         struct_sends[match.group(1)] = sends(match.group(0))
-        if ".armHold(model:" in match.group(0):
-            struct_sends[match.group(1)] |= HOLD_ACTIONS
         if ".volumeKeys(model:" in match.group(0):
             struct_sends[match.group(1)] |= KEY_ACTIONS
-        # The gripper hold reaches a screen through these views.
-        if re.search(r"\.gripperHold\(model:|LeftHandles\(|GripperOpenHandle\(|GripperHoldRow\(|GripperHoldButton\(", match.group(0)):
-            struct_sends[match.group(1)] |= GRIPPER_ACTIONS
-        # The jaw turn reaches a screen through these views.
-        if re.search(r"\.turnHold\(model:|LeftHandles\(|JawTurnHandle\(", match.group(0)):
-            struct_sends[match.group(1)] |= TURN_ACTIONS
+        if "model.touch(" in match.group(0):
+            struct_sends[match.group(1)] |= TOUCH_ACTIONS
+        if "model.buttonDown(" in match.group(0):
+            struct_sends[match.group(1)] |= BUTTON_ACTIONS
+        # The operating screen's touch surface, pad and release button reach it through these views.
+        if "OperatingSurface(" in match.group(0):
+            struct_sends[match.group(1)] |= TOUCH_ACTIONS | BUTTON_ACTIONS | RELEASE_ACTIONS
+        if "OperatingControls(" in match.group(0):
+            struct_sends[match.group(1)] |= BUTTON_ACTIONS | RELEASE_ACTIONS
     leftover = sends(STRUCT.sub("", text))
     if leftover:
         outside_structs[str(path.relative_to(APP))] = leftover
@@ -109,7 +113,12 @@ for path in sorted(set(allowed_outside) - set(outside_structs)):
     problems.append(f"{path} no longer sends actions; remove it from allowed_outside")
 
 root_view = (APP / "Screens/RootView.swift").read_text()
-screen_of_route = dict(re.findall(r"case \.(\w+): (\w+)\(", root_view))
+# One case may name several routes ("case .p4, .p5: OperatingScreen(").
+screen_of_route = {
+    route: screen
+    for routes, screen in re.findall(r"case ((?:\.\w+, )*\.\w+): (\w+)\(", root_view)
+    for route in re.findall(r"\.(\w+)", routes)
+}
 
 listed_by_struct = {}
 map_routes = set()
@@ -140,14 +149,9 @@ for screen, names in sorted(listed_by_struct.items()):
 # Only these structs may send actions without being a mapped screen.
 allowed = {
     "RootView": ROOT_VIEW_ACTIONS,
-    "ArmHoldModifier": HOLD_ACTIONS,
     "VolumeKeyModifier": set(),
-    "HeldControlModifier": set(),
-    "GripperHoldButton": GRIPPER_ACTIONS,
-    "GripperOpenHandle": GRIPPER_ACTIONS,
-    "GripperHoldRow": GRIPPER_ACTIONS,
-    "JawTurnHandle": TURN_ACTIONS,
-    "LeftHandles": GRIPPER_ACTIONS | TURN_ACTIONS,
+    "OperatingSurface": TOUCH_ACTIONS | BUTTON_ACTIONS | RELEASE_ACTIONS,
+    "OperatingControls": BUTTON_ACTIONS | RELEASE_ACTIONS,
 }
 for name, expected in allowed.items():
     if struct_sends.get(name) != expected:
