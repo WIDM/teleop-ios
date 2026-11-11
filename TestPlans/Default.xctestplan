@@ -1,0 +1,34 @@
+{
+  "configurations" : [
+    {
+      "id" : "5D0F1E2A-3B4C-4D5E-8F60-718293A4B5C6",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "ServerMotionTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "4CF114B66C1C65C7C850F42D",
+        "name" : "TeleopTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "C263A42A718DCE27EA1D95E3",
+        "name" : "TeleopUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

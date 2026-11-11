@@ -1,26 +1,32 @@
 import simd
 import TeleopCore
+import TeleopServerHost
+import TeleopServerModel
 import XCTest
 @testable import Teleop
 
-/// Real socket against teleop-app's stub_server.py on this Mac (`python3 stub_server.py`, port 8765).
-/// Skipped when the stub is not running, so CI without it stays green.
-final class StubServerTests: XCTestCase {
+/// The app over a real socket, against the server model on 127.0.0.1 (`LocalTeleopServer`, a port the system
+/// picks). These are the checks that used to need teleop-app's stub server on port 8765.
+final class LocalServerTests: XCTestCase {
+    private var server: LocalTeleopServer!
     private var position = SIMD3<Float>.zero
     private var savedLiveLink: Any?
 
-    // Turning the Settings switch saves it, and these tests run inside the app: put back what the simulator had.
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        // Turning the Settings switch saves it, and these tests run inside the app: remember what the simulator had.
         savedLiveLink = UserDefaults.standard.object(forKey: AppModel.liveLinkKey)
+        server = LocalTeleopServer()
+        try server.start()
     }
 
     override func tearDown() {
+        server.stop()
+        server = nil
         UserDefaults.standard.set(savedLiveLink, forKey: AppModel.liveLinkKey)
         super.tearDown()
     }
 
-    private func makeModel() -> AppModel {
+    private func makeModel(address: String) -> AppModel {
         let model = AppModel(
             start: .s1,
             haptics: NoHaptics(),
@@ -29,7 +35,7 @@ final class StubServerTests: XCTestCase {
             },
             liveLink: true
         )
-        model.session.state.serverAddress = "127.0.0.1:8765"
+        model.session.state.serverAddress = address
         return model
     }
 
@@ -42,35 +48,40 @@ final class StubServerTests: XCTestCase {
         return done()
     }
 
-    func testConnectHoldStopAndRelease() throws {
-        let model = makeModel()
+    func testConnectHoldStopAndRelease() {
+        let model = makeModel(address: server.address)
         model.connect()
-        guard wait(3, until: { model.session.state.connected || model.session.state.serverInputError }),
-              model.session.state.connected else {
-            throw XCTSkip("stub_server.py is not running on 127.0.0.1:8765")
-        }
+        XCTAssertTrue(wait(3, until: { model.session.state.connected || model.session.state.serverInputError }))
+        XCTAssertTrue(model.session.state.connected)
         XCTAssertEqual(model.session.route, .p5)
 
-        // The probe goes out once a second; a local round trip is a few milliseconds.
+        // The probe goes out twice a second; a local round trip is a few milliseconds.
         XCTAssertTrue(wait(3, until: { model.session.state.latencyMs.map { $0 < 80 } ?? false }), "no latency measured")
 
+        let armBefore = server.inspect { $0.world.arm }
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)
-        // Move 2 cm over about 0.6 s, well under the speed limit.
+        // Move 2 cm forward over about 0.6 s, well under the speed limit.
         for step in 1...20 {
             position = SIMD3(0, 0, -0.001 * Float(step))
             _ = wait(0.03, until: { false })
         }
+        _ = wait(0.5, until: { false })
         model.send(.holdArmEnd)
         XCTAssertFalse(model.session.state.armMoving)
         _ = wait(0.4, until: { false })
         XCTAssertFalse(model.debugLog.contains { $0.contains("rejected") }, "\(model.debugLog)")
+        // Forward is the robot's −Y. The server checks below poll, since its queue may run late on a busy machine.
+        let movedY = { self.server.inspect { $0.world.arm.y } - armBefore.y }
+        XCTAssertTrue(wait(2, until: { abs(movedY() + 0.02) <= 0.003 }), "the arm moved \(movedY()) m along Y, not -0.02")
 
         model.send(.stop)
         XCTAssertEqual(model.session.route, .s4)
         _ = wait(0.5, until: { false })
+        XCTAssertTrue(wait(2, until: { server.inspect { $0.state["estop"] } == true }), "STOP did not reach the server")
         model.send(.releaseStop)
         _ = wait(1.0, until: { false })
+        XCTAssertTrue(wait(2, until: { server.inspect { $0.state["estop"] } == false }), "the server's E-stop was not reset")
         XCTAssertFalse(model.session.state.emergencyStop, "the server's E-stop came back after release")
         XCTAssertTrue(model.session.state.connected)
 
@@ -79,8 +90,10 @@ final class StubServerTests: XCTestCase {
     }
 
     func testNothingListeningFailsOnTheConnectScreen() {
-        let model = makeModel()
-        model.session.state.serverAddress = "127.0.0.1:8799"
+        // The port the system gave the server a moment ago: nothing listens there once it has stopped.
+        let address = server.address
+        server.stop()
+        let model = makeModel(address: address)
         model.connect()
         XCTAssertTrue(wait(7, until: { model.session.state.serverInputError }))
         XCTAssertFalse(model.session.state.connected)

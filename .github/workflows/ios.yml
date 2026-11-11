@@ -21,7 +21,7 @@ jobs:
       - name: No empty button actions
         run: python3 scripts/check-dead-buttons.py
 
-      - name: Core package tests
+      - name: Core package tests (session, link, server model, conformance to the server recordings)
         run: swift test
         working-directory: Packages/TeleopCore
 
@@ -46,6 +46,7 @@ jobs:
           xcodebuild test \
             -project Teleop.xcodeproj \
             -scheme Teleop \
+            -testPlan Default \
             -destination "platform=iOS Simulator,name=$SIM_NAME" \
             -resultBundlePath build/Teleop.xcresult \
             CODE_SIGNING_ALLOWED=NO \

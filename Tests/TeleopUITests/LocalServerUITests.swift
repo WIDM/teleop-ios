@@ -1,0 +1,35 @@
+import TeleopServerHost
+import TeleopServerModel
+import XCTest
+
+/// The app with its live link on, against the server model this test process serves on 127.0.0.1.
+final class LocalServerUITests: XCTestCase {
+    private var server: LocalTeleopServer!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        server = LocalTeleopServer()
+        try server.start()
+    }
+
+    override func tearDown() {
+        server?.stop()
+        server = nil
+    }
+
+    func testConnectReachesTheLocalServer() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-appLanguage", "en", "-liveLink", "YES", "-serverAddress", server.address, "-startRoute", "s1_connect",
+        ]
+        app.launch()
+        let connect = app.descendants(matching: .any)["connect.connect"].firstMatch
+        XCTAssertTrue(connect.waitForExistence(timeout: 5), "missing connect.connect")
+        connect.tap()
+        // P5 comes up only once the server has answered hello with welcome and a state.
+        XCTAssertTrue(app.descendants(matching: .any)["connection.change_server"].firstMatch.waitForExistence(timeout: 5),
+                      "the app did not connect to \(server.address)")
+        XCTAssertEqual(server.inspect { $0.welcomedClients }, 1)
+        XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
+    }
+}
