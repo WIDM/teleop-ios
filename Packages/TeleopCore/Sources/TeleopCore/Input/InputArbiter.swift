@@ -155,32 +155,43 @@ public struct InputArbiter: Sendable {
         self.facts = facts
         let time = max(time, now)
         advance(to: time, firingTies: false)
-        for event in Self.ordered(events) {
+        for event in ordered(events) {
             apply(event)
         }
         advance(to: time, firingTies: true)
         return out
     }
 
-    /// Moves each attitude sample ahead of the touch moves (and ticks, which do nothing) just before it.
-    private static func ordered(_ events: [InputEvent]) -> [InputEvent] {
+    /// Moves each attitude sample ahead of the touch moves just before it, and of the ticks and the key-ups of keys
+    /// that are not down, which do nothing.
+    private func ordered(_ events: [InputEvent]) -> [InputEvent] {
         var result: [InputEvent] = []
+        var yields: [Bool] = []
+        // Keys a key-up would act on, as of each event in turn.
+        var down = Set(keys.keys).union(staleKeys)
         for event in events {
             guard case .attitude = event else {
+                yields.append(Self.yieldsToAttitude(event, down: &down))
                 result.append(event)
                 continue
             }
             var index = result.endIndex
-            while index > result.startIndex, Self.yieldsToAttitude(result[index - 1]) { index -= 1 }
+            while index > result.startIndex, yields[index - 1] { index -= 1 }
             result.insert(event, at: index)
+            yields.insert(false, at: index)
         }
         return result
     }
 
-    private static func yieldsToAttitude(_ event: InputEvent) -> Bool {
+    private static func yieldsToAttitude(_ event: InputEvent, down: inout Set<InputKey>) -> Bool {
         switch event {
         case .touch(let sample): return sample.phase == .moved
         case .tick: return true
+        // Only a key-up whose key is not down: one that ends a hold must still come first.
+        case .keyUp(let key): return down.remove(key) == nil
+        case .keyDown(let key):
+            down.insert(key)
+            return false
         default: return false
         }
     }

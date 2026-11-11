@@ -48,6 +48,30 @@ final class SameInstantTests: XCTestCase {
         XCTAssertEqual(commands.withoutUpdates, [.startWrist])
     }
 
+    func testAnAttitudeSampleStillGoesBeforeAMoveBehindAKeyUpThatDoesNothing() {
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.middle)
+        rig.wait(0.1)
+        rig.slide(1, mm: 9, degrees: 90)
+        rig.turn = 6
+        let up = Rig.middle + SIMD2(0, -10 * Rig.pointsPerMm)
+        // vol+ is not down, so its key-up does nothing.
+        let commands = rig.batch([rig.sample(1, .moved, up, radius: 8), .keyUp(.upper), .attitude(rig.attitude)], after: 0.01)
+        XCTAssertEqual(commands.withoutUpdates, [.startWrist])
+    }
+
+    func testAnAttitudeSampleNeverGoesBeforeAKeyUpThatEndsAHold() {
+        var rig = Rig(.keyTurns)
+        rig.press(.lower)
+        rig.rotate(turn: 10)
+        rig.turn = 20
+        XCTAssertEqual(rig.batch([.keyUp(.lower), .attitude(rig.attitude)], after: 0.016), [.stopWrist])
+        // Nor before one that ends a hold pressed earlier in the same call.
+        rig.turn = 30
+        XCTAssertEqual(rig.batch([.keyDown(.lower), .keyUp(.lower), .attitude(rig.attitude)], after: 1),
+                       [.startWrist, .wristUpdate(.identity), .stopWrist])
+    }
+
     // MARK: An event at a timer's deadline
 
     func testAPalmSampleAtTheEndOfThePalmWindowIsStillAPalm() {
