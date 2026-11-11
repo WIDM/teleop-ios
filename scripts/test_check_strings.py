@@ -63,6 +63,16 @@ class CheckStringsTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("guide.wrist format specifiers differ", out)
 
+    def test_a_literal_percent_takes_no_argument(self):
+        code, out = self.run_check(
+            'Text("guide.jaws")\n', {"guide.jaws": ("%d%% open of %@", "%@ 張開 %d%%")}
+        )
+        self.assertEqual(code, 1, out)
+        code, out = self.run_check(
+            'Text("guide.jaws")\n', {"guide.jaws": ("%d%% of %@", "%d 個 %@，%%")}
+        )
+        self.assertEqual(code, 0, out)
+
     def test_numbered_format_specifiers_may_come_in_any_order(self):
         code, out = self.run_check(
             'Text("guide.wrist")\n', {"guide.wrist": ("Turn %1$d°, tilt %2$@", "傾斜 %2$@，轉 %1$d°")}

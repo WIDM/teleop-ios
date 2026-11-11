@@ -58,8 +58,9 @@ def values(name):
 
 
 def specifiers(text):
-    """In order: the arguments fill them in order. Numbered ones (%1$@) say which argument each takes, so any order."""
-    found = SPECIFIER.findall(text)
+    """In order: the arguments fill them in order. Numbered ones (%1$@) say which argument each takes, so any order.
+    A literal percent (%%) takes no argument."""
+    found = [f for f in SPECIFIER.findall(text) if f != "%%"]
     return sorted(found) if any("$" in f for f in found) else found
 
 
