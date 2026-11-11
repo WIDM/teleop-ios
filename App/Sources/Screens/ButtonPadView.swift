@@ -164,6 +164,9 @@ private struct SpeedSwitch: View {
         .accessibilityAdjustableAction { direction in
             onSpeed(direction == .increment ? .coarse : .fine)
         }
+        // The middle of the switch is the seam between the halves. Activating it, or a UI test's tap(), lands on
+        // the other half instead, so it toggles as the action above does.
+        .accessibilityActivationPoint(UnitPoint(x: speed == .fine ? 0.75 : 0.25, y: 0.5))
         .accessibilityIdentifier("buttons.speed")
         .position(x: rect.midX, y: rect.midY)
     }
