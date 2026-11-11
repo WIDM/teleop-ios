@@ -321,70 +321,6 @@
         }
       }
     },
-    "connection.change_server": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change server"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更換伺服器"
-          }
-        }
-      }
-    },
-    "connection.latency_high": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms, high"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms，偏高"
-          }
-        }
-      }
-    },
-    "connection.latency_none": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not measured"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未量測"
-          }
-        }
-      }
-    },
-    "connection.latency_normal": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms, normal"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms，正常"
-          }
-        }
-      }
-    },
     "connection.server_address": {
       "localizations": {
         "en": {
@@ -2237,22 +2173,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "機器人自己急停（%@）。"
-          }
-        }
-      }
-    },
-    "stop.label": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "STOP"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止"
           }
         }
       }
