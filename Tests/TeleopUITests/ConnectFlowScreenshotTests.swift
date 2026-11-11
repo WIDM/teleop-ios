@@ -78,6 +78,24 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         shot("09-P5-final")
     }
 
+    /// A live link that drops brings the operator to S1 with a notice. The demo cannot drop, so the launch fakes it.
+    func testALostConnectionIsShownOnConnectUntilTheNextConnection() {
+        app.terminate()
+        app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "s1_connect", "-startConnectionLost", "YES"]
+        app.launch()
+        let notice = app.staticTexts["connect.connection_lost"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 5))
+        XCTAssertEqual(notice.label, "Connection lost. The arm stopped. Connect again to continue.")
+        XCTAssertTrue(notice.isHittable, "the notice is on screen")
+        XCTAssertTrue(chipLabel.hasPrefix("Not connected"), chipLabel)
+        shot("10-S1-connection-lost")
+        tap("connect.connect")
+        expect("connection.change_server")
+        tap("connection.change_server")
+        expect("connect.connect")
+        XCTAssertFalse(notice.exists, "the next connection clears the notice")
+    }
+
     func testTutorialWalksThroughAllThreeSteps() {
         tap("permissions.continue")
         answerSystemPrompts(allow: true)

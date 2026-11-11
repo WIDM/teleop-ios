@@ -83,6 +83,12 @@ final class AppModel {
         // UI tests only: `-startBlocked YES` starts with commands blocked, as a slow live link does.
         // The built-in demo has no latency of its own, so there is no other way to reach that state without a server.
         if UserDefaults.standard.bool(forKey: "startBlocked") { session.state.commandsBlocked = true }
+        // UI tests only: `-startConnectionLost YES` starts as a dropped live link leaves things, with the notice on S1.
+        // The built-in demo cannot drop its link.
+        if UserDefaults.standard.bool(forKey: "startConnectionLost") {
+            session.state.markDisconnected()
+            session.state.connectionLost = true
+        }
         // UI tests and screenshots only: `-demoGuidance YES` shows the task map without a server.
         if UserDefaults.standard.bool(forKey: "demoGuidance") {
             guidance = Guidance.make(

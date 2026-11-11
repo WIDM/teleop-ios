@@ -18,7 +18,7 @@ Disconnect on S1 ends the link and stays on S1, with no lost-connection line; Co
 Preconditions: baseline, connected (S1 Connect done once).
 
 - Logic: `swift test --filter S1ConnectFlowTests` -> `.disconnect` keeps `.s1`; `LiveLinkSessionTests` -> `.linkLost` opens `.s1` with `connectionLost`; check drained haptics.
-- UI: tap `connect.disconnect`, expect `connect.connect` and no `connect.connection_lost` (shot `08-S1-after-disconnect`); tap `connect.connect`, expect `connection.change_server`. F3.c needs a live link; the UI tests run on the demo link.
+- UI: tap `connect.disconnect`, expect `connect.connect` and no `connect.connection_lost` (shot `08-S1-after-disconnect`); tap `connect.connect`, expect `connection.change_server`. The drop in F3.c needs a live link, and the UI tests run on the demo link, so they launch S1 with `-startConnectionLost YES`, expect `connect.connection_lost` (shot `10-S1-connection-lost`) and expect it gone after Connect.
 
 ## Gotchas
 
