@@ -12,10 +12,11 @@ What was left from the design mock-up and only pretended is gone, so every contr
 real.
 
 - No mode choice on every launch. Cloud mode was simulated: its two safety checks were hard-coded to pass, and a
-  hidden long press faked a failure. A fresh install opens on the permissions screen, then the tutorial; once the
-  tutorial is finished or skipped, every launch opens straight on standby. On a real server the app tries the saved
-  address at launch, as choosing a mode used to. "Switch mode" is gone from Settings, and the Real server switch
-  now changes the link where you are instead of going back to a mode choice.
+  hidden long press faked a failure. A fresh install opens on the permissions screen, then the tutorial; once you
+  have reached standby (by finishing or skipping the tutorial, or by releasing a STOP pressed during it), every
+  launch opens straight on standby. On a real server the app tries the saved address at launch, as choosing a mode
+  used to. "Switch mode" is gone from Settings, and the Real server switch now changes the link where you are
+  instead of going back to a mode choice.
 - No base mode. The Base panel on the right edge of the camera view opened a screen that sent nothing, and the
   simulated arm has no mobile base. The hint no longer says "Hold right edge: move base".
 - No Record, recording screens, timer, Save or Discard. Nothing was ever stored or sent.

@@ -25,7 +25,8 @@ final class AppModel {
     }
     static let liveLinkKey = "liveLink"
     static let serverAddressKey = "serverAddress"
-    /// Set once the tutorial has been finished or skipped. From then on the app opens on standby.
+    /// Set the first time standby is reached: after the tutorial, or by any other way such as releasing an E-stop
+    /// pressed during it. From then on the app opens on standby.
     static let firstRunDoneKey = "firstRunDone"
     /// UI tests only: `-recordHaptics YES` shows requested haptics to XCUITest, which cannot feel them.
     private(set) var hapticLog: [String]? = UserDefaults.standard.bool(forKey: "recordHaptics") ? [] : nil
@@ -148,9 +149,10 @@ final class AppModel {
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
         let before = session.state
+        let routeBefore = session.route
         let wasMoving = before.armMoving
         session.perform(action)
-        if !before.tutorialDone, session.state.tutorialDone {
+        if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
         }
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }

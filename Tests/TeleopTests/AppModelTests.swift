@@ -69,21 +69,24 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(AppModel.opensSavedServerAtLaunch(environment: [:]))
     }
 
-    func testFinishingOrSkippingTheTutorialEndsTheFirstRun() {
-        defer { UserDefaults.standard.removeObject(forKey: AppModel.firstRunDoneKey) }
-        for skip in [true, false] {
+    func testReachingStandbyEndsTheFirstRun() {
+        let saved = UserDefaults.standard.object(forKey: AppModel.firstRunDoneKey)
+        defer { UserDefaults.standard.set(saved, forKey: AppModel.firstRunDoneKey) }
+        let ways: [String: [TeleopAction]] = [
+            "skip": [.tutorialSkip],
+            "finish": [.tutorialNext(step: 1), .tutorialNext(step: 2), .tutorialNext(step: 3)],
+            "STOP during the tutorial, then release": [.stop, .releaseStop],
+        ]
+        for (way, actions) in ways {
             UserDefaults.standard.removeObject(forKey: AppModel.firstRunDoneKey)
             let model = AppModel(start: .s2, haptics: SpyHaptics())
             model.send(.permissionsContinue)
             XCTAssertEqual(model.session.route, .t1)
-            XCTAssertFalse(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey))
-            if skip {
-                model.send(.tutorialSkip)
-            } else {
-                for step in 1...3 { model.send(.tutorialNext(step: step)) }
-            }
-            XCTAssertEqual(model.session.route, .p4)
-            XCTAssertTrue(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey))
+            for action in actions.dropLast() { model.send(action) }
+            XCTAssertFalse(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey), way)
+            model.send(actions.last!)
+            XCTAssertEqual(model.session.route, .p4, way)
+            XCTAssertTrue(UserDefaults.standard.bool(forKey: AppModel.firstRunDoneKey), way)
         }
     }
 }
