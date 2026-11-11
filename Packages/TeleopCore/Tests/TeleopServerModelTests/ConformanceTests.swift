@@ -5,6 +5,7 @@ import XCTest
 /// in what matters to a client:
 ///
 /// - acks: for each client seq, the same status and reason, in the same order as the other acks (strict);
+/// - the state that comes with an ack: there for the same acks, with the same `estop` and `ik` (strict);
 /// - errors and `test` echoes: the same seqs and codes (strict);
 /// - `state` timing: none while the client keeps sending at least every 200 ms, except right after an ack
 ///   (strict); in each longer silence, a state every 200 ms (counted, within one and the 2 % by which the real
@@ -194,7 +195,9 @@ struct Comparison {
     struct Event {
         let time: Double
         let message: JSONValue
-        /// The message before it was an ack or a welcome: this is the state that follows them.
+        /// A state that came with the ack or welcome just before it, not from the 200 ms timer: the next message,
+        /// with the same seq, sent back to back (0 to 10 ms apart in the recordings, against at least 199 ms for a
+        /// timer state).
         let follows: Bool
 
         var type: String { message["type"]?.stringValue ?? "" }
@@ -216,6 +219,7 @@ struct Comparison {
             if real != model { problems.append("\(what): recorded \(real), model \(model)") }
         }
         same("acks (seq, status, reason)") { $0.filter { $0.type == "ack" }.map(Self.ackText) }
+        same("state with each ack (seq, estop, ik)", Self.statesWithAcks)
         same("errors (seq, code)") { events in
             events.filter { $0.type == "error" }.map { "\($0.message["seq"]?.intValue ?? 0) \($0.payload["code"]?.stringValue ?? "")" }
         }
@@ -294,11 +298,25 @@ struct Comparison {
     }
 
     private static func events(_ list: [(Double, JSONValue)]) -> [Event] {
-        var previous = ""
+        var previous: (time: Double, message: JSONValue)?
         return list.map { time, message in
-            let type = message["type"]?.stringValue ?? ""
-            defer { previous = type }
-            return Event(time: time, message: message, follows: previous == "ack" || previous == "welcome")
+            defer { previous = (time, message) }
+            guard message["type"] == "state", let previous, ["ack", "welcome"].contains(previous.message["type"]?.stringValue),
+                  previous.message["seq"] == message["seq"], time - previous.time <= 0.02 else {
+                return Event(time: time, message: message, follows: false)
+            }
+            return Event(time: time, message: message, follows: true)
+        }
+    }
+
+    /// For each ack in order: whether a state came with it and, if so, that state's `estop` and `ik`. The server
+    /// sends one after every accepted command and every final ack, and none after a refusal such as `busy`.
+    private static func statesWithAcks(_ events: [Event]) -> [String] {
+        zip(events, events.dropFirst().map(Optional.some) + [nil]).compactMap { event, next in
+            guard event.type == "ack" else { return nil }
+            let seq = event.message["seq"]?.intValue ?? -1
+            guard let next, next.follows else { return "\(seq) no state" }
+            return "\(seq) estop \(text(next.payload["estop"])) ik \(text(next.payload["ik"]))"
         }
     }
 
