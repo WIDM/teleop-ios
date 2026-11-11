@@ -871,6 +871,17 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertFalse(link.isStale)
     }
 
+    func testQuietTimeCountsFromTheLastMessage() {
+        XCTAssertNil(link.quietMs, "nothing heard before welcome")
+        bringUp()
+        clock += 700
+        XCTAssertEqual(link.quietMs, 700)
+        _ = server("state", ["estop": false])
+        XCTAssertEqual(link.quietMs, 0)
+        link.transportClosed()
+        XCTAssertNil(link.quietMs)
+    }
+
     func testPoseParamsAreClampedToServerRanges() {
         let params = PoseParams(gain: 5, smoothing: 1)
         XCTAssertEqual(params, PoseParams(gain: 2, smoothing: 0.95))

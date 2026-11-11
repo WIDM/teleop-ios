@@ -31,6 +31,9 @@ final class LiveLinkController {
     static let observerName = "teleop-ios/1.0.0 observer"
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
+    /// With the listening connection up, the link is lost when neither connection has heard anything this long
+    /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
+    static let quietLinkMs = 1200
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -355,7 +358,7 @@ final class LiveLinkController {
             if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome from server") }
             return
         }
-        if link.isStale {
+        if link.isStale || bothConnectionsQuiet {
             drop("server went quiet")
             return
         }
@@ -526,6 +529,12 @@ final class LiveLinkController {
     }
 
     // MARK: Listening connection
+
+    /// The listening connection is up and neither connection has heard anything for `quietLinkMs`.
+    private var bothConnectionsQuiet: Bool {
+        guard observerUp, let control = link?.quietMs, let listening = observer?.quietMs else { return false }
+        return min(control, listening) > Self.quietLinkMs
+    }
 
     private func openObserver() {
         guard let url, observerTransport == nil else { return }

@@ -1404,4 +1404,29 @@ final class LiveLinkTests: XCTestCase {
         tick()
         XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_update"), "nothing more is streamed for it")
     }
+
+    /// I-7: with the listening connection up, 1.2 s with nothing on either connection is a lost link.
+    func testWithTheListeningConnectionUpTheLinkIsLostAfter1point2sOfSilence() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<36 { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.19 s")
+        tick()
+        XCTAssertFalse(model.session.state.connected, "1.22 s")
+        XCTAssertEqual(sounds.played, [.linkLost])
+    }
+
+    /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
+    /// its commands are not getting through.
+    func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
+        bringUp()
+        bringUpObserver()
+        for step in 0..<60 {
+            tick()
+            if step % 6 == 0 { observer.server("state", ["estop": false, "gripper": "closed"]) }
+        }
+        XCTAssertTrue(model.session.state.connected, "the control connection alone allows 2 s")
+        for _ in 0..<5 { tick() }
+        XCTAssertFalse(model.session.state.connected, "and no more")
+    }
 }

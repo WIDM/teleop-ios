@@ -313,6 +313,9 @@ public final class TeleopLink {
         if ready { lastHeardAt = now() }
     }
 
+    /// How long since anything arrived on this connection; nil before `welcome`.
+    public var quietMs: Int? { lastHeardAt.map { now() - $0 } }
+
     /// True when the link was ready but the server has been silent too long.
     public var isStale: Bool {
         guard ready, let lastHeardAt else { return false }
