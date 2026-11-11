@@ -65,7 +65,7 @@ struct SettingsScreen: View {
                 HStack {
                     Text("settings.arm_speed")
                     Spacer()
-                    Text(verbatim: String(format: "%.2g×", model.session.state.sensitivity))
+                    Text(verbatim: String(format: "%g×", model.session.state.sensitivity))
                         .font(.system(size: 15, design: .monospaced))
                 }
                 Slider(value: $model.session.state.sensitivity, in: 0.5...2, step: 0.25)
