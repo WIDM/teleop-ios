@@ -26,8 +26,6 @@ let actionTable: [(String, TeleopAction)] = [
     ("connect", .connect),
     ("disconnect", .disconnect),
     ("s1Back", .s1Back),
-    ("reconnect", .reconnect),
-    ("backToConnect", .backToConnect),
     ("back", .back),
     ("stop", .stop),
     ("releaseStop", .releaseStop),
@@ -96,7 +94,7 @@ let properties: [Property] = [
     Property(id: "S12", promise: "At most one of the arm hold, the gripper hold and the jaw turn is active.", harm: "The server runs one held control at a time, so the phone would show two controls working while only one is."),
     Property(id: "S13", promise: "A jaw turn is active only while connected and not E-stopped.", harm: "The jaws could keep turning after STOP or over a lost link."),
     Property(id: "S14", promise: "turnEnd always leaves the jaws still.", harm: "Releasing the control would not stop the jaws turning."),
-    Property(id: "U1", promise: "On shipped screens, while E-stop is latched the user is only on S4 or a connection screen that leads back to it (P5, P7, S1, S7).", harm: "S4 is hidden, so the app looks ready while all control input is silently ignored."),
+    Property(id: "U1", promise: "On shipped screens, while E-stop is latched the user is only on S4 or a connection screen that leads back to it (P5, P7, S1).", harm: "S4 is hidden, so the app looks ready while all control input is silently ignored."),
     Property(id: "U2", promise: "On shipped screens, S4 is shown only while E-stop is latched.", harm: "The app could claim E-stop when none is active."),
     Property(id: "U3", promise: "On shipped screens, a latched E-stop can always be released.", harm: "The operator could be stuck with no way back to control."),
     Property(id: "U4", promise: "On shipped screens, the arm is moving only while connected and not latency-blocked.", harm: "The app could report or command motion over a lost or too-slow link."),
@@ -160,6 +158,7 @@ struct StateKey: Hashable {
     let gripperMoving: GripperState?
     let jawTurning: TurnDirection?
     let serverInputError: Bool
+    let connectionLost: Bool
     let liveLink: Bool
     let route: Route
     let origin: Route?
@@ -185,6 +184,7 @@ func key(_ node: Node) -> StateKey {
         gripperMoving: s.gripperMoving,
         jawTurning: s.jawTurning,
         serverInputError: s.serverInputError,
+        connectionLost: s.connectionLost,
         liveLink: s.liveLink,
         route: node.session.route,
         origin: origin,
@@ -315,7 +315,7 @@ func sessionChecks(_ step: Step) -> [(String, String)] {
     return out
 }
 
-let screensWhileEStopped: Set<Route> = [.s4, .p5, .p7, .s1, .s7]
+let screensWhileEStopped: Set<Route> = [.s4, .p5, .p7, .s1]
 
 func uiChecks(_ step: Step) -> [(String, String)] {
     let b = step.after.session.state

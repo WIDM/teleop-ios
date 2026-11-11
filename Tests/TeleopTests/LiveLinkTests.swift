@@ -274,13 +274,14 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(model.session.route, .s4)
     }
 
-    func testSocketCloseDuringAHoldStopsAndShowsErrors() {
+    func testSocketCloseDuringAHoldStopsAndReturnsToConnect() {
         bringUp()
         model.send(.holdArmStart)
         transport.onClose?()
         XCTAssertFalse(model.session.state.connected)
         XCTAssertFalse(model.session.state.armMoving)
-        XCTAssertEqual(model.session.route, .s7)
+        XCTAssertEqual(model.session.route, .s1)
+        XCTAssertTrue(model.session.state.connectionLost)
         XCTAssertFalse(model.link.isOpen)
     }
 
@@ -289,7 +290,8 @@ final class LiveLinkTests: XCTestCase {
         clock += TeleopLink.staleAfterMs + 1
         model.link.tick()
         XCTAssertFalse(model.session.state.connected)
-        XCTAssertEqual(model.session.route, .s7)
+        XCTAssertEqual(model.session.route, .s1)
+        XCTAssertTrue(model.session.state.connectionLost)
     }
 
     func testGripperMovesWhileHeldAndStopsOnRelease() {
@@ -1006,7 +1008,8 @@ final class LiveLinkTests: XCTestCase {
         model.send(.changeServer)
         model.send(.disconnect)
         XCTAssertTrue(transport.closed)
-        XCTAssertEqual(model.session.route, .s7)
+        XCTAssertEqual(model.session.route, .s1)
+        XCTAssertFalse(model.session.state.connectionLost)
     }
 
     func testSwitchModeClosesTheSocket() {

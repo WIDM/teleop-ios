@@ -28,7 +28,7 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), "missing \(id)", file: file, line: line)
     }
 
-    /// P1 -> S2 -> T1 -> P4 -> P5 -> S1 -> P5 -> S1 -> S7 -> S1 -> P5
+    /// P1 -> S2 -> T1 -> P4 -> P5 -> S1 -> P5 -> S1 -> P5 -> S1, Disconnect stays on S1 -> P5
     func testS1ThroughP5() {
         expect("mode.next")
         shot("01-P1-mode-select")
@@ -67,12 +67,9 @@ final class ConnectFlowScreenshotTests: XCTestCase {
 
         expect("connect.disconnect")
         tap("connect.disconnect")
-        expect("errors.reconnect")
-        shot("09-S7-errors")
-        tap("errors.reconnect")
-
         expect("connect.connect")
-        shot("10-S1-after-reconnect")
+        XCTAssertFalse(app.descendants(matching: .any)["connect.connection_lost"].exists, "a chosen disconnect is not a lost connection")
+        shot("09-S1-after-disconnect")
         tap("connect.connect")
         expect("connection.change_server")
         shot("11-P5-final")

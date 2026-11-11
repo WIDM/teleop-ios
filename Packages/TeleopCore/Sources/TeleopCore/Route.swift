@@ -15,5 +15,4 @@ public enum Route: String, CaseIterable, Sendable {
     case s4 = "s4_estopped"
     case s5 = "s5_fallback"
     case s6 = "s6_settings"
-    case s7 = "s7_errors"
 }

@@ -16,8 +16,6 @@ public enum TeleopAction: Equatable, Sendable {
     case connect
     case disconnect
     case s1Back
-    case reconnect
-    case backToConnect
     case back
     case stop
     case releaseStop
@@ -122,12 +120,11 @@ public struct TeleopSession: Equatable, Sendable {
             state.markConnected()
             go(.p5)
         case .disconnect:
+            // Disconnect is on S1, so the operator is already where a new connection starts.
             state.markDisconnected()
-            go(.s7)
+            state.connectionLost = false
         case .s1Back:
             go(.p5)
-        case .reconnect, .backToConnect:
-            go(.s1)
         case .back:
             navigator.back()
         case .stop:
@@ -221,9 +218,10 @@ public struct TeleopSession: Equatable, Sendable {
             if !wasConnected {
                 // A failed attempt: say so on the connect screen, go nowhere.
                 if route == .s1 { state.serverInputError = true }
-            } else if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) {
+            } else {
+                state.connectionLost = true
                 // E-stop latched: S4 must never be hidden.
-                go(.s7)
+                if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) { go(.s1) }
             }
         case .linkLatency(let ms):
             guard state.liveLink, state.connected else { return }

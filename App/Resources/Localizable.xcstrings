@@ -305,6 +305,22 @@
         }
       }
     },
+    "connect.connection_lost": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection lost. The arm stopped. Connect again to continue."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線中斷，手臂已停止。請重新連線。"
+          }
+        }
+      }
+    },
     "connect.disconnect": {
       "localizations": {
         "en": {
@@ -877,118 +893,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "模擬檢查失敗"
-          }
-        }
-      }
-    },
-    "errors.back_to_connect": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to connect"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回到連線"
-          }
-        }
-      }
-    },
-    "errors.connection_lost": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection lost"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連線中斷"
-          }
-        }
-      }
-    },
-    "errors.connection_lost_body": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arm stopped by heartbeat timeout. Reconnecting…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "心跳逾時，手臂已停止。重新連線中…"
-          }
-        }
-      }
-    },
-    "errors.heartbeat_timeout_body": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No update for 750 ms. This command stopped. Release and try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "750 ms 沒有更新，這個指令已停止。請放開後再試一次。"
-          }
-        }
-      }
-    },
-    "errors.reconnect": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnect"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新連線"
-          }
-        }
-      }
-    },
-    "errors.rejected_busy": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Command rejected: busy"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指令被拒絕：忙碌中"
-          }
-        }
-      }
-    },
-    "errors.rejected_busy_body": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Another device is controlling the robot"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "另一台裝置正在控制機器人"
           }
         }
       }
@@ -1741,22 +1645,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已連線"
-          }
-        }
-      }
-    },
-    "status.disconnected": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnected"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已中斷"
           }
         }
       }

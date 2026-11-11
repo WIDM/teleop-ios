@@ -65,7 +65,6 @@ struct RootView: View {
         case .s4: EStopScreen(model: model)
         case .s5: FallbackControlScreen(model: model)
         case .s6: SettingsScreen(model: model)
-        case .s7: ErrorsScreen(model: model)
         }
     }
 }

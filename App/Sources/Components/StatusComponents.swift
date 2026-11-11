@@ -6,20 +6,17 @@ struct ConnectionChip: View {
     var connected: Bool
     var amber = false
     var heartbeatOk = true
-    var lost = false
     var onTap: (() -> Void)? = nil
 
     private var effectivelyConnected: Bool { connected && heartbeatOk }
 
     private var dotColor: Color {
-        if lost { return TeleopColors.emergency }
         if !effectivelyConnected { return TeleopColors.textSecondary }
         return amber ? TeleopColors.statusAmber : TeleopColors.statusGreen
     }
 
     private var labelKey: LocalizedStringKey {
-        if lost { return "status.disconnected" }
-        return effectivelyConnected ? "status.connected" : "status.not_connected"
+        effectivelyConnected ? "status.connected" : "status.not_connected"
     }
 
     var body: some View {

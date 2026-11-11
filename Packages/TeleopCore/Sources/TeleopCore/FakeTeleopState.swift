@@ -33,6 +33,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     /// Which way the wrist is moving while a wrist control is held (roll or pitch); nil when still.
     public var jawTurning: TurnDirection?
     public var serverInputError = false
+    /// Live link only: a working link dropped. S1 says so until the next connection or a Disconnect.
+    public var connectionLost = false
     /// True when a real server drives the link. Then only `linkUp` marks the session connected.
     public var liveLink = false
 
@@ -53,6 +55,7 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public mutating func markConnected() {
         connected = true
+        connectionLost = false
         latencyMs = Self.normalLatencyMs
         commandsBlocked = false
     }
@@ -88,6 +91,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         gripperMoving = nil
         jawTurning = nil
         connected = false
+        connectionLost = false
         heartbeatOk = true
         clearLatency()
     }

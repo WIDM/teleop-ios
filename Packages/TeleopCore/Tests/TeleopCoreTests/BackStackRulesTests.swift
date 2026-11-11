@@ -41,19 +41,22 @@ final class BackStackRulesTests: XCTestCase {
         XCTAssertTrue(edges(.s1).contains(.p5))
     }
 
-    func testS1DisconnectGoesToS7AndReconnectReturns() {
-        XCTAssertTrue(edges(.s1).contains(.s7))
-        XCTAssertTrue(edges(.s7).contains(.s1))
-        XCTAssertEqual(BackStackRules.previous(of: .s7), .s1)
+    func testLosingTheLinkOnAControlScreenLeadsToS1() {
+        for route in BackStackRules.controlRoutes {
+            XCTAssertTrue(edges(route).contains(.s1), "\(route)")
+        }
     }
 
     func testStatusChipOnP4GoesToP5NotS1() {
         XCTAssertTrue(edges(.p4).contains(.p5))
-        XCTAssertFalse(edges(.p4).contains(.s1))
+        // P4 also has an edge to S1, for a lost link; the chip itself opens P5.
+        var s = TeleopSession(start: .p4)
+        s.perform(.openConnection)
+        XCTAssertEqual(s.route, .p5)
     }
 
     func testEveryRouteReachableFromP1() {
-        XCTAssertEqual(Route.allCases.count, 16)
+        XCTAssertEqual(Route.allCases.count, 15)
         XCTAssertEqual(BackStackRules.reachable(from: .p1), Set(Route.allCases))
     }
 

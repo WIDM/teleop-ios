@@ -38,10 +38,12 @@ final class LiveLinkSessionTests: XCTestCase {
     func testLinkUpConnectsAndLeavesTheConnectScreen() {
         var s = live(at: .s1)
         s.state.serverInputError = true
+        s.state.connectionLost = true
         s.perform(.linkUp(gripper: .closed))
         XCTAssertTrue(s.state.connected)
         XCTAssertTrue(s.state.heartbeatOk)
         XCTAssertFalse(s.state.serverInputError)
+        XCTAssertFalse(s.state.connectionLost)
         XCTAssertEqual(s.state.gripper, .closed)
         XCTAssertEqual(s.route, .p5)
     }
@@ -53,14 +55,26 @@ final class LiveLinkSessionTests: XCTestCase {
         XCTAssertEqual(s.state.gripper, .open)
     }
 
-    func testLinkLostStopsTheArmAndOpensErrors() {
+    func testLinkLostStopsTheArmAndReturnsToConnectSayingSo() {
+        for route in [Route.p4, .p6, .s5] {
+            var s = live(at: route)
+            s.perform(.linkUp(gripper: nil))
+            s.perform(.holdArmStart)
+            s.perform(.linkLost)
+            XCTAssertFalse(s.state.connected, "\(route)")
+            XCTAssertFalse(s.state.armMoving, "\(route)")
+            XCTAssertTrue(s.state.connectionLost, "\(route)")
+            XCTAssertEqual(s.route, .s1, "\(route)")
+        }
+    }
+
+    func testDisconnectAfterALostLinkClearsTheNotice() {
         var s = live(at: .p4)
         s.perform(.linkUp(gripper: nil))
-        s.perform(.holdArmStart)
         s.perform(.linkLost)
-        XCTAssertFalse(s.state.connected)
-        XCTAssertFalse(s.state.armMoving)
-        XCTAssertEqual(s.route, .s7)
+        s.perform(.disconnect)
+        XCTAssertEqual(s.route, .s1)
+        XCTAssertFalse(s.state.connectionLost)
     }
 
     func testLinkLostWhileEStoppedKeepsS4() {
@@ -70,6 +84,7 @@ final class LiveLinkSessionTests: XCTestCase {
         s.perform(.linkLost)
         XCTAssertEqual(s.route, .s4)
         XCTAssertTrue(s.state.emergencyStop)
+        XCTAssertTrue(s.state.connectionLost)
     }
 
     func testLinkLostOnSettingsStaysThere() {
@@ -78,6 +93,7 @@ final class LiveLinkSessionTests: XCTestCase {
         s.perform(.linkLost)
         XCTAssertEqual(s.route, .s6)
         XCTAssertFalse(s.state.connected)
+        XCTAssertTrue(s.state.connectionLost)
     }
 
     func testFailedAttemptShowsTheErrorOnTheConnectScreen() {
@@ -85,6 +101,7 @@ final class LiveLinkSessionTests: XCTestCase {
         s.perform(.linkLost)
         XCTAssertEqual(s.route, .s1)
         XCTAssertTrue(s.state.serverInputError)
+        XCTAssertFalse(s.state.connectionLost, "nothing was lost: the link never came up")
     }
 
     func testSlowLinkBlocksStopsTheArmAndShowsP6() {

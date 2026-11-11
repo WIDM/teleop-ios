@@ -1,7 +1,7 @@
 import SwiftUI
 import TeleopCore
 
-/// S1. Back and Connect return to P5; Disconnect goes to S7.
+/// S1. Back and Connect return to P5; Disconnect ends the link and stays here.
 struct ConnectScreen: View {
     let model: AppModel
 
@@ -21,6 +21,13 @@ struct ConnectScreen: View {
             Text("connect.subtitle")
                 .font(.system(size: 14))
                 .foregroundStyle(TeleopColors.textSecondary)
+            if state.connectionLost {
+                Text("connect.connection_lost")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TeleopColors.emergency)
+                    .padding(.top, 8)
+                    .accessibilityIdentifier("connect.connection_lost")
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("connection.server_address")

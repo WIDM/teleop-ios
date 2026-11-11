@@ -15,4 +15,3 @@ s2	PermissionsScreen	openConnection,permissionsContinue,stop
 s4	EStopScreen	openConnection,releaseStop,stop
 s5	FallbackControlScreen	openConnection,holdArmStart,holdArmEnd,gripperStartClosed,gripperStartOpen,gripperEnd,openSettings,stop
 s6	SettingsScreen	back,settingsDone,replayTutorial,stop,switchMode,toggleLiveLink
-s7	ErrorsScreen	openConnection,reconnect,backToConnect,stop

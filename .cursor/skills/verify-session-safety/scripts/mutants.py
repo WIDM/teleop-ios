@@ -82,9 +82,9 @@ VARIANTS = [
         ["FAIL S6"],
     ),
     (
-        # Harmless: U1 allows S7 while latched, because S7 leads back to S4.
-        "lost link opens S7 even while E-stopped",
-        [("} else if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) {", "} else {")],
+        # Harmless: U1 allows S1 while latched, because S1 leads back to S4.
+        "lost link opens S1 even while E-stopped",
+        [("if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) { go(.s1) }", "go(.s1)")],
         ["PASS U1", "PASS U3"],
     ),
     (
