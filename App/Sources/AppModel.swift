@@ -686,7 +686,8 @@ final class AppModel {
         // E-stop goes out first. A server-side E-stop is not echoed, but our own hold still has to end.
         if !before.emergencyStop, after.emergencyStop, !fromServer { stopReached = link.estop() }
         if before.armMoving, !after.armMoving { link.endHold() }
-        if before.emergencyStop, !after.emergencyStop { link.estopReset() }
+        // Release, keep scene. A reset that cleared the stop needs no estop_reset.
+        if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
         if !before.armMoving, after.armMoving, pendingButtonHold {
             if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) {
                 log("link: button hold not started (no link or a reset)")
