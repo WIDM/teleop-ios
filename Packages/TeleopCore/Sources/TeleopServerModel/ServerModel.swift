@@ -30,6 +30,11 @@ public final class ServerModel {
     var connections: [Int: Connection] = [:]
     private var nextConnection = 1
     var outbox: [ServerOutput] = []
+    /// Final acks not yet sent. On the server, finishing a command only resolves a future; the socket side writes
+    /// the ack and a state once the loop's pass, or the front end's own reply, is done. So that state already
+    /// shows what the rest of the pass did (an E-stop the failure engaged), and an E-stop's own ack goes out
+    /// before the rejection of a start it caught in the queue.
+    private var completions: [(seq: Int, owner: Int, status: String, reason: String)] = []
     /// When the loop's next pass runs.
     private var nextStepTime: Double
 
@@ -89,6 +94,7 @@ public final class ServerModel {
         connection.isOpen = false
         connection.quietSince = nil
         if let command = pending, command.owner == id, !command.finished { engageEstop() }
+        sendCompletions()
         return drain()
     }
 
@@ -97,6 +103,7 @@ public final class ServerModel {
         run(until: time, frameArrives: true)
         guard let connection = connections[id], connection.isOpen else { return drain() }
         handle(text, connection, id)
+        sendCompletions()
         // The server waits for the next frame afresh after each one: state goes out only after this much silence.
         connection.quietSince = self.time
         connection.statesSinceQuiet = 0
@@ -136,6 +143,7 @@ public final class ServerModel {
             if step <= timer {
                 time = max(time, step)
                 loopPass()
+                sendCompletions()
                 nextStepTime = time + passInterval
             } else {
                 if frameArrives, timer > target - 1e-9 { break }
@@ -372,14 +380,22 @@ public final class ServerModel {
         return ("ok", "estop_reset")
     }
 
-    /// The command's one final ack, then a state, to the connection that sent it.
+    /// Ends the command. Its one final ack, then a state, go to the connection that sent it at the next
+    /// `sendCompletions`.
     func finish(_ command: Command, _ status: String, _ reason: String) {
         if !command.finished {
             command.finished = true
-            ack(command.seq, status, reason, to: command.owner)
-            sendState(seq: command.seq, to: command.owner)
+            completions.append((command.seq, command.owner, status, reason))
         }
         if pending === command { pending = nil }
+    }
+
+    private func sendCompletions() {
+        for completion in completions {
+            ack(completion.seq, completion.status, completion.reason, to: completion.owner)
+            sendState(seq: completion.seq, to: completion.owner)
+        }
+        completions = []
     }
 }
 

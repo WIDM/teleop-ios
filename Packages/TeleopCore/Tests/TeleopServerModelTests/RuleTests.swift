@@ -130,6 +130,18 @@ final class RuleTests: XCTestCase {
         XCTAssertNil(phone.ack(again), "accepted after estop_reset")
     }
 
+    func testAnEmergencyStopThatCatchesAStartStillQueuedIsAnsweredFirst() {
+        let before = phone.received.count
+        // Both in the same instant, before the loop has taken the start off the queue.
+        let start = phone.poseStart()
+        let estop = phone.send("estop")
+        let answers = phone.received.dropFirst(before).map { "\($0.type) \($0.message["seq"]?.intValue ?? -1)" }
+        XCTAssertEqual(answers, ["ack \(estop)", "state \(estop)", "ack \(start)", "state \(start)"])
+        XCTAssertEqual(phone.reason(estop), "ok estop_engaged")
+        XCTAssertEqual(phone.reason(start), "rejected estop")
+        XCTAssertEqual(phone.stateWithAck(start)?["estop"], true)
+    }
+
     func testResetSceneClearsAnEmergencyStop() {
         phone.send("estop")
         bench.wait(0.5)
@@ -203,6 +215,9 @@ final class RuleTests: XCTestCase {
         phone.stream(for: 3) { phone.poseUpdate(base: SIMD3(repeating: 2 * half)) }
         XCTAssertEqual(phone.reason(hold), "rejected pose_tracking_safety_stop")
         XCTAssertEqual(bench.model.state["estop"], true)
+        // The link learns of an E-stop from state only, so the state that comes with the failure must show it.
+        XCTAssertEqual(phone.stateWithAck(hold)?["estop"], true)
+        XCTAssertEqual(phone.stateWithAck(hold)?["ik"], "stopped")
     }
 
     // MARK: The arm is slow

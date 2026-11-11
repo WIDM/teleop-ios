@@ -74,6 +74,15 @@ final class Bench {
 
         func reason(_ seq: Int) -> String? { ack(seq).map { "\($0.status) \($0.reason)" } }
 
+        /// The state that came with the ack for `seq` (the very next message, with the same seq), if one did.
+        func stateWithAck(_ seq: Int) -> JSONValue? {
+            let all = received
+            guard let index = all.firstIndex(where: { $0.type == "ack" && $0.payload["seq"]?.intValue == seq }),
+                  index + 1 < all.count, all[index + 1].type == "state",
+                  all[index + 1].message["seq"]?.intValue == seq else { return nil }
+            return all[index + 1].payload
+        }
+
         // MARK: Controls, as a phone app sends them
 
         static let poseParameters: JSONValue = .object([
