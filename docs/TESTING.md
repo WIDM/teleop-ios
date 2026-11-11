@@ -14,11 +14,11 @@ to the real thing.
 | Layer | Where | What it can catch | What it cannot catch |
 |---|---|---|---|
 | Core | `Packages/TeleopCore/Tests/TeleopCoreTests` | a wrong rule in the session, the link, the feedback, the recorder narration, the input rules or the buttons mode, with hand-written messages and a test clock | anything the real server does differently from what the test author wrote down |
-| Server model rules | `RuleTests`, `RecorderTests` (in `RuleTests.swift`), `ProtocolTests` | the model breaking one of the server rules that have bitten the app: `busy`, the held-back final ack, quiet during holds, the watchdog, the emergency stop, a reset behind a stop, the workspace, the slow arm, success, the recorder | whether the real server still behaves so |
+| Server model rules | `RuleTests`, `RecorderTests` (in `RuleTests.swift`), `ProtocolTests` | the model breaking one of the server rules that have bitten the app (each is explained in `docs/PROTOCOL.md`): a start refused `busy` while the last hold finishes; the final ack that comes only after the hold has really ended; no `state` to a client while it keeps sending; the watchdog that ends a hold with no updates; the emergency stop; a scene reset sent right behind a stop; the workspace box; the arm trailing its target; success; the recorder | whether the real server still behaves so |
 | Conformance | `ConformanceTests` | the model drifting from the real server in any of the 18 recorded scenarios | situations no recording has: the recorder on, a success, a tracking stop |
 | Link against the model | `LinkTests`, `FeedbackFromModelTests`, `NarrationTests` | the app's real `TeleopLink`, `FeedbackMonitor` and `RecorderNarrator` disagreeing with the server's rules, in one process on a test clock | sockets, threads, real time |
 | Socket host | `LocalTeleopServerTests` | `LocalTeleopServer` failing to serve the model on a real WebSocket at 127.0.0.1 | the app |
-| App | `Tests/TeleopTests` | `AppModel` and `LiveLinkController` wiring, over a fake socket on a test clock (`LiveLinkTests`, `AppModelTests`) and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, `LocalPickAndPlaceTests`); the guide, the volume-key mapping, the strings in both languages | ARKit (the phone's pose is scripted), what the operator actually feels or hears, the volume keys themselves, the real server |
+| App | `Tests/TeleopTests` | `AppModel` and `LiveLinkController` wiring, over a fake socket on a test clock (`LiveLinkTests`, `AppModelTests`) and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, `LocalPickAndPlaceTests`); the guide, the volume-key mapping, the spoken strings in both languages (`SpeechTextTests`) | ARKit (the phone's pose is scripted), what the operator actually feels or hears, the volume keys themselves, the real server |
 | UI | `Tests/TeleopUITests` | screens, buttons and flows through XCUITest; which haptics the app asks for (`-recordHaptics YES` shows them to the test); the app connecting to a model served by the test process (`LocalServerUITests`) | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
 | Live | `Tests/TeleopTests/ServerMotionTests.swift` | the app against the real simulator: its lag, its safety stop, a scripted pick-and-place | anything, unless someone runs it: it moves the shared simulator's arm, so it never runs by default or in CI |
 
@@ -116,8 +116,10 @@ grasps the cube, carries it to the goal and lets go.
 The same script runs in two places:
 
 - `LocalPickAndPlaceTests`, in every default run, against `LocalTeleopServer` stepping 60 times a second, with the
-  script's waits shortened to match (`pace: 0.3`). It checks that the scene reset once after the success and that
-  nothing was emergency-stopped.
+  script's waits shortened to match (`pace: 0.3`). The script itself fails if the arm cannot reach the grasp point,
+  the cube is not lifted, the cube does not end in the goal, or the phone shows an emergency stop at the end. The
+  test then checks that the server's episode count is 1 (the scene reset once, after the success) and that the
+  server's last `state` has no emergency stop. It does not check that no emergency stop happened along the way.
 - `ServerMotionTests.testPickAndPlaceByScript`, in the Live plan, against the real simulator at full waits.
 
 `TeleopServerModel` (`Packages/TeleopCore/Sources/TeleopServerModel`) is one deterministic type with time passed
@@ -167,8 +169,9 @@ so the whole set is the safer unit.
 On purpose, to stay small; every number it does use is in `ServerModelConfig`, with its source.
 
 - The arm is one point that follows its commanded point at a bounded distance per step. It has no joints, does
-  not sag under gravity or stop short, and wrist angles do not move it (on the real arm a 14 degree wrist pitch
-  moved the reported point 1.4 cm). Shoulder and elbow joint commands change those joint angles but not the point.
+  not sag under gravity or stop short, and wrist angles do not move it (on the real arm a few degrees of wrist pitch
+  move the jaws further than the grasp tolerance, which is why the model grasps only near the start pitch,
+  `graspFlexTolerance`). Shoulder and elbow joint commands change those joint angles but not the point.
 - The `tool` frame of `jog_start` and `move_delta` is treated as `base`.
 - The jaws are a pinch point. They stop on the table but pass through the cube unless they close around it, so
   lowering closed jaws onto the cube does not fail a move as it can on the real server. A test can put an
@@ -181,8 +184,10 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
   one varies with load and sometimes stalls for half a second.
 - The recorder is its state machine and counters only: no files, no camera. It does not send `rec_session` and
   `rec_mode` yet.
-- Not modelled at all: cameras, the WebSocket ping, the 8192-byte frame limit and four-message inbound queue, the
-  50 s timeout the server's socket side gives a one-shot command. Malformed payloads that crash the real handler (an
+- Not modelled at all: cameras, the WebSocket ping, and three settings of the real server's socket side (from its
+  source, which is not in this repository): the 8192-byte frame limit, the four-message inbound queue, and the 50 s
+  it waits for a one-shot command to finish. The model's `commandDeadline` (45 s) is a different rule: how soon the
+  loop must take a one-shot command. Malformed payloads that crash the real handler (an
   array where a name is expected) are answered as invalid instead.
 
 ## What CI runs
