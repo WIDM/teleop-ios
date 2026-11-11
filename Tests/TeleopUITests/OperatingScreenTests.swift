@@ -111,6 +111,11 @@ final class OperatingScreenTests: XCTestCase {
                                      "\(what): \"\(text.label)\" \(text.frame) reaches the gap above STOP", file: file, line: line)
         }
         let panels = all.filter { $0.identifier == "guide.above" || $0.identifier == "guide.behind" }
+        for panel in panels {
+            // A guide squeezed to a sliver would still "exist".
+            XCTAssertGreaterThanOrEqual(min(panel.frame.width, panel.frame.height), 40,
+                                        "\(what): \(panel.identifier) \(panel.frame) is too small to read", file: file, line: line)
+        }
         for (index, a) in texts.enumerated() {
             for b in texts.dropFirst(index + 1) {
                 let overlap = a.frame.intersection(b.frame)
@@ -121,6 +126,11 @@ final class OperatingScreenTests: XCTestCase {
                 let overlap = a.frame.intersection(panel.frame)
                 XCTAssertFalse(!overlap.isNull && overlap.width > 1 && overlap.height > 1,
                                "\(what): \"\(a.label)\" \(a.frame) covers the guide \(panel.frame)", file: file, line: line)
+            }
+            for control in controls {
+                let overlap = a.frame.intersection(control)
+                XCTAssertFalse(!overlap.isNull && overlap.width > 1 && overlap.height > 1,
+                               "\(what): \"\(a.label)\" \(a.frame) runs under a control \(control)", file: file, line: line)
             }
         }
         for control in all where control.identifier.hasPrefix("buttons.") && control.identifier != "buttons.speed" {
@@ -150,9 +160,15 @@ final class OperatingScreenTests: XCTestCase {
 
     func testReadyWithTaskObjects() {
         let app = render("ready")
-        for id in ["guide", "guide.above", "guide.behind", "readout.height", "readout.jaws", "readout.wrist", "readout.target"] {
+        for id in ["guide", "guide.above", "guide.behind"] {
             XCTAssertTrue(exists(app, id), id)
         }
+        // What a person reads, from the fixture's arm: 3 cm above the box's centre, the target 2.5 cm across and 5.5 cm
+        // forward of it, on the table.
+        XCTAssertEqual(app.element("readout.height").label, "Height 6.2 cm")
+        XCTAssertEqual(app.element("readout.jaws").label, "Jaws 90% open")
+        XCTAssertEqual(app.element("readout.wrist").label, "Wrist turn 90° · tilt 0°")
+        XCTAssertEqual(app.element("readout.target").label, "Target 6.0 cm across · 4.9 cm above")
         XCTAssertEqual(app.element("operating.rec").label, "REC armed · 12 saved · 3 discarded")
         XCTAssertEqual(app.element("operating.mode").label, "Screen turns (A)")
         XCTAssertEqual(app.element("operating.link").label, "Link up")
@@ -164,9 +180,12 @@ final class OperatingScreenTests: XCTestCase {
     /// The hotel case: the server reports no task objects, and the guide still shows the arm.
     func testReadyWithNoTaskObjects() {
         let app = render("ready_hotel")
-        for id in ["guide.above", "guide.behind", "readout.height", "readout.jaws", "readout.wrist"] {
+        for id in ["guide.above", "guide.behind"] {
             XCTAssertTrue(exists(app, id), id)
         }
+        XCTAssertEqual(app.element("readout.height").label, "Height 2.7 cm")
+        XCTAssertEqual(app.element("readout.jaws").label, "Jaws 80% open")
+        XCTAssertEqual(app.element("readout.wrist").label, "Wrist turn 90° · tilt -3°")
         XCTAssertFalse(exists(app, "readout.target"))
         XCTAssertFalse(exists(app, "readout.goal"))
         XCTAssertEqual(app.element("operating.rec").label, "Not recording")
@@ -206,7 +225,8 @@ final class OperatingScreenTests: XCTestCase {
 
     func testOpeningOnTarget() {
         let app = render("opening")
-        XCTAssertTrue(exists(app, "readout.on_target"))
+        XCTAssertEqual(app.element("readout.target").label, "Target 0.2 cm across · level")
+        XCTAssertEqual(app.element("readout.on_target").label, "On target")
     }
 
     func testClosingGripped() {
@@ -218,8 +238,8 @@ final class OperatingScreenTests: XCTestCase {
 
     func testHoldingSteersToTheGoal() {
         let app = render("holding")
-        XCTAssertTrue(exists(app, "readout.holding"))
-        XCTAssertTrue(exists(app, "readout.goal"))
+        XCTAssertEqual(app.element("readout.holding").label, "Holding")
+        XCTAssertEqual(app.element("readout.goal").label, "Goal 2.5 cm across · 4.3 cm above")
         XCTAssertFalse(exists(app, "readout.target"))
     }
 
