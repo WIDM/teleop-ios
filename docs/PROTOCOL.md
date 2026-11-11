@@ -31,6 +31,18 @@ recordings of the real server back most of what is written here.
   `App/Sources/Link/Guidance.swift`).
 - **Wrist roll** turns the jaws about the forearm; **wrist pitch** (the server says *flex*) tips them toward or
   away from the table. **Jaws** are the two fingers of the gripper.
+- **Clamp**: the server cuts a target short at a limit, for example the edge of the box the arm must stay in. The
+  arm goes as far as it may and no further; the phone tells the operator "as far as it goes".
+- **`ik`**: a field of `state`, named after *inverse kinematics* (working out the joint angles that put the gripper
+  at a given point). It reports what the server is doing, for example `pose_tracking` or `resetting`.
+- **Recorder, take, demonstration**: the server can record what the arm does while a person works the task, so the
+  lab collects examples of the task done by hand. The *recorder* is that part of the server. A *take* is one
+  recorded attempt, from the first command after a reset to the end of the attempt. A take that ends in success is
+  kept as a *demonstration* in the server's output file; any other take is thrown away.
+- **STOP** and **Reset** are controls on the phone: STOP latches the emergency stop, Reset asks the server to put
+  the scene back as it started (below).
+- **The map** is the phone's top-down drawing of the arm, the cube and the goal. **The guide** tells the operator
+  where the cube or the goal is from the jaws.
 
 ## The envelope
 
@@ -140,7 +152,9 @@ server turns `[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app se
 forward as −y and up as −z (`LiveLinkController.serverOffset`).
 
 The server requires `frame`, `rate_hz` (exactly 30), `gain` (0.1 to 2), `deadband_deg` (0 to 15) and `smoothing`
-(0 to 0.95), and then ignores the last three in translation mode. The app applies gain and smoothing to the hand
+(0 to 0.95), and then ignores the last three in translation mode. `frame` is a fixed name, not a choice: `pose_start`
+must say `webxr_local` and `orient_start` `phone_body`, and the server refuses any other value
+(`invalid_pose_frame`, `invalid_orient_frame`). The app applies gain and smoothing to the hand
 itself and sends `deadband_deg` 0. In translation mode the server also ignores `q_rel`, so the app sends no
 rotation, and `gripper_delta` is always 0 (the jaws do not move during an arm hold).
 
