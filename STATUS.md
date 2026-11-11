@@ -21,7 +21,7 @@ Settings > Real server (off by default) swaps the built-in demo for a WebSocket 
 - STOP sends `estop`, release sends `estop_reset`, Reset sends `reset_scene`. Holding vol− (close) or the Open handle sends `gripper_jog_start` with `jog_keepalive` every 133 ms, and `gripper_jog_stop` on release. The one-shot `gripper` message is not used: in Isaac Sim it blocked every other command for about 30 s.
 - A server E-stop latches the app on S4. A closed socket, or 2 s with no message at all, marks the link lost (the server is quiet during a hold, so the app's twice-a-second `test` echo is the heartbeat): S7 from a control screen, S4 stays if latched.
 - Round trip is measured twice a second with `test`; 400 ms or more blocks commands (P6).
-- Checked on the simulator against `teleop-app/stub_server.py` (`StubServerTests`, skipped when the stub is not running).
+- Checked on the simulator against a model of the server on a local socket (`LocalServerTests`, and the scripted pick-and-place in `LocalPickAndPlaceTests`); see `docs/TESTING.md`.
 
 Not checked yet: the phone itself driving Isaac Sim, and whether ARKit axes match the WebXR axes the server was calibrated for. Sensitivity and smoothing are applied in the app to the phone offset, because the server ignores them in translation mode; deadband is in degrees and has no effect on translation.
 

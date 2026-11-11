@@ -52,7 +52,7 @@ public struct World: Equatable, Sendable {
         if holdingCube {
             lowest = max(lowest, tableTop - config.toolOffset.z - gripOffset.z + config.cubeSize / 2)
         }
-        if next.z < lowest { next.z = max(lowest, min(arm.z, next.z)) }
+        next.z = max(next.z, lowest)
         arm = next
     }
 
