@@ -45,14 +45,16 @@ public enum InputEvent: Equatable, Sendable {
     /// `ended` or `cancelled`.
     case keyUp(InputKey)
     case touch(TouchSample)
-    /// The phone's attitude in portrait device axes (`PhoneAttitude.portrait`), about 60 times a second.
+    /// The phone's attitude in portrait device axes (`PhoneAttitude.portrait`), about 60 times a second. A sample that
+    /// is not a rotation (NaN, infinite or zero) is ignored.
     case attitude(simd_quatd)
     /// Lets the timers run out on time: the palm window, the scheme B dwell, the reset countdown. Send ticks at
     /// least at 30 Hz, or at `nextDeadline`.
     case tick
     /// Every hold ends and every input held now is dead until released (I-11, H4): the app left the active state,
     /// a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or the server
-    /// ended the engaged hold itself.
+    /// ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the call can
+    /// return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare.
     case endAllHolds
     /// The app is active again after leaving the active state (I-11, J8). It got no key-up or touch-up while away, so
     /// every touch held before is forgotten (its later samples are ignored), and a key held before no longer counts
@@ -65,7 +67,7 @@ public enum InputEvent: Equatable, Sendable {
     /// unknown server the tilt window counts commanded tilt from here.
     case sceneReset
     /// The engaged wrist hold's `orient_start` went on the wire now. If it waited behind a finishing hold, the
-    /// rotation made meanwhile is dropped (I-8.1).
+    /// rotation made meanwhile is dropped (I-8.1), and the call returns the target to stream from now on.
     case wristStartSent
 }
 
