@@ -90,7 +90,6 @@ check_use(
     "Localizable",
     localizable,
     (in_app - (ids - set(localizable))) | in_tests,
-    {"app.name"},
 )
 
 # Buttons.

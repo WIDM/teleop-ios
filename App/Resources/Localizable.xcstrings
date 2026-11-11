@@ -1,22 +1,6 @@
 {
   "extractionState": "manual",
   "strings": {
-    "app.name": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teleop"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teleop"
-          }
-        }
-      }
-    },
     "band.reset_hint": {
       "localizations": {
         "en": {
