@@ -291,7 +291,11 @@ final class RuleTests: XCTestCase {
         let success = phone.ack(open)
         XCTAssertEqual(success.map { "\($0.status) \($0.reason)" }, "ok task_success", "the hold still pressed ends with the success")
         let steps = ((success?.time ?? 0) - releasedAt) * bench.config.stepsPerSecond
-        XCTAssertGreaterThanOrEqual(steps, Double(bench.config.successSteps), "the cube must rest in the goal for 30 steps")
+        // 30 resting steps, the server's --success-stable-steps default, written out so that a wrong constant in the
+        // model fails. Before them come the pass that takes the jog and lets go and the pass where the cube lands,
+        // and the jog was sent up to one pass before the first of those.
+        XCTAssertGreaterThanOrEqual(steps, 31 - 1e-6, "the cube must rest in the goal for 30 steps")
+        XCTAssertLessThanOrEqual(steps, 32 + 1e-6, "and success comes as soon as it has")
         XCTAssertEqual(bench.model.state["task_success"], true)
         XCTAssertEqual(bench.model.state["ik"], "task_success")
         let refused = phone.poseStart()
