@@ -18,16 +18,28 @@ enum TeleopColors {
     static let statusGreen = Color(hex: 0x16A34A)
     static let statusAmber = Color(hex: 0xD97706)
     static let emergency = Color(hex: 0xDC2626)
-    static let emergencyBorder = Color(hex: 0xFACC15)
     static let background = Color(hex: 0xF8FAFC)
     static let card = Color.white
     static let textPrimary = Color(hex: 0x0F172A)
     static let textSecondary = Color(hex: 0x475569)
-    static let chevronMuted = Color(hex: 0x64748B)
-    static let handle = Color(hex: 0x0F172A, opacity: 0.8)
-    static let scrim = Color(hex: 0x0F172A, opacity: 0.6)
     static let gripperCard = Color(hex: 0xE2E8F0)
-    static let camera = Color(hex: 0x14213D)
+    /// The operating screen's bands and gap.
+    static let band = Color(hex: 0x0F172A)
+    static let bandText = Color(hex: 0x94A3B8)
+    /// The control surface takes the state's colour (§7.2).
+    static let stateGrey = Color(hex: 0x64748B)
+    static let stateGreen = Color(hex: 0x15803D)
+    static let stateBlue = Color(hex: 0x1D4ED8)
+    static let stateAmber = Color(hex: 0xB45309)
+    static let stateRed = Color(hex: 0xB91C1C)
+    static let stateDarkGrey = Color(hex: 0x334155)
+    static let stateGold = Color(hex: 0xEAB308)
+    /// Practice: diagonal stripes and its mark, on every screen (§7.4).
+    static let practice = Color(hex: 0x7C3AED)
+    /// The guide's marks.
+    static let guideTarget = Color(hex: 0xFB923C)
+    static let guideGoal = Color(hex: 0x4ADE80)
+    static let guideOnTarget = Color(hex: 0x4ADE80)
 }
 
 enum TeleopMetrics {
