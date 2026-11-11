@@ -70,6 +70,58 @@ final class AppModel {
     /// A close ended in contact and nothing has opened since, no scene reset and no new server run. While true a
     /// second close is refused (`raise(.limit(.alreadyGripping))`).
     private(set) var gripping = false
+    /// Everything the operating screen draws.
+    private(set) var operating: OperatingDisplay
+    /// UI tests only: `-operatingFixture <name>` shows that display, and nothing overwrites it.
+    @ObservationIgnored private let fixture: OperatingDisplay?
+    private var modeSetting: ControlMode
+    private var handSetting: Hand
+    private var taskAidSetting: Bool
+    private var speedSetting = ButtonSpeed.coarse
+    private var surfaceLayout: SurfaceLayout?
+    @ObservationIgnored let profile = RobotProfile.so101Simulator
+
+    static let controlModeKey = "controlMode"
+    static let handKey = "hand"
+    static let taskAidKey = "taskAid"
+    static let operatingFixtureKey = "operatingFixture"
+
+    /// Settings → Control → Mode, kept across launches. A change while anything is engaged is refused.
+    var controlMode: ControlMode {
+        get { modeSetting }
+        set {
+            guard newValue != modeSetting else { return }
+            guard !Self.engaged(session.state) else {
+                raise(.refused(.letGoFirst))
+                return
+            }
+            modeSetting = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.controlModeKey)
+            refreshOperating()
+        }
+    }
+
+    /// Settings → Hand, kept across launches.
+    var hand: Hand {
+        get { handSetting }
+        set {
+            guard newValue != handSetting else { return }
+            handSetting = newValue
+            UserDefaults.standard.set(newValue == .left ? "left" : "right", forKey: Self.handKey)
+            refreshOperating()
+        }
+    }
+
+    /// Settings → Task aid, kept across launches. On by default.
+    var taskAid: Bool {
+        get { taskAidSetting }
+        set {
+            guard newValue != taskAidSetting else { return }
+            taskAidSetting = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.taskAidKey)
+            refreshOperating()
+        }
+    }
 
     /// - Parameters:
     ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
@@ -91,6 +143,21 @@ final class AppModel {
             state.serverAddress = saved
         }
         session = TeleopSession(state: state, start: start)
+        let defaults = UserDefaults.standard
+        let mode = defaults.string(forKey: Self.controlModeKey).flatMap(ControlMode.init(rawValue:)) ?? .screenTurns
+        let hand: Hand = defaults.string(forKey: Self.handKey) == "left" ? .left : .right
+        let taskAid = defaults.object(forKey: Self.taskAidKey) as? Bool ?? true
+        let fixture = defaults.string(forKey: Self.operatingFixtureKey).flatMap(OperatingDisplay.fixture(named:))
+        modeSetting = mode
+        handSetting = hand
+        taskAidSetting = taskAid
+        self.fixture = fixture
+        operating = fixture ?? OperatingDisplay(
+            mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
+            resetCountdown: nil, heldButton: nil, speed: .coarse, recorder: .unknown,
+            stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
+            address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
+        )
         let audible = Self.opensSavedServerAtLaunch()
         cues = CuePlayer(
             haptics: haptics, sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
@@ -105,13 +172,19 @@ final class AppModel {
         link.onFeedback = { [weak self] in self?.raise($0) }
         link.onState = { [weak self] in self?.stateArrived($0) }
         link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
-        link.onGripping = { [weak self] in self?.gripping = $0 }
+        link.onGripping = { [weak self] in
+            self?.gripping = $0
+            self?.refreshOperating()
+        }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
         link.onOffset = { [weak self] in self?.holdOffset = $0 }
         link.onCatchingUp = { [weak self] in
             // Set only on a change: this runs 30 times a second and every write redraws the readout.
-            if self?.catchingUp != $0 { self?.catchingUp = $0 }
+            if self?.catchingUp != $0 {
+                self?.catchingUp = $0
+                self?.refreshOperating()
+            }
         }
         link.onGuidance = { [weak self] in
             if self?.guidance != $0 { self?.guidance = $0 }
@@ -136,6 +209,47 @@ final class AppModel {
                 goal: SIMD3(0.075, -0.200, 0.1035), gripper: .open
             )
         }
+        refreshOperating()
+    }
+
+    // MARK: Operating screen intents
+
+    /// The operating screen's size and safe-area insets, in points, whenever they change.
+    func surfaceChanged(width: Double, height: Double, safeTop: Double, safeBottom: Double) {
+        let layout = SurfaceLayout(
+            width: width, height: height, safeTop: safeTop, safeBottom: safeBottom, constants: profile.inputConstants
+        )
+        guard layout != surfaceLayout else { return }
+        surfaceLayout = layout
+        refreshOperating()
+    }
+
+    /// One raw touch on the operating screen, with `UITouch.timestamp`.
+    func touch(_ sample: TouchSample, at time: TimeInterval) {}
+
+    /// Buttons mode: a finger came down on `button`.
+    func buttonDown(_ button: ButtonID) {}
+
+    /// Buttons mode: the finger lifted, the touch was cancelled, or the finger slid off `button`.
+    func buttonUp(_ button: ButtonID) {}
+
+    /// Buttons mode: the Fine / Coarse switch.
+    func selectSpeed(_ speed: ButtonSpeed) {
+        speedSetting = speed
+        refreshOperating()
+    }
+
+    /// Practice without a robot: the built-in demo. Never the default and never kept across launches; no message
+    /// reaches any server while it runs.
+    func startPractice() {
+        guard session.state.liveLink else { return }
+        liveLink = false
+    }
+
+    /// Back to the real server at the saved address.
+    func leavePractice() {
+        guard !session.state.liveLink else { return }
+        liveLink = true
     }
 
     func send(_ action: TeleopAction) {
@@ -193,6 +307,7 @@ final class AppModel {
         } else {
             session.state.serverInputError = true
         }
+        refreshOperating()
     }
 
     /// Server-side changes. A server E-stop latches here too, but is not echoed back.
@@ -232,6 +347,46 @@ final class AppModel {
         if recorder != narrator.display { recorder = narrator.display }
         let exits = StopExits.offered(recorder: narrator.recorder, practice: !session.state.liveLink)
         if stopExits != exits { stopExits = exits }
+        refreshOperating()
+    }
+
+    /// Recomputes what the operating screen draws, and writes it only on a change: every write redraws.
+    private func refreshOperating() {
+        guard fixture == nil else { return }
+        let s = session.state
+        let display = OperatingDisplay(
+            mode: modeSetting, hand: handSetting, state: operatingState, layout: surfaceLayout,
+            engaged: Self.heldControl(s).map(Self.holdKind), resetCountdown: nil, heldButton: nil, speed: speedSetting,
+            recorder: recorder, stopExits: stopExits, linkUp: s.connected, latencyMs: s.latencyMs,
+            address: s.serverAddress, arm: nil, practice: !s.liveLink, taskAid: taskAidSetting
+        )
+        if operating != display { operating = display }
+    }
+
+    private var operatingState: OperatingState {
+        let s = session.state
+        if s.emergencyStop { return .stopped(cause: emergencyCause) }
+        if !s.connected {
+            if link.isOpen { return .connecting(address: s.serverAddress) }
+            return s.connectionLost ? .linkLost : .notConnected(reason: nil)
+        }
+        if s.commandsBlocked { return .slowLink(ms: s.latencyMs ?? 0) }
+        if s.armMoving { return .moving(catchingUp: catchingUp) }
+        if let target = s.gripperMoving { return target == .open ? .opening : .closing(gripped: gripping) }
+        if let turn = s.jawTurning {
+            return turn.isTilt
+                ? .tilting(degrees: 0, limit: profile.inputConstants.tiltClampDeg, estimated: true)
+                : .turning(degrees: 0, limit: profile.inputConstants.rollClampDeg, estimated: true)
+        }
+        return .ready
+    }
+
+    private static func holdKind(_ control: ControlKind) -> HoldKind {
+        switch control {
+        case .pose: return .translation
+        case .gripper(let target): return .gripper(target)
+        case .wrist: return .wrist
+        }
     }
 
     /// The hold the feedback belongs to: the link's on a real server, the demo's own count otherwise.

@@ -36,8 +36,31 @@ struct RobotProfile: Equatable {
     /// for. True for the development simulator since 2026-11-11 (its start wrist roll is 90 degrees). The server
     /// as published starts them front to back, and there the operator has to turn them first: two full presses.
     var jawsStartSideways = true
+    /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
+    /// reports to 8 cm either way of where that point is after a reset (`WORKSPACE_RADIUS_M` around
+    /// `initial_ee_pos_b`); this is that box moved by `toolOffset`, so it holds while the wrist keeps its start pose.
+    var workspaceMin = SIMD3<Float>(-0.052383, -0.257418, -0.008015)
+    var workspaceMax = SIMD3<Float>(0.107617, -0.097418, 0.151985)
+    /// Height of the table surface in the robot base frame, metres (`TABLE_TOP_Z_M` minus the base height).
+    var tableHeight: Float = 0.04
+    /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt. +1 until the
+    /// live mapping check (C-I5) measures them.
+    var rollSign = 1.0
+    var tiltSign = 1.0
+    /// Closing the jaws again after they met something loosens the grip, because a close starts from the measured
+    /// angle; so a second close is refused until they have opened. True for this simulator. A robot that must squeeze
+    /// harder to hold would set it false.
+    var recloseLoosensGrip = true
 
     var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
+
+    /// The input rules' thresholds with this robot's wrist signs.
+    var inputConstants: InputConstants {
+        var constants = InputConstants.appendixA
+        constants.rollSign = rollSign
+        constants.tiltSign = tiltSign
+        return constants
+    }
 
     /// Where the jaws pinch, robot base frame.
     func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }
