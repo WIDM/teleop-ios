@@ -166,6 +166,31 @@ final class ServerMotionTests: XCTestCase {
         pump(1.5)
     }
 
+    /// One held control taking over from another while the first is still held. The server finishes the old one
+    /// about 50 ms after its stop and refuses a start that arrives sooner ("busy"), so the link has to wait.
+    func testTurnTakesOverFromAGripperHoldStillHeld() {
+        model.send(.gripperStart(.open))
+        pump(1.0)
+        model.send(.turnStart(.positive))
+        pump(1.5)
+        XCTAssertEqual(model.session.state.jawTurning, .positive,
+                       "the turn was refused. log: \(model.debugLog.suffix(4))")
+        XCTAssertNil(model.session.state.gripperMoving)
+        pump(3)
+        model.send(.turnEnd)
+        pump(1.0)
+        // And straight back, the other way round.
+        model.send(.turnStart(.negative))
+        pump(0.5)
+        model.send(.gripperStart(.open))
+        pump(1.5)
+        XCTAssertEqual(model.session.state.gripperMoving, .open,
+                       "the gripper hold was refused. log: \(model.debugLog.suffix(4))")
+        model.send(.gripperEnd)
+        pump(1.0)
+        XCTAssertFalse(model.session.state.emergencyStop)
+    }
+
     /// The whole task in as few holds as it takes.
     func testPickAndPlaceByScript() throws {
         try pickAndPlace(warmUpHolds: 0)
