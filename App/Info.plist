@@ -29,8 +29,6 @@
 	<string>The camera tracks the phone pose and detects volume-key hold and release.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>The app connects to the teleop server on your network.</string>
-	<key>NSMotionUsageDescription</key>
-	<string>Motion sensors map phone rotation to wrist orientation.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>

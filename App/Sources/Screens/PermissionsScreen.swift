@@ -19,8 +19,6 @@ struct PermissionsScreen: View {
                 .padding(.top, 16)
             permissionCard("permissions.camera", "permissions.camera_body", icon: "camera")
                 .padding(.top, 12)
-            permissionCard("permissions.motion", "permissions.motion_body", icon: "gyroscope")
-                .padding(.top, 12)
             Spacer()
             Text("permissions.hint")
                 .font(.system(size: 12))

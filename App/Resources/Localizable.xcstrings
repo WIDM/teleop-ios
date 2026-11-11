@@ -1574,7 +1574,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continue opens the system permission prompts."
+            "value": "Continue opens the system permission prompt."
           }
         },
         "zh-Hant": {
@@ -1585,50 +1585,18 @@
         }
       }
     },
-    "permissions.motion": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Motion sensors"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動作感測器"
-          }
-        }
-      }
-    },
-    "permissions.motion_body": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reads phone rotation and maps it to wrist orientation."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讀取手機旋轉，對應到手腕方向。"
-          }
-        }
-      }
-    },
     "permissions.title": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Two permissions are required"
+            "value": "Camera access is required"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "需要兩項權限"
+            "value": "需要相機權限"
           }
         }
       }

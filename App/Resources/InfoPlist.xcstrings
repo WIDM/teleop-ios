@@ -33,22 +33,6 @@
         }
       }
     },
-    "NSMotionUsageDescription": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Motion sensors map phone rotation to wrist orientation."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動作感測器把手機旋轉對應到手腕方向。"
-          }
-        }
-      }
-    },
     "NSLocalNetworkUsageDescription": {
       "localizations": {
         "en": {
