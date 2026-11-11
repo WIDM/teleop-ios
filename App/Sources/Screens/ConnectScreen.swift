@@ -11,7 +11,7 @@ struct ConnectScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer()
-                ConnectionChip(connected: false) { model.send(.openConnection) }
+                ConnectionChip(connected: state.connected) { model.send(.openConnection) }
             }
             .padding(.horizontal, 8)
             .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))

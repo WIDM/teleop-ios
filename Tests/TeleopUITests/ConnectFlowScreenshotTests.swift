@@ -29,6 +29,9 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), "missing \(id)", file: file, line: line)
     }
 
+    /// What the status chip says: it starts with "Connected" or "Not connected".
+    private var chipLabel: String { app.buttons["status.chip"].firstMatch.label }
+
     /// S2 -> T1 -> P4 -> P5 -> S1 -> P5 -> S1 -> P5 -> S1, Disconnect stays on S1 -> P5
     func testS1ThroughP5() {
         expect("permissions.continue")
@@ -50,6 +53,7 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         tap("connection.change_server")
 
         expect("connect.connect")
+        XCTAssertTrue(chipLabel.hasPrefix("Connected"), chipLabel)
         shot("05-S1-connect")
         tap("connect.connect")
 
@@ -67,6 +71,7 @@ final class ConnectFlowScreenshotTests: XCTestCase {
         tap("connect.disconnect")
         expect("connect.connect")
         XCTAssertFalse(app.descendants(matching: .any)["connect.connection_lost"].exists, "a chosen disconnect is not a lost connection")
+        XCTAssertTrue(chipLabel.hasPrefix("Not connected"), chipLabel)
         shot("08-S1-after-disconnect")
         tap("connect.connect")
         expect("connection.change_server")
