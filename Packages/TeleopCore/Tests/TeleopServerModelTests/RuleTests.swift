@@ -254,6 +254,33 @@ final class RuleTests: XCTestCase {
         XCTAssertLessThanOrEqual(length(bench.model.world.arm - start), steps * bench.config.poseCarrySpeed * bench.config.simStep + 1e-9)
     }
 
+    // MARK: Grasp
+    // The app's guide (RobotProfile.so101Simulator) counts the jaws as around the cube when the pinch point is
+    // within 6 mm of its centre across the table and 8 mm in height, with the jaws side by side.
+
+    func testClosingTheJawsWithinTheToleranceTakesHold() {
+        XCTAssertTrue(phone.closeJaws(offFromCube: SIMD3(0.004, -0.003, 0.006)))
+    }
+
+    func testClosingTheJawsBesideTheCubeTakesNoHold() {
+        XCTAssertFalse(phone.closeJaws(offFromCube: SIMD3(0.010, 0, 0)), "1 cm to the side")
+        XCTAssertFalse(phone.closeJaws(offFromCube: SIMD3(0, 0.025, 0)), "2.5 cm behind")
+    }
+
+    func testClosingTheJawsAboveTheCubeTakesNoHold() {
+        XCTAssertFalse(phone.closeJaws(offFromCube: SIMD3(0, 0, 0.012)))
+    }
+
+    func testClosingTheJawsFrontToBackTakesNoHold() {
+        bench.model.world.wristRoll = 0
+        XCTAssertFalse(phone.closeJaws(offFromCube: .zero))
+    }
+
+    func testClosingTheJawsWithTheWristPitchedTakesNoHold() {
+        bench.model.world.wristFlex = bench.config.wristFlexStart + 6
+        XCTAssertFalse(phone.closeJaws(offFromCube: .zero))
+    }
+
     // MARK: Success
 
     func testPuttingTheCubeInTheGoalWithTheGripperOpenSucceedsAndTheSceneResets() {

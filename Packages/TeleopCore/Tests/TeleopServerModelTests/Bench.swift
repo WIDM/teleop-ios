@@ -141,6 +141,18 @@ final class Bench {
             return start
         }
 
+        /// Opens the jaws, brings the pinch point down to `offset` (base frame) from the cube's centre, closes the
+        /// jaws until they stop, and says whether they took hold of the cube.
+        func closeJaws(offFromCube offset: SIMD3<Double>) -> Bool {
+            let config = bench.config
+            let grasp = config.cubeStartWorld - config.baseInWorld - config.toolOffset + offset
+            gripperJog("open", seconds: 2.5)
+            moveArm(to: grasp + SIMD3(0, 0, 0.03))
+            moveArm(to: grasp)
+            gripperJog("close", seconds: 7)
+            return bench.model.world.holdingCube
+        }
+
         /// Picks the cube up and lowers it onto the goal the way an operator would: open, go to the grasp point,
         /// close until the jaws stop on the cube, lift, carry, lower. Leaves the jaws closed on the cube.
         func carryCubeOntoGoal(file: StaticString = #filePath, line: UInt = #line) {
