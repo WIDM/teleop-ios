@@ -114,8 +114,8 @@ public final class ServerModel {
         min(nextStepTime, nextTimer)
     }
 
-    /// True while the scene is resetting or showing a success.
-    public var isBusyWithScene: Bool { !ready }
+    /// Open sockets whose client has said hello.
+    public var welcomedClients: Int { connections.values.filter { $0.isOpen && $0.welcomed }.count }
 
     // MARK: Time
 

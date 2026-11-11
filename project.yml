@@ -68,6 +68,8 @@ targets:
     dependencies:
       - target: Teleop
       - package: TeleopCore
+        product: TeleopServerModel
+      - package: TeleopCore
         product: TeleopServerHost
     settings:
       base:
