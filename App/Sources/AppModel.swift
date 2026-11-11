@@ -40,10 +40,6 @@ final class AppModel {
             language.save()
         }
     }
-    /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
-    private(set) var holdOffset: SIMD3<Float>?
-    /// Live link only: where the cube or the goal is from the gripper.
-    private(set) var guidance: Guidance?
     /// True while the command is held back so the arm can catch up with the phone.
     private(set) var catchingUp = false
     /// Why E-stop is latched, for S4. Nil when not latched.
@@ -185,16 +181,12 @@ final class AppModel {
         }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
-        link.onOffset = { [weak self] in self?.holdOffset = $0 }
         link.onCatchingUp = { [weak self] in
             // Set only on a change: this runs 30 times a second and every write redraws the readout.
             if self?.catchingUp != $0 {
                 self?.catchingUp = $0
                 self?.refreshOperating()
             }
-        }
-        link.onGuidance = { [weak self] in
-            if self?.guidance != $0 { self?.guidance = $0 }
         }
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
         link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
@@ -212,13 +204,6 @@ final class AppModel {
         if UserDefaults.standard.bool(forKey: "startConnectionLost") {
             session.state.markDisconnected()
             session.state.connectionLost = true
-        }
-        // UI tests and screenshots only: `-demoGuidance YES` shows the task map without a server.
-        if UserDefaults.standard.bool(forKey: "demoGuidance") {
-            guidance = Guidance.make(
-                arm: SIMD3(0.021, -0.141, 0.160), cube: SIMD3(0.005, -0.200, 0.1025),
-                goal: SIMD3(0.075, -0.200, 0.1035), gripper: .open
-            )
         }
         // A setting from before practice stopped being one.
         UserDefaults.standard.removeObject(forKey: Self.liveLinkKey)
@@ -609,7 +594,6 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
         }
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
-        if !session.state.armMoving { holdOffset = nil }
         if !before.emergencyStop, session.state.emergencyStop {
             stopCause = fromServer ? (pendingServerCause ?? .server("unknown")) : .button
         } else if !session.state.emergencyStop {

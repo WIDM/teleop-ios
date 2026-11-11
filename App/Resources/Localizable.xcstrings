@@ -689,54 +689,6 @@
         }
       }
     },
-    "guide.gap_above": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ cm above"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高 %@ 公分"
-          }
-        }
-      }
-    },
-    "guide.gap_below": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ cm below"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "低 %@ 公分"
-          }
-        }
-      }
-    },
-    "guide.gap_level": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "level"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等高"
-          }
-        }
-      }
-    },
     "guide.goal_above": {
       "localizations": {
         "en": {

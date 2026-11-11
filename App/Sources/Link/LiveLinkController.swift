@@ -28,13 +28,8 @@ final class LiveLinkController {
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
-    /// What the arm is being asked to do during a hold, as the operator sees it: metres right, forward and up.
-    /// Nil when the hold ends.
-    var onOffset: ((SIMD3<Float>?) -> Void)?
     /// True while the command is being held back so the arm can catch up.
     var onCatchingUp: ((Bool) -> Void)?
-    /// Where the cube or the goal is from the gripper; nil when the server has not said.
-    var onGuidance: ((Guidance?) -> Void)?
     /// Why the server E-stopped, just before the `stop` action is reported.
     var onServerStop: ((String) -> Void)?
     /// What the operator should feel or hear about the engaged hold and the scene reset.
@@ -90,8 +85,6 @@ final class LiveLinkController {
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
     private var resync: (sinceMs: Int, stopped: Bool)?
-    /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
-    private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
@@ -104,9 +97,6 @@ final class LiveLinkController {
     private var buttonTarget: (() -> SIMD3<Double>?)?
     /// During a translation hold: where the reported arm point is being sent, robot base frame.
     private(set) var commandedArm: SIMD3<Float>?
-    /// The wrist was tilted since the scene was reset or the link came up. The guide's pinch point was measured
-    /// at the start pitch, so it stops meaning anything after a tilt.
-    private(set) var wristTilted = false
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
@@ -210,15 +200,12 @@ final class LiveLinkController {
         lastRefusal = nil
         armAtSegmentStart = nil
         resync = nil
-        atEdge = false
         wristTarget = nil
         buttonTarget = nil
         commandedArm = nil
         newestStateAtMs = nil
         newestState = nil
         leadBound = WristLeadBound()
-        wristTilted = false
-        onGuidance?(nil)
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -236,7 +223,6 @@ final class LiveLinkController {
         (holdRight, holdForward) = Self.operatorAxes(start)
         armProgress = .zero
         resync = nil
-        atEdge = false
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
         return true
@@ -255,7 +241,6 @@ final class LiveLinkController {
         holdParams = params
         armProgress = .zero
         resync = nil
-        atEdge = false
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
         return true
@@ -277,7 +262,6 @@ final class LiveLinkController {
         armAtSegmentStart = nil
         commandedArm = nil
         resync = nil
-        onOffset?(nil)
         onCatchingUp?(false)
     }
 
@@ -295,8 +279,6 @@ final class LiveLinkController {
             // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
             let moved = now - before
             armProgress += SIMD3(moved.x, moved.y, -moved.z)
-            // Asked for the full limit for a second and a half and went nowhere: the server is clamping it.
-            atEdge = simd_length(moved) < 0.005
         }
         resync = nil
         restarting = true
@@ -334,12 +316,7 @@ final class LiveLinkController {
     /// Asks for a scene reset. False when the link cannot send one now (not ready, or a control still active).
     @discardableResult
     func resetScene() -> Bool {
-        guard link?.resetScene() == true else { return false }
-        guard wristTilted else { return true }
-        // The scene reset puts the wrist back at its start pitch.
-        wristTilted = false
-        if let arm = armPosition { publishGuidance(arm: arm) }
-        return true
+        link?.resetScene() == true
     }
 
     /// The scene was reset (an `ok scene_reset`, a new episode or a new server run): no wrist lead is left.
@@ -373,10 +350,6 @@ final class LiveLinkController {
     func setWristTarget(_ target: WristTarget) {
         guard wristTarget != nil else { return }
         wristTarget = target
-        if target.axis == .tilt, target.degrees != 0, !wristTilted {
-            wristTilted = true
-            if let arm = armPosition { publishGuidance(arm: arm) }
-        }
     }
 
     func stopWristHold() {
@@ -448,11 +421,7 @@ final class LiveLinkController {
             commandedArm = target
             monitor.commanded(SIMD3(Double(target.x), Double(target.y), Double(target.z)))
         }
-        // serverOffset negates all three, so this is right, forward, up again.
-        onOffset?(-(armProgress + delta))
         onCatchingUp?(catchingUp)
-        // No arm position arrives during a hold, so guide from where the arm is being sent.
-        if let start = armAtSegmentStart { publishGuidance(arm: start + SIMD3(delta.x, delta.y, -delta.z)) }
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
         if catchingUp, now - segmentStartedMs >= Self.resyncAfterMs { beginResync() }
     }
@@ -505,9 +474,7 @@ final class LiveLinkController {
         switch event {
         case .up(let estop, let gripper):
             onLog?("link: up")
-            wristTilted = false
             onAction?(.linkUp(gripper: gripper))
-            if let arm = armPosition { publishGuidance(arm: arm) }
             if estop {
                 onServerStop?("on_connect")
                 onAction?(.stop)
@@ -516,7 +483,6 @@ final class LiveLinkController {
             if resync != nil { resync?.stopped = true }
         case .state(let estop, _):
             if let resync, resync.stopped, !estop { finishResync() }
-            if !translating, let arm = armPosition { publishGuidance(arm: arm) }
             if !estop {
                 resetSentAtMs = nil
             } else if let sent = resetSentAtMs, nowMs() - sent < 2000 {
@@ -692,16 +658,6 @@ final class LiveLinkController {
             right: Double(simd_dot(world, right)), forward: Double(simd_dot(world, forward)), up: Double(world.y)
         )
         return SIMD3(Float(offset.x), Float(offset.y), Float(offset.z))
-    }
-
-    private func publishGuidance(arm: SIMD3<Float>) {
-        guard let link, let cube = Self.vector(link.lastObject), let goal = Self.vector(link.lastGoal) else {
-            onGuidance?(nil)
-            return
-        }
-        var guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: link.lastGripper, wristTilted: wristTilted)
-        guidance.atEdge = atEdge && translating
-        onGuidance?(guidance)
     }
 
     private static func vector(_ values: [Double]?) -> SIMD3<Float>? {

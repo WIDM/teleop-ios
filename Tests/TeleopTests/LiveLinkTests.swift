@@ -516,25 +516,32 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(transports.isEmpty)
     }
 
-    func testHoldOffsetIsShownAsRightForwardUpAndClearedOnRelease() {
+    /// The guide's commanded point: where the reported arm point is being sent, robot base frame, during the hold only.
+    func testTheCommandedPointFollowsTheHandAndClearsOnRelease() {
         bringUp()
-        XCTAssertNil(model.holdOffset)
+        transport.server("state", ["estop": false, "ee_pos": [0.02, -0.14, 0.16]])
+        XCTAssertNil(model.link.commandedArm)
         model.send(.holdArmStart)
+        // Right 1 cm, up 0.5 cm, forward 2 cm: right is base −X, forward −Y, up +Z.
         position = SIMD3(0.01, 0.005, -0.02)
         tick()
-        let shown = try! XCTUnwrap(model.holdOffset)
-        XCTAssertLessThan(simd_distance(shown, SIMD3(0.01, 0.02, 0.005)), 0.0001, "\(shown)")
+        let commanded = try! XCTUnwrap(model.link.commandedArm)
+        XCTAssertLessThan(simd_distance(commanded, SIMD3(0.01, -0.16, 0.165)), 0.0001, "\(commanded)")
+        // The input rules' 30 Hz tick redraws the screen; here it is called directly.
+        model.inputsChanged()
+        XCTAssertEqual(model.operating.arm?.commanded, model.profile.toolPoint(reported: commanded), "the guide draws it")
         model.send(.holdArmEnd)
-        XCTAssertNil(model.holdOffset)
+        XCTAssertNil(model.link.commandedArm)
     }
 
-    func testHoldOffsetIsClearedWhenTheHoldEndsByItself() {
+    func testTheCommandedPointClearsWhenTheHoldEndsByItself() {
         bringUp()
+        transport.server("state", ["estop": false, "ee_pos": [0.02, -0.14, 0.16]])
         model.send(.holdArmStart)
         tick()
-        XCTAssertNotNil(model.holdOffset)
+        XCTAssertNotNil(model.link.commandedArm)
         model.send(.stop)
-        XCTAssertNil(model.holdOffset)
+        XCTAssertNil(model.link.commandedArm)
     }
 
     private func lastOffset() -> SIMD3<Float> {
@@ -606,8 +613,8 @@ final class LiveLinkTests: XCTestCase {
         tick()
         // 17 cm still to go, so the new hold asks for the limit again, measured from the arm's new position.
         XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
-        // The readout shows the whole move so far: 3 cm done plus 8 cm asked.
-        XCTAssertEqual(model.holdOffset!.x, 0.11, accuracy: 0.001)
+        // The guide's commanded point: 3 cm done plus 8 cm asked, from the arm's new position.
+        XCTAssertEqual(model.link.commandedArm!.x, -0.11, accuracy: 0.001)
     }
 
     func testLastStretchIsAskedExactly() {
@@ -634,62 +641,6 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.armMoving)
     }
 
-    private let sceneState: [String: Any] = [
-        "estop": false, "gripper": "open", "ee_pos": [0.021, -0.141, 0.160],
-        "object_pos": [0.005, -0.200, 0.1025], "goal_pos": [0.075, -0.200, 0.1035],
-    ]
-
-    func testGuidanceAppearsOnceTheServerSaysWhereThingsAre() {
-        bringUp()
-        XCTAssertNil(model.guidance, "the first state had no positions")
-        transport.server("state", sceneState)
-        XCTAssertEqual(model.guidance?.target, .cube)
-        // From the start the cube is 2.3 cm ahead of where the jaws pinch.
-        XCTAssertEqual(model.guidance!.offset.y, 0.023, accuracy: 0.001)
-    }
-
-    func testGuidanceFollowsTheCommandDuringAHold() {
-        bringUp()
-        transport.server("state", sceneState)
-        model.send(.holdArmStart)
-        // 3 cm forward: the cube goes from 2.3 cm ahead of the jaws to 0.7 cm behind.
-        for step in 1...3 {
-            position = SIMD3(0, 0, -0.01 * Float(step))
-            tick()
-        }
-        XCTAssertTrue(model.session.state.armMoving)
-        XCTAssertEqual(model.guidance!.offset.y, -0.007, accuracy: 0.001)
-        XCTAssertEqual(model.guidance!.offset.x, 0.023, accuracy: 0.001)
-    }
-
-    func testArmThatDoesNotMoveIsReportedAtTheEdge() {
-        bringUp()
-        transport.server("state", sceneState)
-        model.send(.holdArmStart)
-        for step in 1...10 {
-            position = SIMD3(0.02 * Float(step), 0, 0)
-            tick()
-        }
-        run(ticks: 50)
-        XCTAssertFalse(model.guidance?.atEdge ?? false)
-        // The server finished the hold and the arm is where it started.
-        let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
-        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "pose_stopped"])
-        transport.server("state", sceneState)
-        tick()
-        XCTAssertTrue(model.guidance!.atEdge)
-        model.send(.holdArmEnd)
-        transport.server("state", sceneState)
-        XCTAssertFalse(model.guidance!.atEdge, "the warning belongs to the hold that hit the edge")
-    }
-
-    func testGuidanceGoesWhenTheLinkDoes() {
-        bringUp()
-        transport.server("state", sceneState)
-        model.startPractice()
-        XCTAssertNil(model.guidance)
-    }
-
     func testStateBeforeTheServerFinishedDoesNotRestartTheHold() {
         sweepRight()
         run(ticks: 50)
@@ -713,7 +664,7 @@ final class LiveLinkTests: XCTestCase {
         model.send(.holdArmEnd)
         serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
         XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1, "a released hold must not restart")
-        XCTAssertNil(model.holdOffset)
+        XCTAssertNil(model.link.commandedArm)
     }
 
     func testStopDuringAResyncStaysStopped() {
