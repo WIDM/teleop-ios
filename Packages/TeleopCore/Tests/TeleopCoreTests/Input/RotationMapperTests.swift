@@ -141,6 +141,32 @@ final class RotationMapperTests: XCTestCase {
         XCTAssertEqual(ends, 3)
     }
 
+    func testATurnPastHalfARevolutionStaysAtTheClamp() {
+        // Past 180° the swing-twist reading wraps to −180°; the hold must keep counting, not jump to the other edge.
+        assertOneEnd(axis: .turn, range: wide, sweep: stride(from: 6.0, through: 300, by: 2), edge: 55)
+        assertOneEnd(axis: .turn, range: wide, sweep: stride(from: -6.0, through: -300, by: -2), edge: -55)
+        var mapper = RotationMapper(anchor: Phone.rest, startsAtCommit: true)
+        _ = mapper.lock(.turn, range: wide, attitude: Phone.attitude(turn: 5), at: 0)
+        var time = 0.0
+        var lowest = Double.infinity
+        for turn in stride(from: 6.0, through: 250, by: 2) {
+            time += step
+            let degrees = mapper.target(for: Phone.attitude(turn: turn), at: time).target.degrees
+            if turn > 100 { lowest = min(lowest, degrees) }
+        }
+        XCTAssertEqual(lowest, 55, accuracy: 1e-6)
+        // Turning all the way back brings the target back down with it.
+        for turn in stride(from: 250.0, through: 0, by: -2) {
+            time += step
+            _ = mapper.target(for: Phone.attitude(turn: turn), at: time)
+        }
+        for _ in 0..<20 {
+            time += step
+            _ = mapper.target(for: Phone.attitude(turn: 0), at: time)
+        }
+        XCTAssertEqual(mapper.target(for: Phone.attitude(turn: 0), at: time + step).target.degrees, 0, accuracy: 1e-6)
+    }
+
     func testTiltClampGivesEndOnce() {
         var mapper = RotationMapper(anchor: Phone.rest, startsAtCommit: true)
         let range = RotationMapper.limits(for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: 0)

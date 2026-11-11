@@ -57,6 +57,8 @@ public struct RotationMapper: Equatable, Sendable {
     private var commitAngle = 0.0
     /// Added to the axis angle once a late start has moved the anchor.
     private var offset = 0.0
+    /// The axis angle at the last sample, so a turn past 180° keeps counting instead of reading as −180°.
+    private var lastAxisAngle: Double?
     private var smoothed = 0.0
     private var smoothedAt: TimeInterval = 0
     /// The edge END last played at, until the angle backs off from it.
@@ -105,6 +107,7 @@ public struct RotationMapper: Equatable, Sendable {
         self.axis = axis
         self.range = range
         offset = 0
+        lastAxisAngle = nil
         endedAt = nil
         let raw = serverAngle(attitude)
         commitAngle = clamped(raw)
@@ -133,6 +136,7 @@ public struct RotationMapper: Equatable, Sendable {
     /// (scheme B, which also commits afresh).
     public mutating func startSent(attitude: simd_quatd, at time: TimeInterval) {
         anchor = attitude
+        lastAxisAngle = nil
         endedAt = nil
         smoothedAt = time
         if startsAtCommit, axis != nil {
@@ -177,13 +181,14 @@ public struct RotationMapper: Equatable, Sendable {
         return min(lower, 0)...max(upper, 0)
     }
 
-    private func serverAngle(_ attitude: simd_quatd) -> Double {
+    private mutating func serverAngle(_ attitude: simd_quatd) -> Double {
+        guard let axis else { return 0 }
         let angles = self.angles(attitude)
-        switch axis {
-        case .turn?: return offset + constants.rollSign * angles.turn
-        case .tilt?: return offset + constants.tiltSign * angles.tilt
-        case nil: return 0
-        }
+        let reading = axis == .turn ? angles.turn : angles.tilt
+        // Readings wrap at ±180°; between two samples the phone turns far less than 180°.
+        let angle = lastAxisAngle.map { $0 + remainder(reading - $0, 360) } ?? reading
+        lastAxisAngle = angle
+        return offset + (axis == .turn ? constants.rollSign : constants.tiltSign) * angle
     }
 
     private func clamped(_ angle: Double) -> Double { min(max(angle, range.lowerBound), range.upperBound) }
