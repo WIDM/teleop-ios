@@ -367,7 +367,6 @@ final class AppModel {
         )
     }
 
-
     /// The controller handled an input; what the screen draws may have changed.
     func inputsChanged() {
         refreshOperating()
