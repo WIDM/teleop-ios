@@ -69,6 +69,8 @@ struct SettingsScreen: View {
                         .font(.system(size: 15, design: .monospaced))
                 }
                 Slider(value: $model.session.state.sensitivity, in: 0.5...2, step: 0.25)
+                    .accessibilityLabel(Text("settings.arm_speed"))
+                    .accessibilityValue(Text(verbatim: String(format: "%g×", model.session.state.sensitivity)))
                     .accessibilityIdentifier("settings.arm_speed")
                 Text("settings.arm_speed_help")
                     .font(.system(size: 12))
