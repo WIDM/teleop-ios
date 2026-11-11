@@ -117,6 +117,9 @@ public struct RotationMapper: Equatable, Sendable {
         return (WristTarget(axis: axis, degrees: smoothed), limit)
     }
 
+    /// Replaces the range given at `lock`, as when a scene reset during the hold moves the tilt window.
+    mutating func setRange(_ range: ClosedRange<Double>) { self.range = range }
+
     /// The target for a new attitude sample, and whether a limit was reached with it (END plays once per limit and
     /// again only after backing off `limitRearmDeg`). Turning back from a limit moves the target back at once.
     public mutating func target(for attitude: simd_quatd, at time: TimeInterval) -> (target: WristTarget, limitReached: Bool) {

@@ -201,6 +201,12 @@ public struct InputArbiter: Sendable {
         case .sceneReset:
             commandedTiltSinceReset = 0
             tiltAtReset = lastWristTarget.axis == .tilt ? lastWristTarget.degrees : 0
+            // Without measured flex, the engaged tilt hold's window now counts from where the hold stood at the reset.
+            if lastWristTarget.axis == .tilt, facts.wrist.flexDeg == nil || facts.wrist.flexAtResetDeg == nil {
+                wrist?.setRange(RotationMapper.limits(
+                    for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -tiltAtReset, constants: constants
+                ))
+            }
         case .wristStartSent:
             guard case .hold(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
             // The target streamed from now on drops the rotation made while the start waited.

@@ -438,6 +438,19 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(second.cues, [.limit])
     }
 
+    func testOnAnUnknownServerAResetDuringATiltHoldMovesThatHoldsWindowToTheResetPose() {
+        var rig = Rig(.keyTurns)
+        func settle() -> [InputCommand] { (0..<20).flatMap { _ in rig.orient(after: 1.0 / 60) } }
+        rig.press(.lower)
+        let before = rig.rotate(tilt: 20, steps: 30) + settle()
+        XCTAssertEqual(before.wristTargets.last?.degrees ?? 0, 20, accuracy: 1e-3)
+        rig.send(.sceneReset, after: 0.1)
+        // The reset pose is where the hold stood at +20°, so the 25° window ends at −5° in the same hold.
+        let after = rig.rotate(tilt: -20, steps: 60) + settle()
+        XCTAssertEqual(after.wristTargets.last?.degrees ?? 0, -5, accuracy: 1e-3)
+        XCTAssertEqual(after.cues, [.limit])
+    }
+
     func testOnAPatchedServerTheWindowsComeFromTheMeasuredAngles() {
         var rig = Rig(.keyTurns)
         rig.facts.wrist = WristReadings(rollDeg: 130, flexDeg: 0, flexAtResetDeg: 0)
