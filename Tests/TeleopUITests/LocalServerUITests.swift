@@ -17,15 +17,13 @@ final class LocalServerUITests: XCTestCase {
         server = nil
     }
 
-    func testConnectReachesTheLocalServer() {
+    func testLaunchWithASavedAddressReachesTheLocalServer() {
         let app = XCUIApplication()
         app.launchArguments += [
             "-appLanguage", "en", "-liveLink", "YES", "-serverAddress", server.address, "-startRoute", "s1_connect",
         ]
         app.launch()
-        let connect = app.descendants(matching: .any)["connect.connect"].firstMatch
-        XCTAssertTrue(connect.waitForExistence(timeout: 5), "missing connect.connect")
-        connect.tap()
+        // With a saved address the app opens the socket at launch, so there is no Connect to press.
         // P5 comes up only once the server has answered hello with welcome and a state.
         XCTAssertTrue(app.descendants(matching: .any)["connection.change_server"].firstMatch.waitForExistence(timeout: 5),
                       "the app did not connect to \(server.address)")

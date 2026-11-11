@@ -895,6 +895,10 @@ final class LiveLinkTests: XCTestCase {
     }
 
     func testServerStopAfterTheArmFellBehindSaysSo() {
+        // The wording is checked in English, whatever language the simulator or an earlier test left behind.
+        let language = L10n.language
+        L10n.language = .en
+        defer { L10n.language = language }
         bringUp()
         model.send(.holdArmStart)
         let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
