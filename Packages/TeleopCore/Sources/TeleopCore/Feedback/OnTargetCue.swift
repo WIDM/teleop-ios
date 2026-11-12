@@ -1,11 +1,15 @@
+import simd
+
 /// When the on-target cue plays (`FeedbackEvent.onTarget`), so the operator can feel the jaws arrive on the target and
 /// keep watching the arm. Pure: time is passed in, in milliseconds.
 ///
 /// It plays once as "on target" turns true: a target is reported, the pinch point is inside the window around it,
 /// the marker is not approximate, nothing is held, the task aid is on and the jaws are open. The stop being latched
 /// keeps it silent. It is armed again only after the pinch point has left a window `rearmScale` times as large, or
-/// after a close (the jaws seen closed), a scene reset (`rearm`) or a new target (one reported after none). Jaws
-/// whose state is not known neither play it nor arm it.
+/// after a scene reset (`rearm`) or a new target (one reported after none), or after a close: when the jaws, seen
+/// closed, open again inside that larger window around where they closed (a miss, or a grasp that did not lift).
+/// Holding the target ends the approach. Jaws that close, travel and open elsewhere carried the target there: letting
+/// go of it, which leaves the open jaws on it, plays nothing. Jaws whose state is not known neither play it nor arm it.
 public struct OnTargetCue {
     public static let rearmScale = 1.5
 
@@ -14,18 +18,25 @@ public struct OnTargetCue {
         /// From the reported target to the pinch point: across the table, and the pinch point's height above (+) or
         /// below (−) it, metres. Nil when no target is reported.
         public var gap: SIMD2<Double>?
+        /// The pinch point, metres, in a frame whose third axis points up (the operator's right, forward and up). Nil
+        /// only with no target.
+        public var pinch: SIMD3<Double>?
         /// The pinch point is an estimate that may be off by more than half the window.
         public var approximate: Bool
         /// The jaws hold the target.
         public var holding: Bool
         public var taskAid: Bool
-        /// Nil when the server does not say.
+        /// From the server's jaws label: `open` is open, `closed` or `close` is closed. Nil when it does not say.
         public var jawsOpen: Bool?
-        /// The emergency stop is latched.
+        /// The emergency stop is latched, or the state being looked at reports one (`estop`).
         public var stopped: Bool
 
-        public init(gap: SIMD2<Double>?, approximate: Bool, holding: Bool, taskAid: Bool, jawsOpen: Bool?, stopped: Bool) {
+        public init(
+            gap: SIMD2<Double>?, pinch: SIMD3<Double>?, approximate: Bool, holding: Bool, taskAid: Bool,
+            jawsOpen: Bool?, stopped: Bool
+        ) {
             self.gap = gap
+            self.pinch = pinch
             self.approximate = approximate
             self.holding = holding
             self.taskAid = taskAid
@@ -38,6 +49,8 @@ public struct OnTargetCue {
     public let window: SIMD2<Double>
     private var armed = true
     private var hadTarget = false
+    /// Where the jaws were first seen closed since they were last seen open.
+    private var closedAt: SIMD3<Double>?
     /// When the cue last played.
     public private(set) var playedAtMs: Int?
 
@@ -50,11 +63,24 @@ public struct OnTargetCue {
         gap.x <= window.x && abs(gap.y) <= window.y
     }
 
+    /// From `a` to `b` as a gap: the distance across (the first two axes) and the rise (the third).
+    static func gap(from a: SIMD3<Double>, to b: SIMD3<Double>) -> SIMD2<Double> {
+        SIMD2(simd_length(SIMD2(b.x - a.x, b.y - a.y)), b.z - a.z)
+    }
+
     /// One look at the guide. True when the cue plays now.
     public mutating func observe(_ look: Look, at now: Int) -> Bool {
         defer { hadTarget = look.gap != nil }
-        guard let gap = look.gap else { return false }
-        if !hadTarget || look.jawsOpen == false || !Self.inside(gap, window: window * Self.rearmScale) { armed = true }
+        guard let gap = look.gap, let pinch = look.pinch else { return false }
+        let wider = window * Self.rearmScale
+        if !hadTarget || !Self.inside(gap, window: wider) { armed = true }
+        // Holding ends the approach, played or not; only opening again where the jaws closed arms it for that place.
+        if look.holding { armed = false }
+        if look.jawsOpen == false, closedAt == nil { closedAt = pinch }
+        if look.jawsOpen == true, let closed = closedAt {
+            closedAt = nil
+            if Self.inside(Self.gap(from: closed, to: pinch), window: wider) { armed = true }
+        }
         let onTarget = Self.inside(gap, window: window) && !look.approximate && !look.holding && look.taskAid
             && look.jawsOpen == true
         guard armed, onTarget, !look.stopped else { return false }
@@ -63,8 +89,10 @@ public struct OnTargetCue {
         return true
     }
 
-    /// The scene was reset: the next approach plays again.
+    /// The scene was reset: the next approach plays again. The app calls it on a new `episode`, and on a server that
+    /// reports no episode, on the first `state` after the reset's answer whose `ik` is not `resetting`.
     public mutating func rearm() {
         armed = true
+        closedAt = nil
     }
 }

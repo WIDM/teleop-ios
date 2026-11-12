@@ -46,8 +46,8 @@ final class LocalPickAndPlaceTests: XCTestCase {
     /// jaws close: the script grasps where the profile's offset was measured, with the wrist untouched, where the
     /// estimate is exact. Elsewhere the estimate is approximate.
     ///
-    /// ON TARGET is felt exactly once on the approach to the grasp and never while the jaws hold the object. Letting go
-    /// on the goal opens the jaws on the object again after a close, which may be felt once more.
+    /// ON TARGET is felt exactly once on the approach to the grasp, never while the jaws hold the object, and not when
+    /// letting go on the goal leaves the open jaws on the object they carried there.
     private func pickAndPlace(_ mode: ControlMode, toolPoint: Bool) throws {
         try start(mode, toolPoint: toolPoint)
         let model = hand.model!
@@ -90,7 +90,7 @@ final class LocalPickAndPlaceTests: XCTestCase {
         XCTAssertEqual(cuesBeforeTheGrasp.count, 1, "\(mode): ON TARGET once on the approach, \(cuesBeforeTheGrasp)")
         XCTAssertEqual(cuesBeforeTheGrasp.first?.dropped, false, "\(mode): and felt")
         XCTAssertEqual(cuesWhileHolding, 0, "\(mode)")
-        XCTAssertLessThanOrEqual(cuesAfterTheRelease, 1, "\(mode)")
+        XCTAssertEqual(cuesAfterTheRelease, 0, "\(mode): letting go of the carried object is no new approach")
         print("ON TARGET (\(mode.rawValue), tool point \(toolPoint)): \(cuesBeforeTheGrasp.count) on the approach, "
               + "\(cuesAfterTheRelease) after letting go")
     }
