@@ -156,6 +156,15 @@ final class OnTargetCueTests: XCTestCase {
         XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0)), "let go of a lifted target")
     }
 
+    /// States that do not say how the jaws are still show the target rising: a lift seen in them counts.
+    func testALiftSeenWithoutTheJawsLabelStillCounts() {
+        XCTAssertTrue(look(across: 0.005))
+        XCTAssertFalse(look(across: 0.005, jawsOpen: false))
+        XCTAssertFalse(look(across: 0.005, target: SIMD3(0, 0, 0.02), holding: true, jawsOpen: nil), "lifted, no label")
+        XCTAssertFalse(look(across: 0.005, jawsOpen: nil), "set down, no label")
+        XCTAssertFalse(look(across: 0.005), "let go of a lifted target")
+    }
+
     func testASceneResetOrANewTargetArmsItAgain() {
         XCTAssertTrue(look(across: 0.001))
         cue.rearm()

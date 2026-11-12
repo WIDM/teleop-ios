@@ -71,10 +71,9 @@ public struct OnTargetCue {
         if !hadTarget || !Self.inside(gap, window: wider) { armed = true }
         // Holding ends the approach, played or not; only opening on a target that was never lifted arms it again.
         if look.holding { armed = false }
-        if look.jawsOpen == false {
-            let height = closed?.height ?? target.z
-            closed = (height, closed?.lifted == true || target.z - height > wider.y)
-        }
+        if look.jawsOpen == false, closed == nil { closed = (target.z, false) }
+        // Every look counts toward the lift, the jaws label or not, the opening one too.
+        if let close = closed, target.z - close.height > wider.y { closed?.lifted = true }
         if look.jawsOpen == true, let close = closed {
             closed = nil
             if !close.lifted { armed = true }
