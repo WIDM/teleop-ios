@@ -1,6 +1,6 @@
 # Status
 
-What the app does now, what is known not to work, and what version 1 leaves out. How each part works is in
+What the app does, what is known not to work, and what version 1 leaves out. How each part works is in
 `docs/ARCHITECTURE.md`; how it is tested is in `docs/TESTING.md`.
 
 ## Works, and the default tests cover it
