@@ -313,8 +313,9 @@ its release (the server's clock runs a few milliseconds behind the client's):
 {"v": 1, "type": "estop_reset", "ts": 1794378740297, "seq": 213, "payload": {}}
 {"v": 1, "type": "ack", "ts": 1794378740290, "seq": 213, "payload": {"seq": 213, "status": "ok", "reason": "estop_reset"}}
 ```
- While the stop is latched, the server answers every start,
-stop and keepalive with `rejected estop_active` and ignores updates. The arm holds its last commanded position.
+
+While the stop is latched, the server answers every start, stop and keepalive with `rejected estop_active` and
+ignores updates. The arm holds its last commanded position.
 
 The app sends `estop` on both connections when both are up (the server takes it from either), and on every STOP,
 even when the stop is already latched: a reset asked for from the stop may have cleared the server's stop meanwhile.
