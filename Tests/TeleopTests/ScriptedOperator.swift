@@ -27,6 +27,20 @@ final class ScriptedOperator {
     private var lastFrame: TimeInterval = 0
     private let savedMode: String?
 
+    // What the server said during the run, from every `state` on either connection and every final answer: the only
+    // evidence a run passes on.
+    /// A `state` said `task_success`.
+    private(set) var successSeen = false
+    /// The newest `episode` a `state` named; nil on a server that does not count episodes.
+    private(set) var newestEpisode: Int?
+    /// Holds the server ended while they were held: by its watchdog, or by a late refusal.
+    private(set) var holdsEndedByServer = 0
+    /// The step the hand was on when a working link went down; nil while it is up.
+    private(set) var linkLostDuring: String?
+    /// What the hand is doing now, named in the failure if the link goes down.
+    var step = "connecting"
+    private var linkLossReported = false
+
     /// - Parameter makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or
     ///   cuts the network path.
     init(
@@ -43,6 +57,37 @@ final class ScriptedOperator {
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
         model.surfaceChanged(width: layout.width, height: layout.height, safeTop: 62, safeBottom: 34)
+        // The hand listens beside the app, which still gets everything.
+        let onState = model.link.onState
+        model.link.onState = { [unowned self] state in
+            if state.taskSuccess == true || state.activity == .taskSuccess { successSeen = true }
+            if let episode = state.episode { newestEpisode = episode }
+            onState?(state)
+        }
+        let onFeedback = model.link.onFeedback
+        model.link.onFeedback = { [unowned self] event in
+            if event == .letGo(.watchdog) || event == .letGo(.lateRejection) { holdsEndedByServer += 1 }
+            onFeedback?(event)
+        }
+        let onAction = model.link.onAction
+        model.link.onAction = { [unowned self] action in
+            if action == .linkLost, model.session.state.connected, linkLostDuring == nil { linkLostDuring = step }
+            onAction?(action)
+        }
+    }
+
+    /// False when a working link went down during the run. The first time, it fails the test loudly, naming the step
+    /// and showing the app's own last log lines: nothing the app knows about the server after that is news, so no step
+    /// may go on as if it were.
+    func linkIsUp() -> Bool {
+        guard let during = linkLostDuring else { return true }
+        if !linkLossReported {
+            linkLossReported = true
+            let log = model.debugLog.suffix(12).joined(separator: "\n")
+            print("PICK LINK LOST (\(mode.rawValue)) during \(during). The app's log:\n\(log)")
+            XCTFail("\(mode): the link went down during \(during). The app's last log lines:\n\(log)")
+        }
+        return false
     }
 
     /// The camera transform ARKit would report for the hand now.
@@ -177,11 +222,12 @@ final class ScriptedOperator {
     /// by eye.
     @discardableResult
     func moveArm(to target: SIMD3<Float>, _ name: String, maxHolds: Int = 2) -> Bool {
+        step = name
         let started = Date()
         var holds = 0
         pump(0.6)
         while holds < maxHolds {
-            guard let arm = model.link.armPosition else { return false }
+            guard let arm = reportedArm(name) else { return false }
             let remaining = target - arm
             if simd_length(remaining) < 0.004 { break }
             if mode == .buttons {
@@ -193,7 +239,7 @@ final class ScriptedOperator {
             holds += 1
             if model.session.state.emergencyStop { break }
         }
-        let arm = model.link.armPosition ?? target
+        guard let arm = reportedArm(name) else { return false }
         let off = simd_distance(arm, target)
         print(
             String(
@@ -201,6 +247,16 @@ final class ScriptedOperator {
                 name, mode.rawValue, holds, Date().timeIntervalSince(started), off * 100,
                 model.session.state.emergencyStop ? "YES" : "no"))
         return off < 0.008
+    }
+
+    /// Where the server last reported the arm; nil, and said why, when it cannot be known.
+    private func reportedArm(_ name: String) -> SIMD3<Float>? {
+        guard linkIsUp() else { return nil }
+        guard let arm = model.link.armPosition else {
+            print("PICK \(name): the server has reported no arm position. log: \(model.debugLog.suffix(3))")
+            return nil
+        }
+        return arm
     }
 
     /// One vol+ hold that moves the phone by the base-frame offset `remaining`.
@@ -246,6 +302,7 @@ final class ScriptedOperator {
 
     /// Opens or closes the jaws with the scheme's own gesture, held for `seconds` times `pace`.
     func gripper(_ target: GripperState, seconds: Double) {
+        step = target == .open ? "open the jaws" : "close the jaws"
         switch (mode, target) {
         case (.buttons, _):
             model.buttonDown(target == .open ? .open : .close)
@@ -294,63 +351,110 @@ final class ScriptedOperator {
 
     /// The whole task with the scheme's own inputs: open, go to the grasp point the guide shows, close, lift, carry,
     /// lower, open.
+    ///
+    /// It passes only on what the server reported: the object inside the goal, a `state` that said `task_success`, or,
+    /// on a server that counts episodes, the episode moving on after the jaws let go (a success resets the scene). A
+    /// working link that goes down fails the run at that step. Every run prints one `PICK RUN` line to check against
+    /// the server's own log.
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = model.profile
-        guard let objectStart = model.link.objectPosition, let goal = model.link.goalPosition,
+        guard linkIsUp() else { return }
+        guard model.link.objectPosition != nil, let goal = model.link.goalPosition,
             let armStart = model.link.armPosition
         else {
             throw XCTSkip("the server did not report the task object, goal and arm positions")
         }
         let lift = SIMD3<Float>(0, 0, 0.03)
+        // Only what the server says during this run counts.
+        successSeen = false
+        holdsEndedByServer = 0
+        let episodeBefore = newestEpisode
+        var episodeAtRelease: Int?
+        var inGoal = false
+        var passed = false
+        defer {
+            print(
+                String(
+                    format:
+                        "PICK RUN (%@): episode %@ -> %@, success seen %@, holds ended by the server %d, link lost %@, "
+                        + "object in goal %@, %.0f s: %@",
+                    mode.rawValue, Self.text(episodeBefore), Self.text(newestEpisode), successSeen ? "YES" : "no",
+                    holdsEndedByServer, linkLostDuring.map { "YES, during \($0)" } ?? "no", inGoal ? "YES" : "no",
+                    Date().timeIntervalSince(started), passed ? "PASS" : "FAIL"))
+        }
 
         gripper(.open, seconds: 5)
+        guard linkIsUp() else { return }
         for hold in 0..<warmUpHolds {
             let up: Float = hold % 2 == 0 ? 0.03 : 0.015
             moveArm(to: armStart + SIMD3(0, 0, up), "warm-up hold \(hold + 1)", maxHolds: 1)
+            guard linkIsUp() else { return }
         }
         // Where the reported gripper point has to be for the guide's ring to sit on the object.
-        let object = model.link.objectPosition ?? objectStart
+        guard let object = reportedObject("before the grasp") else { return }
         let grasp = profile.inBase(world: object) - profile.toolOffset
         moveArm(to: grasp + lift, "above the grasp point")
+        guard linkIsUp() else { return }
         guard moveArm(to: grasp, "grasp point", maxHolds: 3) else {
-            XCTFail("\(mode): the arm could not reach the grasp point")
+            if linkIsUp() { XCTFail("\(mode): the arm could not reach the grasp point") }
             return
         }
         gripper(.closed, seconds: 15)
+        guard linkIsUp() else { return }
         XCTAssertTrue(model.gripping, "\(mode): the jaws did not close on the object")
         moveArm(to: grasp + lift, "lift 3 cm", maxHolds: 2)
         pump(1.0)
-        let lifted = (model.link.objectPosition ?? object).z - object.z
+        guard let raised = reportedObject("after the lift") else { return }
+        let lifted = raised.z - object.z
         guard lifted > 0.015 else {
             XCTFail("\(mode): the object was not lifted (rose \(lifted * 100) cm)")
             return
         }
         var overGoal = grasp + SIMD3(goal.x - object.x, goal.y - object.y, 0)
         moveArm(to: overGoal + lift, "to the goal")
+        guard linkIsUp() else { return }
         if let carried = model.link.objectPosition {
             let miss = SIMD3(goal.x - carried.x, goal.y - carried.y, 0)
             if simd_length(miss) > 0.005, carried.z - object.z > 0.015 {
                 overGoal += miss
                 moveArm(to: overGoal + lift, "object over the goal", maxHolds: 1)
+                guard linkIsUp() else { return }
             }
         }
         moveArm(to: overGoal + SIMD3(0, 0, 0.002), "down onto the goal", maxHolds: 2)
+        guard linkIsUp() else { return }
+        episodeAtRelease = newestEpisode
         gripper(.open, seconds: 5)
+        guard linkIsUp() else { return }
         // A success shows for a moment and refuses every press meanwhile ("Wait."), so lift away only without one.
-        if model.serverState?.taskSuccess != true { moveArm(to: overGoal + lift, "lift away", maxHolds: 1) }
+        if !successSeen {
+            moveArm(to: overGoal + lift, "lift away", maxHolds: 1)
+            guard linkIsUp() else { return }
+        }
+        step = "waiting for the server after the release"
         pump(4)
-        let objectEnd = model.link.objectPosition ?? objectStart
-        let inGoal = abs(objectEnd.x - goal.x) <= 0.025 && abs(objectEnd.y - goal.y) <= 0.025
-        // A success resets the scene at once, which also puts the object back at its start.
-        let resetBySuccess = simd_distance(objectEnd, objectStart) < 0.005
-        print(
-            String(
-                format: "PICK RESULT (%@): in goal %@, scene reset after success %@, %.0f s in all",
-                mode.rawValue, inGoal ? "YES" : "no", resetBySuccess ? "YES" : "no", Date().timeIntervalSince(started)))
+        guard linkIsUp() else { return }
+        if let end = model.serverState?.object {
+            inGoal = abs(Float(end.x) - goal.x) <= 0.025 && abs(Float(end.y) - goal.y) <= 0.025
+        }
+        let episodeMovedOn = episodeAtRelease.map { (newestEpisode ?? $0) > $0 } ?? false
+        passed = inGoal || successSeen || episodeMovedOn
         XCTAssertFalse(model.session.state.emergencyStop)
-        XCTAssertTrue(inGoal || resetBySuccess, "\(mode): the object did not end in the goal")
+        XCTAssertTrue(passed, "\(mode): the server reported neither the object in the goal nor a success")
     }
+
+    /// Where the server last reported the task object; nil, after failing the run, when that cannot be known.
+    private func reportedObject(_ when: String) -> SIMD3<Float>? {
+        guard linkIsUp() else { return nil }
+        guard let object = model.link.objectPosition else {
+            XCTFail("\(mode): the server has reported no object position \(when)")
+            return nil
+        }
+        return object
+    }
+
+    private static func text(_ episode: Int?) -> String { episode.map(String.init) ?? "not counted" }
 
     /// Lets go of everything, closes the link and puts back the saved mode.
     func finish() {
