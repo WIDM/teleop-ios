@@ -1,55 +1,42 @@
-# iOS app v1 skeleton (App/ + Packages/ layout): status
+# Status
 
-## Done
+What the app does now, what is known not to work, and what version 1 leaves out. How each part works is in
+`docs/ARCHITECTURE.md`; how it is tested is in `docs/TESTING.md`.
 
-All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1, S2, S3a, S3b, S3m, S4, S5, S5a, S6, S7.
+## Works, and the default tests cover it
 
-- S1 to P5 flow finished first: screens, nav rules, `TeleopSession` actions and 11 flow tests (chip -> P5, Change server -> S1, Connect/Back/chip -> P5, Disconnect -> S7, Reconnect/Back to connect -> S1, every step is a declared forward edge).
-- `TeleopCore`: 49 XCTest cases pass on Linux with Swift 6.0.3 and 6.4.2 (`TEST-RESULT.txt`).
-- 4 haptic patterns (1, 2, 3 short; long repeating) defined in Core, played by Core Haptics (`HapticsController`); STOP starts the loop, release cancels it, the start of a gripper close or open plays 1 or 2 short.
-- Strings: 105 keys in `Localizable.xcstrings`, English only, `scripts/check-strings.py` passes. Camera and motion usage text in `InfoPlist.xcstrings`.
-- Colours follow visual-spec v1.14: STOP solid red with yellow border; recording `#0F172A` with blinking white dot; error cards amber border; red only on STOP, e-stop, S7 lost connection.
-- STOP release (S4) and Discard (S3b) need a 1 second hold, with a fill bar.
-- `.github/workflows/ios.yml`: string check, core tests, XcodeGen, `xcodebuild test` on an iPhone simulator, screenshots of P1 to P5/S1/S7 from the UI test (exported from the xcresult), artifacts: xcodebuild log, screenshots, xcresult.
+- The operating screen in all three control modes (screen turns, key turns, buttons), driven through the input
+  rules. A scripted pick-and-place in each mode, through raw inputs only, passes against the server model in every
+  default run.
+- The link: two connections, holds, final acks, resets, the emergency stop and its two ways out, and a STOP pressed
+  with no link. The server model it is tested against is checked against 18 recordings of the real server.
+- The guide, in the phone modes on a real server: the arm from above and from behind, and the target and goal
+  when the server reports them.
+- The recorder: the REC line, Settings → Recording, and the spoken news of each take.
+- A vibration, a sound or a spoken phrase for every feedback event (`CueTable`); every string in English and
+  Traditional Chinese.
+- Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
+- Every operating state drawn in both languages at two screen heights.
 
-## Real server link
+## Only a person can check
 
-Settings > Real server (off by default) swaps the built-in demo for a WebSocket to the teleop server (hold protocol, envelope v1).
+The tests cannot press the volume keys, move a real phone, touch the glass with a real thumb, or feel and hear the
+cues. Those, and everything against the real simulator (the `Live` test plan), need a person with a phone.
 
-- S1 takes the address (`host:port`, default port 8765). `hello`, then `welcome` and a first `state`, mark the session connected.
-- Holding vol+ or the hold pad sends `pose_start`, then the phone's ARKit offset from the start of the hold at 30 Hz as `pose_update` (translation mode), then `pose_stop`. The hold ends on release, lost tracking, moving faster than 0.8 m/s, backgrounding, a rejected start, E-stop or a lost link.
-- STOP sends `estop`, release sends `estop_reset`, Reset sends `reset_scene`. Holding vol− (close) or the Open handle sends `gripper_jog_start` with `jog_keepalive` every 133 ms, and `gripper_jog_stop` on release. The one-shot `gripper` message is not used: in Isaac Sim it blocked every other command for about 30 s.
-- A server E-stop latches the app on S4. A closed socket, or 2 s with no message at all, marks the link lost (the server is quiet during a hold, so the app's twice-a-second `test` echo is the heartbeat): S7 from a control screen, S4 stays if latched.
-- Round trip is measured twice a second with `test`; 400 ms or more blocks commands (P6).
-- Checked on the simulator against a model of the server on a local socket (`LocalServerTests`, and the scripted pick-and-place in `LocalPickAndPlaceTests`); see `docs/TESTING.md`.
+## Known not to work
 
-Not checked yet: the phone itself driving Isaac Sim, and whether ARKit axes match the WebXR axes the server was calibrated for. Sensitivity and smoothing are applied in the app to the phone offset, because the server ignores them in translation mode; deadband is in degrees and has no effect on translation.
+- After a lost link, the operating screen can show "Link lost" with "Reconnecting…", but the app does not reconnect
+  by itself: the operator connects again from Settings → Server. On `p4_standby` and `p6_high_latency` a lost link
+  opens Connect instead.
+- A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
+  address all read "Could not connect to that address."; the operating screen says only "Not connected".
+- Practice shows no guide: the practice link has no arm to report.
+- Nothing ends the holds when the phone overheats.
+- Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
+  the value the profile keeps until a check on the live robot sets it.
 
-Checked by script against Isaac Sim (thomas-s4, 2026-11-10): connect, a 3 s hold, E-stop and release, scene reset, gripper jog open and close.
+## Left out of version 1
 
-## Tools
-
-- `scripts/analyze_holds.py --host user@host` reads the server's run log and network log and prints one row per hold (asked, arm moved, share reached, arm speed, edge hits, what ended it), then rule-of-thumb suggestions for sensitivity and smoothing. `--since HH:MM` limits it to later holds. Tests: `python3 -m unittest scripts/test_analyze_holds.py`.
-
-## Not done
-
-- Icons are SF Symbols, not Material Symbols Rounded.
-- No Liquid Glass (target is iOS 17); solid surfaces only.
-- Hold-to-release shows a fill bar, not the ring from visual-spec.
-- No swipe-back gesture; navigation is a custom stack driven by `BackStackRules`.
-- P7 uses the system keyboard, not the shared mock keyboard component.
-- Left/right arm switch, cloud banner and latency dot from visual-spec v1.5 are not in the Android reference, so not built.
-- Camera and motion prompts are shown from S2, and a denial has no follow-up screen.
-- Volume keys: Camera Control and the Action button also arrive as vol−, since capture events do not name the button.
-- Figma could not be read (MCP needs authorization); screens follow the PNG shots and the Android code.
-
-## Only verifiable on a Mac
-
-- The SwiftUI target has never been compiled: Linux has no SwiftUI. Only syntax parsing (`swiftc -parse`) was run on every app and test file. Expect small type-check fixes on first build.
-- `xcodegen generate` and Xcode build.
-- `TeleopTests`, `TeleopUITests` and the screenshot export step in CI.
-- Layout on the 402x874 frame; keyboard behaviour on P7; hold gestures.
-- Core Haptics feel on a real iPhone (the simulator has no haptic engine).
-
-## Note on the shared directory
-
+- Voice commands.
+- Wrist buttons in buttons mode.
+- Distribution through TestFlight, which is not set up yet (`docs/RELEASING.md` says what it needs).
