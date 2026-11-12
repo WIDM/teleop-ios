@@ -880,6 +880,20 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertNil(server("test", seq: seq))
     }
 
+    /// A stall of the app is taken out of the silence, never past now, and the probe it held up is forgotten.
+    func testAStallOfTheAppIsNotSilence() {
+        bringUp()
+        link.probe()
+        let seq = sent.last!["seq"] as! Int
+        clock += 1500
+        link.stalled(forMs: 1200)
+        XCTAssertEqual(link.quietMs, 300)
+        XCTAssertNil(server("test", seq: seq), "the echo waited through the stall")
+        clock += 100
+        link.stalled(forMs: 5000)
+        XCTAssertEqual(link.quietMs, 0, "never later than now")
+    }
+
     func testSilentServerGoesStale() {
         bringUp()
         clock += TeleopLink.staleAfterMs

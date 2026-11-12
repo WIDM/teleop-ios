@@ -316,6 +316,13 @@ public final class TeleopLink {
         if ready { lastHeardAt = now() }
     }
 
+    /// The app did not run for `ms` (its main thread stalled). What arrived meanwhile has not been read yet, so that
+    /// time does not count as silence, and an echo that waited through it says nothing about the round trip.
+    public func stalled(forMs ms: Int) {
+        probes = [:]
+        if let heard = lastHeardAt { lastHeardAt = min(now(), heard + max(0, ms)) }
+    }
+
     /// How long since anything arrived on this connection; nil before `welcome`.
     public var quietMs: Int? { lastHeardAt.map { now() - $0 } }
 

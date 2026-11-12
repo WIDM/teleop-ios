@@ -26,9 +26,9 @@ final class LiveLinkController {
     /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
     static let quietLinkMs = 1200
     /// A tick this long after the one before means the app's main thread did not run in between (a long frame, an
-    /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so neither the silence nor a
-    /// probe's round trip across the gap says anything about the server: both start over. The server's watchdog
-    /// still ends a hold whose updates stopped.
+    /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so the stall does not count as
+    /// silence and no probe's round trip across it counts. The server's watchdog still ends a hold whose updates
+    /// stopped.
     static let stalledTickMs = 250
 
     var onAction: ((TeleopAction) -> Void)?
@@ -417,8 +417,9 @@ final class LiveLinkController {
         guard let link else { return }
         let tickedAt = nowMs()
         if let last = lastTickAtMs, tickedAt - last > Self.stalledTickMs {
-            link.dropProbes()
-            observer?.dropProbes()
+            let stall = tickedAt - last - 1000 / TeleopLink.poseRateHz
+            link.stalled(forMs: stall)
+            observer?.stalled(forMs: stall)
         }
         lastTickAtMs = tickedAt
         ticks += 1
