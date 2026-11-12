@@ -983,6 +983,22 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 1, "the server's own stop is not told twice")
     }
 
+    /// Practice stays refused while the stop is latched (§7.4), and Connect and Settings say why. Before the STOP
+    /// reaches a robot the robot is not stopped (J7), so the reason says the STOP is waiting; once the welcome has
+    /// sent it, the robot is stopped.
+    func testThePracticeRefusalSaysWhetherTheStopReachedARobot() {
+        makeModel(at: .p4)
+        model.send(.stop)
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        model.startPractice()
+        XCTAssertTrue(model.liveLink, "practice is refused")
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+        XCTAssertTrue(model.session.state.emergencyStop)
+    }
+
     /// §6.5: with a recorder, estop_reset is not offered at all, so the model refuses a release whatever sends it, and
     /// only the reset leaves the stop. With no recorder, and on a server that does not say (no `rec`), the release is
     /// offered and works.

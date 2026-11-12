@@ -81,7 +81,7 @@ struct ConnectScreen: View {
                         .disabled(practiceBlocked)
                         .accessibilityIdentifier("connect.practice")
                     if practiceBlocked {
-                        Text("settings.practice_blocked")
+                        Text(model.practiceBlockedReason)
                             .font(.system(size: 14))
                             .foregroundStyle(TeleopColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)

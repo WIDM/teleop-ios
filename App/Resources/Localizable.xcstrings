@@ -1601,6 +1601,22 @@
         }
       }
     },
+    "settings.practice_blocked_unsent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not while a STOP is waiting to reach the robot. Connect, then release the stop or reset."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "急停還沒送到機器人時不能切換。請先連線，再解除急停或重置。"
+          }
+        }
+      }
+    },
     "settings.practice_no_server": {
       "localizations": {
         "en": {

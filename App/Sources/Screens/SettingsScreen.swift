@@ -202,7 +202,7 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("settings.start_practice")
             }
             if stopped {
-                Text("settings.practice_blocked")
+                Text(model.practiceBlockedReason)
                     .foregroundStyle(TeleopColors.textSecondary)
                     .accessibilityIdentifier("settings.practice_stopped")
             }

@@ -17,8 +17,9 @@ final class AppModel {
     @ObservationIgnored private var pendingRefusal: Refusal?
     /// The last STOP reached a connection that was up.
     @ObservationIgnored private var stopReached = true
-    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`.
-    @ObservationIgnored private var stopOwed = false
+    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`. Observed, for
+    /// `practiceBlockedReason`.
+    private var stopOwed = false
     /// A hold was engaged when the link was last lost, so a stopped server found on reconnect is the link's doing.
     @ObservationIgnored private var holdEngagedAtLoss = false
     /// The built-in demo's hold count, for its GO.
@@ -278,6 +279,12 @@ final class AppModel {
     /// Back to the real server at the saved address. Refused while the robot is in emergency stop.
     func leavePractice() {
         switchLink(live: true)
+    }
+
+    /// What Connect and Settings say while practice is refused for the latched stop. A STOP pressed with no link up
+    /// has reached no robot yet (J7): the robot is not stopped then, and the way out starts with connecting.
+    var practiceBlockedReason: LocalizedStringKey {
+        stopOwed ? "settings.practice_blocked_unsent" : "settings.practice_blocked"
     }
 
     /// Drops the current link and starts the other, so no session spans both.
