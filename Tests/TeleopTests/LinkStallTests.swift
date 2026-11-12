@@ -209,7 +209,7 @@ final class LinkStallTests: XCTestCase {
         _ = hand.wait(0.5, until: { false })
         model.buttonUp(.close)
         checkTheHoldEndedAndTheLinkStayed(
-            since: index, reason: "gripper refused: gripper_jog_watchdog_timeout", "gripper")
+            since: index, reason: "gripper hold ended by server: gripper_jog_watchdog_timeout", "gripper")
         print("STALL gripper: the screen showed \(shownNames)")
         let jawAfterTheStall = server.inspect { $0.world.jaw }
         XCTAssertLessThan(jawAfterTheStall, jawOpen - 10, "the jaws closed until the watchdog ended the hold")
@@ -243,7 +243,8 @@ final class LinkStallTests: XCTestCase {
         // What the screen shows next, while the operator still holds.
         _ = hand.wait(0.5, until: { false })
         hand.touchUp(touch, x: point.x, y: point.y)
-        checkTheHoldEndedAndTheLinkStayed(since: index, reason: "wrist hold refused: orient_watchdog_timeout", "wrist")
+        checkTheHoldEndedAndTheLinkStayed(
+            since: index, reason: "wrist hold ended by server: orient_watchdog_timeout", "wrist")
         print("STALL wrist: the screen showed \(shownNames)")
 
         // The next hold works: the wrist turns back.

@@ -115,7 +115,7 @@ final class ServerMotionTests: XCTestCase {
         let tilted = model.serverState?.wristFlexDeg
         hand.wrist(.tilt, by: -10, hold: 3)
         XCTAssertEqual(held, 2, "each tilt was a wrist hold. log: \(model.debugLog.suffix(4))")
-        XCTAssertFalse(model.debugLog.contains { $0.contains("wrist hold refused") }, "the server took both")
+        XCTAssertFalse(model.debugLog.contains { $0.contains("wrist hold ended by server") }, "the server took both")
         XCTAssertFalse(model.session.state.wristMoving)
         XCTAssertFalse(model.session.state.emergencyStop)
         if let before, let tilted, let after = model.serverState?.wristFlexDeg {

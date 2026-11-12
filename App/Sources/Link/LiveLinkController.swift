@@ -555,11 +555,12 @@ final class LiveLinkController {
             onLog?("link: \(type) rejected: \(reason)")
             if type == "estop_reset" { resetSentAtMs = nil }
         case .gripperRefused(let reason):
-            onLog?("link: gripper refused: \(reason)")
+            // A refused start and a live hold the watchdog ended both come back as a rejected final answer.
+            onLog?("link: gripper hold ended by server: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
-            onLog?("link: wrist hold refused: \(reason)")
+            onLog?("link: wrist hold ended by server: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             endWristTarget()
             onAction?(.wristEnd)
