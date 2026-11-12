@@ -491,7 +491,13 @@ final class AppModel {
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
         if let episode = state.episode {
-            if let last = lastEpisode, episode != last { sceneWasReset() }
+            if let last = lastEpisode, episode != last {
+                sceneWasReset()
+                // Armed here, on the first state after the reset, never on a reset's answer: until this state the
+                // guide still shows the arm from before the reset. Without `episode` the arm's trip back to its start
+                // pose leaves the wider window and arms it.
+                onTargetCue.rearm()
+            }
             lastEpisode = episode
         }
         if flexAtResetOwed, !state.estop, !state.simBusy, let flex = state.wristFlexDeg {
@@ -602,7 +608,6 @@ final class AppModel {
 
     /// A reset, a new episode or a new server run: the tilt window and the wrist lead start again.
     private func sceneWasReset() {
-        onTargetCue.rearm()
         flexAtReset = nil
         flexAtResetOwed = true
         link.sceneWasReset()
@@ -637,7 +642,6 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
-        if action == .sceneResetDone { onTargetCue.rearm() }
         session.perform(action)
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)

@@ -1423,6 +1423,24 @@ final class LiveLinkTests: XCTestCase {
         }
     }
 
+    /// A reset's answer can come before the first state after it. The state from before the reset, still on the
+    /// target, must not be felt again as if the jaws had just arrived.
+    func testAResetAnsweredBeforeItsStateDoesNotReplayTheCueFromTheOldState() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        run(ticks: 3)
+        XCTAssertEqual(feltOnTarget, 1, "nothing new is known about the jaws yet")
+        observer.server("state", armState(graspArm + SIMD3(0.02, 0.02, 0.02), gripper: "closed", episode: 1))
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the next approach after the reset")
+    }
+
     /// No task object reported: nothing to be on, wherever the jaws are.
     func testOnTargetIsNotFeltWithoutATarget() {
         bringUp()
