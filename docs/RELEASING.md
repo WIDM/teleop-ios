@@ -103,12 +103,37 @@ stops opening until it is installed again.
 
 ## TestFlight
 
-TestFlight is Apple's way to hand a build to testers through App Store Connect. It is not set up for this app yet:
-the repository has no archive or upload step. Before a first upload, the holder of the Apple developer account has
-to provide:
+TestFlight is Apple's way to hand a build to testers through App Store Connect. The build to upload is the tagged
+commit, built after every check above has passed on it.
 
-- a paid Apple Developer Program membership for the team that signs the app;
-- an app record in App Store Connect for the bundle identifier (`PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`), and
-  any agreements App Store Connect asks to be accepted;
-- the testers: people in the App Store Connect team, or outside testers, for whom Apple first reviews the build;
-- an answer to the export compliance question about encryption for each build.
+What the repository already gives an upload:
+
+- a privacy manifest, `App/PrivacyInfo.xcprivacy`, which App Store Connect requires: the app reads and writes its
+  own settings in user defaults (reason `CA92.1`) and times events with the system uptime (reason `35F9.1`); it
+  tracks no one and collects no data. When code starts to use another required-reason API (file timestamps, disk
+  space, active keyboards, or user defaults shared with another app), the manifest must say so before the next
+  upload;
+- `ITSAppUsesNonExemptEncryption` set to false in `project.yml` (and so in `App/Info.plist`): the app uses only the
+  system's own encryption, so no export compliance question comes up for a build;
+- no signing team, on purpose: the team is picked in Xcode at archive time.
+
+What only the holder of the Apple developer account can do, in order:
+
+1. Accept any pending agreement in the developer account and in App Store Connect.
+2. Register the App ID for the bundle identifier (`PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`) under the paid
+   team, which Xcode's automatic signing can do, and create the app record in App Store Connect: platform iOS, a
+   name, a primary language, that bundle identifier and a SKU.
+3. Run `xcodegen generate`, open the project, and pick the team under Signing & Capabilities (a later
+   `xcodegen generate` drops it). Choose Any iOS Device, then Product > Archive. In the Organizer, choose
+   Distribute App and the App Store Connect option, not "TestFlight Internal Only", and turn off "Manage Version
+   and Build Number" so the uploaded build keeps the tagged version and build number. Xcode creates the
+   distribution certificate and profile here.
+4. Internal testing: add App Store Connect users to an internal group (up to 100 people). These builds need no
+   review.
+5. External testing: fill in the test information (a beta app description and a feedback e-mail), a privacy policy
+   URL, a review contact and review notes. The notes say that the app drives a robot simulator on a local network;
+   that without one, Connect → "Practice without a robot" shows the app working; that there is no sign-in; and that
+   it speaks plain `ws://` because the teleoperation server uses unencrypted WebSocket on a private network. The
+   first build for outside testers goes to beta review. A build expires after 90 days.
+6. Later uploads: each needs a build number higher than any already uploaded for that version. A second upload of
+   1.0.0 needs build 14; otherwise ship it as 1.0.1.
