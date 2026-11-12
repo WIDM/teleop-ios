@@ -425,7 +425,7 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `rec_saved` | demonstrations in the output file, including earlier server runs | a rise is a saved take: "Saved N" on the operating screen for 2 s, and spoken; the count in the REC line and in Settings → Recording |
 | `rec_discarded` | takes thrown away since the server started | a rise is a discarded take, spoken; the count in the REC line and in Settings → Recording |
 | `rec_samples` | samples in the current take, 30 per simulated second | the take's length in the REC line while capturing |
-| `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when the server was started without recording (`rec: none`) | read, not used |
+| `rec_session`, `rec_mode` | the recording session's name and mode label; missing, as in the example above, or `null` when the server was started without recording (`rec: none`) | read, not used; missing and `null` count the same |
 | `orient_deg`, `gripper_delta` | appear after the first wrist or arm hold | not used |
 
 The REC line in the top band, and the first row of Settings → Recording, say what the recorder is doing
@@ -494,8 +494,8 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
 
 ## What the app needs from the server, and what happens without it
 
-Servers of this kind differ in what they report and in a few behaviours. The app is built for a server that does
-everything in the left column. Against one that does not, the app still works, with the effect in the right column.
+The app is built for a server that does everything in the left column. Against one that does not, the app still
+works, with the effect in the right column.
 
 | The app expects | Without it |
 |---|---|
