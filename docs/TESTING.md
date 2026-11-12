@@ -126,7 +126,7 @@ The live tests move the simulated arm on a machine other people use, so three th
 
 Run them only when the simulator is free and you mean to move its arm. They need the scene at its reset pose with
 nobody else driving it; `OperatorLiveTests` also needs the server running without a recording session. Each test
-first resets the scene the way holding the top band does, which also leaves an emergency stop. Start the path to
+first resets the scene the way holding the top band does, which also releases an emergency stop left latched. Start the path to
 the simulator first, each in its own terminal:
 
     pip install websockets                 # once: dev_relay.py and trace_scenarios.py need it
@@ -135,7 +135,8 @@ the simulator first, each in its own terminal:
 
 The tunnel forwards port 8766, the simulator's own port, and reconnects when it drops. The relay listens on 8765
 on every network interface of the Mac, so a phone on the same network can connect to it too, and gives each client
-its own connection upstream (`--listen` and `--upstream` change the two ports). Then:
+its own connection upstream. `--listen` takes another port to listen on, and `--upstream` another WebSocket
+URL to forward to, such as `ws://127.0.0.1:9000`. Then:
 
     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Live \
       -destination "platform=iOS Simulator,name=$SIM"
