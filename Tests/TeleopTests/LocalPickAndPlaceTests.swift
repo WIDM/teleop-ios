@@ -43,6 +43,8 @@ final class LocalPickAndPlaceTests: XCTestCase {
     }
 
     private func finishedTheTask() {
+        // A new episode alone is no success: the server also resets when the object falls off the table.
+        XCTAssertTrue(hand.successSeen, "the server reported a success after the jaws let go")
         XCTAssertEqual(server.inspect { $0.episode }, 1, "the scene reset once, after the success")
         XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
     }
@@ -212,10 +214,13 @@ final class ScriptedOperatorGoalTests: XCTestCase {
         ScriptedOperator.restsInGoal(object, goal: goal, restingHeight: rest, halfWidth: 0.025)
     }
 
-    /// Only an object resting in the goal counts: one still held above it, or beside it, does not.
+    /// Only an object resting in the goal counts: one still held above it, beside it, or fallen below the table under
+    /// it, does not.
     func testOnlyAnObjectRestingInTheGoalCounts() {
         XCTAssertTrue(inGoal(SIMD3(0.08, -0.21, rest)))
+        XCTAssertTrue(inGoal(SIMD3(0.075, -0.2, rest + 0.01)), "1 cm above where it rested at the start")
         XCTAssertFalse(inGoal(SIMD3(0.075, -0.2, rest + 0.03)), "held 3 cm above the goal")
         XCTAssertFalse(inGoal(SIMD3(0.105, -0.2, rest)), "3 cm beside the goal")
+        XCTAssertFalse(inGoal(SIMD3(0.075, -0.2, rest - 0.08)), "fallen below the table")
     }
 }
