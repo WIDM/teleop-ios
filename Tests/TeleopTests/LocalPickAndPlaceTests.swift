@@ -202,3 +202,20 @@ final class LocalPickAndPlaceTests: XCTestCase {
         XCTAssertTrue(waited, "the server's save and reset reach the screen as Wait")
     }
 }
+
+/// The script's own judgement of the server's report, without a server.
+final class ScriptedOperatorGoalTests: XCTestCase {
+    private let goal = SIMD3<Float>(0.075, -0.2, 0.1035)
+    private let rest: Float = 0.1025
+
+    private func inGoal(_ object: SIMD3<Float>) -> Bool {
+        ScriptedOperator.restsInGoal(object, goal: goal, restingHeight: rest, halfWidth: 0.025)
+    }
+
+    /// Only an object resting in the goal counts: one still held above it, or beside it, does not.
+    func testOnlyAnObjectRestingInTheGoalCounts() {
+        XCTAssertTrue(inGoal(SIMD3(0.08, -0.21, rest)))
+        XCTAssertFalse(inGoal(SIMD3(0.075, -0.2, rest + 0.03)), "held 3 cm above the goal")
+        XCTAssertFalse(inGoal(SIMD3(0.105, -0.2, rest)), "3 cm beside the goal")
+    }
+}

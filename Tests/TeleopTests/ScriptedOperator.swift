@@ -359,20 +359,13 @@ final class ScriptedOperator {
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = model.profile
-        guard linkIsUp() else { return }
-        guard model.link.objectPosition != nil, let goal = model.link.goalPosition,
-            let armStart = model.link.armPosition
-        else {
-            throw XCTSkip("the server did not report the task object, goal and arm positions")
-        }
-        let lift = SIMD3<Float>(0, 0, 0.03)
         // Only what the server says during this run counts.
         successSeen = false
         holdsEndedByServer = 0
         let episodeBefore = newestEpisode
         var episodeAtRelease: Int?
         var inGoal = false
-        var passed = false
+        var verdict = "FAIL"
         defer {
             print(
                 String(
@@ -381,8 +374,16 @@ final class ScriptedOperator {
                         + "object in goal %@, %.0f s: %@",
                     mode.rawValue, Self.text(episodeBefore), Self.text(newestEpisode), successSeen ? "YES" : "no",
                     holdsEndedByServer, linkLostDuring.map { "YES, during \($0)" } ?? "no", inGoal ? "YES" : "no",
-                    Date().timeIntervalSince(started), passed ? "PASS" : "FAIL"))
+                    Date().timeIntervalSince(started), verdict))
         }
+        guard linkIsUp() else { return }
+        guard let objectStart = model.link.objectPosition, let goal = model.link.goalPosition,
+            let armStart = model.link.armPosition
+        else {
+            verdict = "SKIP"
+            throw XCTSkip("the server did not report the task object, goal and arm positions")
+        }
+        let lift = SIMD3<Float>(0, 0, 0.03)
 
         gripper(.open, seconds: 5)
         guard linkIsUp() else { return }
@@ -436,10 +437,13 @@ final class ScriptedOperator {
         pump(4)
         guard linkIsUp() else { return }
         if let end = model.serverState?.object {
-            inGoal = abs(Float(end.x) - goal.x) <= 0.025 && abs(Float(end.y) - goal.y) <= 0.025
+            inGoal = Self.restsInGoal(
+                SIMD3(Float(end.x), Float(end.y), Float(end.z)), goal: goal, restingHeight: objectStart.z,
+                halfWidth: profile.goalSize / 2)
         }
         let episodeMovedOn = episodeAtRelease.map { (newestEpisode ?? $0) > $0 } ?? false
-        passed = inGoal || successSeen || episodeMovedOn
+        let passed = inGoal || successSeen || episodeMovedOn
+        verdict = passed ? "PASS" : "FAIL"
         XCTAssertFalse(model.session.state.emergencyStop)
         XCTAssertTrue(passed, "\(mode): the server reported neither the object in the goal nor a success")
     }
@@ -452,6 +456,15 @@ final class ScriptedOperator {
             return nil
         }
         return object
+    }
+
+    /// The object rests inside the goal: across, within the goal's half width of its centre (world frame, as the server
+    /// reports both); in height, less than the 1.5 cm the script takes for lifted above where it rested at the start, so
+    /// an object still held over the goal is not in it.
+    static func restsInGoal(
+        _ object: SIMD3<Float>, goal: SIMD3<Float>, restingHeight: Float, halfWidth: Float
+    ) -> Bool {
+        abs(object.x - goal.x) <= halfWidth && abs(object.y - goal.y) <= halfWidth && object.z - restingHeight < 0.015
     }
 
     private static func text(_ episode: Int?) -> String { episode.map(String.init) ?? "not counted" }
