@@ -320,7 +320,7 @@ final class AppModel {
         let settingsOpen = session.route == .s6
         let notReady = s.liveLink && (link.resetPending || serverState?.simBusy == true)
         var refusal: InputRefusal?
-        if s.emergencyStop {
+        if robotStopped(s) {
             refusal = .stopped
         } else if !s.connected {
             refusal = .noLink
@@ -591,6 +591,12 @@ final class AppModel {
         return Self.engaged(session.state) ? demoHold : nil
     }
 
+    /// The stop is latched and, as far as the app knows, the robot is stopped. A STOP pressed with no link up has
+    /// reached no robot yet (J7), so while no link is up a refused press says "No link.", as the screen does.
+    private func robotStopped(_ state: FakeTeleopState) -> Bool {
+        state.emergencyStop && !(stopOwed && !state.connected)
+    }
+
     private static func engaged(_ state: FakeTeleopState) -> Bool {
         heldControl(state) != nil
     }
@@ -630,7 +636,7 @@ final class AppModel {
         pendingRefusal = nil
         if commands.isEmpty, Self.isPress(action), !Self.engaged(before), !Self.engaged(session.state) {
             // The session ignores a press while stopped or with no link; the operator still hears why.
-            if before.emergencyStop {
+            if robotStopped(before) {
                 raise(.refused(.emergencyStop))
             } else if !before.connected {
                 raise(.refused(.noLink))

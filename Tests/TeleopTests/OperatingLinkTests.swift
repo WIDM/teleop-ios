@@ -459,6 +459,26 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.operating.state, .linkLost)
     }
 
+    /// J7: while that STOP waits for the next welcome the robot is not stopped, so a press says "No link.", as the
+    /// screen does, never "Stopped.".
+    func testWhileAStopWaitsForTheLinkAPressSaysNoLink() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        transport.onClose?()
+        step()
+        let bottom = model.operating.layout!.bottomBand.y + 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        XCTAssertTrue(model.session.state.emergencyStop, "the stop stays latched until it is sent")
+        step(10)
+        model.keyEvent(.upper, down: true)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.noLink))
+        model.keyEvent(.upper, down: false)
+        XCTAssertEqual(model.operating.state, .linkLost)
+    }
+
     func testTheModeCannotChangeWhileAHoldIsEngaged() {
         bringUp(.screenTurns)
         step()
