@@ -126,6 +126,14 @@ if shows_stop is None or operating_routes is None:
     problems.append("cannot read showsTheStop in main.swift or operatingRoutes in RootView.swift")
 elif shows_stop - {"s6"} != operating_routes:
     problems.append(f"showsTheStop in main.swift, less s6, differs from RootView.operatingRoutes {sorted(operating_routes)}")
+# Leaving the operating screen ends every hold (perform in main.swift models it): the checker's routes and the
+# controller's must both be the screen's.
+operating_screen = route_set(r"let operatingScreen: Set<Route> = \[([^\]]*)\]", main)
+if operating_screen is None or operating_screen != operating_routes:
+    problems.append(f"operatingScreen in main.swift differs from RootView.operatingRoutes {sorted(operating_routes or [])}")
+controller_source = (APP / "Operating/OperatingController.swift").read_text()
+if "static let operatingRoutes: Set<Route> = RootView.operatingRoutes" not in controller_source:
+    problems.append("OperatingController.operatingRoutes is not RootView.operatingRoutes, which operatingScreen models")
 settings_source = next(
     (m.group(0) for p in APP.rglob("*.swift") for m in STRUCT.finditer(p.read_text()) if m.group(1) == "SettingsScreen"), ""
 )

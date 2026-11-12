@@ -51,6 +51,9 @@ let actionTable: [(String, TeleopAction)] = [
 // session lets only the answer to a reset asked for in the stop state release it.
 let linkEvents = ["linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber", "linkLatencyBlocked", "stop", "sceneResetDone"]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
+// The routes the operating screen draws (RootView.operatingRoutes, which OperatingController.operatingRoutes reads).
+// drift.py holds both to the source.
+let operatingScreen: Set<Route> = [.p4, .p5, .p6, .p7, .s4]
 // toggleLiveLink is practice on or off (AppModel.startPractice, leavePractice): the flag flips, then switchLink.
 let stateCalls = ["toggleLiveLink"]
 // A fresh install opens on S2 (the default start); every later launch opens on P4. A launch is on a real server, or in
@@ -118,10 +121,9 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
     default: session.perform(actionsByName[name]!)
     }
     // OperatingController ends every hold of the keys, the touches and the pad, with its stop, when the operating
-    // screens (BackStackRules.controlRoutes) go away, so moving between them keeps a hold. The end actions stay offered
+    // screen's routes (operatingScreen) go away, so moving between them keeps a hold. The end actions stay offered
     // while a control is held (shippedActions), so every release is explored as well.
-    let leftOperating = BackStackRules.controlRoutes.contains(node.session.route)
-        && !BackStackRules.controlRoutes.contains(session.route)
+    let leftOperating = operatingScreen.contains(node.session.route) && !operatingScreen.contains(session.route)
     if shippedUI, leftOperating, session.state.armMoving {
         session.perform(.holdArmEnd)
     }

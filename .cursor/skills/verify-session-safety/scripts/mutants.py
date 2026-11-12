@@ -309,6 +309,14 @@ SOURCE_VARIANTS = [
         "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
     ),
     (
+        "Leaving fewer routes ends a hold",
+        "Operating/OperatingController.swift",
+        "final class OperatingController {",
+        "static let operatingRoutes: Set<Route> = RootView.operatingRoutes",
+        "static let operatingRoutes: Set<Route> = BackStackRules.controlRoutes",
+        "DRIFT OperatingController.operatingRoutes is not RootView.operatingRoutes, which operatingScreen models",
+    ),
+    (
         "The operating screen gains a new control",
         "Operating/Views/OperatingScreen.swift",
         "private struct OperatingControls: View {",

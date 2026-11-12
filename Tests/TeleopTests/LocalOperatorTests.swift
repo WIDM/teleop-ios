@@ -173,6 +173,23 @@ final class LocalOperatorTests: XCTestCase {
         hand.release(.upper)
     }
 
+    /// Connecting from Connect lands on P5, which the same operating screen draws, so Settings ends a hold there too.
+    func testOpeningSettingsEndsAHoldWhereConnectLands() throws {
+        try start(.screenTurns)
+        model.send(.changeServer)
+        model.send(.s1Back)
+        XCTAssertEqual(model.session.route, .p5)
+        XCTAssertTrue(model.session.state.connected)
+        hand.pump(0.5)
+        hand.press(.upper)
+        XCTAssertTrue(model.session.state.armMoving)
+        model.send(.openSettings)
+        XCTAssertEqual(model.session.route, .s6)
+        XCTAssertFalse(model.session.state.armMoving, "Settings ends the hold")
+        XCTAssertNil(model.controller.engagedHold)
+        hand.release(.upper)
+    }
+
     func testLeavingTheForegroundEndsAHoldAndTheKeyHeldAcrossStaysDead() throws {
         try start(.screenTurns)
         hand.press(.upper)
