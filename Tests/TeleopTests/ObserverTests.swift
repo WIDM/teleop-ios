@@ -211,6 +211,17 @@ final class ObserverTests: XCTestCase {
         XCTAssertTrue(wait(2, until: { server.inspect { $0.episode } == episode + 1 }))
     }
 
+    /// The app's main thread stalls for 1.5 s, as a long frame or an accessibility snapshot can make it, while the
+    /// server goes on sending: the link is not lost, and neither connection is closed.
+    func testAStallOfTheAppIsNotALostLink() throws {
+        let model = try connected()
+        Thread.sleep(forTimeInterval: 1.5)
+        pump(0.6)
+        XCTAssertTrue(model.session.state.connected, "the link was dropped as quiet after the app stalled")
+        XCTAssertTrue(model.link.observerUp)
+        XCTAssertEqual(server.inspect { $0.welcomedClients }, 2)
+    }
+
     func testAResetPressedWhileTheArmIsHeldIsRefused() throws {
         let model = try connected()
         model.send(.holdArmStart)

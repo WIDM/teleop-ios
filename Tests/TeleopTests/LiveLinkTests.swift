@@ -367,8 +367,10 @@ final class LiveLinkTests: XCTestCase {
 
     func testSilentServerCountsAsLost() {
         bringUp()
-        clock += TeleopLink.staleAfterMs + 1
-        model.link.tick()
+        // The timer keeps ticking while the server says nothing; a clock jump with no ticks would be a stall of the app.
+        for _ in 0..<(TeleopLink.staleAfterMs / 33) { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.98 s")
+        tick()
         XCTAssertFalse(model.session.state.connected)
         XCTAssertEqual(model.session.route, .s1)
         XCTAssertTrue(model.session.state.connectionLost)
@@ -1315,6 +1317,26 @@ final class LiveLinkTests: XCTestCase {
         tick()
         XCTAssertFalse(model.session.state.connected, "1.22 s")
         XCTAssertEqual(sounds.played, [.linkLost])
+    }
+
+    /// A tick 1.3 s late means the app's main thread stalled (a long frame, an accessibility snapshot), and what the
+    /// server sent meanwhile still waits behind it: not a lost link. Silence after the stall still is one, and an
+    /// echo that waited out the stall does not count as a slow round trip.
+    func testAStalledTickIsNotSilenceButSilenceAfterItIs() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<(TeleopLink.poseRateHz / 2) { tick() }
+        let probe = transport.sent.last!
+        XCTAssertEqual(probe["type"] as? String, "test")
+        clock += 1300
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "a stall of the app is not the server going quiet")
+        transport.server("test", seq: probe["seq"] as! Int)
+        XCTAssertNil(model.session.state.latencyMs, "the echo waited behind the stall")
+        for _ in 0..<36 { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.19 s after the stall")
+        tick()
+        XCTAssertFalse(model.session.state.connected, "1.22 s of silence after the stall")
     }
 
     /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:

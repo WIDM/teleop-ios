@@ -25,6 +25,11 @@ final class LiveLinkController {
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
     /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
     static let quietLinkMs = 1200
+    /// A tick this long after the one before means the app's main thread did not run in between (a long frame, an
+    /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so neither the silence nor a
+    /// probe's round trip across the gap says anything about the server: both start over. The server's watchdog
+    /// still ends a hold whose updates stopped.
+    static let stalledTickMs = 250
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -71,6 +76,7 @@ final class LiveLinkController {
     private(set) var newestState: ServerState?
     private var timer: Timer?
     private var ticks = 0
+    private var lastTickAtMs: Int?
     private var openedAtMs = 0
     private var holdStart: SIMD3<Float>?
     private var lastSample: (position: SIMD3<Float>, atMs: Int)?
@@ -172,6 +178,8 @@ final class LiveLinkController {
         self.transport = transport
         self.link = link
         openedAtMs = nowMs()
+        // The timer starts now: a first tick far later than one interval is a stall too.
+        lastTickAtMs = openedAtMs
         transport.onText = { [weak self, weak transport] text in
             guard let self, self.transport === transport else { return }
             self.handle(text)
@@ -221,6 +229,7 @@ final class LiveLinkController {
         newestStateAtMs = nil
         newestState = nil
         leadBound = WristLeadBound()
+        lastTickAtMs = nil
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -406,6 +415,12 @@ final class LiveLinkController {
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
         guard let link else { return }
+        let tickedAt = nowMs()
+        if let last = lastTickAtMs, tickedAt - last > Self.stalledTickMs {
+            link.dropProbes()
+            observer?.dropProbes()
+        }
+        lastTickAtMs = tickedAt
         ticks += 1
         tickObserver()
         if !link.ready {
