@@ -11,7 +11,7 @@ recordings of the real server back most of what is written here.
 
 ## Words used here
 
-- **Hold**: a control that runs only while the operator keeps a key or button pressed. The app sends a *start*
+- **Hold**: a control that runs only while the operator keeps a key, a thumb or a button down. The app sends a *start*
   when the press begins, *updates* or *keepalives* while it lasts, and a *stop* when it ends. The server runs one
   hold at a time.
 - **Ack** (acknowledgement): the server's answer to one message, naming that message's sequence number.
@@ -39,10 +39,12 @@ recordings of the real server back most of what is written here.
   lab collects examples of the task done by hand. The *recorder* is that part of the server. A *take* is one
   recorded attempt, from the first command after a reset to the end of the attempt. A take that ends in success is
   kept as a *demonstration* in the server's output file; any other take is thrown away.
-- **STOP** and **Reset** are controls on the phone: STOP latches the emergency stop, Reset asks the server to put
-  the scene back as it started (below).
-- **The map** is the phone's top-down drawing of the arm, the cube and the goal. **The guide** tells the operator
-  where the cube or the goal is from the jaws.
+- **STOP** is the red band along the bottom of every screen: it latches the emergency stop at touch-down.
+  **Reset** is holding the top band of the operating screen for 2 seconds: it asks the server to put the scene
+  back as it started (below). **Release, keep scene** is a one-second hold button that appears in the stopped state
+  when that way out is offered (below).
+- **The guide** is the operating screen's drawing of the arm from above and from behind: where the jaws pinch, and
+  the task object (the *target*) and the goal when the server reports them.
 
 ## The envelope
 
@@ -84,8 +86,10 @@ The first message on a connection must be `hello`, with exactly these two fields
 
 (`s00_hello`.)
 
-`name` is how the server's log names the connection (`TeleopLink.hello(name:)` has the app's default). Any other
-field in the payload, or any other message before `hello`, is answered with an `error` message.
+`name` is how the server's log names the connection. The app names its control connection
+`teleop-ios/<version> (<build>)`, from the bundle's version and build numbers (`LiveLinkController.clientName`), and
+its listening connection the same followed by ` observer`. Any other field in the payload, or any other message
+before `hello`, is answered with an `error` message.
 
 The server answers with `welcome`, then a first `state` (described below):
 
@@ -108,8 +112,8 @@ no commands. If the link is not ready within 5 seconds, the app drops the socket
 |---|---|---|---|
 | `hello` | first, on each connection | `client`, `name` | `welcome`, then `state` |
 | `test` | twice a second while the link is up | `{}` | the same text echoed back at once |
-| `pose_start` | an arm hold begins | see below | a final ack when the hold ends |
-| `pose_update` | 30 times a second during an arm hold | the hand's displacement | none |
+| `pose_start` | an arm hold begins (vol+, or a direction button in buttons mode) | see below | a final ack when the hold ends |
+| `pose_update` | 30 times a second during an arm hold | the displacement asked for | none |
 | `pose_stop` | the arm hold ends | `{}` | an ack at once |
 | `gripper_jog_start` | a gripper hold begins | `action`, `step` | a final ack when the hold ends |
 | `jog_keepalive` | every 133 ms during a gripper hold | `{}` | none |
@@ -117,11 +121,11 @@ no commands. If the link is not ready within 5 seconds, the app drops the socket
 | `orient_start` | a wrist hold (turn or tilt) begins | see below | a final ack when the hold ends |
 | `orient_update` | 30 times a second during a wrist hold | the rotation asked for | none |
 | `orient_stop` | the wrist hold ends | `{}` | an ack at once |
-| `estop` | STOP is pressed | `{}` | an ack at once |
-| `estop_reset` | STOP is released | `{}` | an ack at once |
-| `reset_scene` | Reset is pressed | `{}` | an ack when the reset has finished |
+| `estop` | every STOP, also when the stop is already latched; on both connections when both are up | `{}` | an ack at once |
+| `estop_reset` | Release, keep scene is held for 1 s | `{}` | an ack at once |
+| `reset_scene` | Reset: the top band is held for 2 s | `{}` | an ack when the reset has finished |
 
-The server also accepts messages the app does not send today: `mode`, `move_delta`, `jog_start`, `jog_stop`,
+The server also accepts messages the app does not send: `mode`, `move_delta`, `jog_start`, `jog_stop`,
 `joint_jog_start`, `joint_jog_stop`, `joint_delta` and the one-shot `gripper`. The one-shot `gripper` is avoided on
 purpose: in the simulator one such command kept every other command waiting for tens of seconds.
 
@@ -145,13 +149,16 @@ also what keeps the link counted as alive during a hold, when the server sends n
 {"v": 1, "type": "pose_stop", "ts": 1794378689520, "seq": 66, "payload": {}}
 ```
 
-(`s02_pose_hold`.) The app sends the same `pose_start` with `deadband_deg` 0 and the gain and smoothing chosen in
-its settings.
+(`s02_pose_hold`.) The app sends the same `pose_start` with `deadband_deg` 0, `gain` from Settings → Arm speed
+(0.5 to 2) and `smoothing` from Settings → Smoothing (Off 0, Low 0.3, High 0.6). A button hold sends gain 1 and
+smoothing 0.
 
-`p_rel_m` is the hand's displacement since the hold began, in metres, rounded to 0.1 mm. It is an absolute target
-within the hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The
-server turns `[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x,
-forward as −y and up as −z (`LiveLinkController.serverOffset`).
+`p_rel_m` is the displacement asked for since the hold began, in metres, rounded to 0.1 mm: the hand's movement
+during a vol+ hold, or, in buttons mode, a target that moves from the press in the button's direction at 1 cm/s
+(Fine) or 4 cm/s (Coarse) for as long as the button is held (`ButtonRamp`). It is an absolute target within the
+hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The server turns
+`[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x, forward as −y and up
+as −z (`OperatorFrame.linkOffset`).
 
 The server requires `frame`, `rate_hz` (exactly 30), `gain` (0.1 to 2), `deadband_deg` (0 to 15) and `smoothing`
 (0 to 0.95), and then ignores the last three in translation mode. `frame` is a fixed name, not a choice: `pose_start`
@@ -161,7 +168,7 @@ itself and sends `deadband_deg` 0. In translation mode the server also ignores `
 rotation, and `gripper_delta` is always 0 (the jaws do not move during an arm hold).
 
 Each server hold is limited to 8 cm from where the arm was when it started, because the server E-stops when its
-target gets more than 10 cm ahead of the arm (`pose_tracking_safety_stop`). When the hand wants more, the app ends
+target gets more than 10 cm ahead of the arm (`pose_tracking_safety_stop`). When more is asked for, the app ends
 the server hold and starts a new one from where the arm really got to, every 1.5 s, while the operator keeps
 holding (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
 
@@ -196,17 +203,29 @@ wrist pitch, both measured from the wrist as it was when the hold began. It clam
 35 degrees of pitch per hold. The example asks for 10 degrees of roll. A positive pitch points the jaws more toward
 the table.
 
-The app moves one axis per hold and ramps the angle from 0: a turn at 30 degrees a second up to 45 degrees, a tilt
-at 15 degrees a second up to 10 degrees (`LiveLinkController.turnStepDegrees`, `tiltStepDegrees`). Releasing early
-leaves the wrist where the ramp had got to. To go further the operator presses again. Each update is also the
-hold's keepalive.
+The app moves one axis per hold, and the angle it asks for follows the phone. The input rules commit the hold to
+turn (roll) or tilt (pitch) from the phone's first clear rotation; from then on the angle is the phone's rotation on
+that axis since the input began (the thumb's touch-down in scheme A, the vol− press in scheme B), times
+`rollSign` or `tiltSign` from the robot profile (`RotationMapper`). It is held to these limits:
+
+- at most 55 degrees of turn and 20 degrees of tilt per hold (`InputConstants.rollClampDeg`, `tiltClampDeg`);
+- the roll asked for stays within 150 degrees either way of zero, judged from the measured roll, and the flex within
+  25 degrees of the flex measured after the last reset (`rollWindowDeg`, `tiltWindowDeg`); for a server that reports
+  no wrist angles, the tilt commanded since the last reset counts instead;
+- the commanded angle never leads the newest measured angle by more than 2 degrees plus 10 degrees for each second
+  of that state's age, and with no state younger than 400 ms it does not move further from the wrist
+  (`WristLeadBound`). The server keeps moving its target toward a blocked wrist, and the wrist would jump by that
+  lead once it is free. A server that reports no wrist angles gets the angle unbounded.
+
+The operator feels a long buzz at a limit. If the start waited behind a finishing hold, the rotation made meanwhile is
+dropped. Releasing leaves the wrist where it got to. Each update is also the hold's keepalive.
 
 ## What the app receives
 
 | Message | What the app does with it |
 |---|---|
 | `welcome` | marks the connection welcomed, keeps `session`, opens the listening connection (below) |
-| `state` | the first one makes the link ready; every one updates the map, the guide, the feedback and the spoken narration of the recorder; `estop: true` latches the emergency stop on the phone |
+| `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; `estop: true` latches the emergency stop on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
 | `error` | ignored. The server sends it for a malformed message (below). |
@@ -297,8 +316,10 @@ its release (the server's clock runs a few milliseconds behind the client's):
  While the stop is latched, the server answers every start,
 stop and keepalive with `rejected estop_active` and ignores updates. The arm holds its last commanded position.
 
-The app sends `estop` on both connections when both are up (the server takes it from either). If neither is up,
-nothing reached the robot: the phone says so, and sends `estop` first thing after the next `welcome`.
+The app sends `estop` on both connections when both are up (the server takes it from either), and on every STOP,
+even when the stop is already latched: a reset asked for from the stop may have cleared the server's stop meanwhile.
+If neither connection is up, nothing reached the robot: the phone says "No link. Not stopped.", shows the link's
+state instead of STOPPED, and sends `estop` first thing after the next `welcome`.
 
 The server engages the stop by itself too, and the app learns of it only from `state.estop`:
 
@@ -308,22 +329,25 @@ The server engages the stop by itself too, and the app learns of it only from `s
   comes just before the `state`, and the phone names it as the cause (the arm fell behind);
 - another client sent `estop`.
 
-There are two ways out:
+There are two ways out. `StopExits` (`Packages/TeleopCore/Sources/TeleopCore/Recording/StopExits.swift`) decides
+which the phone offers, from the newest recorder fields:
 
-- **`estop_reset`** releases the stop and leaves the scene as it is. The server refuses it with
-  `estop_not_frozen` if it comes before the simulation has held the arm for one step, and with `estop_not_active`
-  if there is no stop. This is what releasing STOP on the phone sends today. A `state` sent before the server handled
-  the release can still say `estop: true`; the app ignores those for 2 seconds after it sent the release. If the
-  release was refused, the next `state` still says `estop: true` and the phone latches the stop again.
-- **`reset_scene`** clears the stop and resets the scene in one go. The server accepts it during a stop. The phone
-  does not send it while stopped today: the stop screen offers only the release. `StopExits`
-  (`Packages/TeleopCore/Sources/TeleopCore/Recording/StopExits.swift`) already works out which ways out to offer,
-  and `AppModel.stopExits` keeps its answer up to date, but no screen reads it yet. The reason it exists: on a
-  recording server, `estop_reset` alone leaves the recorder off, so the next success would not be saved.
+- **`reset_scene`** clears the stop and resets the scene in one go; the server accepts it during a stop. Holding the
+  top band for 2 seconds sends it, on every server. The phone releases its own stop when the `ok scene_reset` comes
+  back, but only for a reset asked for in the stop state with no STOP pressed since; it sends no `estop_reset`
+  after it.
+- **`estop_reset`** releases the stop and leaves the scene as it is. On a recording server it would leave the
+  recorder off, so the next success would not be saved: there the phone does not offer it and refuses it if asked.
+  It is offered (the **Release, keep scene** button) for a server that reports no recorder (`rec: none`), and for
+  an unknown server (no `rec` key) with the line "Recording, if any, stays off until a reset." The server refuses it
+  with `estop_not_frozen` if it comes before the simulation has held the arm for one step, and with
+  `estop_not_active` if there is no stop. A `state` sent before the server handled the release can still say
+  `estop: true`; the app ignores those for 2 seconds after it sent the release. If the release was refused, the next
+  `state` still says `estop: true` and the phone latches the stop again.
 
 ## The scene reset
 
-`reset_scene` puts the robot back in its start pose and the cube back on the table. The answer comes only when the
+`reset_scene` puts the robot back in its start pose and the task object back on the table. The answer comes only when the
 reset has finished, about 1.7 s later on the lab server; meanwhile `state.ik` is `resetting`. Afterwards `episode`
 has gone up by one, `gripper` says `closed`, `task_success` is `false`, and a recording server is ready for a new
 take.
@@ -335,16 +359,17 @@ take.
 
 (`s04_stop_then_reset`. A first `reset_scene`, seq 144, sent right behind a `pose_stop`, had been refused `busy`.)
 
-How the app sends it (`TeleopLink.resetScene`):
+How the app sends it (`AppModel.runReset`, `TeleopLink.resetScene`):
 
-- Refused on the phone while anything is held: the operator lets go first.
+- Refused on the phone while anything is held: the operator lets go first ("Let go first."). The top band does not
+  count down while a hold runs, while there is no link, or while the server is showing a success or resetting.
 - A reset right behind a stop would be refused `busy`, so it waits for that hold's final ack, at most 800 ms, like
   a start.
 - A `busy` answer gets one retry 300 ms later. A second refusal, or `sim_not_ready` (another reset is running, or a
   success is being shown), is told to the operator: the scene was not reset.
-- Every start is refused on the phone from the moment Reset is pressed until the answer comes (at most 10 s).
+- Every start is refused on the phone from the moment the reset is asked for until the answer comes (at most 10 s).
 
-The server also resets by itself: after a success has been shown, and when the cube falls off the table while no
+The server also resets by itself: after a success has been shown, and when the task object falls off the table while no
 command runs. During those resets, and while a success is shown, starts are refused `sim_not_ready`.
 
 ## The second, listening connection
@@ -354,8 +379,8 @@ The server sends `state` to a connection only after 200 ms in which that connect
 control connection hears only the echoes of its own probes: not where the arm is, not a clamp, not contact.
 
 So after the control connection's `welcome`, the app opens a second connection to the same address. It says
-`hello` (named `teleop-ios/1.0.0 observer`) and then sends nothing, so the server sends it a `state` every 200 ms,
-holds included. It owns no hold, so its closing can never stop the robot. Its states go through the same path as
+`hello` (named like the control connection, followed by ` observer`) and then sends nothing but `estop` on a STOP,
+so the server sends it a `state` every 200 ms, holds included. It owns no hold, so its closing can never stop the robot. Its states go through the same path as
 the control connection's; a state that left the server earlier than one already handled is dropped
 (`LiveLinkController.stateArrived`). This is what lets the phone tell the operator, during the hold, that the arm is
 blocked, that the jaws closed on something, or that the arm reached the edge of its box.
@@ -382,25 +407,39 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 
 | Field | Meaning | What the app does with it |
 |---|---|---|
-| `ee_pos` | the gripper link origin, base frame, metres | the arm on the map (plus the tool offset); "blocked" when it stops following during a hold; where a resync continues from |
+| `ee_pos` | the gripper link origin, base frame, metres | the arm in the guide; "blocked" when it stops following during a hold; where a resync continues from |
 | `gripper` | the label of the last gripper command, not a measurement: `closed` after start or reset, `open` or `close` after a command | the phone's gripper state; the app reads `closed` and `close` the same |
 | `step` | `coarse` or `fine`, the step size of jog and move commands | not used |
-| `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; `resetting` and `task_success` mean nothing can start |
+| `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; during `resetting` and `task_success` the screen says Wait and every start is refused |
 | `estop` | the emergency stop is latched | latches the stop on the phone |
-| `object_pos`, `goal_pos` | the cube's centre and the goal's centre, **world** frame, metres | the map and the guide, after subtracting the base's height |
-| `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator |
-| `episode` | counts scene resets of this server run | a change means the scene started over (the jaws hold nothing) |
-| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing |
-| `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | what the operator hears per take |
-| `rec_saved` | demonstrations in the output file, including earlier server runs | "saved", by comparing with the last value |
-| `rec_discarded` | takes thrown away since the server started | "discarded", the same way |
-| `rec_samples` | samples in the current take, 30 per simulated second | the length of the take, kept in `AppModel.recorder`, which no screen shows yet |
-| `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when the server was started without recording (`rec: none`) | read, not used yet |
+| `object_pos`, `goal_pos` | the task object's centre and the goal's centre, **world** frame, metres | the guide's target and goal, moved into the base frame (`RobotProfile.baseInWorld`) |
+| `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator; the screen says Wait (Saving) meanwhile |
+| `episode` | counts scene resets of this server run | a change means the scene started over: the jaws hold nothing, and the wrist's tilt limit counts from the new start |
+| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing; the guide's jaw and wrist read-outs; the wrist limits above. Without the wrist angles, the angle the operating screen shows during a turn or tilt is marked "estimated" |
+| `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | the REC line (below), what the operator hears per take, and which ways out of a stop are offered |
+| `rec_saved` | demonstrations in the output file, including earlier server runs | a rise is a saved take: "Saved N" on the operating screen for 2 s, and spoken; the count in the REC line and in Settings → Recording |
+| `rec_discarded` | takes thrown away since the server started | a rise is a discarded take, spoken; the count in the REC line and in Settings → Recording |
+| `rec_samples` | samples in the current take, 30 per simulated second | the take's length in the REC line while capturing |
+| `rec_session`, `rec_mode` | the recording session's name and mode label; `null` when the server was started without recording (`rec: none`) | read, not used |
 | `orient_deg`, `gripper_delta` | appear after the first wrist or arm hold | not used |
 
+The REC line in the top band, and the first row of Settings → Recording, say what the recorder is doing
+(`OperatingWords.recLine`):
+
+| `rec` | The REC line says |
+|---|---|
+| `none` | "Not recording" |
+| `armed` | "REC armed · 3 saved · 1 discarded" |
+| `capturing` | "● REC 0:12 · 3 saved", with the take's length |
+| `off`, while a success is shown or waits for its automatic reset | "REC waiting · 3 saved · 1 discarded" |
+| `off`, otherwise | "REC off: reset to record" |
+| no `rec` key | nothing; Settings says "The server has not said whether it records." |
+
+In practice it says "Practice: nothing is recorded".
+
 **A state without the key `rec` comes from an unknown server, never from one without a recorder.** The phone then
-says nothing about takes. (`StopExits` would offer both ways out of an emergency stop, with a warning that recording,
-if any, stays off until a reset; as said above, no screen shows that choice yet.)
+shows no REC line and says nothing about takes, and in a stop it offers both ways out, with the warning that
+recording, if any, stays off until a reset.
 
 When `state` arrives: right after `welcome`; after a final ack and after the ack of a stop, `estop` or
 `estop_reset` (not after an immediate refusal); and after every 200 ms of silence from the client.
@@ -416,11 +455,14 @@ On the server:
 - the task succeeding while the hold runs (final ack `ok task_success`);
 - an immediate refusal of the start itself: `busy`, `sim_not_ready`, `estop_active`, or a validation code.
 
-On the phone (`LiveLinkController.tick` and `AppModel`):
+On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`):
 
-- ARKit loses the phone's position, or the phone moves faster than 0.8 m/s between two samples;
-- the app leaves the foreground (home, a call, Control Center), which ends an arm hold, or the system cancels the
-  touch on an on-screen control, or the screen with the control goes away;
+- ARKit loses the phone's position during an arm or wrist hold, or the phone moves faster than 0.8 m/s between two
+  samples during an arm hold;
+- ARKit stops the camera;
+- the app leaves the active state (the home screen, a call, Control Center);
+- the operating screen goes away: Settings, Connect or the tutorial opens;
+- in buttons mode, the finger slides more than 20 pt off its button;
 - the round trip is slow twice in a row (400 ms or more);
 - the link is lost: the socket closed, no `welcome` in 5 s, or the silence above;
 - a resync that does not finish within 1.5 s: in that time the old hold's final ack and then a `state` without
@@ -437,7 +479,7 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
   moves no more than about 1.9 cm toward the robot base, and it does not move straight down. The server model does
   not have this limit. The server says nothing; the arm simply stops following. The app notices from the listening
   connection's positions (the target at least 10 mm ahead and the arm moving less than 2 mm in 1 s,
-  `FeedbackMonitor`) and from a resync that finds the arm has not moved.
+  `FeedbackMonitor`) and tells the operator the arm is blocked.
 - **One hold at a time.** The arm, the wrist and the gripper cannot move together. On the phone, starting one
   ends the one running: `TeleopLink` sends its stop first, then keeps the new start back for the final ack.
 - **Speeds.** Every speed limit is per simulated second, and the lab machine runs slower than real time, so the
@@ -447,18 +489,17 @@ On the phone (`LiveLinkController.tick` and `AppModel`):
 
 ## What the app needs from the server, and what happens without it
 
-Servers of this kind differ in what they report and in a few behaviours. The app is built and tested against a
-server that does everything in the left column, and the server model and the recordings in this repository
-describe that behaviour. Against a server that does not, the app still works, with the effect in the right column.
+Servers of this kind differ in what they report and in a few behaviours. The app is built for a server that does
+everything in the left column. Against one that does not, the app still works, with the effect in the right column.
 
 | The app expects | Without it |
 |---|---|
-| `state` carries `rec`, `rec_saved`, `rec_discarded`, `rec_samples`, `rec_session`, `rec_mode` | the app treats the server as unknown: no take narration |
-| `state` carries `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | no "fully open" and no "closed on nothing" cues |
-| the wrist starts rolled 90 degrees, jaws side by side (`RobotProfile.jawsStartSideways`) | the operator must turn the jaws a quarter turn before a grasp |
+| `welcome` names the server run (`session`) | a reconnect cannot be told from a new server run: the wrist's tilt limit keeps counting from the last reset seen, and "The server restarted." is never said |
+| `state` carries `rec`, with `rec_saved`, `rec_discarded` and `rec_samples` | the server counts as unknown: no REC line, no take narration, and both ways out of a stop are offered, with a warning |
+| `state` carries `wrist_flex_deg`, `wrist_roll_deg` and `gripper_deg` | no "fully open" and no "closed on nothing"; no jaw or wrist read-out in the guide; the angle shown during a turn or tilt is marked "estimated"; wrist commands go out without the lead bound, and the tilt limit counts the tilt commanded since the last reset |
+| `state` carries `ee_pos`, `object_pos` and `goal_pos` | without `ee_pos` there is no guide, no "blocked", and Moving says "No arm data"; without the object and the goal the guide shows the arm alone |
+| a connection that sends nothing gets `state` every 200 ms, holds included | the phone learns where the arm is only between holds: no "blocked", clamp or contact during a hold |
+| the scene starts with the wrist rolled 90 degrees, jaws side by side | `RobotProfile.toolOffset` is measured for that pose, so the guide's pinch point and "On target" are off until the profile has an offset for the other one |
 | a take starts at the first command of any kind | nothing changes on the phone; a take that starts only at the first gripper, jog or move command misses the approach |
 | a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | nothing changes: the app waits for the final ack before it resets |
 | a hold that ends (by a stop or the watchdog) keeps the arm where it was commanded | nothing changes in the protocol; an arm whose targets are set back to the measured angles when a hold ends sinks about half a centimetre, and a held object can shake loose |
-
-`rec_session` and `rec_mode` are the newest of these fields: the server model and the recordings in the repository
-do not have them yet.
