@@ -4,9 +4,9 @@ import Foundation
 ///
 /// Unless a line says otherwise, a value is the S4 simulator server's own constant (2026-11-11) or a value measured
 /// from recordings of it. The model behaves as the app expects a server to: `state` carries the recorder, the
-/// measured wrist and jaw angles and the tool point (unless `reportsToolPoint` is off), a take starts with a held command, and a held control keeps the targets it was
-/// given when it starts, ends or is ended by the watchdog. Lengths are metres, angles degrees, positions in the robot
-/// base frame unless the name ends in `World`.
+/// measured wrist and jaw angles and, unless `reportsToolPoint` is off, the tool point; a take starts with a held
+/// command, and a held control keeps the targets it was given when it starts, ends or is ended by the watchdog.
+/// Lengths are metres, angles degrees, positions in the robot base frame unless the name ends in `World`.
 public struct ServerModelConfig: Equatable, Sendable {
     // MARK: Pace
 
@@ -178,10 +178,11 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     public init() {}
 
-    /// The lab server's numbers as recorded on 2026-11-11: no cameras, no recording. It reports a tool point.
+    /// The lab server's numbers as recorded on 2026-11-11: no cameras, no recording. Whether `state` carries the tool
+    /// point is the model's own switch (`reportsToolPoint`, on here), not one of those numbers.
     public static let s4Simulator = ServerModelConfig()
 
-    /// The same server, `stepsPerSecond` steps a wall second; `reportsToolPoint` false for one that reports no tool point.
+    /// The same server, `stepsPerSecond` steps a wall second. `reportsToolPoint` false: `state` carries no tool point.
     public static func s4Simulator(
         stepsPerSecond: Double, recorder: Recorder? = nil, reportsToolPoint: Bool = true
     ) -> ServerModelConfig {
