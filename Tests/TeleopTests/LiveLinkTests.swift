@@ -1521,6 +1521,26 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(feltOnTarget, 0)
     }
 
+    /// A new server run starts the scene over: its first state is a new approach, even with the jaws already open on
+    /// the target. A reconnect to the same run is not.
+    func testANewServerRunArmsTheCueOnItsFirstState() {
+        makeModel(at: .p4)
+        model.connect()
+        transport.server("welcome", ["session": "run-1"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.connect()
+        transport.server("welcome", ["session": "run-1"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "a reconnect to the same run")
+        clock += 1000
+        model.connect()
+        transport.server("welcome", ["session": "run-2"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 2, "a new run")
+    }
+
     /// Practice draws no arm, and the closed link leaves its last state behind. Coming back to the real server is not a
     /// target reported anew: nothing is felt before the server says anything, nor when the same run says the jaws are
     /// still where they were.

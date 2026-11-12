@@ -68,8 +68,8 @@ final class AppModel {
     @ObservationIgnored let profile = RobotProfile.so101Simulator
     /// When the guide's "On target" is felt.
     @ObservationIgnored private var onTargetCue: OnTargetCue
-    /// A reset's answer came from a server that reports no episode; the next `state` from after the reset arms the
-    /// on-target cue again.
+    /// A reset's answer came from a server that reports no episode, or a new server run said welcome; the next `state`
+    /// from after it arms the on-target cue again.
     @ObservationIgnored private var onTargetRearmOwed = false
     /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
     @ObservationIgnored private(set) var controller: OperatingController!
@@ -526,6 +526,7 @@ final class AppModel {
             lastWelcomeSession = run
             lastEpisode = nil
             sceneWasReset()
+            onTargetRearmOwed = true
         }
         guard stopOwed else { return }
         stopOwed = false
