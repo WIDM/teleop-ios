@@ -39,6 +39,10 @@ enum OperatingFixtures {
         countdown.resetCountdown = 0.6
         all["rec_off_countdown"] = countdown
         all["outside"] = display(.ready, arm: outside(), recorder: notRecording)
+        // An estimated pinch point that may be off by more than half the on-target window: hollow, said so, and no
+        // "On target" though it sits inside the window.
+        all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: armed)
+        all["approximate_hotel"] = display(.moving(catchingUp: false), arm: approximate(hotel(moving: true)), recorder: notRecording)
         // Practice. The model reads no arm from the practice link, so these show no guide, as the app does.
         all["practice_ready"] = display(.ready, arm: nil, recorder: .unknown, practice: true)
         all["practice_stopped"] = display(.stopped(cause: .button), arm: nil, recorder: .unknown, practice: true)
@@ -115,6 +119,12 @@ enum OperatingFixtures {
             pinchPoint: pinch, commanded: moving ? pinch + SIMD3(-0.02, 0, 0) : nil, jawOpening: 0.12,
             wristTurnDeg: 90, wristTiltDeg: 0, target: pinch, goal: goal, gripping: true
         )
+    }
+
+    private static func approximate(_ reading: ArmReading) -> ArmReading {
+        var reading = reading
+        reading.pinchSource = .estimated(approximate: true)
+        return reading
     }
 
     private static func outside() -> ArmReading {

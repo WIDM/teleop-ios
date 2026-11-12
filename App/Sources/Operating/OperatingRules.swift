@@ -87,7 +87,9 @@ enum OperatingRules {
         _ state: ServerState?, commanded: SIMD3<Float>?, gripping: Bool, profile: RobotProfile
     ) -> ArmReading? {
         guard let state, let reported = state.endEffector.map(float) else { return nil }
-        let pinch = profile.pinchPoint(gripper: reported, tool: state.toolPoint.map(float))
+        let pinch = profile.pinchPoint(
+            gripper: reported, tool: state.toolPoint.map(float), flexDeg: state.wristFlexDeg, rollDeg: state.wristRollDeg
+        )
         return ArmReading(
             pinchPoint: pinch.point,
             commanded: commanded.map { $0 + pinch.offset },

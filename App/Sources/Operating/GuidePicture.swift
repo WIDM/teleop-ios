@@ -8,7 +8,8 @@ import TeleopCore
 /// behind, its height above the table, how far the jaws are open, the wrist's turn and tilt when reported, and where
 /// the arm is being asked to go during a move. Only when the server reports task objects does it add a target and a
 /// goal as plain shapes, the gap from the pinch point to the target, "on target" inside the profile's tolerance, and
-/// "holding" while the jaws grip.
+/// "holding" while the jaws grip. A pinch point the profile can only estimate roughly is drawn hollow, says so, and is
+/// never "on target".
 ///
 /// Both views are equally wide and share one left-right axis and one scale, so a thing sits at the same x in both.
 /// From above, up is the operator's forward; from behind, up is up. Places are shares of a view's width and height,
@@ -47,6 +48,8 @@ struct GuidePicture: Equatable {
         case height(cm: Double)
         case jaws(percentOpen: Int)
         case wrist(turnDeg: Int?, tiltDeg: Int?)
+        /// The pinch point is an estimate that may be off by more than half the on-target window.
+        case approximate
         /// From the pinch point to the target: the distance across the table, and the height.
         case target(acrossCm: Double, height: Height)
         case onTarget
@@ -80,6 +83,9 @@ struct GuidePicture: Equatable {
     let targetEdge: Double
     let goalEdge: Double
     let outside: Bool
+    /// The pinch point is drawn hollow: an estimate that may be off by more than half the on-target window.
+    let approximate: Bool
+    /// Never while `approximate`.
     let onTarget: Bool
     let holding: Bool
     let lines: [Line]
@@ -139,12 +145,14 @@ struct GuidePicture: Equatable {
         }
 
         holding = reading.gripping && reading.target != nil
+        approximate = reading.pinchSource.isApproximate
         var lines: [Line] = [.height(cm: (pinchPoint.z - table) * 100)]
         if let open = jawOpening { lines.append(.jaws(percentOpen: Int((open * 100).rounded()))) }
         if reading.wristTurnDeg != nil || reading.wristTiltDeg != nil {
             lines.append(.wrist(turnDeg: reading.wristTurnDeg.map { Int($0.rounded()) },
                                 tiltDeg: reading.wristTiltDeg.map { Int($0.rounded()) }))
         }
+        if approximate { lines.append(.approximate) }
         var onTarget = false
         if holding {
             lines.append(.holding)
@@ -155,7 +163,7 @@ struct GuidePicture: Equatable {
         } else if let target = reading.target {
             let gap = compare(target)
             lines.append(.target(acrossCm: gap.across * 100, height: gap.height))
-            onTarget = gap.within
+            onTarget = gap.within && !approximate
             if onTarget { lines.append(.onTarget) }
         }
         self.onTarget = onTarget

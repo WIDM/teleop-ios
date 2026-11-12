@@ -37,15 +37,21 @@ final class LocalPickAndPlaceTests: XCTestCase {
 
     /// One scheme's script against a server that reports its tool point (`toolPoint`) or one that does not. Either way
     /// the guide's pinch point comes from where it should, and the guide says "On target" at the grasp before the
-    /// jaws close.
+    /// jaws close: the script grasps where the profile's offset was measured, with the wrist untouched, where the
+    /// estimate is exact. Elsewhere the estimate is approximate.
     private func pickAndPlace(_ mode: ControlMode, toolPoint: Bool) throws {
         try start(mode, toolPoint: toolPoint)
         let model = hand.model!
-        var sources: [PinchSource] = []
+        var reported = false, estimated = false, approximate = false
         var onTargetBeforeTheClose = false
         hand.watch = {
             guard let arm = model.operating.arm else { return }
-            if !sources.contains(arm.pinchSource) { sources.append(arm.pinchSource) }
+            switch arm.pinchSource {
+            case .reported: reported = true
+            case .estimated(let rough):
+                estimated = true
+                approximate = approximate || rough
+            }
             if !arm.gripping, model.session.state.gripperMoving != .closed,
                GuidePicture(reading: arm, profile: model.profile).onTarget {
                 onTargetBeforeTheClose = true
@@ -54,7 +60,9 @@ final class LocalPickAndPlaceTests: XCTestCase {
         try hand.pickAndPlace(warmUpHolds: 0)
         hand.watch = nil
         finishedTheTask()
-        XCTAssertEqual(sources, [toolPoint ? .reported : .estimated])
+        XCTAssertEqual(reported, toolPoint, "\(mode)")
+        XCTAssertEqual(estimated, !toolPoint, "\(mode)")
+        XCTAssertEqual(approximate, !toolPoint, "\(mode): the estimate is approximate away from the grasp")
         XCTAssertTrue(onTargetBeforeTheClose, "\(mode): the guide never said On target at the grasp")
     }
 
