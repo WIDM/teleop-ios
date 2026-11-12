@@ -41,10 +41,10 @@ What a person using the app notices:
   waiting or off, with the take's length and the saved and discarded counts. A saved take shows "Saved N" for
   2 seconds and is spoken. Settings → Recording repeats the counts.
 - **Leaving a stop.** Holding the top band for 2 seconds resets the scene and, once the server confirms it,
-  releases the stop. **Release, keep scene** (hold 1 second) is offered only when the server reports no recorder
-  or does not say. Every STOP is sent to the server, also when the robot is already stopped. A STOP pressed with no
-  link goes out after the next connection; until then the screen shows the link's state, not STOPPED. Settings
-  shows a red STOPPED band while the robot is stopped.
+  releases the stop. **Release, keep scene** (hold 1 second) is offered only in practice and when the server
+  reports no recorder or does not say. Every STOP is sent to the server, also when the robot is already stopped.
+  A STOP pressed with no link goes out after the next connection; until then the screen shows the link's state,
+  not STOPPED. Settings shows a red STOPPED band while the robot is stopped.
 - **The guide** shows the work area from above and from behind: where the jaws pinch, where the arm is being sent,
   the height above the table, how far the jaws are open, the wrist's turn and tilt, and, when the server reports a
   task, the target, the goal, "On target" and "Holding". It works for any arm and replaces the guide drawn for the
@@ -56,8 +56,9 @@ What a person using the app notices:
   The address field starts empty.
 - **Settings** has Mode, Hand, Arm speed (in place of Sensitivity), Smoothing (Off, Low, High), Task aid,
   Recording, Server, Practice, Language and About; five taps on the version show the developer log.
-- **First launch** asks for the camera only, then shows three tutorial pages for the control mode; later launches
-  open on the operating screen and connect to the saved server.
+- **First launch** asks for the camera only, then shows three tutorial pages for the control mode; once the
+  operating screen has been reached, launches open on it and connect to the saved server. Settings no longer has
+  Replay tutorial, so the tutorial shows only until the operating screen is first reached.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
   faked latency and its debug sheet, the Motion permission, the Deadband slider, the Developer switch and
@@ -75,9 +76,13 @@ What a maintainer needs to know:
   haptics, sounds and speech decide nothing.
 - A second, listening connection receives `state` during holds. The app names itself
   `teleop-ios/<version> (<build>)` in `hello`. The link counts as lost after 1.2 s when both connections are quiet.
-- Session: `wristStart`, `wristEnd`, `sceneResetDone` and `switchLink` are new; the jaw turn, the fallback route and
-  the routes P1 to P3, S3a, S3b, S3m, S5, S5a and S7 are gone. `FakeTeleopState.resetClearsStop` records a reset
-  asked for in the stop state. Practice starts and ends only through `AppModel.startPractice` and `leavePractice`.
+- Session: `wristStart`, `wristEnd`, `sceneResetDone` and `switchLink` are new. The jaw turn (`turnStart`,
+  `turnEnd`) is gone, and so are the routes of the removed screens, with their actions: the mode choice and cloud
+  mode (`p1_mode_select`, `p2_cloud_pass`, `p3_cloud_fail`), recording and base mode (`s3a_recording`,
+  `s3b_record_end`, `s3m_base`), the fallback screens (`s5_fallback`, `s5a_fallback_recording`) and the errors
+  screen (`s7_errors`). `TeleopAction.replayTutorial` stays, but no screen sends it.
+  `FakeTeleopState.resetClearsStop` records a reset asked for in the stop state. Practice starts and ends only
+  through `AppModel.startPractice` and `leavePractice`.
 - Tests: `TeleopServerModel`, checked against 18 recordings of the real server, and `LocalTeleopServer`, which serves
   it on a local socket. `ScriptedOperator` presses raw inputs only, and `LocalPickAndPlaceTests` runs a whole
   pick-and-place in each control mode in every default run. The scheme has a Default and a Live test plan; the Live
@@ -88,7 +93,8 @@ What a maintainer needs to know:
   Chinese punctuation; `scripts/check-dead-buttons.py` fails on a button with an empty action.
 - `RobotProfile` holds the object and goal sizes, the workspace box, the table height, the wrist signs and whether
   a second close loosens the grip; `ServerModelProfileTests` holds the server model to the same numbers.
-- The session safety checker covers the new routes and state; its U1 promise states the STOP that reached no server.
+- The session safety checker covers the new routes and state. Its promise that every screen shows a latched stop
+  (U1) names the one exception: a STOP that reached no server.
 - `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/TESTING.md` and `docs/RELEASING.md` describe the app as it is.
 
 ## 0.10.0 (2026-11-11)
