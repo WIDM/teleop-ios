@@ -328,7 +328,7 @@ final class LiveLinkTests: XCTestCase {
     func testLongHoldOnAQuietServerIsNotALostLink() {
         bringUp()
         model.send(.holdArmStart)
-        // Three seconds of holding. The server only echoes probes, as Leo's Bridge does during a hold.
+        // Three seconds of holding. The server only echoes probes, as some servers do during a hold.
         var answered = 0
         for _ in 0..<90 {
             tick()

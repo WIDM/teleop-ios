@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Report on teleop holds from the server's own logs, with suggested Settings values.
 
-The server (Leo's S4 simulator) writes two files:
+The server (the S4 simulator) writes two files:
   - the run log, with one "S4 POSE STOP" line per finished hold and one "[S4 POSE REJECT]" per refused one
   - the network log (JSON lines), with every message in and out, including each pose_update
 
 Usage:
-  scripts/analyze_holds.py --host luchienlin@140.115.54.62            # fetch both over SSH
+  scripts/analyze_holds.py --host <user>@<server-host>                # fetch both over SSH
   scripts/analyze_holds.py --run-log s4_run.log --net-log s4.jsonl    # local copies
   add --since 16:30 to look only at holds after that time today
 
