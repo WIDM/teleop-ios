@@ -539,7 +539,7 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertLessThan(simd_distance(commanded, SIMD3(0.01, -0.16, 0.165)), 0.0001, "\(commanded)")
         // The input rules' 30 Hz tick redraws the screen; here it is called directly.
         model.inputsChanged()
-        XCTAssertEqual(model.operating.arm?.commanded, model.profile.toolPoint(reported: commanded), "the guide draws it")
+        XCTAssertEqual(model.operating.arm?.commanded, commanded + model.profile.toolOffset, "the guide draws it")
         model.send(.holdArmEnd)
         XCTAssertNil(model.link.commandedArm)
     }

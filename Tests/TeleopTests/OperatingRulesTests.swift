@@ -127,10 +127,41 @@ final class OperatingRulesTests: XCTestCase {
         assertClose(reading?.target ?? .zero, SIMD3<Float>(0.005, -0.2, 0.0525), accuracy: 1e-6)
         assertClose(reading?.goal ?? .zero, SIMD3<Float>(0.075, -0.2, 0.0535), accuracy: 1e-6)
         XCTAssertEqual(reading?.gripping, true)
+        XCTAssertEqual(reading?.pinchSource, .estimated)
+        XCTAssertEqual(reading?.boxShift, .zero)
         let unknown = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "estop": false])
         let bare = OperatingRules.arm(unknown, commanded: nil, gripping: false, profile: profile)
         XCTAssertNil(bare?.jawOpening)
         XCTAssertNil(bare?.target)
+    }
+
+    /// With `tool_pos` the guide's pinch point is the server's; the commanded ring and the box move by the measured
+    /// `tool_pos − ee_pos` instead of the profile's offset.
+    func testTheGuidesPinchPointIsTheReportedToolPoint() {
+        let profile = RobotProfile.so101Simulator
+        let state = ServerState(payload: [
+            "ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "object_pos": [0.005, -0.2, 0.1025],
+            "estop": false,
+        ])
+        let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.04, -0.14, 0.16), gripping: false, profile: profile))
+        assertClose(reading.pinchPoint, SIMD3(0.03, -0.17, 0.08), accuracy: 1e-6)
+        XCTAssertEqual(reading.pinchSource, .reported)
+        let measured = SIMD3<Float>(0.01, -0.03, -0.08)
+        assertClose(reading.commanded ?? .zero, SIMD3<Float>(0.04, -0.14, 0.16) + measured, accuracy: 1e-6)
+        assertClose(reading.boxShift, measured - profile.toolOffset, accuracy: 1e-6)
+    }
+
+    /// No `tool_pos`, or one that is not three finite numbers: the estimate, as before.
+    func testTheGuidesPinchPointFallsBackToTheEstimate() {
+        let profile = RobotProfile.so101Simulator
+        for tool: Any in [NSNull(), [0.03, -0.17], [0.03, Double.nan, 0.08], [0.03, Double.infinity, 0.08], "0.03"] {
+            let state = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "tool_pos": tool, "estop": false])
+            let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.03, -0.14, 0.16), gripping: false, profile: profile))
+            assertClose(reading.pinchPoint, SIMD3<Float>(0.027, -0.176, 0.072), accuracy: 1e-6)
+            assertClose(reading.commanded ?? .zero, SIMD3<Float>(0.037, -0.176, 0.072), accuracy: 1e-6)
+            XCTAssertEqual(reading.pinchSource, .estimated, "\(tool)")
+            XCTAssertEqual(reading.boxShift, .zero)
+        }
     }
 
     /// Practice stripes every state, is entered only by `startPractice`, and is never what a launch starts in.

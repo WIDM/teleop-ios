@@ -85,7 +85,8 @@ struct GuidePicture: Equatable {
     let lines: [Line]
 
     init(reading: ArmReading, profile: RobotProfile) {
-        let corners = (Self.operatorPoint(profile.workspaceMin), Self.operatorPoint(profile.workspaceMax))
+        let corners = (Self.operatorPoint(profile.workspaceMin + reading.boxShift),
+                       Self.operatorPoint(profile.workspaceMax + reading.boxShift))
         // Corners swap sides where an axis is mirrored into the operator's frame.
         let boxLow = simd_min(corners.0, corners.1), boxHigh = simd_max(corners.0, corners.1)
         let span = boxHigh - boxLow

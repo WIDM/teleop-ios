@@ -120,6 +120,22 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertFalse(picture(reading(SIMD3(lo.x - 0.0005, c.y, c.z))).outside)
     }
 
+    /// With a reported tool point the box the server keeps the gripper link in is drawn moved by the measured offset.
+    func testTheBoxMovesWithTheMeasuredOffset() {
+        let shift = SIMD3<Float>(0.02, -0.01, 0.015)
+        var moved = reading(centre + shift)
+        moved.boxShift = shift
+        let p = picture(moved)
+        XCTAssertEqual(p.pinch.above.x, 0.5, accuracy: 1e-6, "the moved box is centred on the moved point")
+        XCTAssertEqual(p.pinch.above.y, 0.5, accuracy: 1e-6)
+        XCTAssertFalse(p.outside)
+        // Inside the profile's box, but nearer the base than the moved box's near face.
+        var past = reading(SIMD3(centre.x, profile.workspaceMax.y - 0.005, centre.z))
+        past.boxShift = SIMD3(0, -0.02, 0)
+        XCTAssertFalse(picture(reading(past.pinchPoint)).outside)
+        XCTAssertTrue(picture(past).outside)
+    }
+
     // MARK: Task objects
 
     func testATargetAloneAddsItsMarkAndTheGap() {

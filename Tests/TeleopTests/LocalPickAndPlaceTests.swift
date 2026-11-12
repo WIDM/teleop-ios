@@ -18,9 +18,9 @@ final class LocalPickAndPlaceTests: XCTestCase {
         server = nil
     }
 
-    private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil) throws {
+    private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil, toolPoint: Bool = true) throws {
         // Three and a half times the lab server's pace, so the script's waits shrink by about as much.
-        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, recorder: recorder))
+        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint))
         try server.start()
         hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
         XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
@@ -35,22 +35,51 @@ final class LocalPickAndPlaceTests: XCTestCase {
         XCTAssertEqual(server.inspect { $0.state["estop"] }, false)
     }
 
-    func testPickAndPlaceSchemeA() throws {
-        try start(.screenTurns)
+    /// One scheme's script against a server that reports its tool point (`toolPoint`) or one that does not. Either way
+    /// the guide's pinch point comes from where it should, and the guide says "On target" at the grasp before the
+    /// jaws close.
+    private func pickAndPlace(_ mode: ControlMode, toolPoint: Bool) throws {
+        try start(mode, toolPoint: toolPoint)
+        let model = hand.model!
+        var sources: [PinchSource] = []
+        var onTargetBeforeTheClose = false
+        hand.watch = {
+            guard let arm = model.operating.arm else { return }
+            if !sources.contains(arm.pinchSource) { sources.append(arm.pinchSource) }
+            if !arm.gripping, model.session.state.gripperMoving != .closed,
+               GuidePicture(reading: arm, profile: model.profile).onTarget {
+                onTargetBeforeTheClose = true
+            }
+        }
         try hand.pickAndPlace(warmUpHolds: 0)
+        hand.watch = nil
         finishedTheTask()
+        XCTAssertEqual(sources, [toolPoint ? .reported : .estimated])
+        XCTAssertTrue(onTargetBeforeTheClose, "\(mode): the guide never said On target at the grasp")
+    }
+
+    func testPickAndPlaceSchemeA() throws {
+        try pickAndPlace(.screenTurns, toolPoint: true)
     }
 
     func testPickAndPlaceSchemeB() throws {
-        try start(.keyTurns)
-        try hand.pickAndPlace(warmUpHolds: 0)
-        finishedTheTask()
+        try pickAndPlace(.keyTurns, toolPoint: true)
     }
 
     func testPickAndPlaceButtons() throws {
-        try start(.buttons)
-        try hand.pickAndPlace(warmUpHolds: 0)
-        finishedTheTask()
+        try pickAndPlace(.buttons, toolPoint: true)
+    }
+
+    func testPickAndPlaceSchemeAWithNoToolPoint() throws {
+        try pickAndPlace(.screenTurns, toolPoint: false)
+    }
+
+    func testPickAndPlaceSchemeBWithNoToolPoint() throws {
+        try pickAndPlace(.keyTurns, toolPoint: false)
+    }
+
+    func testPickAndPlaceButtonsWithNoToolPoint() throws {
+        try pickAndPlace(.buttons, toolPoint: false)
     }
 
     /// What the operating screen draws follows the server in real use, not only in fixtures: through a whole

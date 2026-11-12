@@ -38,6 +38,7 @@ struct RobotProfile: Equatable {
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
     /// reports to 8 cm either way of where that point is after a reset (`WORKSPACE_RADIUS_M` around
     /// `initial_ee_pos_b`); this is that box moved by `toolOffset`, so it holds while the wrist keeps its start pose.
+    /// With a reported tool point the guide moves it by the measured offset instead (`ArmReading.boxShift`).
     var workspaceMin = SIMD3<Float>(-0.052383, -0.257418, -0.008015)
     var workspaceMax = SIMD3<Float>(0.107617, -0.097418, 0.151985)
     /// Height of the table surface in the robot base frame, metres (`TABLE_TOP_Z_M` minus the base height).
@@ -61,10 +62,34 @@ struct RobotProfile: Equatable {
         return constants
     }
 
-    /// Where the jaws pinch, robot base frame.
-    func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }
+    /// Where the jaws pinch, robot base frame: the server's tool point when it reports one, else the reported gripper
+    /// point plus `toolOffset`. Everything that draws the pinch point gets it here.
+    func pinchPoint(gripper: SIMD3<Float>, tool: SIMD3<Float>?) -> PinchPoint {
+        guard let tool else { return PinchPoint(point: gripper + toolOffset, source: .estimated, offset: toolOffset) }
+        return PinchPoint(point: tool, source: .reported, offset: tool - gripper)
+    }
+
     /// A world-frame position in the robot base frame.
     func inBase(world: SIMD3<Float>) -> SIMD3<Float> { world - baseInWorld }
+}
+
+/// Where the pinch point of one reading came from.
+enum PinchSource: Equatable, Sendable {
+    /// The server reported it (`tool_pos`).
+    case reported
+    /// The reported gripper point plus the profile's `toolOffset`.
+    case estimated
+}
+
+/// The pinch point of one reading, and how to move a gripper-link point there.
+struct PinchPoint: Equatable, Sendable {
+    var point: SIMD3<Float>
+    var source: PinchSource
+    /// From the gripper link origin to the pinch point: `tool_pos − ee_pos` of the same reading when the server reports
+    /// a tool point, else `toolOffset`. The server's command and workspace box are for the gripper link, so the guide
+    /// moves them by this to draw them for the pinch point. A measured offset is exact only while the wrist keeps its
+    /// pose: the next tilt or turn moves the jaws around the gripper link.
+    var offset: SIMD3<Float>
 }
 
 /// The phone's own directions in the world, for a phone held in portrait.

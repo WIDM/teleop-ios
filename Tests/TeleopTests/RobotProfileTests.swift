@@ -9,8 +9,22 @@ final class RobotProfileTests: XCTestCase {
     func testTheProfileMovesTheToolPointAndTheObjects() {
         // A gripper that pinches straight below the reported point, on a robot sitting 5 cm above the world origin.
         let straightDown = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: SIMD3(0, 0, 0.05))
-        XCTAssertLessThan(simd_distance(straightDown.toolPoint(reported: SIMD3(0.01, -0.2, 0.15)), SIMD3(0.01, -0.2, 0.05)), 1e-6)
+        let estimated = straightDown.pinchPoint(gripper: SIMD3(0.01, -0.2, 0.15), tool: nil)
+        XCTAssertLessThan(simd_distance(estimated.point, SIMD3(0.01, -0.2, 0.05)), 1e-6)
+        XCTAssertEqual(estimated.source, .estimated)
+        XCTAssertEqual(estimated.offset, straightDown.toolOffset)
         XCTAssertLessThan(simd_distance(straightDown.inBase(world: SIMD3(0.01, -0.2, 0.10)), SIMD3(0.01, -0.2, 0.05)), 1e-6)
+    }
+
+    /// A reported tool point wins over the estimate, and the offset that moves the command and the box is the one
+    /// measured in the same reading.
+    func testAReportedToolPointIsPreferred() {
+        let profile = RobotProfile.so101Simulator
+        let gripper = SIMD3<Float>(0.02, -0.14, 0.16), tool = SIMD3<Float>(0.03, -0.17, 0.08)
+        let pinch = profile.pinchPoint(gripper: gripper, tool: tool)
+        XCTAssertEqual(pinch.point, tool)
+        XCTAssertEqual(pinch.source, .reported)
+        XCTAssertLessThan(simd_distance(pinch.offset, tool - gripper), 1e-7)
     }
 }
 
