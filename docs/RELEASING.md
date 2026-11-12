@@ -42,9 +42,10 @@ All of these must pass on the commit that will carry the version. The first grou
     .cursor/skills/verify-session-safety/scripts/check.sh
     python3 scripts/check-strings.py
     python3 scripts/check-dead-buttons.py
-    python3 -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
+    python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
 
-`git status --porcelain` must print nothing. The safety checker must exit 0; `docs/ARCHITECTURE.md` says what it
+`git status --porcelain` must print nothing. `-B` keeps Python from writing `scripts/__pycache__/`, which
+`.gitignore` does not list and which would otherwise show up the next time the checks run. The safety checker must exit 0; `docs/ARCHITECTURE.md` says what it
 proves. `check-strings.py` fails on any string, in any of the four catalogs, that lacks English or Traditional
 Chinese.
 
@@ -61,8 +62,9 @@ separate, deliberate step.
 
 ## Commit and tag
 
-The version bump in `project.yml` and the changelog entry go in one commit; regenerating the project leaves nothing
-else to commit. Put an annotated tag on that commit, named `v` and the version, with the version and the one-line
+Versions are cut on the release branch, `release-1.0`, which carries every version tag; `main` carries none. The
+version bump in `project.yml` and the changelog entry go in one commit on that branch; regenerating the project
+leaves nothing else to commit. Put an annotated tag on that commit, named `v` and the version, with the version and the one-line
 summary as its message, and check it:
 
     git tag -a v1.0.0 -m "1.0.0: <one-line summary>"
@@ -71,7 +73,7 @@ summary as its message, and check it:
 An annotated tag records who tagged and when; `git tag -n` lists every version with its summary. Push the tag
 together with the branch that carries the version commit, in one push, so neither arrives without the other:
 
-    git push --atomic origin <branch> v1.0.0
+    git push --atomic origin release-1.0 v1.0.0
 
 ## Putting a build on a phone
 
@@ -79,9 +81,9 @@ This needs an iPhone connected to the Mac (by cable, or paired over the network)
 developer team the phone is registered with. The project carries no signing settings, and `xcodegen generate`
 drops a team picked in Xcode's window, so the team goes on the command line.
 
-Find the phone's UDID (unique device identifier). `xcodebuild` matches a destination on the UDID only, so take it
-from `xcodebuild` itself: the connected phone is the `platform:iOS` line with a real `id`, not the
-`Any iOS Device` placeholder.
+Find the phone's UDID (unique device identifier), and use it in both the build and the install below so that
+they name the same phone. Take it from `xcodebuild` itself: the connected phone is the `platform:iOS` line with a
+real `id`, not the `Any iOS Device` placeholder.
 
     xcodebuild -showdestinations -project Teleop.xcodeproj -scheme Teleop
 

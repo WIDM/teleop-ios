@@ -30,8 +30,8 @@ Two more checks sit beside the tests:
 - **Scripts.** `python3 scripts/check-strings.py` checks every string table in `App/Resources`: each key has English
   and Traditional Chinese, the two carry the same format specifiers, the Chinese uses full-width punctuation, and no
   key the code uses is missing and none is unused. `python3 scripts/check-dead-buttons.py` fails on a button with an
-  empty action. `python3 -m unittest scripts/test_check_strings.py` and
-  `python3 -m unittest scripts/test_analyze_holds.py` test two of the scripts.
+  empty action. `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py` tests two of
+  the scripts; `-B` leaves no `scripts/__pycache__/` behind for `git status` to show.
 
 ## How to run each
 
