@@ -7,6 +7,8 @@ import TeleopCore
 final class LiveLinkController {
     /// The phone must not jump: faster than this between two samples ends the hold (same limit as the web app).
     static let maxSpeedMetersPerSecond: Float = 0.8
+    /// The shortest time the speed is measured over: half a pose tick.
+    static let speedSampleMs = 1000 / TeleopLink.poseRateHz / 2
     static let connectTimeout: TimeInterval = 5
     static let defaultPort = 8765
     /// The server E-stops when the position it is asked for is more than 10 cm from where the arm is
@@ -466,7 +468,11 @@ final class LiveLinkController {
             return nil
         }
         let now = nowMs()
-        if let last = lastSample, now > last.atMs {
+        if let last = lastSample {
+            // Over a gap of a millisecond or two (a late timer tick, a tick right after the press) an ordinary step of
+            // the hand reads as a jump. Such a tick keeps the older sample and sends nothing, so every position sent
+            // has had its speed judged.
+            guard now - last.atMs >= Self.speedSampleMs else { return nil }
             let speed = simd_distance(current, last.position) / (Float(now - last.atMs) / 1000)
             if speed > Self.maxSpeedMetersPerSecond {
                 onLog?(String(format: "link: phone moved too fast (%.2f m/s), hold ended", speed))

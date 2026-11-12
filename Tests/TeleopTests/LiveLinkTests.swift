@@ -241,6 +241,36 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_stop"])
     }
 
+    /// A tick a millisecond after the press, as a late timer gives on a slow phone: the hand's ordinary 1.1 mm step
+    /// is not a jump. That tick sends nothing; the next one judges the speed over the longer time and sends.
+    func testATickRightAfterThePressDoesNotMakeAnOrdinaryStepTooFast() throws {
+        bringUp()
+        model.send(.holdArmStart)
+        position = SIMD3(0, 0, -0.0011)
+        clock += 1
+        model.link.tick()
+        XCTAssertEqual(transport.types.last, "pose_start")
+        position = SIMD3(0, 0, -0.0022)
+        tick()
+        XCTAssertTrue(model.session.state.armMoving, "the hold was ended as too fast")
+        XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_update"])
+        let update = try XCTUnwrap(transport.sent.last?["payload"] as? [String: Any])
+        let offset = try XCTUnwrap(update["p_rel_m"] as? [Double])
+        XCTAssertEqual(offset[1], -0.0022, accuracy: 1e-6)
+    }
+
+    /// A real jump in a tick too soon to judge is never sent: the next tick ends the hold.
+    func testAJumpRightAfterThePressEndsTheHoldOnTheNextTick() {
+        bringUp()
+        model.send(.holdArmStart)
+        position = SIMD3(0.1, 0, 0)
+        clock += 1
+        model.link.tick()
+        tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_stop"])
+    }
+
     func testStopSendsEstopAndNothingMovesAfter() {
         bringUp()
         model.send(.holdArmStart)
