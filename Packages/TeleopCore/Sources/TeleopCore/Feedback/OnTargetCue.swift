@@ -4,7 +4,8 @@
 /// It plays once as "on target" turns true: a target is reported, the pinch point is inside the window around it,
 /// the marker is not approximate, nothing is held, the task aid is on and the jaws are open. The stop being latched
 /// keeps it silent. It is armed again only after the pinch point has left a window `rearmScale` times as large, or
-/// after a close (the jaws seen not open), a scene reset (`rearm`) or a new target (one reported after none).
+/// after a close (the jaws seen closed), a scene reset (`rearm`) or a new target (one reported after none). Jaws
+/// whose state is not known neither play it nor arm it.
 public struct OnTargetCue {
     public static let rearmScale = 1.5
 
@@ -18,11 +19,12 @@ public struct OnTargetCue {
         /// The jaws hold the target.
         public var holding: Bool
         public var taskAid: Bool
-        public var jawsOpen: Bool
+        /// Nil when the server does not say.
+        public var jawsOpen: Bool?
         /// The emergency stop is latched.
         public var stopped: Bool
 
-        public init(gap: SIMD2<Double>?, approximate: Bool, holding: Bool, taskAid: Bool, jawsOpen: Bool, stopped: Bool) {
+        public init(gap: SIMD2<Double>?, approximate: Bool, holding: Bool, taskAid: Bool, jawsOpen: Bool?, stopped: Bool) {
             self.gap = gap
             self.approximate = approximate
             self.holding = holding
@@ -52,9 +54,9 @@ public struct OnTargetCue {
     public mutating func observe(_ look: Look, at now: Int) -> Bool {
         defer { hadTarget = look.gap != nil }
         guard let gap = look.gap else { return false }
-        if !hadTarget || !look.jawsOpen || !Self.inside(gap, window: window * Self.rearmScale) { armed = true }
+        if !hadTarget || look.jawsOpen == false || !Self.inside(gap, window: window * Self.rearmScale) { armed = true }
         let onTarget = Self.inside(gap, window: window) && !look.approximate && !look.holding && look.taskAid
-            && look.jawsOpen
+            && look.jawsOpen == true
         guard armed, onTarget, !look.stopped else { return false }
         armed = false
         playedAtMs = now

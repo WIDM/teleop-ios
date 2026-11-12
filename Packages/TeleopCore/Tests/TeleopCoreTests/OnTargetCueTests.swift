@@ -84,6 +84,17 @@ final class OnTargetCueTests: XCTestCase {
         XCTAssertTrue(look(across: 0.001), "opened again")
     }
 
+    /// Jaws the server says nothing about may be shut: no cue. Nor are they a close: on the target, open, unknown,
+    /// open again is still one approach.
+    func testJawsOfUnknownStateNeitherPlayNorArmIt() {
+        clock += 200
+        XCTAssertFalse(cue.observe(.init(gap: SIMD2(0.001, 0), approximate: false, holding: false, taskAid: true, jawsOpen: nil, stopped: false), at: clock))
+        XCTAssertTrue(look(across: 0.001))
+        clock += 200
+        XCTAssertFalse(cue.observe(.init(gap: SIMD2(0.001, 0), approximate: false, holding: false, taskAid: true, jawsOpen: nil, stopped: false), at: clock))
+        XCTAssertFalse(look(across: 0.001))
+    }
+
     func testASceneResetOrANewTargetArmsItAgain() {
         XCTAssertTrue(look(across: 0.001))
         cue.rearm()

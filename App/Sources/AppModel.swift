@@ -563,7 +563,7 @@ final class AppModel {
         let stopped = session.state.emergencyStop || serverState?.estop == true
         let look = OnTargetCue.Look(
             gap: picture?.targetGap, approximate: picture?.approximate ?? false, holding: picture?.holding ?? false,
-            taskAid: display.taskAid, jawsOpen: serverState?.gripper == .open, stopped: stopped
+            taskAid: display.taskAid, jawsOpen: serverState?.gripper.map { $0 == .open }, stopped: stopped
         )
         if onTargetCue.observe(look, at: nowMs()) { raise(.onTarget) }
     }

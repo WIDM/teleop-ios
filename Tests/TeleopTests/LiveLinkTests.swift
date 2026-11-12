@@ -1441,6 +1441,21 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(feltOnTarget, 2, "the next approach after the reset")
     }
 
+    /// A state that does not say how the jaws are is neither open nor a close: it neither plays the cue nor arms it.
+    func testAStateWithoutTheJawsLabelNeitherPlaysNorArmsTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03), gripper: nil))
+        observer.server("state", armState(graspArm, gripper: nil))
+        XCTAssertEqual(feltOnTarget, 0, "the jaws may be shut")
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: nil))
+        clock += 1000
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "no close, no reset, never out of the window: once")
+    }
+
     /// No task object reported: nothing to be on, wherever the jaws are.
     func testOnTargetIsNotFeltWithoutATarget() {
         bringUp()
