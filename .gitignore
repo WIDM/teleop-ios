@@ -3,6 +3,6 @@ build/
 *.xcodeproj/
 DerivedData/
 NOTE-zh.md
-.cursor/skills/verify-teleop-ios/NOTE-zh.md
-.cursor/skills/verify-teleop-ios/evidence/
+tools/app-checks/NOTE-zh.md
+tools/app-checks/evidence/
 __pycache__/

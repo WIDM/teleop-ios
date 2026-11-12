@@ -39,13 +39,13 @@ All of these must pass on the commit that will carry the version. The first grou
 
     git status --porcelain
     (cd Packages/TeleopCore && swift test)
-    .cursor/skills/verify-session-safety/scripts/check.sh
+    tools/session-safety/scripts/check.sh
     python3 scripts/check-strings.py
     python3 scripts/check-dead-buttons.py
     python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
 
-`git status --porcelain` must print nothing. `-B` keeps Python from writing `scripts/__pycache__/`, which
-`.gitignore` does not list and which would otherwise show up the next time the checks run. The safety checker must
+`git status --porcelain` must print nothing. `-B` keeps Python from writing `scripts/__pycache__/`; `.gitignore`
+leaves such folders out of `git status` too. The safety checker must
 exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on any string, in any of the four
 catalogs, that lacks English or Traditional Chinese.
 

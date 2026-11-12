@@ -3,7 +3,7 @@ import Foundation
 import PackageDescription
 
 // TELEOP_CORE_PATH lets scripts/mutants.py point the checker at a broken copy of TeleopCore.
-let corePath = ProcessInfo.processInfo.environment["TELEOP_CORE_PATH"] ?? "../../../../Packages/TeleopCore"
+let corePath = ProcessInfo.processInfo.environment["TELEOP_CORE_PATH"] ?? "../../../Packages/TeleopCore"
 
 let package = Package(
     name: "SafetyCheck",

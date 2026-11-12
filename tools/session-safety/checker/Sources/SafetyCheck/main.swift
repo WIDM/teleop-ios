@@ -146,7 +146,7 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
     return (Node(session: session, loopPlaying: loop, recorder: node.recorder), restarted)
 }
 
-// The stack is left out on purpose. See "Why the stack is left out" in SKILL.md.
+// The stack is left out on purpose. See "Why the stack is left out" in README.md.
 // Not in key, because no action changes them: serverAddress sensitivity smoothing
 // scripts/drift.py fails if FakeTeleopState gains a stored field that is in neither list.
 struct StateKey: Hashable {

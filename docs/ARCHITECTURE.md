@@ -281,26 +281,26 @@ while the emergency stop is latched.
 
 ## The safety checker
 
-The safety checker in `.cursor/skills/verify-session-safety/` imports the real `TeleopCore`, starts from every way
+The safety checker in `tools/session-safety/` imports the real `TeleopCore`, starts from every way
 the app can open, and tries every action in every reachable state of `TeleopSession`. It checks a list of
 promises, for example: the emergency stop stays latched until it is released on purpose or a reset asked for in the
 stop state is confirmed; the arm, the gripper and the wrist move only while connected, not stopped and not blocked
 by a slow link; releasing a control always stops it; at most one hold is active; while stopped, every screen the
 operator can be on shows it. One set of promises (S) must hold for any sequence of actions; another (U) for the
-actions the shipped screens can send, which `ui-map.tsv` lists per route. Its `SKILL.md` lists every promise and
+actions the shipped screens can send, which `ui-map.tsv` lists per route. Its `README.md` lists every promise and
 what is left out.
 
 Run it from the repository root:
 
-    .cursor/skills/verify-session-safety/scripts/check.sh
+    tools/session-safety/scripts/check.sh
 
 It needs `swift` and `python3`. Exit 0 means every promise holds (or is a listed known finding); 1 a new violation,
 a stale known finding or drift between the checker's tables and the code; 2 that `swift` is missing (a skip, not a
 pass). For a violation it prints the shortest sequence of actions from launch that breaks the promise.
 
 Update it before a change counts as safe. The checker's tables are in
-`.cursor/skills/verify-session-safety/checker/Sources/SafetyCheck/main.swift`, and the screens' actions in
-`.cursor/skills/verify-session-safety/ui-map.tsv`:
+`tools/session-safety/checker/Sources/SafetyCheck/main.swift`, and the screens' actions in
+`tools/session-safety/ui-map.tsv`:
 
 - when a `TeleopAction` is added: add it to `actionTable` in `main.swift` and, if a screen sends it, to
   `ui-map.tsv`;
@@ -308,7 +308,7 @@ Update it before a change counts as safe. The checker's tables are in
   comment there if no action changes it;
 - when a screen gains or loses a control that sends an action: update its row in `ui-map.tsv`;
 - when a covered file changes: read the change, confirm the checker still describes the code, and move the sync
-  commit in `SKILL.md`, which lists the full steps.
+  commit in its `README.md`, which lists the full steps.
 
 `drift.py`, run by `check.sh`, fails when one of the first three is forgotten. For the fourth, `check.sh` prints a
 `REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure. The sync

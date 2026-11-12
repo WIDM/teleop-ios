@@ -29,7 +29,7 @@ Two more checks sit beside the tests:
 
 - The **session safety checker** tries every action in every reachable state of the real `TeleopSession`
   (`docs/ARCHITECTURE.md` says what it proves). Run it with
-  `.cursor/skills/verify-session-safety/scripts/check.sh`.
+  `tools/session-safety/scripts/check.sh`.
 - **Scripts.** `python3 scripts/check-strings.py` checks every string table in `App/Resources`: each key has English
   and Traditional Chinese, the two carry the same format specifiers, the Chinese uses full-width punctuation, and no
   key the code uses is missing and none is unused. `python3 scripts/check-dead-buttons.py` fails on a button with an
