@@ -39,9 +39,10 @@ What a person using the app notices:
   is refused with "Hold the phone upright."
 - **You hear and feel what happened** without looking: a vibration pattern for each kind of event, three sounds,
   and spoken reasons, limits, stops and recorder news in English or Traditional Chinese. The tutorial teaches them.
-- **On target is felt.** When the guide's "On target" turns on with the jaws open, the phone plays one tick and then
-  a short soft swell, once per approach; no sound, no speech. It stays silent while the jaw marker is approximate,
-  while the robot is stopped, with the task aid off, when no target is reported, and in practice.
+- **On target is felt.** When the open jaws come onto the target the server reports (where the guide says "On
+  target"), the phone plays one tick and then a short soft swell, once per approach; no sound, no speech. It plays
+  in Buttons too, where no guide is drawn. It stays silent while the jaw position is approximate, while the robot is
+  stopped, with the task aid off, when no target is reported, and in practice.
 - **The recorder shows.** The REC line says whether the server records and whether it is armed, capturing,
   waiting or off, with the take's length and the saved and discarded counts. A saved take shows "Saved N" for
   2 seconds and is spoken. Settings → Recording repeats the counts.
@@ -50,10 +51,11 @@ What a person using the app notices:
   reports no recorder or does not say. Every STOP is sent to the server, also when the robot is already stopped.
   A STOP pressed with no link goes out after the next connection; until then the screen shows the link's state,
   not STOPPED. Settings shows a red STOPPED band while the robot is stopped.
-- **The guide** shows the work area from above and from behind: where the jaws pinch, where the arm is being sent,
-  the height above the table, how far the jaws are open, the wrist's turn and tilt, and, when the server reports a
-  task, the target, the goal, "On target" and "Holding". It works for any arm and replaces the guide drawn for the
-  cube task. It is on by default (Settings → Task aid).
+- **The guide**, drawn in the two phone modes, shows the work area from above and from behind: where the jaws
+  pinch, where the arm is being sent, the height above the table, how far the jaws are open, the wrist's turn and
+  tilt, and, when the server reports a task, the target, the goal, "On target" and "Holding". It works for any arm
+  and replaces the guide drawn for the cube task. It is on by default (Settings → Task aid). Buttons shows the pad
+  in its place.
 - **Where the jaws close.** When the server reports its grasp point (`tool_pos`), the guide's jaw marker is that
   point. Otherwise the app estimates it from the arm's position and the wrist angles; where the estimate may be
   off by more than half the on-target window, the marker is a hollow ring with no centre dot, an orange line says
