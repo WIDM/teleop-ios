@@ -1367,6 +1367,25 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.session.state.connected, "3.00 s of silence after the stall")
     }
 
+    /// A tick more than 250 ms after the one before means the app stalled, and the stall is taken out of the silence;
+    /// a tick 250 ms after is the app running slowly, and all of it counts.
+    func testATickMoreThan250msLateIsAStallAndOne250msLateIsNot() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<14 {
+            clock += 251
+            model.link.tick()
+        }
+        XCTAssertTrue(model.session.state.connected, "3.5 s of 251 ms stalls count as 0.46 s of silence")
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<14 where model.session.state.connected {
+            clock += 250
+            model.link.tick()
+        }
+        XCTAssertFalse(model.session.state.connected, "3.5 s of ticks 250 ms apart is 3.5 s of silence")
+    }
+
     /// Stalls that keep coming do not hide a server that went quiet: the time the app ran still adds up to 3 s.
     func testRepeatedStallsDoNotHideASilentServer() {
         bringUp()

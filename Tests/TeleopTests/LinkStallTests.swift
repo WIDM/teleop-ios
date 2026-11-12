@@ -298,8 +298,8 @@ final class LinkStallTests: XCTestCase {
 
     // MARK: STOP during a short stall
 
-    /// STOP pressed while the path holds everything back: the phone latches the stop at once and shows STOPPED, sends
-    /// nothing more, and the server takes the estop when the path comes back.
+    /// STOP pressed while the path holds everything back: the phone latches the stop at once and shows STOPPED, sends no
+    /// command but the estop (its probes go on), and the server takes the estop when the path comes back.
     func testAStopPressedDuringAShortStallReachesTheServerWhenThePathComesBack() throws {
         try start(.screenTurns)
         hand.press(.upper)
