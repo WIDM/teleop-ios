@@ -27,11 +27,13 @@ struct TutorialScreen: View {
             case .buttons: return Page(title: "tutorial.speed.title", lines: ["tutorial.speed.body"])
             }
         default:
-            return Page(title: "tutorial.cues.title", lines: [
-                "tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go", "tutorial.cue.hold_still",
-                "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
-                "tutorial.cue.grip", "tutorial.cue.alarm",
-            ])
+            // Holding still while the arm catches up is for the phone's motion: a held arrow keeps moving the arm.
+            let holdStill: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.hold_still"]
+            return Page(title: "tutorial.cues.title", lines: ["tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go"]
+                + holdStill + [
+                    "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
+                    "tutorial.cue.grip", "tutorial.cue.alarm",
+                ])
         }
     }
 

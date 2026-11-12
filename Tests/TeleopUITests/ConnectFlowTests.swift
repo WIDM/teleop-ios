@@ -54,6 +54,11 @@ final class ConnectFlowTests: XCTestCase {
         expect(buttons, "tutorial.title")
         XCTAssertEqual(buttons.element("tutorial.title").label, "按住按鈕")
         attachScreenshot("tutorial-buttons-zh")
+        buttons.element("tutorial.next").tap()
+        buttons.element("tutorial.next").tap()
+        expectLabel(buttons.element("tutorial.title"), "急停、重置和震動的意思")
+        XCTAssertFalse(text(buttons, "等手臂停下來再放開"), "a held arrow keeps moving the arm: holding still is for the phone")
+        XCTAssertTrue(text(buttons, "畫面上有目標時"), "the on-target cue is the same in every mode")
     }
 
     func testALaterLaunchOpensOnTheOperatingScreen() {
