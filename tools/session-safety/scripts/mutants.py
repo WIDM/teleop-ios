@@ -309,6 +309,14 @@ SOURCE_VARIANTS = [
         "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
     ),
     (
+        "Settings offers Replay tutorial while stopped",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "if !model.session.state.emergencyStop {",
+        "if true {",
+        "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
+    ),
+    (
         "Leaving fewer routes ends a hold",
         "Operating/OperatingController.swift",
         "final class OperatingController {",

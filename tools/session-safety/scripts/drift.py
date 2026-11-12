@@ -141,6 +141,11 @@ settings_source = next(
 draws_band = re.search(r"if case \.stopped = model\.operating\.state \{ stoppedBand \}", settings_source)
 if "s6" in (shows_stop or set()) and not (draws_band and 'accessibilityIdentifier("settings.stopped")' in settings_source):
     problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
+# Settings offers Replay tutorial only while the stop is not latched, as shippedActions in main.swift models: the
+# tutorial pages do not show the stop (U1).
+hides_tutorial = re.search(r"if !model\.session\.state\.emergencyStop \{[^}]*\.replayTutorial\b", settings_source)
+if "replayTutorial" in sends(settings_source) and not hides_tutorial:
+    problems.append("SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then")
 # One case may name several routes ("case .p4, .p5: OperatingScreen(").
 screen_of_route = {
     route: screen
