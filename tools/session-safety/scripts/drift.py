@@ -143,7 +143,7 @@ if "s6" in (shows_stop or set()) and not (draws_band and 'accessibilityIdentifie
     problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
 # Settings offers Replay tutorial only while the stop is not latched, as shippedActions in main.swift models: the
 # tutorial pages do not show the stop (U1).
-settings_code = re.sub(r"//[^\n]*", "", settings_source)
+settings_code = re.sub(r"/\*.*?\*/|//[^\n]*", "", settings_source, flags=re.S)
 hides_tutorial = re.search(r"if !model\.session\.state\.emergencyStop \{[^}]*\.replayTutorial\b", settings_code)
 if "replayTutorial" in sends(settings_source) and not hides_tutorial:
     problems.append("SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then")

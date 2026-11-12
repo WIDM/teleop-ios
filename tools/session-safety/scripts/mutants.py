@@ -325,6 +325,14 @@ SOURCE_VARIANTS = [
         "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
     ),
     (
+        "Settings leaves the guard of Replay tutorial in a block comment",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "if !model.session.state.emergencyStop {",
+        "if true { /* if !model.session.state.emergencyStop { */",
+        "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
+    ),
+    (
         "Leaving fewer routes ends a hold",
         "Operating/OperatingController.swift",
         "final class OperatingController {",
