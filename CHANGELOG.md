@@ -122,6 +122,8 @@ What a maintainer needs to know:
   scripts in `tools/app-checks`, each with a README.
 - CI builds with Xcode 16.4 again: it could not type-check two long expressions in time. The developer log's line
   for a link that never got ready says "no welcome or first state from server".
+- `.swift-format` holds the layout the Swift code is written in, and all of it is laid out so.
+  `scripts/check-format.sh` checks it strictly; it is a release step, and CI runs it only as a report.
 - `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/TESTING.md` and `docs/RELEASING.md` describe the app as it is.
 
 ## 0.10.0 (2026-11-11)

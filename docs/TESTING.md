@@ -33,7 +33,9 @@ Two more checks sit beside the tests:
 - **Scripts.** `python3 scripts/check-strings.py` checks every string table in `App/Resources`: each key has English
   and Traditional Chinese, the two carry the same format specifiers, the Chinese uses full-width punctuation, and no
   key the code uses is missing and none is unused. `python3 scripts/check-dead-buttons.py` fails on a button with an
-  empty action. `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py` tests two of
+  empty action. `scripts/check-format.sh` fails when a Swift file of the app, the core package, the tests or the
+  safety checker is not laid out as `.swift-format` says (`swift format lint --strict`); the same file list with
+  `swift format format -i --parallel` lays them out. `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py` tests two of
   the scripts; `-B` leaves no `scripts/__pycache__/` behind for `git status` to show.
 
 ## How to run each
@@ -246,12 +248,18 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 `.github/workflows/ios.yml` (a copy is kept in `ci/ios.yml`) runs on every push and pull request, on GitHub's
 `macos-15` image with the Xcode that image ships:
 
-1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`;
+1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`, then `scripts/check-format.sh`,
+   which only reports (below);
 2. `swift test` in `Packages/TeleopCore`;
 3. `brew install xcodegen` and `xcodegen generate`;
 4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
    `CODE_SIGNING_ALLOWED=NO`;
 5. it uploads the xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+
+The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
+older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
+differently, so a file that passes here can be reported there. The strict check that counts is a step of the release
+procedure (`docs/RELEASING.md`), run with the current Xcode.
 
 CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
 whenever a change touches the session, its state, the screens' actions or the hold handling.

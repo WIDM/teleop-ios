@@ -42,12 +42,14 @@ All of these must pass on the commit that will carry the version. The first grou
     tools/session-safety/scripts/check.sh
     python3 scripts/check-strings.py
     python3 scripts/check-dead-buttons.py
+    scripts/check-format.sh
     python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
 
 `git status --porcelain` must print nothing. `-B` keeps Python from writing `scripts/__pycache__/`; `.gitignore`
 leaves such folders out of `git status` too. The safety checker must
 exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on any string, in any of the four
-catalogs, that lacks English or Traditional Chinese.
+catalogs, that lacks English or Traditional Chinese. `check-format.sh` fails on any Swift file not laid out as
+`.swift-format` says; CI only reports it (`docs/TESTING.md` says why), so here is where it counts.
 
 Then the full default test plan, about twenty minutes, on an iPhone simulator nothing else uses and a Mac that
 stays awake (`docs/TESTING.md` explains both):
@@ -104,7 +106,8 @@ stops opening until it is installed again.
 ## TestFlight
 
 TestFlight is Apple's way to hand a build to testers through App Store Connect. The build to upload is the tagged
-commit, built after every check above has passed on it.
+commit, built after every check above has passed on it, the strict layout check (`scripts/check-format.sh`)
+included.
 
 What the repository already gives an upload:
 
