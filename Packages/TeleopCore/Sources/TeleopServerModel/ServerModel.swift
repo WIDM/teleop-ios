@@ -148,7 +148,8 @@ public final class ServerModel {
             } else {
                 if frameArrives, timer > target - 1e-9 { break }
                 time = max(time, timer)
-                for (id, connection) in connections.sorted(by: { $0.key < $1.key }) where connection.nextStateAt == timer {
+                for (id, connection) in connections.sorted(by: { $0.key < $1.key })
+                where connection.nextStateAt == timer {
                     if connection.welcomed { sendState(seq: connection.highestSeq, to: id) }
                     connection.statesSinceQuiet += 1
                 }
@@ -176,7 +177,8 @@ public final class ServerModel {
     }
 
     func ack(_ seq: Int, _ status: String, _ reason: String, to id: Int) {
-        send("ack", seq: seq, .object(["seq": .int(seq), "status": .string(status), "reason": .string(reason)]), to: id)
+        send(
+            "ack", seq: seq, .object(["seq": .int(seq), "status": .string(status), "reason": .string(reason)]), to: id)
     }
 
     func sendState(seq: Int, to id: Int) { send("state", seq: seq, state, to: id) }
@@ -208,8 +210,9 @@ public final class ServerModel {
         if connection.version == nil {
             connection.version = version
         } else if version != connection.version {
-            error("version_changed", "protocol version must remain constant per connection",
-                  seq: message["seq"]!.intValue!, to: id)
+            error(
+                "version_changed", "protocol version must remain constant per connection",
+                seq: message["seq"]!.intValue!, to: id)
             return
         }
         let seq = message["seq"]!.intValue!
@@ -229,10 +232,14 @@ public final class ServerModel {
                 return
             }
             connection.welcomed = true
-            send("welcome", seq: seq, .object([
-                "session": .string(config.session),
-                "config": .object(["coarse_cm": .double(config.coarseCentimetres), "fine_cm": .double(config.fineCentimetres)]),
-            ]), to: id)
+            send(
+                "welcome", seq: seq,
+                .object([
+                    "session": .string(config.session),
+                    "config": .object([
+                        "coarse_cm": .double(config.coarseCentimetres), "fine_cm": .double(config.fineCentimetres),
+                    ]),
+                ]), to: id)
             sendState(seq: seq, to: id)
             return
         }
@@ -349,7 +356,8 @@ public final class ServerModel {
     /// `jog_keepalive` refreshes jog, joint jog and gripper jog holds only; never a pose or orient hold.
     private func refreshHold(owner id: Int) {
         guard let command = pending, command.owner == id, !command.finished,
-              ["jog_start", "joint_jog_start", "gripper_jog_start"].contains(command.kind) else { return }
+            ["jog_start", "joint_jog_start", "gripper_jog_start"].contains(command.kind)
+        else { return }
         command.deadline = time + config.holdWatchdog
     }
 
@@ -423,7 +431,9 @@ final class Connection {
 
 /// A start or one-shot command, from the moment it is queued until its final ack.
 final class Command {
-    static let holdKinds: Set<String> = ["jog_start", "joint_jog_start", "gripper_jog_start", "orient_start", "pose_start"]
+    static let holdKinds: Set<String> = [
+        "jog_start", "joint_jog_start", "gripper_jog_start", "orient_start", "pose_start",
+    ]
     /// The commands whose running starts a recorder take.
     static let recordedKinds: Set<String> = holdKinds.union(["move_delta", "joint_delta", "gripper"])
 

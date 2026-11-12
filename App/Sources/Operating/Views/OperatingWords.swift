@@ -24,20 +24,32 @@ enum OperatingWords {
             let details = (reason.map { [$0] } ?? []) + [L10n.string("detail.tap_to_connect")]
             return Look(word: L10n.string("state.not_connected"), details: details, colour: TeleopColors.stateGrey)
         case .connecting(let address):
-            return Look(word: L10n.string("state.connecting"), details: address.isEmpty ? [] : [address], colour: TeleopColors.stateGrey)
+            return Look(
+                word: L10n.string("state.connecting"), details: address.isEmpty ? [] : [address],
+                colour: TeleopColors.stateGrey)
         case .ready:
             return Look(word: L10n.string("state.ready"), details: [], colour: TeleopColors.stateGreen)
         case .moving(let catchingUp):
-            let detail = catchingUp ? "detail.catching_up" : (display.arm == nil && !display.practice ? "detail.no_arm_data" : nil)
-            return Look(word: L10n.string("state.moving"), details: detail.map { [L10n.string($0)] } ?? [], colour: TeleopColors.stateBlue)
+            let detail =
+                catchingUp
+                ? "detail.catching_up" : (display.arm == nil && !display.practice ? "detail.no_arm_data" : nil)
+            return Look(
+                word: L10n.string("state.moving"), details: detail.map { [L10n.string($0)] } ?? [],
+                colour: TeleopColors.stateBlue)
         case .turning(let degrees, let limit, let estimated):
-            return Look(word: L10n.string("state.turning"), details: [progress(degrees, limit, estimated)], colour: TeleopColors.stateBlue)
+            return Look(
+                word: L10n.string("state.turning"), details: [progress(degrees, limit, estimated)],
+                colour: TeleopColors.stateBlue)
         case .tilting(let degrees, let limit, let estimated):
-            return Look(word: L10n.string("state.tilting"), details: [progress(degrees, limit, estimated)], colour: TeleopColors.stateBlue)
+            return Look(
+                word: L10n.string("state.tilting"), details: [progress(degrees, limit, estimated)],
+                colour: TeleopColors.stateBlue)
         case .opening:
             return Look(word: L10n.string("state.opening"), details: [], colour: TeleopColors.stateBlue)
         case .closing(let gripped):
-            return Look(word: L10n.string("state.closing"), details: gripped ? [L10n.string("detail.gripped")] : [], colour: TeleopColors.stateBlue)
+            return Look(
+                word: L10n.string("state.closing"), details: gripped ? [L10n.string("detail.gripped")] : [],
+                colour: TeleopColors.stateBlue)
         case .wait(let reason):
             let detail: String
             switch reason {
@@ -47,11 +59,15 @@ enum OperatingWords {
             }
             return Look(word: L10n.string("state.wait"), details: [detail], colour: TeleopColors.stateAmber)
         case .trackingLost:
-            return Look(word: L10n.string("state.camera_stopped"), details: [L10n.string("detail.camera_stopped")], colour: TeleopColors.stateAmber)
+            return Look(
+                word: L10n.string("state.camera_stopped"), details: [L10n.string("detail.camera_stopped")],
+                colour: TeleopColors.stateAmber)
         case .refused(let refusal):
             return Look(word: reason(refusal), details: [], colour: TeleopColors.stateAmber)
         case .slowLink(let ms):
-            return Look(word: L10n.string("state.slow_link"), details: [String(format: L10n.string("detail.latency"), ms)], colour: TeleopColors.stateAmber)
+            return Look(
+                word: L10n.string("state.slow_link"), details: [String(format: L10n.string("detail.latency"), ms)],
+                colour: TeleopColors.stateAmber)
         case .stopped(let cause):
             var details = cause.map { [self.cause($0)] } ?? []
             details.append(L10n.string("detail.reset_prompt"))
@@ -60,9 +76,13 @@ enum OperatingWords {
             }
             return Look(word: L10n.string("state.stopped"), details: details, colour: TeleopColors.stateRed)
         case .linkLost:
-            return Look(word: L10n.string("state.link_lost"), details: [L10n.string("detail.reconnecting")], colour: TeleopColors.stateDarkGrey)
+            return Look(
+                word: L10n.string("state.link_lost"), details: [L10n.string("detail.reconnecting")],
+                colour: TeleopColors.stateDarkGrey)
         case .saved(let count):
-            return Look(word: String(format: L10n.string("state.saved"), count), details: [], colour: TeleopColors.stateGold, darkText: true)
+            return Look(
+                word: String(format: L10n.string("state.saved"), count), details: [], colour: TeleopColors.stateGold,
+                darkText: true)
         }
     }
 

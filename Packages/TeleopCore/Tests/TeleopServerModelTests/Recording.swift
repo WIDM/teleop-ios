@@ -30,7 +30,8 @@ struct Recording {
         let text = try String(contentsOf: url, encoding: .utf8)
         let lines = try text.split(separator: "\n").map { row -> Line in
             guard let value = JSONValue.parse(String(row)), let time = value["t"]?.numberValue,
-                  let direction = value["dir"]?.stringValue, let message = value["msg"] else {
+                let direction = value["dir"]?.stringValue, let message = value["msg"]
+            else {
                 throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: name])
             }
             return Line(time: time, outgoing: direction == "out", message: message)

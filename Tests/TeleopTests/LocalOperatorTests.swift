@@ -127,7 +127,8 @@ final class LocalOperatorTests: XCTestCase {
         XCTAssertTrue(hand.wait(6, until: { !model.session.state.emergencyStop }), "the reset did not release the stop")
         XCTAssertFalse(serverStopped)
         XCTAssertEqual(server.inspect { $0.episode }, 1, "the scene was reset")
-        XCTAssertTrue(hand.wait(2, until: { model.serverState?.recorder?.label == .armed }), "the recorder is armed again")
+        XCTAssertTrue(
+            hand.wait(2, until: { model.serverState?.recorder?.label == .armed }), "the recorder is armed again")
         XCTAssertNotEqual(model.session.route, .s4)
 
         hand.press(.upper)

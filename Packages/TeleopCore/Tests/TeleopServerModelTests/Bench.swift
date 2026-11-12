@@ -51,7 +51,9 @@ final class Bench {
         @discardableResult
         func send(_ type: String, _ payload: JSONValue = .object([])) -> Int {
             seq += 1
-            let message = JSONValue.object(["v": 1, "type": .string(type), "ts": 0, "seq": .int(seq), "payload": payload])
+            let message = JSONValue.object([
+                "v": 1, "type": .string(type), "ts": 0, "seq": .int(seq), "payload": payload,
+            ])
             sendText(message.text)
             return seq
         }
@@ -69,7 +71,9 @@ final class Bench {
             guard let output = received.first(where: { $0.type == "ack" && $0.payload["seq"]?.intValue == seq }) else {
                 return nil
             }
-            return (output.payload["status"]?.stringValue ?? "", output.payload["reason"]?.stringValue ?? "", output.time)
+            return (
+                output.payload["status"]?.stringValue ?? "", output.payload["reason"]?.stringValue ?? "", output.time
+            )
         }
 
         func reason(_ seq: Int) -> String? { ack(seq).map { "\($0.status) \($0.reason)" } }
@@ -78,8 +82,9 @@ final class Bench {
         func stateWithAck(_ seq: Int) -> JSONValue? {
             let all = received
             guard let index = all.firstIndex(where: { $0.type == "ack" && $0.payload["seq"]?.intValue == seq }),
-                  index + 1 < all.count, all[index + 1].type == "state",
-                  all[index + 1].message["seq"]?.intValue == seq else { return nil }
+                index + 1 < all.count, all[index + 1].type == "state",
+                all[index + 1].message["seq"]?.intValue == seq
+            else { return nil }
             return all[index + 1].payload
         }
 
@@ -97,16 +102,21 @@ final class Bench {
 
         /// A pose update asking the arm to go `base` metres (robot base frame) from where the hold began.
         func poseUpdate(base: SIMD3<Double>, gripperDelta: Double = 0, q: [Double] = [0, 0, 0, 1]) {
-            send("pose_update", .object([
-                "p_rel_m": .numbers([base.x, base.y, -base.z]), "q_rel": .numbers(q), "gripper_delta": .double(gripperDelta),
-            ]))
+            send(
+                "pose_update",
+                .object([
+                    "p_rel_m": .numbers([base.x, base.y, -base.z]), "q_rel": .numbers(q),
+                    "gripper_delta": .double(gripperDelta),
+                ]))
         }
 
         @discardableResult
         func orientStart() -> Int {
-            send("orient_start", .object([
-                "frame": "phone_body", "rate_hz": 30, "gain": 1.0, "deadband_deg": 0.0, "smoothing": 0.0,
-            ]))
+            send(
+                "orient_start",
+                .object([
+                    "frame": "phone_body", "rate_hz": 30, "gain": 1.0, "deadband_deg": 0.0, "smoothing": 0.0,
+                ]))
         }
 
         /// Sends `message` every `interval` seconds for `seconds`, as a phone streams a held control.
@@ -120,7 +130,8 @@ final class Bench {
 
         /// One pose hold that moves the arm to `target` (base frame), then ends it and waits for the final ack.
         @discardableResult
-        func moveArm(to target: SIMD3<Double>, seconds: Double = 2.5) -> (status: String, reason: String, time: Double)? {
+        func moveArm(to target: SIMD3<Double>, seconds: Double = 2.5) -> (status: String, reason: String, time: Double)?
+        {
             let from = bench.model.world.arm
             let start = poseStart()
             stream(for: seconds) { poseUpdate(base: target - from) }
@@ -164,8 +175,11 @@ final class Bench {
             moveArm(to: grasp + lift)
             moveArm(to: grasp)
             gripperJog("close", seconds: 7)
-            XCTAssertTrue(bench.model.world.holdingCube, "the jaws did not take hold of the cube", file: file, line: line)
-            let overGoal = grasp + SIMD3(config.goalWorld.x - config.cubeStartWorld.x, config.goalWorld.y - config.cubeStartWorld.y, 0)
+            XCTAssertTrue(
+                bench.model.world.holdingCube, "the jaws did not take hold of the cube", file: file, line: line)
+            let overGoal =
+                grasp
+                + SIMD3(config.goalWorld.x - config.cubeStartWorld.x, config.goalWorld.y - config.cubeStartWorld.y, 0)
             moveArm(to: grasp + lift, seconds: 3)
             moveArm(to: overGoal + lift, seconds: 4)
             moveArm(to: overGoal + SIMD3(0, 0, 0.002), seconds: 3)

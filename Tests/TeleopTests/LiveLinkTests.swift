@@ -136,12 +136,15 @@ final class LiveLinkTests: XCTestCase {
         let saved = UserDefaults.standard.string(forKey: AppModel.serverAddressKey)
         UserDefaults.standard.set("100.64.0.7:8765", forKey: AppModel.serverAddressKey)
         defer { UserDefaults.standard.set(saved, forKey: AppModel.serverAddressKey) }
-        let live = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: true, makeTransport: { _ in FakeTransport() })
+        let live = AppModel(
+            start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: true, makeTransport: { _ in FakeTransport() })
         XCTAssertEqual(live.session.state.serverAddress, "100.64.0.7:8765")
         var opened: [URL] = []
         let practice = AppModel(
             start: .p4, haptics: NoHaptics(), pose: { nil }, liveLink: false,
-            makeTransport: { opened.append($0); return FakeTransport() }
+            makeTransport: {
+                opened.append($0); return FakeTransport()
+            }
         )
         XCTAssertEqual(practice.session.state.serverAddress, "100.64.0.7:8765")
         XCTAssertTrue(practice.operating.practice)
@@ -164,7 +167,9 @@ final class LiveLinkTests: XCTestCase {
         let version = try! XCTUnwrap(info["CFBundleShortVersionString"] as? String)
         let build = try! XCTUnwrap(info["CFBundleVersion"] as? String)
         XCTAssertEqual(LiveLinkController.clientName(), "teleop-ios/\(version) (\(build))")
-        XCTAssertNotNil(LiveLinkController.clientName().range(of: #"^teleop-ios/\d+(\.\d+)+ \(\d+\)$"#, options: .regularExpression))
+        XCTAssertNotNil(
+            LiveLinkController.clientName().range(of: #"^teleop-ios/\d+(\.\d+)+ \(\d+\)$"#, options: .regularExpression)
+        )
     }
 
     func testConnectSaysHelloAndWaitsForTheServer() {
@@ -241,6 +246,36 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_stop"])
     }
 
+    /// A tick a millisecond after the press, as a late timer gives on a slow phone: the hand's ordinary 1.1 mm step
+    /// is not a jump. That tick sends nothing; the next one judges the speed over the longer time and sends.
+    func testATickRightAfterThePressDoesNotMakeAnOrdinaryStepTooFast() throws {
+        bringUp()
+        model.send(.holdArmStart)
+        position = SIMD3(0, 0, -0.0011)
+        clock += 1
+        model.link.tick()
+        XCTAssertEqual(transport.types.last, "pose_start")
+        position = SIMD3(0, 0, -0.0022)
+        tick()
+        XCTAssertTrue(model.session.state.armMoving, "the hold was ended as too fast")
+        XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_update"])
+        let update = try XCTUnwrap(transport.sent.last?["payload"] as? [String: Any])
+        let offset = try XCTUnwrap(update["p_rel_m"] as? [Double])
+        XCTAssertEqual(offset[1], -0.0022, accuracy: 1e-6)
+    }
+
+    /// A real jump in a tick too soon to judge is never sent: the next tick ends the hold.
+    func testAJumpRightAfterThePressEndsTheHoldOnTheNextTick() {
+        bringUp()
+        model.send(.holdArmStart)
+        position = SIMD3(0.1, 0, 0)
+        clock += 1
+        model.link.tick()
+        tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(transport.types.suffix(2), ["pose_start", "pose_stop"])
+    }
+
     func testStopSendsEstopAndNothingMovesAfter() {
         bringUp()
         model.send(.holdArmStart)
@@ -293,7 +328,7 @@ final class LiveLinkTests: XCTestCase {
     func testLongHoldOnAQuietServerIsNotALostLink() {
         bringUp()
         model.send(.holdArmStart)
-        // Three seconds of holding. The server only echoes probes, as Leo's Bridge does during a hold.
+        // Three seconds of holding. The server only echoes probes, as some servers do during a hold.
         var answered = 0
         for _ in 0..<90 {
             tick()
@@ -337,8 +372,10 @@ final class LiveLinkTests: XCTestCase {
 
     func testSilentServerCountsAsLost() {
         bringUp()
-        clock += TeleopLink.staleAfterMs + 1
-        model.link.tick()
+        // The timer keeps ticking while the server says nothing; a clock jump with no ticks would be a stall of the app.
+        for _ in 0..<(TeleopLink.staleAfterMs / 33) { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.98 s")
+        tick()
         XCTAssertFalse(model.session.state.connected)
         XCTAssertEqual(model.session.route, .s1)
         XCTAssertTrue(model.session.state.connectionLost)
@@ -382,7 +419,9 @@ final class LiveLinkTests: XCTestCase {
         model.send(.gripperStart(.closed))
         let sent = transport.sent.count
         run(ticks: 8)
-        XCTAssertEqual(transport.types.dropFirst(sent).filter { $0 != "test" }, [], "no keepalive for a start the server has not seen")
+        XCTAssertEqual(
+            transport.types.dropFirst(sent).filter { $0 != "test" }, [],
+            "no keepalive for a start the server has not seen")
         XCTAssertEqual(model.session.state.gripperMoving, .closed)
         serverFinished(open)
         XCTAssertEqual(transport.types.last, "gripper_jog_start")
@@ -604,7 +643,8 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(simd_length(lastOffset()), 0.02, accuracy: 0.0001)
         XCTAssertFalse(model.catchingUp)
         run(ticks: 90)
-        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 1, "no resync while the hand is within reach")
+        XCTAssertEqual(
+            transport.types.filter { $0 == "pose_start" }.count, 1, "no resync while the hand is within reach")
     }
 
     func testHandBeyondTheLimitResyncsWithTheRealArmAndGoesOn() {
@@ -615,7 +655,8 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.armMoving, "the operator's hold goes on")
         let updatesBefore = transport.types.filter { $0 == "pose_update" }.count
         run(ticks: 5)
-        XCTAssertEqual(transport.types.filter { $0 == "pose_update" }.count, updatesBefore, "nothing is asked while waiting")
+        XCTAssertEqual(
+            transport.types.filter { $0 == "pose_update" }.count, updatesBefore, "nothing is asked while waiting")
 
         // The arm got 3 cm to the right (−X in the robot base).
         serverFinishesHold(armAt: [-0.03, 0.0, 0.1])
@@ -703,7 +744,8 @@ final class LiveLinkTests: XCTestCase {
         bringUp()
         model.send(.holdArmStart)
         let start = transport.sent.last { $0["type"] as? String == "pose_start" }!["seq"] as! Int
-        transport.server("ack", seq: start, ["seq": start, "status": "rejected", "reason": "pose_tracking_safety_stop"])
+        transport.server(
+            "ack", seq: start, ["seq": start, "status": "rejected", "reason": "pose_tracking_safety_stop"])
         transport.server("state", ["estop": true])
         XCTAssertEqual(model.session.route, .s4)
         XCTAssertEqual(model.stopCause, .armBehind)
@@ -740,7 +782,9 @@ final class LiveLinkTests: XCTestCase {
         let first = ((transport.sent.last!["payload"] as! [String: Any])["p_rel_m"] as! [Double])[0]
         XCTAssertEqual(first, -0.005, accuracy: 0.0001)
         for _ in 0..<20 { tick() }
-        let settled = ((transport.sent.last { $0["type"] as? String == "pose_update" }!["payload"] as! [String: Any])["p_rel_m"] as! [Double])[0]
+        let settled =
+            ((transport.sent.last { $0["type"] as? String == "pose_update" }!["payload"] as! [String: Any])["p_rel_m"]
+            as! [Double])[0]
         XCTAssertEqual(settled, -0.01, accuracy: 0.0001)
     }
 
@@ -757,25 +801,25 @@ final class LiveLinkTests: XCTestCase {
 
     func testUprightPhoneMovesTheArmTheWayTheHandMoves() {
         let upright = TestPose.portrait
-        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: upright), SIMD3(-0.1, 0, 0))   // right → −X
+        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: upright), SIMD3(-0.1, 0, 0))  // right → −X
         assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: upright), SIMD3(0, -0.1, 0))  // forward → −Y
-        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: upright), SIMD3(0, 0, 0.1))    // up → +Z
+        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: upright), SIMD3(0, 0, 0.1))  // up → +Z
     }
 
     func testTurningAroundTurnsRightAndForwardWithTheOperator() {
         // Facing world +x.
         let turned = TestPose.portrait(turned: -90, about: SIMD3(0, 1, 0))
-        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: turned), SIMD3(0, -0.1, 0))    // now forward
-        assertClose(baseMotion(SIMD3(0, 0, 0.1), camera: turned), SIMD3(-0.1, 0, 0))    // now right
-        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: turned), SIMD3(0, 0, 0.1))     // up is always up
+        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: turned), SIMD3(0, -0.1, 0))  // now forward
+        assertClose(baseMotion(SIMD3(0, 0, 0.1), camera: turned), SIMD3(-0.1, 0, 0))  // now right
+        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: turned), SIMD3(0, 0, 0.1))  // up is always up
     }
 
     func testPhoneLyingFlatUsesItsTopEdgeAsForward() {
         // Screen up, camera looking at the floor, top edge toward world −z.
         let flat = TestPose.portrait(turned: -90, about: SIMD3(1, 0, 0))
-        assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: flat), SIMD3(0, -0.1, 0))     // forward
-        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: flat), SIMD3(-0.1, 0, 0))      // right
-        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: flat), SIMD3(0, 0, 0.1))       // up
+        assertClose(baseMotion(SIMD3(0, 0, -0.1), camera: flat), SIMD3(0, -0.1, 0))  // forward
+        assertClose(baseMotion(SIMD3(0.1, 0, 0), camera: flat), SIMD3(-0.1, 0, 0))  // right
+        assertClose(baseMotion(SIMD3(0, 0.1, 0), camera: flat), SIMD3(0, 0, 0.1))  // up
     }
 
     func testLeaningBackKeepsForwardStraightAhead() {
@@ -842,11 +886,13 @@ final class LiveLinkTests: XCTestCase {
 
     func testSwitchingToTheRealServerTriesTheServerAddress() {
         transports = []
-        let demo = AppModel(start: .s6, haptics: NoHaptics(), pose: { nil }, liveLink: false, makeTransport: { [unowned self] _ in
-            let made = FakeTransport()
-            transports.append(made)
-            return made
-        })
+        let demo = AppModel(
+            start: .s6, haptics: NoHaptics(), pose: { nil }, liveLink: false,
+            makeTransport: { [unowned self] _ in
+                let made = FakeTransport()
+                transports.append(made)
+                return made
+            })
         demo.session.state.serverAddress = "100.64.0.1:8765"
         demo.leavePractice()
         XCTAssertEqual(transports.count, 1)
@@ -905,11 +951,13 @@ final class LiveLinkTests: XCTestCase {
 
     func testFakeLinkNeverOpensASocket() {
         transports = []
-        let fake = AppModel(start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: false, makeTransport: { [unowned self] _ in
-            let made = FakeTransport()
-            transports.append(made)
-            return made
-        })
+        let fake = AppModel(
+            start: .s1, haptics: NoHaptics(), pose: { nil }, liveLink: false,
+            makeTransport: { [unowned self] _ in
+                let made = FakeTransport()
+                transports.append(made)
+                return made
+            })
         fake.connect()
         fake.send(.holdArmStart)
         fake.send(.stop)
@@ -1013,7 +1061,9 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(transport.types.contains("estop_reset"))
         XCTAssertEqual(model.cueLog.last?.event, .refused(.deadInput), "the refused release is heard")
 
-        for state: [String: Any] in [["estop": false, "gripper": "closed", "rec": "none"], ["estop": false, "gripper": "closed"]] {
+        for state: [String: Any] in [
+            ["estop": false, "gripper": "closed", "rec": "none"], ["estop": false, "gripper": "closed"],
+        ] {
             bringUp()
             transport.server("state", state)
             model.send(.stop)
@@ -1063,8 +1113,12 @@ final class LiveLinkTests: XCTestCase {
     func testTheNewestStateFromEitherConnectionIsUsed() {
         bringUp()
         bringUpObserver()
-        observer.server("state", seq: 0, ["estop": false, "rec": "capturing", "rec_saved": 7, "rec_discarded": 1, "rec_samples": 60,
-                                          "wrist_flex_deg": 41.5, "wrist_roll_deg": 88.0, "gripper_deg": 12.0])
+        observer.server(
+            "state", seq: 0,
+            [
+                "estop": false, "rec": "capturing", "rec_saved": 7, "rec_discarded": 1, "rec_samples": 60,
+                "wrist_flex_deg": 41.5, "wrist_roll_deg": 88.0, "gripper_deg": 12.0,
+            ])
         XCTAssertEqual(model.serverState?.wristRollDeg, 88)
         XCTAssertEqual(model.serverState?.gripperDeg, 12)
         XCTAssertEqual(model.recorder, RecorderDisplay(mode: .capturing, saved: 7, discarded: 1, secondsCaptured: 2))
@@ -1075,7 +1129,10 @@ final class LiveLinkTests: XCTestCase {
         bringUp()
         bringUpObserver()
         let state = { (ts: Int, saved: Int) in
-            ["v": 1, "type": "state", "ts": ts, "seq": 0, "payload": ["estop": false, "rec": "armed", "rec_saved": saved]] as [String: Any]
+            [
+                "v": 1, "type": "state", "ts": ts, "seq": 0,
+                "payload": ["estop": false, "rec": "armed", "rec_saved": saved],
+            ] as [String: Any]
         }
         let send = { (to: FakeTransport, message: [String: Any]) in
             to.onText?(String(data: try! JSONSerialization.data(withJSONObject: message), encoding: .utf8)!)
@@ -1199,7 +1256,8 @@ final class LiveLinkTests: XCTestCase {
         model.connect()
         transport.server("welcome")
         transport.server("state", ["estop": true, "gripper": "closed"])
-        XCTAssertEqual(speech.spoken.last, "Emergency stop. The link dropped during a move. Hold the top edge to reset.")
+        XCTAssertEqual(
+            speech.spoken.last, "Emergency stop. The link dropped during a move. Hold the top edge to reset.")
     }
 
     func testResetWaitsForTheStoppedHoldsFinalAck() {
@@ -1287,6 +1345,69 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(sounds.played, [.linkLost])
     }
 
+    /// A tick 1.3 s late means the app's main thread stalled (a long frame, an accessibility snapshot), and what the
+    /// server sent meanwhile still waits behind it: not a lost link. Silence after the stall still is one, and an
+    /// echo that waited out the stall does not count as a slow round trip.
+    func testAStalledTickIsNotSilenceButSilenceAfterItIs() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<(TeleopLink.poseRateHz / 2) { tick() }
+        let probe = transport.sent.last!
+        XCTAssertEqual(probe["type"] as? String, "test")
+        clock += 1300
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "a stall of the app is not the server going quiet")
+        transport.server("test", seq: probe["seq"] as! Int)
+        XCTAssertNil(model.session.state.latencyMs, "the echo waited behind the stall")
+        for _ in 0..<36 { tick() }
+        XCTAssertTrue(model.session.state.connected, "1.19 s after the stall")
+        tick()
+        XCTAssertFalse(model.session.state.connected, "1.22 s of silence after the stall")
+    }
+
+    /// Stalls that keep coming do not hide a server that went quiet: the time the app ran still adds up to 1.2 s.
+    func testRepeatedStallsDoNotHideASilentServer() {
+        bringUp()
+        bringUpObserver()
+        for _ in 0..<5 where model.session.state.connected {
+            clock += 300
+            model.link.tick()
+            for _ in 0..<21 { tick() }
+        }
+        XCTAssertFalse(model.session.state.connected, "a 300 ms stall every second kept a silent link up")
+    }
+
+    /// Stalls in a row on a server that keeps sending, the first one's messages read before its tick and the later
+    /// ones' still waiting behind theirs: not a lost link.
+    func testStallsInARowOnATalkingServerAreNotALostLink() {
+        bringUp()
+        bringUpObserver()
+        clock += 1500
+        transport.server("state", ["estop": false, "gripper": "closed"])
+        observer.server("state", ["estop": false, "gripper": "closed"])
+        model.link.tick()
+        clock += 1500
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "the second stall's messages still wait behind its tick")
+        clock += 1500
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "and the third's")
+    }
+
+    /// A stall that begins just after both connections read a message: what arrives during it still waits behind its
+    /// tick, so it is not a lost link.
+    func testAStallThatBeginsJustAfterAMessageIsNotALostLink() {
+        bringUp()
+        bringUpObserver()
+        tick()
+        clock += 50
+        transport.server("state", ["estop": false, "gripper": "closed"])
+        observer.server("state", ["estop": false, "gripper": "closed"])
+        clock += 1500
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "what arrived during the stall still waits behind its tick")
+    }
+
     /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
     /// its commands are not getting through.
     func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
@@ -1314,7 +1435,8 @@ final class LiveLinkTests: XCTestCase {
     ) -> [String: Any] {
         var state: [String: Any] = [
             "estop": estop, "ee_pos": [arm.x, arm.y, arm.z],
-            "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg, "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
+            "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg,
+            "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
         ]
         if let gripper { state["gripper"] = gripper }
         if let episode { state["episode"] = episode }
@@ -1343,7 +1465,10 @@ final class LiveLinkTests: XCTestCase {
         observer.server("state", armState(graspArm))
         XCTAssertEqual(guide?.onTarget, true)
         XCTAssertEqual(feltOnTarget, 1, "heard on the listening connection while the hold runs")
-        XCTAssertTrue(model.cueLog.contains { $0.event == .onTarget && $0.haptic == .onTarget && $0.sound == nil && $0.speech.isEmpty })
+        XCTAssertTrue(
+            model.cueLog.contains {
+                $0.event == .onTarget && $0.haptic == .onTarget && $0.sound == nil && $0.speech.isEmpty
+            })
         for x in [0.004, 0.0065, 0.003, 0.0085, 0.0] {
             run(ticks: 6)
             observer.server("state", armState(graspArm + SIMD3(x, 0, 0)))

@@ -7,17 +7,20 @@ final class ServerStateTests: XCTestCase {
     }
 
     func testEveryStateFieldTheAppUsesIsRead() {
-        let state = parse("""
-        {"estop": false, "gripper": "close", "ik": "gripper_contact", "ee_pos": [0.02, -0.14, 0.16],
-         "task_success": false, "episode": 3, "rec": "capturing", "rec_saved": 12, "rec_discarded": 2,
-         "rec_samples": 45, "rec_session": "s-1", "rec_mode": "phone-a",
-         "wrist_flex_deg": 40.24, "wrist_roll_deg": 90, "gripper_deg": 8.5}
-        """)
+        let state = parse(
+            """
+            {"estop": false, "gripper": "close", "ik": "gripper_contact", "ee_pos": [0.02, -0.14, 0.16],
+             "task_success": false, "episode": 3, "rec": "capturing", "rec_saved": 12, "rec_discarded": 2,
+             "rec_samples": 45, "rec_session": "s-1", "rec_mode": "phone-a",
+             "wrist_flex_deg": 40.24, "wrist_roll_deg": 90, "gripper_deg": 8.5}
+            """)
         XCTAssertEqual(state.gripper, .closed)
         XCTAssertEqual(state.activity, .gripperContact)
         XCTAssertEqual(state.endEffector, SIMD3(0.02, -0.14, 0.16))
         XCTAssertEqual(state.episode, 3)
-        XCTAssertEqual(state.recorder, RecorderStatus(label: .capturing, saved: 12, discarded: 2, samples: 45, session: "s-1", mode: "phone-a"))
+        XCTAssertEqual(
+            state.recorder,
+            RecorderStatus(label: .capturing, saved: 12, discarded: 2, samples: 45, session: "s-1", mode: "phone-a"))
         XCTAssertEqual(state.wristFlexDeg, 40.24)
         XCTAssertEqual(state.wristRollDeg, 90)
         XCTAssertEqual(state.gripperDeg, 8.5)
@@ -51,7 +54,8 @@ final class ServerStateTests: XCTestCase {
     func testAToolPointThatIsNotThreeFiniteNumbersIsNotReported() {
         for json in [
             #"{"ee_pos": [0.02, -0.14, 0.16]}"#, #"{"tool_pos": null}"#, #"{"tool_pos": [0.1, 0.2]}"#,
-            #"{"tool_pos": [0.1, 0.2, 0.3, 0.4]}"#, #"{"tool_pos": [0.1, "0.2", 0.3]}"#, #"{"tool_pos": [0.1, true, 0.3]}"#,
+            #"{"tool_pos": [0.1, 0.2, 0.3, 0.4]}"#, #"{"tool_pos": [0.1, "0.2", 0.3]}"#,
+            #"{"tool_pos": [0.1, true, 0.3]}"#,
             #"{"tool_pos": [0.1, null, 0.3]}"#, #"{"tool_pos": "0.1, 0.2, 0.3"}"#, #"{"tool_pos": {"x": 0.1}}"#,
         ] {
             XCTAssertNil(parse(json).toolPoint, json)

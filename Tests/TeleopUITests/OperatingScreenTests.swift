@@ -50,7 +50,9 @@ final class OperatingScreenTests: XCTestCase {
 
     private static let sizes = [
         Size(name: "874", arguments: [], frame: nil),
-        Size(name: "667", arguments: ["-screenFrame", "375x667x20x0"], frame: CGRect(x: 0, y: 0, width: 375, height: 667)),
+        Size(
+            name: "667", arguments: ["-screenFrame", "375x667x20x0"], frame: CGRect(x: 0, y: 0, width: 375, height: 667)
+        ),
     ]
 
     override func setUp() {
@@ -70,10 +72,13 @@ final class OperatingScreenTests: XCTestCase {
                 )
                 app.launch()
                 let state = app.element("operating.state")
-                XCTAssertTrue(state.waitForExistence(timeout: 8), "\(fixture) \(language) \(size.name)", file: file, line: line)
+                XCTAssertTrue(
+                    state.waitForExistence(timeout: 8), "\(fixture) \(language) \(size.name)", file: file, line: line)
                 XCTAssertEqual(state.label, expected, "\(fixture) \(language) \(size.name)", file: file, line: line)
                 attachScreenshot("\(fixture)-\(language)-\(size.name)")
-                checkLayout(app, frame: size.frame ?? app.windows.firstMatch.frame, what: "\(fixture) \(language) \(size.name)", file: file, line: line)
+                checkLayout(
+                    app, frame: size.frame ?? app.windows.firstMatch.frame, what: "\(fixture) \(language) \(size.name)",
+                    file: file, line: line)
                 if language == "en", size.frame == nil { english = app }
             }
         }
@@ -88,58 +93,77 @@ final class OperatingScreenTests: XCTestCase {
     }
 
     private func flatten(_ snapshot: XCUIElementSnapshot) -> [Seen] {
-        [Seen(label: snapshot.label, identifier: snapshot.identifier, frame: snapshot.frame, type: snapshot.elementType)]
+        [
+            Seen(
+                label: snapshot.label, identifier: snapshot.identifier, frame: snapshot.frame,
+                type: snapshot.elementType)
+        ]
             + snapshot.children.flatMap(flatten)
     }
 
-    private func checkLayout(_ app: XCUIApplication, frame screen: CGRect, what: String, file: StaticString, line: UInt) {
-        guard let snapshot = try? app.snapshot() else { return XCTFail("no snapshot of \(what)", file: file, line: line) }
+    private func checkLayout(_ app: XCUIApplication, frame screen: CGRect, what: String, file: StaticString, line: UInt)
+    {
+        guard let snapshot = try? app.snapshot() else {
+            return XCTFail("no snapshot of \(what)", file: file, line: line)
+        }
         let all = flatten(snapshot)
         guard let stop = all.first(where: { $0.identifier == "operating.stop" })?.frame else {
             return XCTFail("\(what): no STOP band", file: file, line: line)
         }
         let gapTop = stop.minY - 16 * screen.height / 874
         // Controls draw their own words inside them.
-        let controls = all.filter { $0.identifier.hasPrefix("buttons.") || $0.identifier == "stop.release" }.map(\.frame) + [stop]
+        let controls =
+            all.filter { $0.identifier.hasPrefix("buttons.") || $0.identifier == "stop.release" }.map(\.frame) + [stop]
         let texts = all.filter { seen in
             seen.type == .staticText && !seen.label.isEmpty && seen.identifier != "operating.stop"
                 && !controls.contains { $0.insetBy(dx: -1, dy: -1).contains(seen.frame) }
         }
         let tolerance: CGFloat = 0.5
         for text in texts {
-            XCTAssertTrue(screen.insetBy(dx: -tolerance, dy: -tolerance).contains(text.frame),
-                          "\(what): \"\(text.label)\" \(text.frame) leaves the screen \(screen)", file: file, line: line)
-            XCTAssertLessThanOrEqual(text.frame.maxY, gapTop + tolerance,
-                                     "\(what): \"\(text.label)\" \(text.frame) reaches the gap above STOP", file: file, line: line)
+            XCTAssertTrue(
+                screen.insetBy(dx: -tolerance, dy: -tolerance).contains(text.frame),
+                "\(what): \"\(text.label)\" \(text.frame) leaves the screen \(screen)", file: file, line: line)
+            XCTAssertLessThanOrEqual(
+                text.frame.maxY, gapTop + tolerance,
+                "\(what): \"\(text.label)\" \(text.frame) reaches the gap above STOP", file: file, line: line)
         }
         let panels = all.filter { $0.identifier == "guide.above" || $0.identifier == "guide.behind" }
         for panel in panels {
             // A guide squeezed to a sliver would still "exist".
-            XCTAssertGreaterThanOrEqual(min(panel.frame.width, panel.frame.height), 40,
-                                        "\(what): \(panel.identifier) \(panel.frame) is too small to read", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(
+                min(panel.frame.width, panel.frame.height), 40,
+                "\(what): \(panel.identifier) \(panel.frame) is too small to read", file: file, line: line)
         }
         for (index, a) in texts.enumerated() {
             for b in texts.dropFirst(index + 1) {
                 let overlap = a.frame.intersection(b.frame)
-                XCTAssertFalse(!overlap.isNull && overlap.width > 1 && overlap.height > 1,
-                               "\(what): \"\(a.label)\" \(a.frame) runs into \"\(b.label)\" \(b.frame)", file: file, line: line)
+                XCTAssertFalse(
+                    !overlap.isNull && overlap.width > 1 && overlap.height > 1,
+                    "\(what): \"\(a.label)\" \(a.frame) runs into \"\(b.label)\" \(b.frame)", file: file, line: line)
             }
             for panel in panels {
                 let overlap = a.frame.intersection(panel.frame)
-                XCTAssertFalse(!overlap.isNull && overlap.width > 1 && overlap.height > 1,
-                               "\(what): \"\(a.label)\" \(a.frame) covers the guide \(panel.frame)", file: file, line: line)
+                XCTAssertFalse(
+                    !overlap.isNull && overlap.width > 1 && overlap.height > 1,
+                    "\(what): \"\(a.label)\" \(a.frame) covers the guide \(panel.frame)", file: file, line: line)
             }
             for control in controls {
                 let overlap = a.frame.intersection(control)
-                XCTAssertFalse(!overlap.isNull && overlap.width > 1 && overlap.height > 1,
-                               "\(what): \"\(a.label)\" \(a.frame) runs under a control \(control)", file: file, line: line)
+                XCTAssertFalse(
+                    !overlap.isNull && overlap.width > 1 && overlap.height > 1,
+                    "\(what): \"\(a.label)\" \(a.frame) runs under a control \(control)", file: file, line: line)
             }
         }
         for control in all where control.identifier.hasPrefix("buttons.") && control.identifier != "buttons.speed" {
-            XCTAssertGreaterThanOrEqual(min(control.frame.width, control.frame.height), 60 - tolerance,
-                                        "\(what): \(control.identifier) \(control.frame) is under 60 pt", file: file, line: line)
-            XCTAssertTrue(screen.contains(control.frame), "\(what): \(control.identifier) leaves the screen", file: file, line: line)
-            XCTAssertLessThanOrEqual(control.frame.maxY, gapTop + tolerance, "\(what): \(control.identifier) reaches the gap", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(
+                min(control.frame.width, control.frame.height), 60 - tolerance,
+                "\(what): \(control.identifier) \(control.frame) is under 60 pt", file: file, line: line)
+            XCTAssertTrue(
+                screen.contains(control.frame), "\(what): \(control.identifier) leaves the screen", file: file,
+                line: line)
+            XCTAssertLessThanOrEqual(
+                control.frame.maxY, gapTop + tolerance, "\(what): \(control.identifier) reaches the gap", file: file,
+                line: line)
         }
     }
 
@@ -223,7 +247,8 @@ final class OperatingScreenTests: XCTestCase {
     func testTiltingEstimated() {
         let app = render("tilting_estimated")
         XCTAssertTrue(app.staticTexts["8° of 20° · estimated"].exists)
-        XCTAssertEqual(app.element("readout.approximate").label, "Jaw position is approximate", "no measured wrist angles")
+        XCTAssertEqual(
+            app.element("readout.approximate").label, "Jaw position is approximate", "no measured wrist angles")
     }
 
     func testOpeningOnTarget() {
@@ -355,7 +380,10 @@ final class OperatingScreenTests: XCTestCase {
 
     func testButtonsReady() {
         let app = render("buttons_ready")
-        for id in ["buttons.forward", "buttons.back", "buttons.left", "buttons.right", "buttons.up", "buttons.down", "buttons.open", "buttons.close", "buttons.speed"] {
+        for id in [
+            "buttons.forward", "buttons.back", "buttons.left", "buttons.right", "buttons.up", "buttons.down",
+            "buttons.open", "buttons.close", "buttons.speed",
+        ] {
             XCTAssertTrue(exists(app, id), id)
         }
         XCTAssertFalse(exists(app, "guide"), "the pad fills the control surface")

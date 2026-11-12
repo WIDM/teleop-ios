@@ -76,8 +76,10 @@ final class ObserverTests: XCTestCase {
 
     private func record(_ connection: String, _ outgoing: Bool, _ text: String) {
         guard let message = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else { return }
-        log.append(Entry(at: Date(), connection: connection, outgoing: outgoing, type: message["type"] as? String ?? "",
-                         payload: message["payload"] as? [String: Any] ?? [:]))
+        log.append(
+            Entry(
+                at: Date(), connection: connection, outgoing: outgoing, type: message["type"] as? String ?? "",
+                payload: message["payload"] as? [String: Any] ?? [:]))
     }
 
     private func makeModel() -> AppModel {
@@ -147,12 +149,15 @@ final class ObserverTests: XCTestCase {
         let window = start.addingTimeInterval(0.3)
         // The server sends a connection a state only after 200 ms with nothing from it. A busy test machine can
         // pause the app's 30 Hz stream that long; each such pause may earn one state, and nothing else may.
-        let sentOnControl = log.filter { $0.connection == "control" && $0.outgoing && $0.at >= start && $0.at <= end }.map(\.at)
+        let sentOnControl = log.filter { $0.connection == "control" && $0.outgoing && $0.at >= start && $0.at <= end }
+            .map(\.at)
         let pauses = zip(sentOnControl, sentOnControl.dropFirst()).filter { $1.timeIntervalSince($0) >= 0.18 }.count
-        XCTAssertLessThanOrEqual(entries("control", incoming: "state", from: window, to: end).count, pauses,
-                                 "the control connection streams, so the server sends it no state")
-        XCTAssertGreaterThanOrEqual(entries("observer", incoming: "state", from: window, to: end).count, 5,
-                                    "the listening connection gets one every 200 ms")
+        XCTAssertLessThanOrEqual(
+            entries("control", incoming: "state", from: window, to: end).count, pauses,
+            "the control connection streams, so the server sends it no state")
+        XCTAssertGreaterThanOrEqual(
+            entries("observer", incoming: "state", from: window, to: end).count, 5,
+            "the listening connection gets one every 200 ms")
         let hello = log.first { $0.connection == "observer" && $0.outgoing }
         XCTAssertEqual(hello?.type, "hello")
         XCTAssertEqual(hello?.payload["name"] as? String, "teleop-ios/2.3.4 (56) observer")
@@ -173,10 +178,18 @@ final class ObserverTests: XCTestCase {
         XCTAssertEqual(server.inspect { $0.state["ik"]?.stringValue }, "pose_tracking", "the server's hold goes on")
         XCTAssertLessThan(server.inspect { $0.world.arm.y } - armAtDrop.y, -0.01, "and the arm still follows")
         model.send(.holdArmEnd)
-        XCTAssertTrue(wait(2, until: { !log.filter { $0.connection == "control" && $0.payload["reason"] as? String == "pose_stopped" }.isEmpty }))
+        XCTAssertTrue(
+            wait(
+                2,
+                until: {
+                    !log.filter { $0.connection == "control" && $0.payload["reason"] as? String == "pose_stopped" }
+                        .isEmpty
+                }))
         XCTAssertFalse(log.contains { $0.payload["reason"] as? String == "pose_watchdog_timeout" })
         XCTAssertTrue(model.session.state.connected)
-        XCTAssertTrue(wait(4, until: { observers.count == 2 && model.link.observerUp }), "the listening connection did not come back")
+        XCTAssertTrue(
+            wait(4, until: { observers.count == 2 && model.link.observerUp }),
+            "the listening connection did not come back")
     }
 
     func testStopReachesTheServerOnBothConnections() throws {
@@ -184,10 +197,18 @@ final class ObserverTests: XCTestCase {
         model.send(.stop)
         XCTAssertEqual(model.session.route, .s4)
         for connection in ["control", "observer"] {
-            XCTAssertTrue(log.contains { $0.connection == connection && $0.outgoing && $0.type == "estop" }, "no estop on \(connection)")
-            XCTAssertTrue(wait(2, until: {
-                log.contains { $0.connection == connection && !$0.outgoing && $0.payload["reason"] as? String == "estop_engaged" }
-            }), "the server did not take the estop on \(connection)")
+            XCTAssertTrue(
+                log.contains { $0.connection == connection && $0.outgoing && $0.type == "estop" },
+                "no estop on \(connection)")
+            XCTAssertTrue(
+                wait(
+                    2,
+                    until: {
+                        log.contains {
+                            $0.connection == connection && !$0.outgoing
+                                && $0.payload["reason"] as? String == "estop_engaged"
+                        }
+                    }), "the server did not take the estop on \(connection)")
         }
         XCTAssertEqual(server.inspect { $0.state["estop"] }, true)
     }
@@ -200,15 +221,32 @@ final class ObserverTests: XCTestCase {
         move(forward: 0.02, over: 0.8)
         model.send(.holdArmEnd)
         model.send(.resetScene)
-        XCTAssertTrue(wait(5, until: { log.contains { $0.connection == "control" && $0.payload["reason"] as? String == "scene_reset" } }),
-                      "the scene was not reset")
+        XCTAssertTrue(
+            wait(
+                5,
+                until: {
+                    log.contains { $0.connection == "control" && $0.payload["reason"] as? String == "scene_reset" }
+                }),
+            "the scene was not reset")
         let control = log.filter { $0.connection == "control" }
-        let finalAck = try XCTUnwrap(control.firstIndex { !$0.outgoing && $0.payload["reason"] as? String == "pose_stopped" })
+        let finalAck = try XCTUnwrap(
+            control.firstIndex { !$0.outgoing && $0.payload["reason"] as? String == "pose_stopped" })
         let reset = try XCTUnwrap(control.firstIndex { $0.outgoing && $0.type == "reset_scene" })
         XCTAssertGreaterThan(reset, finalAck, "reset_scene went out before the hold's final ack")
         XCTAssertFalse(control.contains { $0.payload["reason"] as? String == "busy" })
         XCTAssertEqual(control.filter { $0.outgoing && $0.type == "reset_scene" }.count, 1)
         XCTAssertTrue(wait(2, until: { server.inspect { $0.episode } == episode + 1 }))
+    }
+
+    /// The app's main thread stalls for 1.5 s, as a long frame or an accessibility snapshot can make it, while the
+    /// server goes on sending: the link is not lost, and neither connection is closed.
+    func testAStallOfTheAppIsNotALostLink() throws {
+        let model = try connected()
+        Thread.sleep(forTimeInterval: 1.5)
+        pump(0.6)
+        XCTAssertTrue(model.session.state.connected, "the link was dropped as quiet after the app stalled")
+        XCTAssertTrue(model.link.observerUp)
+        XCTAssertEqual(server.inspect { $0.welcomedClients }, 2)
     }
 
     func testAResetPressedWhileTheArmIsHeldIsRefused() throws {

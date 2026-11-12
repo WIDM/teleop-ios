@@ -98,7 +98,9 @@ final class InputArbiterPropertyTests: XCTestCase {
                     totals.gripperTouchStarts += 1
                 }
             }
-            let engagedCount = held.values.filter { if case .engaged = $0 { return true } else { return $0 == .countingDown } }.count
+            let engagedCount = held.values.filter {
+                if case .engaged = $0 { return true } else { return $0 == .countingDown }
+            }.count
             if engagedCount > 1 { return "\(engagedCount) inputs engaged at \(step.time)" }
             for input in everDead where held[input] != nil && held[input] != .dead {
                 return "dead \(input) is \(held[input]!) at \(step.time)"
@@ -231,7 +233,9 @@ struct Scenario {
         for tick in stride(from: 0.0, through: span + 0.6, by: 1.0 / 30) { add(tick, .tick) }
         if rng.chance(0.08) { add(rng.uniform(0, span), .endAllHolds) }
         if rng.chance(0.04) { add(rng.uniform(0, span), .becameActive) }
-        if rng.chance(0.03) { add(rng.uniform(0, span), .modeChanged(scheme == .screenTurns ? .keyTurns : .screenTurns, hand)) }
+        if rng.chance(0.03) {
+            add(rng.uniform(0, span), .modeChanged(scheme == .screenTurns ? .keyTurns : .screenTurns, hand))
+        }
         if rng.chance(0.05) { add(rng.uniform(0, span), .wristStartSent) }
         if rng.chance(0.03) { add(rng.uniform(0, span), .sceneReset) }
 
@@ -264,7 +268,9 @@ struct Scenario {
             translationRefusal: rng.chance(0.04) ? .posture : nil,
             resetRefusal: rng.chance(0.1) ? .wait : nil,
             gripping: rng.chance(0.3),
-            wrist: rng.chance(0.5) ? WristReadings(rollDeg: rng.uniform(-170, 170), flexDeg: rng.uniform(-40, 40), flexAtResetDeg: 0) : .unknown,
+            wrist: rng.chance(0.5)
+                ? WristReadings(rollDeg: rng.uniform(-170, 170), flexDeg: rng.uniform(-40, 40), flexAtResetDeg: 0)
+                : .unknown,
             connectionUp: rng.chance(0.9)
         )
     }

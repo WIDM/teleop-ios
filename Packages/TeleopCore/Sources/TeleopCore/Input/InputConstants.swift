@@ -64,7 +64,8 @@ public struct InputConstants: Equatable, Sendable {
         openSlideMm: Double = 10, sideDeadPt: Double = 24,
         gripDwellMs: Double = 150, openWhileGrippingMs: Double = 500,
         bottomBandPt: Double = 72, gapPt: Double = 16, topBandExtraPt: Double = 64, gearPt: Double = 56,
-        gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874, referencePointsPerMm: Double = 6.4,
+        gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874,
+        referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
         resetHoldS: Double = 2.0
     ) {

@@ -26,12 +26,14 @@ struct PermissionsScreen: View {
                     guard !Task.isCancelled else { return }
                     model.send(.permissionsContinue)
                 }
-            } label: { Text("common.continue") }
-                .buttonStyle(FilledButtonStyle())
-                .disabled(requesting)
-                .accessibilityIdentifier("permissions.continue")
-                .padding(.top, 8)
-                .padding(.bottom, 12)
+            } label: {
+                Text("common.continue")
+            }
+            .buttonStyle(FilledButtonStyle())
+            .disabled(requesting)
+            .accessibilityIdentifier("permissions.continue")
+            .padding(.top, 8)
+            .padding(.bottom, 12)
         }
         .padding(.horizontal, TeleopMetrics.margin)
         .safeAreaInset(edge: .bottom, spacing: 0) { StopBand { model.send(.stop) } }

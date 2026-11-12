@@ -247,20 +247,23 @@ final class TeleopLinkTests: XCTestCase {
         bringUp()
         link.poseStart(params)
         var seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .holdRefused(reason: TeleopLink.successReason))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .holdRefused(reason: TeleopLink.successReason))
         XCTAssertFalse(link.holdActive)
         link.poseUpdate(positionMeters: [0, 0, 0.01])
         XCTAssertEqual(types.last, "pose_start", "nothing more is streamed for it")
         link.gripperJogStart(.open)
         seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .gripperRefused(reason: "task_success"))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .gripperRefused(reason: "task_success"))
         XCTAssertFalse(link.gripperJogActive)
         link.orientStart()
         seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .turnRefused(reason: "task_success"))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .turnRefused(reason: "task_success"))
         XCTAssertFalse(link.turnActive)
     }
 
@@ -327,7 +330,9 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
         finish(first)
         XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
-        let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map { $0["payload"] as! [String: String] }
+        let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map {
+            $0["payload"] as! [String: String]
+        }
         XCTAssertEqual(starts.map { $0["action"] }, ["close", "open"])
         XCTAssertEqual(Set(starts[0].keys), ["action", "step"])
     }
@@ -801,9 +806,15 @@ final class TeleopLinkTests: XCTestCase {
         _ = server("welcome", ["session": "run-1"])
         XCTAssertEqual(link.serverSession, "run-1")
         clock = 4321
-        _ = server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3, "gripper_deg": 8.5,
-                             "ee_pos": [0.25, -0.5, 0.75], "tool_pos": [0.125, -0.5, 0.25]])
-        XCTAssertEqual(link.lastState?.toolPoint, SIMD3(0.125, -0.5, 0.25), "the listening connection reads the tool point too")
+        _ = server(
+            "state",
+            [
+                "estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3,
+                "gripper_deg": 8.5,
+                "ee_pos": [0.25, -0.5, 0.75], "tool_pos": [0.125, -0.5, 0.25],
+            ])
+        XCTAssertEqual(
+            link.lastState?.toolPoint, SIMD3(0.125, -0.5, 0.25), "the listening connection reads the tool point too")
         XCTAssertEqual(link.lastState?.activity, .gripperContact)
         XCTAssertEqual(link.lastState?.recorder?.saved, 3)
         XCTAssertEqual(link.lastState?.gripperDeg, 8.5)
@@ -878,6 +889,46 @@ final class TeleopLinkTests: XCTestCase {
         link.dropProbes()
         clock += 9000
         XCTAssertNil(server("test", seq: seq))
+    }
+
+    /// A stall of the app is taken out of the silence, never past now, and the probe it held up is forgotten.
+    func testAStallOfTheAppIsNotSilence() {
+        bringUp()
+        link.probe()
+        let seq = sent.last!["seq"] as! Int
+        clock += 1500
+        link.stalled(forMs: 1200)
+        XCTAssertEqual(link.quietMs, 300)
+        XCTAssertNil(server("test", seq: seq), "the echo waited through the stall")
+        clock += 100
+        link.stalled(forMs: 5000)
+        XCTAssertEqual(link.quietMs, 0, "never later than now")
+    }
+
+    /// A stall whose messages were read before its tick, then two whose messages still wait behind theirs: all are
+    /// taken out of the silence.
+    func testStallsInARowAreAllTakenOut() {
+        bringUp()
+        clock += 1500
+        _ = server("state", ["estop": false])
+        link.stalled(forMs: 1467)
+        XCTAssertEqual(link.quietMs, 0)
+        clock += 1500
+        link.stalled(forMs: 1467)
+        XCTAssertEqual(link.quietMs, 33, "the second stall is taken out too")
+        clock += 1500
+        link.stalled(forMs: 1467)
+        XCTAssertEqual(link.quietMs, 66, "and the third")
+    }
+
+    /// A stall that begins just after a message was read is taken out of the silence, up to now.
+    func testAStallThatBeganAfterAMessageIsTakenOut() {
+        bringUp()
+        clock += 50
+        _ = server("state", ["estop": false])
+        clock += 1500
+        link.stalled(forMs: 1517)
+        XCTAssertEqual(link.quietMs, 0)
     }
 
     func testSilentServerGoesStale() {

@@ -41,8 +41,10 @@ final class CueTableTests: XCTestCase {
             return "\(row.haptic?.rawValue ?? "-")/\(row.sound?.rawValue ?? "-")"
         }
         XCTAssertEqual(Set(pairs).count, core.count, "\(pairs)")
-        let sharing: [CueKey: CueKey] = [.taskSuccess: .takeSaved, .successNotSaved: .takeDiscarded,
-                                         .offlineSaved: .takeSaved, .offlineDiscarded: .takeDiscarded]
+        let sharing: [CueKey: CueKey] = [
+            .taskSuccess: .takeSaved, .successNotSaved: .takeDiscarded,
+            .offlineSaved: .takeSaved, .offlineDiscarded: .takeDiscarded,
+        ]
         for (key, same) in sharing {
             XCTAssertEqual(CueTable.row(for: key).sound, CueTable.row(for: same).sound, "\(key)")
         }
@@ -61,15 +63,18 @@ final class CueTableTests: XCTestCase {
     }
 
     func testAnEmergencyStopSaysTheTakeWasDiscardedOnlyWhenItWas() {
-        XCTAssertEqual(CueTable.phrases(for: .emergencyStop(.link, takeDiscarded: true)).map(\.key),
-                       [.estop, .causeLink, .takeDiscarded, .resetPrompt])
-        XCTAssertEqual(CueTable.phrases(for: .emergencyStop(.button, takeDiscarded: false)).map(\.key),
-                       [.estop, .causeButton, .resetPrompt])
+        XCTAssertEqual(
+            CueTable.phrases(for: .emergencyStop(.link, takeDiscarded: true)).map(\.key),
+            [.estop, .causeLink, .takeDiscarded, .resetPrompt])
+        XCTAssertEqual(
+            CueTable.phrases(for: .emergencyStop(.button, takeDiscarded: false)).map(\.key),
+            [.estop, .causeButton, .resetPrompt])
     }
 
     func testNumbersGoToThePhrasesThatTakeThem() {
-        XCTAssertEqual(CueTable.phrases(for: .recordingSession(saved: 12)),
-                       [Phrase(.recordingSession), Phrase(.savedCount, number: 12)])
+        XCTAssertEqual(
+            CueTable.phrases(for: .recordingSession(saved: 12)),
+            [Phrase(.recordingSession), Phrase(.savedCount, number: 12)])
         XCTAssertEqual(CueTable.phrases(for: .takeSaved(count: 13)), [Phrase(.savedN, number: 13)])
     }
 
@@ -97,7 +102,8 @@ final class CueTableTests: XCTestCase {
             XCTAssertEqual(specifiers(english), key.takesNumber ? 1 : 0, key.rawValue)
             XCTAssertEqual(specifiers(chinese), specifiers(english), key.rawValue)
             XCTAssertFalse(chinese.contains("STOP") || chinese.contains("Reset"), key.rawValue)
-            XCTAssertFalse(chinese.contains { ",.:;!?".contains($0) }, "\(key.rawValue): half-width punctuation in \(chinese)")
+            XCTAssertFalse(
+                chinese.contains { ",.:;!?".contains($0) }, "\(key.rawValue): half-width punctuation in \(chinese)")
             XCTAssertLessThanOrEqual(english.split(separator: " ").count, 9, key.rawValue)
         }
     }

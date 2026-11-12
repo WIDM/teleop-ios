@@ -46,11 +46,13 @@ final class SurfaceLayoutTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(layout.gear.width, 44, "height \(height)")
                 XCTAssertGreaterThanOrEqual(layout.gear.height, 44, "height \(height)")
                 XCTAssertGreaterThanOrEqual(layout.gear.y, safeTop, "height \(height): under the status bar")
-                XCTAssertLessThanOrEqual(layout.gear.maxY, layout.topBand.maxY + 1e-9, "height \(height): outside the band")
+                XCTAssertLessThanOrEqual(
+                    layout.gear.maxY, layout.topBand.maxY + 1e-9, "height \(height): outside the band")
                 XCTAssertEqual(layout.zone(x: layout.gear.x + 22, y: layout.gear.y + 22), .gear)
             }
         }
-        XCTAssertEqual(SurfaceLayout(width: 375, height: 667, safeTop: 20, safeBottom: 0).gear.width, 44, accuracy: 1e-9)
+        XCTAssertEqual(
+            SurfaceLayout(width: 375, height: 667, safeTop: 20, safeBottom: 0).gear.width, 44, accuracy: 1e-9)
         XCTAssertEqual(layout.gear.width, 56, "the reference device keeps the specified size")
     }
 
@@ -70,6 +72,7 @@ final class SurfaceLayoutTests: XCTestCase {
 
     func testTenMillimetresIsSixtyFourPointsOnTheReferenceDevice() {
         XCTAssertEqual(layout.millimetres(64), 10, accuracy: 1e-12)
-        XCTAssertEqual(SurfaceLayout(width: 402, height: 874, safeTop: 0, safeBottom: 0, pointsPerMm: 6).millimetres(60), 10)
+        XCTAssertEqual(
+            SurfaceLayout(width: 402, height: 874, safeTop: 0, safeBottom: 0, pointsPerMm: 6).millimetres(60), 10)
     }
 }

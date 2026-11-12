@@ -8,7 +8,9 @@ enum Validation {
         "pose_update", "pose_stop", "joint_delta", "gripper", "mode", "estop", "estop_reset", "reset_scene",
     ]
     private static let steps: Set<String> = ["coarse", "fine"]
-    private static let armJoints: Set<String> = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+    private static let armJoints: Set<String> = [
+        "shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll",
+    ]
 
     /// The envelope `{v, type, ts, seq, payload}`: the seq to answer with, the code and the message.
     static func envelope(_ message: JSONValue) -> (Int, String, String)? {
@@ -22,11 +24,15 @@ enum Validation {
             return (safeSeq, "unsupported_version", "supported versions are v=0 and v=1")
         }
         guard let type = message["type"]?.stringValue else { return (safeSeq, "invalid_type", "type must be a string") }
-        guard message["ts"]?.intValue != nil else { return (safeSeq, "invalid_ts", "ts must be an integer in milliseconds") }
+        guard message["ts"]?.intValue != nil else {
+            return (safeSeq, "invalid_ts", "ts must be an integer in milliseconds")
+        }
         guard let seq = message["seq"]?.intValue, seq >= 0 else {
             return (-1, "invalid_seq", "seq must be a non-negative integer")
         }
-        guard message["payload"]?.keys != nil else { return (safeSeq, "invalid_payload", "payload must be a JSON object") }
+        guard message["payload"]?.keys != nil else {
+            return (safeSeq, "invalid_payload", "payload must be a JSON object")
+        }
         guard supportedTypes.contains(type) else { return (safeSeq, "unknown_type", "unsupported type=\(type)") }
         return nil
     }
@@ -76,7 +82,9 @@ enum Validation {
     }
 
     private static func orientStart(_ payload: JSONValue) -> String? {
-        guard payload.keys == ["frame", "rate_hz", "gain", "deadband_deg", "smoothing"] else { return "invalid_orient_start" }
+        guard payload.keys == ["frame", "rate_hz", "gain", "deadband_deg", "smoothing"] else {
+            return "invalid_orient_start"
+        }
         guard payload["frame"]?.stringValue == "phone_body" else { return "invalid_orient_frame" }
         guard payload["rate_hz"]?.intValue == 30 else { return "invalid_orient_rate" }
         guard parametersInRange(payload) else { return "invalid_orient_parameter" }
@@ -99,7 +107,9 @@ enum Validation {
 
     /// gain, deadband_deg and smoothing: checked, and then ignored by the server.
     private static func parametersInRange(_ payload: JSONValue) -> Bool {
-        let limits: [(String, ClosedRange<Double>)] = [("gain", 0.1...2.0), ("deadband_deg", 0...15), ("smoothing", 0...0.95)]
+        let limits: [(String, ClosedRange<Double>)] = [
+            ("gain", 0.1...2.0), ("deadband_deg", 0...15), ("smoothing", 0...0.95),
+        ]
         return limits.allSatisfy { field, range in
             guard let value = payload[field]?.numberValue, value.isFinite else { return false }
             return range.contains(value)
@@ -107,7 +117,9 @@ enum Validation {
     }
 
     static func mode(_ payload: JSONValue) -> String? {
-        guard payload.keys == ["step"], steps.contains(payload["step"]?.stringValue ?? "") else { return "invalid_mode" }
+        guard payload.keys == ["step"], steps.contains(payload["step"]?.stringValue ?? "") else {
+            return "invalid_mode"
+        }
         return nil
     }
 
@@ -121,7 +133,9 @@ enum Validation {
             return ("invalid_orient_quaternion", "q_rel must be four finite numbers")
         }
         let norm = q.map { $0 * $0 }.reduce(0, +).squareRoot()
-        guard (0.98...1.02).contains(norm) else { return ("invalid_orient_quaternion", "q_rel must be a unit quaternion") }
+        guard (0.98...1.02).contains(norm) else {
+            return ("invalid_orient_quaternion", "q_rel must be a unit quaternion")
+        }
         return nil
     }
 

@@ -16,7 +16,8 @@ struct OperatingScreen: View {
         // The outer reader keeps to the safe area, so it knows the insets; the inner one covers the whole screen.
         GeometryReader { safe in
             GeometryReader { proxy in
-                let insets = insetsOverride ?? SurfaceInsets(top: safe.safeAreaInsets.top, bottom: safe.safeAreaInsets.bottom)
+                let insets =
+                    insetsOverride ?? SurfaceInsets(top: safe.safeAreaInsets.top, bottom: safe.safeAreaInsets.bottom)
                 let surface = SurfaceSize(width: proxy.size.width, height: proxy.size.height, insets: insets)
                 OperatingSurface(model: model, display: model.operating, surface: surface)
                     .onAppear { report(surface) }
@@ -139,7 +140,9 @@ struct PracticeStripes: View {
             var x = -size.height
             while x < size.width {
                 context.stroke(
-                    Path { $0.move(to: CGPoint(x: x, y: size.height)); $0.addLine(to: CGPoint(x: x + size.height, y: 0)) },
+                    Path {
+                        $0.move(to: CGPoint(x: x, y: size.height)); $0.addLine(to: CGPoint(x: x + size.height, y: 0))
+                    },
                     with: .color(TeleopColors.practice.opacity(0.45)), lineWidth: 12
                 )
                 x += step
@@ -202,10 +205,11 @@ private struct OperatingDrawing: View {
             // The label sits in the band's part above the home indicator.
             let constants = InputConstants.appendixA
             BottomBandLabel(scale: scale)
-                .place(SurfaceLayout.Rect(
-                    x: 0, y: layout.bottomBand.y, width: layout.width,
-                    height: constants.bottomBandPt * layout.height / constants.referenceHeightPt
-                ))
+                .place(
+                    SurfaceLayout.Rect(
+                        x: 0, y: layout.bottomBand.y, width: layout.width,
+                        height: constants.bottomBandPt * layout.height / constants.referenceHeightPt
+                    ))
         }
     }
 
@@ -269,7 +273,9 @@ private struct TopBand: View {
             .frame(maxHeight: .infinity, alignment: .center)
             .place(row)
             if let countdown = display.resetCountdown {
-                let bar = SurfaceLayout.Rect(x: 0, y: layout.topBand.maxY - 6 * scale, width: layout.width * min(max(countdown, 0), 1), height: 6 * scale)
+                let bar = SurfaceLayout.Rect(
+                    x: 0, y: layout.topBand.maxY - 6 * scale, width: layout.width * min(max(countdown, 0), 1),
+                    height: 6 * scale)
                 TeleopColors.statusAmber
                     .place(bar)
                     .accessibilityElement()
@@ -295,7 +301,8 @@ private struct RecLineView: View {
                         .frame(width: 9, height: 9)
                 }
                 (Text(verbatim: line.text)
-                    + Text(verbatim: line.elapsed.map { " " + $0 } ?? "").font(.system(size: size * 0.8, weight: .regular).monospacedDigit())
+                    + Text(verbatim: line.elapsed.map { " " + $0 } ?? "").font(
+                        .system(size: size * 0.8, weight: .regular).monospacedDigit())
                     + Text(verbatim: line.tail.map { " " + $0 } ?? ""))
                     .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(line.warning ? TeleopColors.statusAmber : .white)
@@ -383,7 +390,9 @@ private struct PhoneSurface: View {
                 SchemeBHints(display: display, layout: layout, scale: scale, ink: Self.hintInk(look))
             }
             VStack(spacing: 8 * scale) {
-                StateWords(look: look, practice: display.practice, wordSize: Self.wordSize(scale), detailSize: max(15, 20 * scale))
+                StateWords(
+                    look: look, practice: display.practice, wordSize: Self.wordSize(scale),
+                    detailSize: max(15, 20 * scale))
                 if display.taskAid, let arm = display.arm {
                     GuideView(picture: GuidePicture(reading: arm, profile: profile), scale: scale)
                 } else {
@@ -424,9 +433,13 @@ private struct SchemeBHints: View {
                 .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
             HStack {
-                hint(nearIsRight ? "hint.open" : "hint.close", id: nearIsRight ? "operating.hint_open" : "operating.hint_close")
+                hint(
+                    nearIsRight ? "hint.open" : "hint.close",
+                    id: nearIsRight ? "operating.hint_open" : "operating.hint_close")
                 Spacer()
-                hint(nearIsRight ? "hint.close" : "hint.open", id: nearIsRight ? "operating.hint_close" : "operating.hint_open")
+                hint(
+                    nearIsRight ? "hint.close" : "hint.open",
+                    id: nearIsRight ? "operating.hint_close" : "operating.hint_open")
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 10 * scale)
@@ -450,7 +463,8 @@ private struct ButtonsStrip: View {
 
     var body: some View {
         VStack(spacing: 6 * scale) {
-            StateWords(look: look, practice: display.practice, wordSize: max(24, 34 * scale), detailSize: max(13, 16 * scale))
+            StateWords(
+                look: look, practice: display.practice, wordSize: max(24, 34 * scale), detailSize: max(13, 16 * scale))
             Spacer(minLength: 0)
             if OperatingWords.offersRelease(display) {
                 Color.clear.frame(height: ReleaseButton.height(scale))
@@ -493,11 +507,16 @@ private struct OperatingControls: View {
             if case .notConnected = display.state, let words {
                 // With no link every other touch is refused, so the word is the one thing worth tapping.
                 let height = max(60, words.height + 16)
-                Button { model.send(.changeServer) } label: { Color.clear.contentShape(Rectangle()) }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("detail.tap_to_connect"))
-                    .accessibilityIdentifier("operating.connect")
-                    .place(SurfaceLayout.Rect(x: cs.x + 16, y: words.midY - height / 2, width: cs.width - 32, height: height))
+                Button {
+                    model.send(.changeServer)
+                } label: {
+                    Color.clear.contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("detail.tap_to_connect"))
+                .accessibilityIdentifier("operating.connect")
+                .place(
+                    SurfaceLayout.Rect(x: cs.x + 16, y: words.midY - height / 2, width: cs.width - 32, height: height))
             }
             if display.mode == .buttons {
                 let strip = OperatingDrawing.strip(display, layout: layout, scale: scale)
@@ -511,17 +530,19 @@ private struct OperatingControls: View {
                 .place(SurfaceLayout.Rect(x: cs.x, y: strip.maxY, width: cs.width, height: cs.maxY - strip.maxY))
                 if OperatingWords.offersRelease(display) {
                     ReleaseButton(scale: scale) { model.send(.releaseStop) }
-                        .place(SurfaceLayout.Rect(
-                            x: cs.x + 16, y: strip.maxY - 8 * scale - ReleaseButton.height(scale),
-                            width: cs.width - 32, height: ReleaseButton.height(scale)
-                        ))
+                        .place(
+                            SurfaceLayout.Rect(
+                                x: cs.x + 16, y: strip.maxY - 8 * scale - ReleaseButton.height(scale),
+                                width: cs.width - 32, height: ReleaseButton.height(scale)
+                            ))
                 }
             } else if OperatingWords.offersRelease(display) {
                 ReleaseButton(scale: scale) { model.send(.releaseStop) }
-                    .place(SurfaceLayout.Rect(
-                        x: cs.x + 16, y: cs.maxY - 10 * scale - ReleaseButton.height(scale),
-                        width: cs.width - 32, height: ReleaseButton.height(scale)
-                    ))
+                    .place(
+                        SurfaceLayout.Rect(
+                            x: cs.x + 16, y: cs.maxY - 10 * scale - ReleaseButton.height(scale),
+                            width: cs.width - 32, height: ReleaseButton.height(scale)
+                        ))
             }
         }
     }

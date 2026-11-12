@@ -8,7 +8,9 @@ final class FeedbackMonitorTests: XCTestCase {
         monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
     }
 
-    private func state(_ activity: ServerActivity? = nil, arm: SIMD3<Double>? = nil, jaw: Double? = nil, episode: Int? = nil) -> ServerState {
+    private func state(
+        _ activity: ServerActivity? = nil, arm: SIMD3<Double>? = nil, jaw: Double? = nil, episode: Int? = nil
+    ) -> ServerState {
         ServerState(activity: activity, endEffector: arm, episode: episode, gripperDeg: jaw)
     }
 
@@ -31,7 +33,10 @@ final class FeedbackMonitorTests: XCTestCase {
     }
 
     func testARefusalWithinTheAcceptanceTimeIsANoWithItsReason() {
-        let cases: [String: Refusal] = ["busy": .busy, "sim_not_ready": .notReady, "estop_active": .emergencyStop, "invalid_rate_hz": .serverRefused]
+        let cases: [String: Refusal] = [
+            "busy": .busy, "sim_not_ready": .notReady, "estop_active": .emergencyStop,
+            "invalid_rate_hz": .serverRefused,
+        ]
         for (reason, refusal) in cases {
             monitor.startSent(.wrist, restart: false, at: 0)
             XCTAssertEqual(monitor.startRefused(reason: reason, at: 20), [.refused(refusal)], reason)
@@ -73,7 +78,8 @@ final class FeedbackMonitorTests: XCTestCase {
         monitor.commanded(arm + SIMD3(0, 0, 0.03))
         var events: [FeedbackEvent] = []
         for t in stride(from: 400, through: 2400, by: 200) {
-            events += monitor.observe(ServerState(activity: .taskSuccess, endEffector: arm, taskSuccess: true, episode: 1), at: t)
+            events += monitor.observe(
+                ServerState(activity: .taskSuccess, endEffector: arm, taskSuccess: true, episode: 1), at: t)
         }
         XCTAssertEqual(events, [])
     }
@@ -223,7 +229,9 @@ final class FeedbackMonitorTests: XCTestCase {
     }
 
     /// Arm at `arm` from 0 to 1.5 s, states every 100 ms, commanded point `short` metres ahead of it.
-    private func blockedEvents(short: Double, crawlMetresPerSecond: Double = 0, stillFromMs: Int = 0, until end: Int = 1500) -> [Int] {
+    private func blockedEvents(
+        short: Double, crawlMetresPerSecond: Double = 0, stillFromMs: Int = 0, until end: Int = 1500
+    ) -> [Int] {
         monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
         let start = SIMD3(0.02, -0.14, 0.133)
         monitor.startSent(.pose, restart: false, at: 0)

@@ -85,7 +85,8 @@ public struct InputArbiter: Sendable {
         var windowEnded = false
     }
 
-    public init(scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants = .appendixA) {
+    public init(scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants = .appendixA)
+    {
         self.scheme = scheme
         self.hand = hand
         self.layout = layout
@@ -214,9 +215,10 @@ public struct InputArbiter: Sendable {
             tiltAtReset = lastWristTarget.axis == .tilt ? lastWristTarget.degrees : 0
             // Without measured flex, the engaged tilt hold's window now counts from where the hold stood at the reset.
             if lastWristTarget.axis == .tilt, facts.wrist.flexDeg == nil || facts.wrist.flexAtResetDeg == nil {
-                wrist?.setRange(RotationMapper.limits(
-                    for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -tiltAtReset, constants: constants
-                ))
+                wrist?.setRange(
+                    RotationMapper.limits(
+                        for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -tiltAtReset, constants: constants
+                    ))
             }
         case .wristStartSent:
             guard case .hold(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
@@ -244,7 +246,8 @@ public struct InputArbiter: Sendable {
         keyBeganAt[key] = now
         // One key at a time (I-2.4), then first press wins (I-2.1).
         let chord = previousBegan.map { now - $0 <= constants.keyChordMs / 1000 + Self.slack } ?? false
-        let replay = constants.keyReplayGuard
+        let replay =
+            constants.keyReplayGuard
             && (keyEndedAt[other].map { now - $0 <= constants.keyReplayMs / 1000 + Self.slack } ?? false)
         if keys[other] != nil || chord || replay || engaged != nil {
             keys[key] = .dead
@@ -338,10 +341,11 @@ public struct InputArbiter: Sendable {
                 }
             }
             let point = SIMD2(s.x, s.y)
-            touches[s.id] = .surface(SurfaceTouch(
-                downAt: now, down: point, at: point, side: side,
-                mapper: RotationMapper(anchor: attitude, startsAtCommit: true, constants: constants), phase: phase
-            ))
+            touches[s.id] = .surface(
+                SurfaceTouch(
+                    downAt: now, down: point, at: point, side: side,
+                    mapper: RotationMapper(anchor: attitude, startsAtCommit: true, constants: constants), phase: phase
+                ))
         }
     }
 
@@ -353,7 +357,9 @@ public struct InputArbiter: Sendable {
             return
         case .band(let band):
             // A band whose window timer already fired at this instant is past its window.
-            if palm, band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) { touches[s.id] = .ignored }
+            if palm, band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) {
+                touches[s.id] = .ignored
+            }
         case .surface(var touch):
             if palm, !touch.windowEnded {
                 touches[s.id] = .ignored
@@ -611,7 +617,8 @@ public struct InputArbiter: Sendable {
                             touches[other] = .surface(touch)
                         }
                         // So is another top band touch still in its palm window, which owes "Let go first." (I-3).
-                        if other != id, case .band(var otherBand) = role, !otherBand.onGear, otherBand.phase == .pending {
+                        if other != id, case .band(var otherBand) = role, !otherBand.onGear, otherBand.phase == .pending
+                        {
                             otherBand.phase = .dead(owes: .letGoFirst)
                             touches[other] = .band(otherBand)
                         }

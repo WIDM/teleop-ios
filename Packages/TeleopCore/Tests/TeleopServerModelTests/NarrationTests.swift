@@ -212,7 +212,9 @@ final class NarrationTests: XCTestCase {
 
 /// Servers without a recorder, and servers that do not say.
 final class NarrationWithoutRecorderTests: XCTestCase {
-    private func run(_ config: ServerModelConfig, dropRecKey: Bool) -> (heard: [FeedbackEvent], display: RecorderDisplay) {
+    private func run(_ config: ServerModelConfig, dropRecKey: Bool) -> (
+        heard: [FeedbackEvent], display: RecorderDisplay
+    ) {
         let bench = Bench(config)
         let phone = bench.client()
         let observer = bench.client()
@@ -248,10 +250,12 @@ final class NarrationWithoutRecorderTests: XCTestCase {
     func testTheStopStateOffersOnlyAResetWhenThereIsARecorder() {
         XCTAssertEqual(StopExits.offered(recorder: RecorderStatus(label: .armed)).exits, [.resetScene])
         XCTAssertEqual(StopExits.offered(recorder: RecorderStatus(label: .off)).exits, [.resetScene])
-        XCTAssertEqual(StopExits.offered(recorder: RecorderStatus(label: .none)),
-                       StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false))
-        XCTAssertEqual(StopExits.offered(recorder: nil),
-                       StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true))
+        XCTAssertEqual(
+            StopExits.offered(recorder: RecorderStatus(label: .none)),
+            StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false))
+        XCTAssertEqual(
+            StopExits.offered(recorder: nil),
+            StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true))
         XCTAssertEqual(StopExits.offered(recorder: nil, practice: true).recordingMayStayOff, false)
     }
 }

@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.10.0"
-    CURRENT_PROJECT_VERSION: "12"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "13"
 packages:
   TeleopCore:
     path: Packages/TeleopCore
@@ -36,6 +36,8 @@ targets:
         # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # Only the system's own encryption (URLSession for wss://), which is exempt: no export question on upload.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app

@@ -48,27 +48,31 @@ final class ServerMotionTests: XCTestCase {
         XCTAssertTrue(model.session.state.armMoving, "\(name): hold ended by itself. log: \(model.debugLog.suffix(6))")
         hand.release(.upper)
         hand.pump(1.0)
-        XCTAssertFalse(model.session.state.emergencyStop, "\(name): E-stopped, cause \(String(describing: model.stopCause))")
+        XCTAssertFalse(
+            model.session.state.emergencyStop, "\(name): E-stopped, cause \(String(describing: model.stopCause))")
         XCTAssertTrue(model.session.state.connected, "\(name): link lost")
         guard let before, let after = model.link.armPosition else {
             print("MOTION \(name): no arm position from the server")
             return
         }
         guard simd_length(asked) > 0.005 else {
-            print(String(format: "MOTION %@: hand back at the start, arm ended %.1f cm from where it began, %.1f s",
-                         name, simd_distance(after, before) * 100, Date().timeIntervalSince(started)))
+            print(
+                String(
+                    format: "MOTION %@: hand back at the start, arm ended %.1f cm from where it began, %.1f s",
+                    name, simd_distance(after, before) * 100, Date().timeIntervalSince(started)))
             return
         }
         // Identity camera: right is +x, forward is −z, up is +y. The server wants right → −X, forward → −Y, up → +Z.
         let wantedBase = SIMD3(-asked.x, asked.z, asked.y)
         let moved = after - before
         let reached = simd_dot(moved, simd_normalize(wantedBase)) / simd_length(wantedBase)
-        print(String(
-            format: "MOTION %@: asked %.1f cm, arm moved %.1f cm along it (%.0f%%), %.1f cm off it, %.1f s",
-            name, simd_length(wantedBase) * 100, simd_dot(moved, simd_normalize(wantedBase)) * 100, reached * 100,
-            simd_length(moved - simd_normalize(wantedBase) * simd_dot(moved, simd_normalize(wantedBase))) * 100,
-            Date().timeIntervalSince(started)
-        ))
+        print(
+            String(
+                format: "MOTION %@: asked %.1f cm, arm moved %.1f cm along it (%.0f%%), %.1f cm off it, %.1f s",
+                name, simd_length(wantedBase) * 100, simd_dot(moved, simd_normalize(wantedBase)) * 100, reached * 100,
+                simd_length(moved - simd_normalize(wantedBase) * simd_dot(moved, simd_normalize(wantedBase))) * 100,
+                Date().timeIntervalSince(started)
+            ))
     }
 
     /// One held control taking over from another while the first is still held. The server finishes the old one
@@ -88,8 +92,9 @@ final class ServerMotionTests: XCTestCase {
         hand.pump(0.5)
         model.send(.gripperStart(.open))
         hand.pump(1.5)
-        XCTAssertEqual(model.session.state.gripperMoving, .open,
-                       "the gripper hold was refused. log: \(model.debugLog.suffix(4))")
+        XCTAssertEqual(
+            model.session.state.gripperMoving, .open,
+            "the gripper hold was refused. log: \(model.debugLog.suffix(4))")
         model.send(.gripperEnd)
         hand.pump(1.0)
         XCTAssertFalse(model.session.state.emergencyStop)

@@ -7,6 +7,8 @@ import TeleopCore
 final class LiveLinkController {
     /// The phone must not jump: faster than this between two samples ends the hold (same limit as the web app).
     static let maxSpeedMetersPerSecond: Float = 0.8
+    /// The shortest time the speed is measured over: half a pose tick.
+    static let speedSampleMs = 1000 / TeleopLink.poseRateHz / 2
     static let connectTimeout: TimeInterval = 5
     static let defaultPort = 8765
     /// The server E-stops when the position it is asked for is more than 10 cm from where the arm is
@@ -23,6 +25,11 @@ final class LiveLinkController {
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
     /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
     static let quietLinkMs = 1200
+    /// A tick this long after the one before means the app's main thread did not run in between (a long frame, an
+    /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so the stall does not count as
+    /// silence and no probe's round trip across it counts. The server's watchdog still ends a hold whose updates
+    /// stopped.
+    static let stalledTickMs = 250
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
@@ -69,6 +76,7 @@ final class LiveLinkController {
     private(set) var newestState: ServerState?
     private var timer: Timer?
     private var ticks = 0
+    private var lastTickAtMs: Int?
     private var openedAtMs = 0
     private var holdStart: SIMD3<Float>?
     private var lastSample: (position: SIMD3<Float>, atMs: Int)?
@@ -152,9 +160,10 @@ final class LiveLinkController {
         guard !trimmed.isEmpty, !trimmed.contains(" ") else { return nil }
         let text = trimmed.contains("://") ? trimmed : "ws://" + trimmed
         guard var parts = URLComponents(string: text),
-              parts.scheme == "ws" || parts.scheme == "wss",
-              let host = parts.host, !host.isEmpty,
-              host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == ":" }) else { return nil }
+            parts.scheme == "ws" || parts.scheme == "wss",
+            let host = parts.host, !host.isEmpty,
+            host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == ":" })
+        else { return nil }
         if parts.port == nil { parts.port = defaultPort }
         return parts.url
     }
@@ -170,6 +179,8 @@ final class LiveLinkController {
         self.transport = transport
         self.link = link
         openedAtMs = nowMs()
+        // The timer starts now: a first tick far later than one interval is a stall too.
+        lastTickAtMs = openedAtMs
         transport.onText = { [weak self, weak transport] text in
             guard let self, self.transport === transport else { return }
             self.handle(text)
@@ -219,6 +230,7 @@ final class LiveLinkController {
         newestStateAtMs = nil
         newestState = nil
         leadBound = WristLeadBound()
+        lastTickAtMs = nil
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -404,10 +416,17 @@ final class LiveLinkController {
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
         guard let link else { return }
+        let tickedAt = nowMs()
+        if let last = lastTickAtMs, tickedAt - last > Self.stalledTickMs {
+            let stall = tickedAt - last - 1000 / TeleopLink.poseRateHz
+            link.stalled(forMs: stall)
+            observer?.stalled(forMs: stall)
+        }
+        lastTickAtMs = tickedAt
         ticks += 1
         tickObserver()
         if !link.ready {
-            if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome from server") }
+            if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome or first state from server") }
             return
         }
         if link.isStale || bothConnectionsQuiet {
@@ -466,7 +485,11 @@ final class LiveLinkController {
             return nil
         }
         let now = nowMs()
-        if let last = lastSample, now > last.atMs {
+        if let last = lastSample {
+            // Over a gap of a millisecond or two (a late timer tick, a tick right after the press) an ordinary step of
+            // the hand reads as a jump. Such a tick keeps the older sample and sends nothing, so every position sent
+            // has had its speed judged.
+            guard now - last.atMs >= Self.speedSampleMs else { return nil }
             let speed = simd_distance(current, last.position) / (Float(now - last.atMs) / 1000)
             if speed > Self.maxSpeedMetersPerSecond {
                 onLog?(String(format: "link: phone moved too fast (%.2f m/s), hold ended", speed))
@@ -656,7 +679,9 @@ final class LiveLinkController {
                 observerDropped("no welcome")
             }
         }
-        if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true { openObserver() }
+        if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true {
+            openObserver()
+        }
     }
 
     private func drop(_ why: String) {

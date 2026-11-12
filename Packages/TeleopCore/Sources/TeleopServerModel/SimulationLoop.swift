@@ -87,7 +87,8 @@ extension ServerModel {
     /// The cube resting in the goal with the gripper reported open, for enough passes in a row, latches success.
     private func checkSuccess() -> Bool {
         guard !successLatched else { return false }
-        let sample = world.cubeInGoal(config) && world.cubeSpeed <= config.successMaxSpeed
+        let sample =
+            world.cubeInGoal(config) && world.cubeSpeed <= config.successMaxSpeed
             && state["gripper"]?.stringValue == "open"
         successRun = sample ? successRun + 1 : 0
         guard successRun >= config.successSteps else { return false }
@@ -180,7 +181,8 @@ extension ServerModel {
             command.speed = carrying ? config.poseCarrySpeed : config.poseSpeed
             update(["ik": "pose_tracking", "orient_deg": .double(0), "gripper_delta": .double(0)])
         case "gripper_jog_start":
-            command.speed = (command.action == "close" ? config.gripperJogCloseRate : config.gripperJogOpenRate)[step] ?? 0
+            command.speed =
+                (command.action == "close" ? config.gripperJogCloseRate : config.gripperJogOpenRate)[step] ?? 0
             // The jog starts from the measured jaw angle.
             world.jawTarget = world.jaw
             update(["gripper": .string(command.action), "step": .string(step), "ik": "gripper_jogging"])
@@ -256,7 +258,9 @@ extension ServerModel {
         }
         command.motionStep += 1
         let threshold = config.poseGripperLabelThreshold
-        let label: JSONValue = command.gripperDelta > threshold ? "open"
+        let label: JSONValue =
+            command.gripperDelta > threshold
+            ? "open"
             : command.gripperDelta < -threshold ? "close" : (state["gripper"] ?? "closed")
         update([
             "ee_pos": .numbers(world.arm), "gripper": label, "ik": clampedNow ? "pose_clamped" : "pose_tracking",
@@ -317,7 +321,8 @@ extension ServerModel {
             return
         }
         let joint = command.joint
-        setAngle(of: joint, clamp(angle(of: joint) + command.direction * command.speed * config.simStep, limits(of: joint)))
+        setAngle(
+            of: joint, clamp(angle(of: joint) + command.direction * command.speed * config.simStep, limits(of: joint)))
         stepWorld()
         command.motionStep += 1
     }
@@ -330,7 +335,8 @@ extension ServerModel {
         command.motionStep += 1
         let settled = command.motionStep >= command.rampSteps && error <= config.jointTolerance
         command.stableCount = settled ? command.stableCount + 1 : 0
-        guard command.stableCount >= config.stableSteps || command.motionStep >= command.rampSteps + config.settleSteps else {
+        guard command.stableCount >= config.stableSteps || command.motionStep >= command.rampSteps + config.settleSteps
+        else {
             return
         }
         if command.stableCount >= config.stableSteps {
@@ -351,7 +357,8 @@ extension ServerModel {
         }
         let closing = command.action == "close"
         if !command.stalled {
-            world.jawTarget = clamp(world.jawTarget + (closing ? -1 : 1) * command.speed * config.simStep, config.jawLimits)
+            world.jawTarget = clamp(
+                world.jawTarget + (closing ? -1 : 1) * command.speed * config.simStep, config.jawLimits)
         }
         stepWorld()
         let lag = max(world.jaw - world.jawTarget, 0)
@@ -372,7 +379,9 @@ extension ServerModel {
         stepWorld()
         let closing = command.action == "close"
         let lag = max(world.jaw - target, 0)
-        let reached = closing ? world.jaw <= config.gripperClosedBelow
+        let reached =
+            closing
+            ? world.jaw <= config.gripperClosedBelow
             : abs(command.goalAngle - world.jaw) <= config.gripperOpenTolerance
         command.motionStep += 1
         command.contactCount = closing && lag >= config.gripperContactLag ? command.contactCount + 1 : 0
@@ -383,8 +392,10 @@ extension ServerModel {
             return
         }
         command.stableCount = command.motionStep >= config.gripperMoveSteps && reached ? command.stableCount + 1 : 0
-        guard command.stableCount >= config.gripperStableSteps
-            || command.motionStep >= config.gripperMoveSteps + config.settleSteps else { return }
+        guard
+            command.stableCount >= config.gripperStableSteps
+                || command.motionStep >= config.gripperMoveSteps + config.settleSteps
+        else { return }
         if command.stableCount >= config.gripperStableSteps {
             update(["gripper": .string(command.action), "ik": "ok"])
             end(command, command.completion, "completed")
@@ -423,7 +434,8 @@ extension ServerModel {
         let error = length(command.goalPoint - world.arm)
         let settled = command.motionStep >= command.rampSteps && error <= command.tolerance
         command.stableCount = settled ? command.stableCount + 1 : 0
-        guard command.stableCount >= config.stableSteps || command.motionStep >= command.rampSteps + config.settleSteps else {
+        guard command.stableCount >= config.stableSteps || command.motionStep >= command.rampSteps + config.settleSteps
+        else {
             return
         }
         if command.stableCount >= config.stableSteps {

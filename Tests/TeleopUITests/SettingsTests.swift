@@ -50,11 +50,15 @@ final class SettingsTests: XCTestCase {
         app.buttons["Left"].tap()
         done()
         expect(app, "buttons.close")
-        XCTAssertLessThan(app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX, "left hand: Close on the left")
+        XCTAssertLessThan(
+            app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX,
+            "left hand: Close on the left")
         openSettings()
         app.buttons["Right"].tap()
         done()
-        XCTAssertGreaterThan(app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX, "right hand: Close on the right")
+        XCTAssertGreaterThan(
+            app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX,
+            "right hand: Close on the right")
     }
 
     func testOnlyTheVersionOneRowsAreThere() {
@@ -69,13 +73,47 @@ final class SettingsTests: XCTestCase {
         app.swipeUp()
         app.swipeUp()
         // These tests run in practice, where Connect would reach no server: the row says so instead.
-        for id in ["settings.rec_status", "settings.address", "settings.server_practice", "settings.leave_practice", "settings.language", "settings.version"] {
+        for id in [
+            "settings.rec_status", "settings.address", "settings.server_practice", "settings.leave_practice",
+            "settings.language", "settings.version",
+        ] {
             XCTAssertTrue(app.element(id).exists, id)
         }
         XCTAssertFalse(app.element("settings.connect").exists)
         XCTAssertFalse(app.element("settings.disconnect").exists)
         XCTAssertTrue(app.element("stop").isHittable, "the band stays put while the rows scroll")
         attachScreenshot("settings-lower-rows")
+    }
+
+    /// After the first run the tutorial is still there: Settings opens it, and its last page comes back to the
+    /// operating screen.
+    func testTheTutorialOpensAgainFromSettingsAndComesBack() {
+        openSettings()
+        let replay = app.element("settings.replay_tutorial")
+        app.swipeUp()
+        app.swipeUp()
+        XCTAssertTrue(replay.waitForExistence(timeout: 3))
+        replay.tap()
+        expectLabel(app.element("tutorial.title"), "The two keys")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("tutorial.title"), "Thumb and turn")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("operating.state"), "Ready")
+        XCTAssertFalse(app.element("tutorial.title").exists)
+    }
+
+    /// While the robot is stopped the tutorial is not offered: its pages do not show the stop.
+    func testTheTutorialIsNotOfferedWhileStopped() {
+        app.element("operating.stop").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+        openSettings()
+        expect(app, "settings.stopped")
+        app.swipeUp()
+        app.swipeUp()
+        expect(app, "settings.language")
+        XCTAssertFalse(app.element("settings.replay_tutorial").exists)
     }
 
     func testFiveTapsOnTheVersionShowTheDeveloperLog() {

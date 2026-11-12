@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail when the checker's action list or screen map no longer matches the code.
 
-Also warn when covered files changed after the sync commit recorded in SKILL.md.
+Also warn when covered files changed after the sync commit recorded in README.md.
 """
 
 import os
@@ -10,8 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKILL = Path(__file__).resolve().parents[1]
-ROOT = SKILL.parents[2]
+TOOL = Path(__file__).resolve().parents[1]
+ROOT = TOOL.parents[1]
 # TELEOP_APP_SOURCES lets scripts/mutants.py point this check at a broken copy of the screens.
 APP = Path(os.environ.get("TELEOP_APP_SOURCES", ROOT / "App/Sources"))
 problems = []
@@ -22,7 +22,7 @@ session = (
 ).read_text()
 enum_body = re.search(r"enum TeleopAction.*?\{(.*?)\n\}", session, re.S).group(1)
 enum_cases = set(re.findall(r"case (\w+)", enum_body))
-main = (SKILL / "checker/Sources/SafetyCheck/main.swift").read_text()
+main = (TOOL / "checker/Sources/SafetyCheck/main.swift").read_text()
 table_cases = set(re.findall(r'\("\w+", \.(\w+)[(),]', main))
 for name in sorted(enum_cases ^ table_cases):
     problems.append(f"TeleopAction case and checker table differ: {name}")
@@ -141,6 +141,12 @@ settings_source = next(
 draws_band = re.search(r"if case \.stopped = model\.operating\.state \{ stoppedBand \}", settings_source)
 if "s6" in (shows_stop or set()) and not (draws_band and 'accessibilityIdentifier("settings.stopped")' in settings_source):
     problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
+# Settings offers Replay tutorial only while the stop is not latched, as shippedActions in main.swift models: the
+# tutorial pages do not show the stop (U1).
+settings_code = re.sub(r"/\*.*?\*/|//[^\n]*", "", settings_source, flags=re.S)
+hides_tutorial = re.search(r"if !model\.session\.state\.emergencyStop \{[^}]*\.replayTutorial\b", settings_code)
+if "replayTutorial" in sends(settings_source) and not hides_tutorial:
+    problems.append("SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then")
 # One case may name several routes ("case .p4, .p5: OperatingScreen(").
 screen_of_route = {
     route: screen
@@ -150,7 +156,7 @@ screen_of_route = {
 
 listed_by_struct = {}
 map_routes = set()
-for line in (SKILL / "ui-map.tsv").read_text().splitlines():
+for line in (TOOL / "ui-map.tsv").read_text().splitlines():
     if line.startswith("#") or not line.strip():
         continue
     route, screen, actions = line.split("\t")
@@ -190,10 +196,10 @@ for name, names in sorted(struct_sends.items()):
 for problem in problems:
     print(f"DRIFT {problem}")
 
-skill_text = (SKILL / "SKILL.md").read_text()
-sync = re.search(r"Sync commit: `([0-9a-f]+)`", skill_text).group(1)
+readme = (TOOL / "README.md").read_text()
+sync = re.search(r"Sync commit: `([0-9a-f]+)`", readme).group(1)
 covered = re.findall(
-    r"^- `([^`]+)`", skill_text.split("## Coverage", 1)[1].split("\n## ", 1)[0], re.M
+    r"^- `([^`]+)`", readme.split("## Coverage", 1)[1].split("\n## ", 1)[0], re.M
 )
 changed = subprocess.run(
     ["git", "-C", str(ROOT), "diff", "--name-only", sync, "--", *covered],

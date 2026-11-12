@@ -217,7 +217,9 @@ final class OperatingController {
     private func press(_ button: ButtonID) {
         let facts = model.inputFacts()
         let commands = buttons.press(button, atMs: milliseconds(now()), gripping: facts.gripping)
-        let starts = commands.contains { if case .startTranslation = $0 { true } else if case .startGripper = $0 { true } else { false } }
+        let starts = commands.contains {
+            if case .startTranslation = $0 { true } else if case .startGripper = $0 { true } else { false }
+        }
         if starts, countdownStartedAt != nil {
             // The reset countdown counts as engaged (I-3): the press is dead until it is released.
             buttons.holdEnded()

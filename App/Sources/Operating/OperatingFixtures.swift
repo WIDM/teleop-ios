@@ -14,13 +14,15 @@ enum OperatingFixtures {
         // Phone modes.
         // The model reports no reason yet, so neither does the fixture.
         all["not_connected"] = display(.notConnected(reason: nil), link: false, arm: nil, recorder: .unknown)
-        all["connecting"] = display(.connecting(address: "192.168.0.10:8765"), link: false, arm: nil, recorder: .unknown)
+        all["connecting"] = display(
+            .connecting(address: "192.168.0.10:8765"), link: false, arm: nil, recorder: .unknown)
         all["ready"] = display(.ready, arm: task(), recorder: armed)
         all["ready_hotel"] = display(.ready, arm: hotel(), recorder: notRecording)
         all["moving"] = display(.moving(catchingUp: false), arm: task(moving: true), recorder: capturing)
         all["moving_hotel"] = display(.moving(catchingUp: true), arm: hotel(moving: true), recorder: notRecording)
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
-        all["turning"] = display(.turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
+        all["turning"] = display(
+            .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
         // A server that measures no wrist angles: the estimated pinch point cannot rule out a tilt, so it is approximate.
         all["tilting_estimated"] = display(
             .tilting(degrees: 8, limit: 20, estimated: true), arm: approximate(task()), recorder: .unknown
@@ -35,7 +37,8 @@ enum OperatingFixtures {
         all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)
         all["stopped"] = display(.stopped(cause: .button), arm: task(), recorder: off, exits: recordingExits)
         all["stopped_release"] = display(.stopped(cause: .behind), arm: hotel(), recorder: notRecording)
-        all["stopped_unknown_server"] = display(.stopped(cause: .onConnect), arm: task(), recorder: .unknown, exits: unknownServerExits)
+        all["stopped_unknown_server"] = display(
+            .stopped(cause: .onConnect), arm: task(), recorder: .unknown, exits: unknownServerExits)
         all["link_lost"] = display(.linkLost, link: false, arm: task(), recorder: armed)
         all["saved"] = display(.saved(count: 13), arm: task(), recorder: waiting)
         var countdown = display(.ready, arm: task(), recorder: off)
@@ -45,7 +48,8 @@ enum OperatingFixtures {
         // An estimated pinch point that may be off by more than half the on-target window: hollow, said so, and no
         // "On target" though it sits inside the window.
         all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: armed)
-        all["approximate_hotel"] = display(.moving(catchingUp: false), arm: approximate(hotel(moving: true)), recorder: notRecording)
+        all["approximate_hotel"] = display(
+            .moving(catchingUp: false), arm: approximate(hotel(moving: true)), recorder: notRecording)
         // Practice. The model reads no arm from the practice link, so these show no guide, as the app does.
         all["practice_ready"] = display(.ready, arm: nil, recorder: .unknown, practice: true)
         all["practice_stopped"] = display(.stopped(cause: .button), arm: nil, recorder: .unknown, practice: true)
@@ -56,7 +60,8 @@ enum OperatingFixtures {
         moving.speed = .fine
         moving.engaged = .translation
         all["buttons_moving"] = moving
-        var stopped = display(.stopped(cause: .other), mode: .buttons, arm: hotel(), recorder: .unknown, exits: unknownServerExits)
+        var stopped = display(
+            .stopped(cause: .other), mode: .buttons, arm: hotel(), recorder: .unknown, exits: unknownServerExits)
         stopped.hand = .left
         all["buttons_stopped"] = stopped
         all["buttons_practice"] = display(.ready, mode: .buttons, arm: nil, recorder: .unknown, practice: true)
@@ -69,7 +74,8 @@ enum OperatingFixtures {
     ) -> OperatingDisplay {
         OperatingDisplay(
             mode: mode, hand: .right, state: state, layout: nil, engaged: nil, resetCountdown: nil, heldButton: nil,
-            speed: .coarse, recorder: recorder, stopExits: practice ? StopExits.offered(recorder: nil, practice: true) : exits,
+            speed: .coarse, recorder: recorder,
+            stopExits: practice ? StopExits.offered(recorder: nil, practice: true) : exits,
             linkUp: link || practice, latencyMs: link ? latency : nil, address: "192.168.0.10:8765", arm: arm,
             practice: practice, taskAid: true
         )
@@ -82,7 +88,8 @@ enum OperatingFixtures {
     private static let notRecording = RecorderDisplay(mode: .notRecording)
     private static let recordingExits = StopExits(exits: [.resetScene], recordingMayStayOff: false)
     private static let noRecorderExits = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false)
-    private static let unknownServerExits = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true)
+    private static let unknownServerExits = StopExits(
+        exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true)
 
     // MARK: Arm readings, robot base frame (base +x is the operator's left, base −y is forward)
 

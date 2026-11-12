@@ -210,7 +210,9 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .onTarget: return [.onTarget]
         case .letGo: return LetGoReason.allCases.map(CueKey.letGo)
         case .emergencyStop:
-            return EmergencyCause.allCases.flatMap { cause in [false, true].map { CueKey.emergencyStop(cause, takeDiscarded: $0) } }
+            return EmergencyCause.allCases.flatMap { cause in
+                [false, true].map { CueKey.emergencyStop(cause, takeDiscarded: $0) }
+            }
         case .linkLost: return [.linkLost(holdEngaged: false), .linkLost(holdEngaged: true)]
         case .reconnected: return [.reconnected]
         case .serverRestarted: return [.serverRestarted]

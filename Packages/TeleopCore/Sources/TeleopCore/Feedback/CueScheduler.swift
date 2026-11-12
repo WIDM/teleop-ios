@@ -63,7 +63,8 @@ public struct CueScheduler {
         if let sound = row.sound { outputs.append(.sound(sound)) }
         var spoken = row.speech
         if let level = row.level {
-            if case .refused(let refusal) = event, let last = refusalSpoken[refusal], now - last < Self.refusalRepeatMs {
+            if case .refused(let refusal) = event, let last = refusalSpoken[refusal], now - last < Self.refusalRepeatMs
+            {
                 spoken = []
             } else if let speech = speak(CueTable.phrases(for: event), level: level, at: now) {
                 outputs.append(speech)
@@ -75,7 +76,9 @@ public struct CueScheduler {
                 refusalSpoken[refusal] = now
             }
         }
-        record(CueLogEntry(atMs: now, event: event.key, haptic: row.haptic, sound: row.sound, speech: spoken, dropped: dropped))
+        record(
+            CueLogEntry(
+                atMs: now, event: event.key, haptic: row.haptic, sound: row.sound, speech: spoken, dropped: dropped))
         return outputs
     }
 
@@ -117,7 +120,9 @@ public struct CueScheduler {
 
     // MARK: Haptics
 
-    private mutating func startHaptic(_ haptic: Haptic, for event: FeedbackEvent, at now: Int, currentHold: Int?) -> ([CueOutput], Bool) {
+    private mutating func startHaptic(_ haptic: Haptic, for event: FeedbackEvent, at now: Int, currentHold: Int?) -> (
+        [CueOutput], Bool
+    ) {
         expire(at: now)
         if case .holdLive(let hold) = event {
             guard hold == currentHold else { return ([], true) }

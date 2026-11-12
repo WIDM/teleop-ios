@@ -145,12 +145,17 @@ What it shows comes from two pure functions in `OperatingRules`:
   `OperatingWords` turns the state into the word, its details and its colour, in the app's language.
 - `arm(_:commanded:gripping:profile:)` builds an `ArmReading` from the newest server state and the robot profile:
   where the jaws pinch, where the arm is being sent during a move, how far the jaws are open, the wrist angles,
-  and the target and goal when the server reports them. Practice has no reading.
+  and the target and goal when the server reports them. Practice has no reading. The pinch point comes from
+  `RobotProfile.pinchPoint`: the server's `tool_pos` when the state carries it, otherwise the reported arm point
+  plus `toolOffset`, marked approximate where the profile's accuracy rule allows more than half the on-target
+  window of error.
 
 The **guide** is that reading as a picture: the workspace from above and from behind on one left-right axis, and a
 few read-outs under it. `GuidePicture` works out every place and read-out as plain numbers and `GuideView` draws
 them. It is shown in the phone modes while Settings → Task aid is on and a reading exists. The target, the goal,
-"On target" and "Holding" appear only when the server reports task objects.
+"On target" and "Holding" appear only when the server reports task objects. An approximate pinch point is drawn
+as a hollow ring with no centre dot, an orange line says "Jaw position is approximate", and the guide never says
+"On target" then.
 
 `OperatingFixtures` holds a named `OperatingDisplay` for every state; `-operatingFixture <name>` shows one and
 nothing overwrites it, so UI tests can photograph each state.
@@ -263,7 +268,10 @@ Four parts raise `FeedbackEvent`s, all through `AppModel.raise`:
   restarted.
 - `OperatingController`, for input decisions: a dead press, a refusal and its reason, a wrist limit.
 - `AppModel` itself: an emergency stop (from the session's own haptic request), a lost link, a press the session
-  ignored, and a practice hold going live at once.
+  ignored, a practice hold going live at once, and the on-target haptic, which `OnTargetCue` decides from what the
+  guide shows: once as "On target" turns on with the jaws open, never while the marker is approximate, the stop is
+  latched, the task aid is off or no real server is connected, and armed again after the pinch point leaves a
+  window 1.5 times as large, a scene reset, a new target or a close that did not lift the target.
 
 `CuePlayer` asks `CueScheduler` what to play. The scheduler looks the event up in `CueTable` and resolves
 collisions: one haptic channel with a fixed priority, one voice with levels, sounds at once. `CuePlayer` gives the
@@ -281,26 +289,26 @@ while the emergency stop is latched.
 
 ## The safety checker
 
-The safety checker in `.cursor/skills/verify-session-safety/` imports the real `TeleopCore`, starts from every way
+The safety checker in `tools/session-safety/` imports the real `TeleopCore`, starts from every way
 the app can open, and tries every action in every reachable state of `TeleopSession`. It checks a list of
 promises, for example: the emergency stop stays latched until it is released on purpose or a reset asked for in the
 stop state is confirmed; the arm, the gripper and the wrist move only while connected, not stopped and not blocked
 by a slow link; releasing a control always stops it; at most one hold is active; while stopped, every screen the
 operator can be on shows it. One set of promises (S) must hold for any sequence of actions; another (U) for the
-actions the shipped screens can send, which `ui-map.tsv` lists per route. Its `SKILL.md` lists every promise and
+actions the shipped screens can send, which `ui-map.tsv` lists per route. Its `README.md` lists every promise and
 what is left out.
 
 Run it from the repository root:
 
-    .cursor/skills/verify-session-safety/scripts/check.sh
+    tools/session-safety/scripts/check.sh
 
 It needs `swift` and `python3`. Exit 0 means every promise holds (or is a listed known finding); 1 a new violation,
 a stale known finding or drift between the checker's tables and the code; 2 that `swift` is missing (a skip, not a
 pass). For a violation it prints the shortest sequence of actions from launch that breaks the promise.
 
 Update it before a change counts as safe. The checker's tables are in
-`.cursor/skills/verify-session-safety/checker/Sources/SafetyCheck/main.swift`, and the screens' actions in
-`.cursor/skills/verify-session-safety/ui-map.tsv`:
+`tools/session-safety/checker/Sources/SafetyCheck/main.swift`, and the screens' actions in
+`tools/session-safety/ui-map.tsv`:
 
 - when a `TeleopAction` is added: add it to `actionTable` in `main.swift` and, if a screen sends it, to
   `ui-map.tsv`;
@@ -308,12 +316,11 @@ Update it before a change counts as safe. The checker's tables are in
   comment there if no action changes it;
 - when a screen gains or loses a control that sends an action: update its row in `ui-map.tsv`;
 - when a covered file changes: read the change, confirm the checker still describes the code, and move the sync
-  commit in `SKILL.md`, which lists the full steps.
+  commit in its `README.md`, which lists the full steps.
 
 `drift.py`, run by `check.sh`, fails when one of the first three is forgotten. For the fourth, `check.sh` prints a
-`REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure. The sync
-commit is older than much of the app, so a clean checkout prints many of them; look at the ones for files your own
-change touched.
+`REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure: it
+stays until someone has read the change and moved the sync commit.
 
 ## Where robot and task numbers live
 
@@ -321,7 +328,8 @@ change touched.
 
 | Field | What it is |
 |---|---|
-| `toolOffset` | from the point the server reports for the arm to where the jaws pinch, in the robot base frame |
+| `toolOffset` | from the point the server reports for the arm to where the jaws pinch, in the robot base frame; used when a state has no `tool_pos` |
+| `estimateBound` | how far a pinch point estimated with `toolOffset` may be off, per centimetre the arm has moved from where the offset was measured and per degree of wrist; past half the on-target window the estimate is approximate |
 | `baseInWorld` | where the robot base sits in the world frame (the server reports objects in the world frame) |
 | `graspTolerance` | how close the pinch point must be to the target's centre to count as on target |
 | `targetSize`, `goalSize` | the task object's and the goal area's size across, for drawing them true to size |

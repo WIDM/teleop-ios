@@ -122,7 +122,9 @@ public struct RotationMapper: Equatable, Sendable {
 
     /// The target for a new attitude sample, and whether a limit was reached with it (END plays once per limit and
     /// again only after backing off `limitRearmDeg`). Turning back from a limit moves the target back at once.
-    public mutating func target(for attitude: simd_quatd, at time: TimeInterval) -> (target: WristTarget, limitReached: Bool) {
+    public mutating func target(for attitude: simd_quatd, at time: TimeInterval) -> (
+        target: WristTarget, limitReached: Bool
+    ) {
         anchorIfNeeded(attitude)
         guard let axis else { return (.identity, false) }
         let raw = serverAngle(attitude)

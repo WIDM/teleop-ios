@@ -40,5 +40,4 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertEqual(s.gripper, .open)
     }
 
-
 }

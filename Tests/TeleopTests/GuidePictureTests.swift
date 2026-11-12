@@ -67,8 +67,9 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertEqual(spanAbove, Double(box.x / box.y), accuracy: 1e-6, "from above, the box keeps its shape")
         let floor = max(profile.workspaceMin.z, profile.tableHeight)
         let spanBehind = (p.boxBehind.maxX - p.boxBehind.minX) / (p.boxBehind.maxY - p.boxBehind.minY) * p.behindAspect
-        XCTAssertEqual(spanBehind, Double(box.x / (profile.workspaceMax.z - floor)), accuracy: 1e-6,
-                       "from behind, the box keeps its shape down to the table")
+        XCTAssertEqual(
+            spanBehind, Double(box.x / (profile.workspaceMax.z - floor)), accuracy: 1e-6,
+            "from behind, the box keeps its shape down to the table")
         XCTAssertEqual(p.boxBehind.maxY, p.tableY, accuracy: 1e-9, "the box stops at the table")
     }
 
@@ -97,7 +98,8 @@ final class GuidePictureTests: XCTestCase {
             XCTAssertFalse(p.pinch.pinned, "a mark on the box's edge is drawn whole")
             XCTAssertFalse(p.lines.contains(.outside))
             for spot in [p.pinch.above, p.pinch.behind] {
-                XCTAssertTrue((0.02...0.98).contains(spot.x) && (0.02...0.98).contains(spot.y), "\(spot) leaves room to draw it")
+                XCTAssertTrue(
+                    (0.02...0.98).contains(spot.x) && (0.02...0.98).contains(spot.y), "\(spot) leaves room to draw it")
             }
         }
     }
@@ -153,7 +155,8 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertFalse(p.lines.contains(.onTarget))
         let box = profile.workspaceMax - profile.workspaceMin
         let viewWidth = Double(box.x) + 2 * GuidePicture.marginShare * Double(max(box.x, box.y))
-        XCTAssertEqual(p.targetEdge, Double(profile.targetSize) / viewWidth, accuracy: 1e-6, "true to size, from the profile")
+        XCTAssertEqual(
+            p.targetEdge, Double(profile.targetSize) / viewWidth, accuracy: 1e-6, "true to size, from the profile")
     }
 
     func testOnTargetOnlyInsideTheProfilesTolerance() {
@@ -181,7 +184,8 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertTrue(p.approximate)
         XCTAssertFalse(p.onTarget)
         XCTAssertFalse(p.lines.contains(.onTarget))
-        XCTAssertEqual(p.lines, [p.lines[0], .jaws(percentOpen: 60), .wrist(turnDeg: 88, tiltDeg: -4), .approximate, p.lines[4]])
+        XCTAssertEqual(
+            p.lines, [p.lines[0], .jaws(percentOpen: 60), .wrist(turnDeg: 88, tiltDeg: -4), .approximate, p.lines[4]])
         guard case .target(let across, .level) = p.lines[4] else { return XCTFail("\(p.lines)") }
         XCTAssertEqual(across, Double(profile.graspTolerance.x) * 30, accuracy: 1e-4)
         XCTAssertEqual(p.pinch, picture(reading(target: inside)).pinch, "drawn where it is, at the usual size")
@@ -263,9 +267,11 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertEqual(GuideWords.text(.jaws(percentOpen: 60)), "Jaws 60% open")
         XCTAssertEqual(GuideWords.text(.wrist(turnDeg: 88, tiltDeg: -4)), "Wrist turn 88° · tilt -4°")
         XCTAssertEqual(GuideWords.text(.wrist(turnDeg: nil, tiltDeg: 12)), "Wrist tilt 12°")
-        XCTAssertEqual(GuideWords.text(.target(acrossCm: 5, height: .above(cm: 2))), "Target 5.0 cm across · 2.0 cm above")
+        XCTAssertEqual(
+            GuideWords.text(.target(acrossCm: 5, height: .above(cm: 2))), "Target 5.0 cm across · 2.0 cm above")
         XCTAssertEqual(GuideWords.text(.target(acrossCm: 0.4, height: .level)), "Target 0.4 cm across · level")
-        XCTAssertEqual(GuideWords.text(.goal(acrossCm: 3, height: .below(cm: 1.5))), "Goal 3.0 cm across · 1.5 cm below")
+        XCTAssertEqual(
+            GuideWords.text(.goal(acrossCm: 3, height: .below(cm: 1.5))), "Goal 3.0 cm across · 1.5 cm below")
         XCTAssertEqual(GuideWords.text(.onTarget), "On target")
         XCTAssertEqual(GuideWords.text(.holding), "Holding")
         XCTAssertEqual(GuideWords.text(.outside), "Outside the work area")

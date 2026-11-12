@@ -21,9 +21,11 @@ final class LocalPickAndPlaceTests: XCTestCase {
         UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
     }
 
-    private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil, toolPoint: Bool = true) throws {
+    private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil, toolPoint: Bool = true) throws
+    {
         // Three and a half times the lab server's pace, so the script's waits shrink by about as much.
-        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint))
+        server = LocalTeleopServer(
+            config: .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint))
         try server.start()
         hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
         // The guide, and with it the on-target cue, shows only with the task aid on, its default.
@@ -75,7 +77,8 @@ final class LocalPickAndPlaceTests: XCTestCase {
                 approximate = approximate || rough
             }
             if !arm.gripping, model.session.state.gripperMoving != .closed,
-               GuidePicture(reading: arm, profile: model.profile).onTarget {
+                GuidePicture(reading: arm, profile: model.profile).onTarget
+            {
                 onTargetBeforeTheClose = true
             }
         }
@@ -91,8 +94,9 @@ final class LocalPickAndPlaceTests: XCTestCase {
         XCTAssertEqual(cuesBeforeTheGrasp.first?.dropped, false, "\(mode): and felt")
         XCTAssertEqual(cuesWhileHolding, 0, "\(mode)")
         XCTAssertEqual(cuesAfterTheRelease, 0, "\(mode): letting go of the carried object is no new approach")
-        print("ON TARGET (\(mode.rawValue), tool point \(toolPoint)): \(cuesBeforeTheGrasp.count) on the approach, "
-              + "\(cuesAfterTheRelease) after letting go")
+        print(
+            "ON TARGET (\(mode.rawValue), tool point \(toolPoint)): \(cuesBeforeTheGrasp.count) on the approach, "
+                + "\(cuesAfterTheRelease) after letting go")
     }
 
     func testPickAndPlaceSchemeA() throws {
@@ -162,7 +166,8 @@ final class LocalPickAndPlaceTests: XCTestCase {
 
         XCTAssertGreaterThan(readings, 100)
         XCTAssertEqual(withoutTaskObjects, 0, "the target and the goal are always there")
-        XCTAssertGreaterThan(movedDuringAHold, 0.01, "the pinch point moves during a hold, from the listening connection")
+        XCTAssertGreaterThan(
+            movedDuringAHold, 0.01, "the pinch point moves during a hold, from the listening connection")
         XCTAssertGreaterThan((jaws.max() ?? 0) - (jaws.min() ?? 0), 0.5, "the jaw opening follows the jaws")
         XCTAssertTrue(gripping, "the guide says holding once the jaws grip")
         XCTAssertTrue(saved, "the saved take reaches the screen")

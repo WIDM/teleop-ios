@@ -52,15 +52,22 @@ final class LocalTeleopServerTests: XCTestCase {
         client.send(#"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"test"}}"#)
         _ = try client.next()
         let start = server.inspect { $0.world.arm }
-        client.send(#"{"v":1,"type":"pose_start","ts":0,"seq":2,"payload":{"frame":"webxr_local","rate_hz":30,"gain":1,"deadband_deg":0,"smoothing":0}}"#)
+        client.send(
+            #"{"v":1,"type":"pose_start","ts":0,"seq":2,"payload":{"frame":"webxr_local","rate_hz":30,"gain":1,"deadband_deg":0,"smoothing":0}}"#
+        )
         for seq in 3..<33 {
-            client.send(#"{"v":1,"type":"pose_update","ts":0,"seq":\#(seq),"payload":{"p_rel_m":[0,0,0.02],"q_rel":[0,0,0,1],"gripper_delta":0}}"#)
+            client.send(
+                #"{"v":1,"type":"pose_update","ts":0,"seq":\#(seq),"payload":{"p_rel_m":[0,0,0.02],"q_rel":[0,0,0,1],"gripper_delta":0}}"#
+            )
             Thread.sleep(forTimeInterval: 1.0 / 30)
         }
         let movedZ = { self.server.inspect { $0.world.arm.z } - start.z }
-        XCTAssertTrue(eventually(within: 3) { abs(movedZ() + 0.02) <= 0.002 }, "the arm moved \(movedZ()) m along z; phone z is robot −z")
+        XCTAssertTrue(
+            eventually(within: 3) { abs(movedZ() + 0.02) <= 0.002 },
+            "the arm moved \(movedZ()) m along z; phone z is robot −z")
         client.close()
-        XCTAssertTrue(eventually(within: 3) { self.server.inspect { $0.state["estop"] } == true }, "no E-stop after the close")
+        XCTAssertTrue(
+            eventually(within: 3) { self.server.inspect { $0.state["estop"] } == true }, "no E-stop after the close")
     }
 }
 
@@ -72,9 +79,12 @@ private func otherIPv4Address() -> String? {
     for entry in sequence(first: first, next: { $0.pointee.ifa_next }) {
         let flags = Int32(entry.pointee.ifa_flags)
         guard let address = entry.pointee.ifa_addr, address.pointee.sa_family == sa_family_t(AF_INET),
-              flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0 else { continue }
+            flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0
+        else { continue }
         var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-        if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+        if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+            == 0
+        {
             return String(cString: host)
         }
     }
@@ -129,7 +139,8 @@ private final class SocketClient {
             done.signal()
         }
         guard done.wait(timeout: .now() + timeout) == .success, case .string(let text)? = try result?.get(),
-              let value = JSONValue.parse(text) else {
+            let value = JSONValue.parse(text)
+        else {
             throw URLError(.timedOut)
         }
         return value

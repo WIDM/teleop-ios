@@ -21,9 +21,10 @@ final class PhoneAttitudeTests: XCTestCase {
     func testUprightPortraitCameraIsTheIdentity() {
         // Phone upright facing the operator in ARKit's world (y up): camera x points down the long side toward the
         // bottom edge, camera y toward the portrait right edge, camera z out of the screen.
-        let transform = simd_float4x4(columns: (
-            SIMD4(0, -1, 0, 0), SIMD4(1, 0, 0, 0), SIMD4(0, 0, 1, 0), SIMD4(0.1, 1.2, -0.3, 1)
-        ))
+        let transform = simd_float4x4(
+            columns: (
+                SIMD4(0, -1, 0, 0), SIMD4(1, 0, 0, 0), SIMD4(0, 0, 1, 0), SIMD4(0.1, 1.2, -0.3, 1)
+            ))
         let portrait = PhoneAttitude.portrait(cameraTransform: transform)
         assertEqual(portrait.act(Phone.x), Phone.x)
         assertEqual(portrait.act(Phone.y), Phone.y)
@@ -59,7 +60,8 @@ final class PhoneAttitudeTests: XCTestCase {
         XCTAssertEqual(sideways.tilt, 0, accuracy: 1e-9)
     }
 
-    private func assertEqual(_ a: SIMD3<Double>, _ b: SIMD3<Double>, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertEqual(_ a: SIMD3<Double>, _ b: SIMD3<Double>, file: StaticString = #filePath, line: UInt = #line)
+    {
         XCTAssertLessThan(simd_distance(a, b), 1e-6, "\(a) != \(b)", file: file, line: line)
     }
 }
@@ -93,7 +95,8 @@ final class RotationMapperTests: XCTestCase {
 
     func testCommitAngleCountsInSchemeAAndSchemeBStartsFromZero() {
         var a = RotationMapper(anchor: Phone.rest, startsAtCommit: true)
-        XCTAssertEqual(a.lock(.tilt, range: -20...20, attitude: Phone.attitude(tilt: 5), at: 0).target.degrees, 5, accuracy: 1e-9)
+        XCTAssertEqual(
+            a.lock(.tilt, range: -20...20, attitude: Phone.attitude(tilt: 5), at: 0).target.degrees, 5, accuracy: 1e-9)
         var b = RotationMapper(anchor: Phone.rest, startsAtCommit: false)
         XCTAssertEqual(b.lock(.tilt, range: -20...20, attitude: Phone.attitude(tilt: 5), at: 0).target.degrees, 0)
         // One 30 Hz sample later the smoothing has covered 80% of the way.
@@ -109,7 +112,9 @@ final class RotationMapperTests: XCTestCase {
 
     func testRollSignAppliesToTheOutput() {
         var mapper = RotationMapper(anchor: Phone.rest, startsAtCommit: true, constants: InputConstants(rollSign: -1))
-        XCTAssertEqual(mapper.lock(.turn, range: wide, attitude: Phone.attitude(turn: 6), at: 0).target.degrees, -6, accuracy: 1e-9)
+        XCTAssertEqual(
+            mapper.lock(.turn, range: wide, attitude: Phone.attitude(turn: 6), at: 0).target.degrees, -6, accuracy: 1e-9
+        )
     }
 
     func testTurnClampGivesEndOnceAndTurningBackMovesTheTargetAtOnce() {
@@ -186,14 +191,16 @@ final class RotationMapperTests: XCTestCase {
         // The flex has already moved 10° down since the reset: 15° more reach the 25° window before the 20° clamp.
         let readings = WristReadings(rollDeg: 0, flexDeg: 40, flexAtResetDeg: 30)
         XCTAssertEqual(RotationMapper.limits(for: .tilt, readings: readings, commandedTiltSinceResetDeg: 99), -20...15)
-        assertOneEnd(axis: .tilt, range: RotationMapper.limits(for: .tilt, readings: readings, commandedTiltSinceResetDeg: 0),
-                     sweep: stride(from: 5.0, through: 30, by: 1), edge: 15)
+        assertOneEnd(
+            axis: .tilt, range: RotationMapper.limits(for: .tilt, readings: readings, commandedTiltSinceResetDeg: 0),
+            sweep: stride(from: 5.0, through: 30, by: 1), edge: 15)
     }
 
     func testTiltWindowOnAnUnknownServerCountsCommandedTilt() {
         XCTAssertEqual(RotationMapper.limits(for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -18), -7...20)
         // Partly known readings fall back to the commanded sum too.
-        XCTAssertEqual(RotationMapper.limits(for: .tilt, readings: .init(flexDeg: 3), commandedTiltSinceResetDeg: 15), -20...10)
+        XCTAssertEqual(
+            RotationMapper.limits(for: .tilt, readings: .init(flexDeg: 3), commandedTiltSinceResetDeg: 15), -20...10)
     }
 
     func testRollWindowFromTheMeasuredRoll() {
@@ -235,7 +242,9 @@ final class RotationMapperTests: XCTestCase {
         file: StaticString = #filePath, line: UInt = #line
     ) {
         var mapper = RotationMapper(anchor: Phone.rest, startsAtCommit: true)
-        func attitude(_ angle: Double) -> simd_quatd { axis == .turn ? Phone.attitude(turn: angle) : Phone.attitude(tilt: angle) }
+        func attitude(_ angle: Double) -> simd_quatd {
+            axis == .turn ? Phone.attitude(turn: angle) : Phone.attitude(tilt: angle)
+        }
         var ends = 0
         var last = 0.0
         var time = 0.0

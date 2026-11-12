@@ -107,10 +107,12 @@ final class OnTargetCueTests: XCTestCase {
             XCTAssertEqual(look(across: feltOnTheWayIn ? 0.002 : 0.007), feltOnTheWayIn)
             XCTAssertFalse(look(across: 0.0, jawsOpen: false), "closed; the closing jaws centre the target")
             for step in 0...20 {
-                XCTAssertFalse(look(across: 0.0, target: SIMD3(Double(step) / 200, 0, 0.02), holding: true, jawsOpen: false))
+                XCTAssertFalse(
+                    look(across: 0.0, target: SIMD3(Double(step) / 200, 0, 0.02), holding: true, jawsOpen: false))
             }
             let goal = SIMD3(0.1, 0, 0.0)
-            XCTAssertFalse(look(across: 0.0, target: goal, jawsOpen: false), "the open press ends the hold before the label")
+            XCTAssertFalse(
+                look(across: 0.0, target: goal, jawsOpen: false), "the open press ends the hold before the label")
             for _ in 0..<5 { XCTAssertFalse(look(across: 0.0, target: goal), "opened on the target, over the goal") }
             XCTAssertFalse(look(across: 0.0, height: 0.013, target: goal), "lifted past 12 mm")
             XCTAssertTrue(look(across: 0.0, target: goal), "a new approach")
@@ -147,7 +149,9 @@ final class OnTargetCueTests: XCTestCase {
     func testAfterPushingTheTargetOpeningOnItIsFelt() {
         XCTAssertTrue(look(across: 0.005))
         XCTAssertFalse(look(across: 0.005, jawsOpen: false))
-        for step in 0...10 { XCTAssertFalse(look(across: 0.005, target: SIMD3(Double(step) / 1000, 0, 0), jawsOpen: false)) }
+        for step in 0...10 {
+            XCTAssertFalse(look(across: 0.005, target: SIMD3(Double(step) / 1000, 0, 0), jawsOpen: false))
+        }
         XCTAssertTrue(look(across: 0.005, target: SIMD3(0.01, 0, 0)), "opened on the pushed target")
 
         XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0), jawsOpen: false))
@@ -183,7 +187,8 @@ final class OnTargetCueTests: XCTestCase {
             holding: Bool = false, jawsOpen: Bool = true
         ) {
             let felt = look(
-                across: across, height: height, target: target, approximate: approximate, holding: holding, jawsOpen: jawsOpen
+                across: across, height: height, target: target, approximate: approximate, holding: holding,
+                jawsOpen: jawsOpen
             )
             if felt { played += 1 }
         }
@@ -220,7 +225,9 @@ final class OnTargetCueTests: XCTestCase {
         count("the grasp, lift and carry") {
             for _ in 0..<5 { counted(across: 0.0, jawsOpen: false) }
             for step in 0...30 {
-                counted(across: 0.0005, target: goal * Double(step) / 30 + SIMD3(0, 0, 0.03), holding: true, jawsOpen: false)
+                counted(
+                    across: 0.0005, target: goal * Double(step) / 30 + SIMD3(0, 0, 0.03), holding: true, jawsOpen: false
+                )
             }
             for _ in 0..<5 { counted(across: 0.0005, target: goal, holding: true, jawsOpen: false) }
         }

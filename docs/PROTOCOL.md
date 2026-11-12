@@ -26,9 +26,11 @@ recordings of the real server back most of what is written here.
 - **Base frame**: positions measured from the robot's base, in metres. +x points toward the goal (the operator's
   left), −y points forward onto the table, +z points up. **World frame**: the simulation's own origin; the base
   sits 5 cm above it, so a base-frame position is the world-frame one minus (0, 0, 0.05).
-- **Gripper link origin**: the point the server reports for the arm. It is not where the jaws close; that point
-  (the *pinch point*) is a fixed offset away while the wrist stays put (`RobotProfile.toolOffset` in
-  `App/Sources/Link/Guidance.swift`).
+- **Gripper link origin**: the point the server reports for the arm (`ee_pos`). It is not where the jaws close.
+- **Pinch point**: where the jaws close. A server can report it as `tool_pos`, the grasp point: the point to put on
+  an object's centre before the jaws close. Without it the app estimates the pinch point as the gripper link origin
+  plus a fixed offset (`RobotProfile.toolOffset` in `App/Sources/Link/Guidance.swift`), which holds while the wrist
+  keeps the pose the offset was measured in.
 - **Wrist roll** turns the jaws about the forearm; **wrist pitch** (the server says *flex*) tips them toward or
   away from the table. **Jaws** are the two fingers of the gripper.
 - **Clamp**: the server cuts a target short at a limit, for example the edge of the box the arm must stay in. The
@@ -412,7 +414,8 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 
 | Field | Meaning | What the app does with it |
 |---|---|---|
-| `ee_pos` | the gripper link origin, base frame, metres | the arm in the guide; "blocked" when it stops following during a hold; where a resync continues from |
+| `ee_pos` | the gripper link origin, base frame, metres | the arm in the guide (plus the tool offset when the state has no `tool_pos`); "blocked" when it stops following during a hold; where a resync continues from |
+| `tool_pos` | the grasp point: the point to put on an object's centre before the jaws close; three finite numbers, base frame, metres; `null` or missing when the server does not report it. A held object does not stay at this point: the jaws squeeze it a little way up into them | the guide's jaw marker, its "On target" and the on-target cue use it as it is, never as approximate; the commanded ring and the workspace box are moved by `tool_pos − ee_pos` of the same state, which is exact only while the wrist keeps its pose. Missing, `null`, not three numbers, not finite, or beyond the range of a 32-bit float: the app estimates the point for that state as `ee_pos` plus the profile's tool offset |
 | `gripper` | the label of the last gripper command, not a measurement: `closed` after start or reset, `open` or `close` after a command | the phone's gripper state; the app reads `closed` and `close` the same |
 | `step` | `coarse` or `fine`, the step size of jog and move commands | not used |
 | `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; during `resetting` and `task_success` the screen says Wait and every start is refused |
@@ -441,6 +444,12 @@ The REC line in the top band, and the first row of Settings → Recording, say w
 | no `rec` key | nothing; Settings says "The server has not said whether it records." |
 
 In practice it says "Practice: nothing is recorded".
+
+**A server that reports `tool_pos` sends it in every `state` that carries `ee_pos`, on both connections.** A state
+without it makes the app estimate the point for that state: the jaw marker and the box jump between the two, and
+the on-target cue can be felt again when `tool_pos` returns. JSON has no NaN or Infinity: a server that writes one
+(Python's `json.dumps` does by default) sends a message the app cannot read at all, and every other field of that
+`state`, `estop` included, is lost with it. Send `null` instead.
 
 **A state without the key `rec` comes from an unknown server, never from one without a recorder.** The phone then
 shows no REC line and says nothing about takes, and in a stop it offers both ways out, with the warning that
@@ -504,7 +513,8 @@ works, with the effect in the right column.
 | `state` carries `wrist_flex_deg`, `wrist_roll_deg` and `gripper_deg` | no "fully open" and no "closed on nothing"; no jaw or wrist read-out in the guide; the angle shown during a turn or tilt is marked "estimated"; wrist commands go out without the lead bound, and the tilt limit counts the tilt commanded since the last reset |
 | `state` carries `ee_pos`, `object_pos` and `goal_pos` | without `ee_pos` there is no guide, no "blocked", and Moving says "No arm data"; without the object and the goal the guide shows the arm alone |
 | a connection that sends nothing gets `state` every 200 ms, holds included | the phone learns where the arm is only between holds: no "blocked", clamp or contact during a hold |
-| the scene starts with the wrist rolled 90 degrees, jaws side by side | `RobotProfile.toolOffset` is measured for that pose, so the guide's pinch point and "On target" are off until the profile has an offset for the other one |
+| `state` carries `tool_pos` | the jaw marker is estimated from `ee_pos`, the profile's tool offset and the measured wrist angles. Where the profile's accuracy rule (`RobotProfile.estimateBound`) says the estimate may be off by more than half the on-target window, the marker is a hollow ring, the guide says "Jaw position is approximate", never says "On target", and the on-target cue does not play. Without `wrist_flex_deg` and `wrist_roll_deg` as well, that is everywhere |
+| the scene starts with the wrist rolled 90 degrees, jaws side by side | without `tool_pos`: `RobotProfile.toolOffset` is measured for that pose, so the estimated pinch point and "On target" are off until the profile has an offset for the other one |
 | a take starts at the first command of any kind | nothing changes on the phone; a take that starts only at the first gripper, jog or move command misses the approach |
 | a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | nothing changes: the app waits for the final ack before it resets |
 | a hold that ends (by a stop or the watchdog) keeps the arm where it was commanded | nothing changes in the protocol; an arm whose targets are set back to the measured angles when a hold ends sinks about half a centimetre, and a held object can shake loose |

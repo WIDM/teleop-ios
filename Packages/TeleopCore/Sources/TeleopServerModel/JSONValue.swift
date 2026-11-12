@@ -76,7 +76,8 @@ public enum JSONValue: Equatable, Sendable {
 }
 
 extension JSONValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral,
-    ExpressibleByBooleanLiteral {
+    ExpressibleByBooleanLiteral
+{
     public init(stringLiteral value: String) { self = .string(value) }
     public init(integerLiteral value: Int) { self = .int(value) }
     public init(floatLiteral value: Double) { self = .double(value) }
@@ -297,7 +298,8 @@ private struct JSONParser {
                     guard var code = hex4() else { return nil }
                     if (0xD800..<0xDC00).contains(code) {
                         guard index + 1 < bytes.count, bytes[index] == UInt8(ascii: "\\"),
-                              bytes[index + 1] == UInt8(ascii: "u") else { return nil }
+                            bytes[index + 1] == UInt8(ascii: "u")
+                        else { return nil }
                         index += 2
                         guard let low = hex4(), (0xDC00..<0xE000).contains(low) else { return nil }
                         code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
@@ -318,7 +320,8 @@ private struct JSONParser {
 
     private mutating func hex4() -> UInt32? {
         guard index + 4 <= bytes.count, let text = String(bytes: bytes[index..<index + 4], encoding: .ascii),
-              let code = UInt32(text, radix: 16) else { return nil }
+            let code = UInt32(text, radix: 16)
+        else { return nil }
         index += 4
         return code
     }
@@ -342,7 +345,9 @@ private struct JSONParser {
         if index < bytes.count, bytes[index] == UInt8(ascii: "e") || bytes[index] == UInt8(ascii: "E") {
             real = true
             index += 1
-            if index < bytes.count, bytes[index] == UInt8(ascii: "+") || bytes[index] == UInt8(ascii: "-") { index += 1 }
+            if index < bytes.count, bytes[index] == UInt8(ascii: "+") || bytes[index] == UInt8(ascii: "-") {
+                index += 1
+            }
             guard index < bytes.count, isDigit(bytes[index]) else { return nil }
             while index < bytes.count, isDigit(bytes[index]) { index += 1 }
         }

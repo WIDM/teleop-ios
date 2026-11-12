@@ -165,12 +165,14 @@ final class AppModel {
         taskAidSetting = taskAid
         onTargetCue = OnTargetCue(window: SIMD2(profile.graspTolerance))
         self.fixture = fixture
-        operating = fixture ?? OperatingDisplay(
-            mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
-            resetCountdown: nil, heldButton: nil, speed: .coarse, recorder: .unknown,
-            stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
-            address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
-        )
+        operating =
+            fixture
+            ?? OperatingDisplay(
+                mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
+                resetCountdown: nil, heldButton: nil, speed: .coarse, recorder: .unknown,
+                stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
+                address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
+            )
         let audible = Self.playsCuesOnTheDevice()
         cues = CuePlayer(
             haptics: haptics ?? (audible ? HapticsController() : NoHaptics()),
@@ -299,7 +301,8 @@ final class AppModel {
         link.closeQuietly()
         session.state.liveLink = live
         if live, session.state.serverAddress.isEmpty,
-           let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+            let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey)
+        {
             session.state.serverAddress = saved
         }
         send(.switchLink)
@@ -752,7 +755,9 @@ final class AppModel {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
             let held = PhonePosture.of(pose())
             if held == .tilted || !link.startHold(params) {
-                log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))")
+                log(
+                    "link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))"
+                )
                 if held == .tilted {
                     pendingRefusal = .posture
                 } else if link.resetPending {

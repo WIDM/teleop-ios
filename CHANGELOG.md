@@ -8,6 +8,8 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+## 1.0.0 (2026-11-13)
+
 One operating screen, held rather than looked at, takes the place of every control screen, and everything the
 design mock-up only pretended to do is gone.
 
@@ -37,6 +39,10 @@ What a person using the app notices:
   is refused with "Hold the phone upright."
 - **You hear and feel what happened** without looking: a vibration pattern for each kind of event, three sounds,
   and spoken reasons, limits, stops and recorder news in English or Traditional Chinese. The tutorial teaches them.
+- **On target is felt.** When the open jaws come onto the target the server reports (where the guide says "On
+  target"), the phone plays one tick and then a short soft swell, once per approach; no sound, no speech. It plays
+  in Buttons too, where no guide is drawn. It stays silent while the jaw position is approximate, while the robot is
+  stopped, with the task aid off, when no target is reported, and in practice.
 - **The recorder shows.** The REC line says whether the server records and whether it is armed, capturing,
   waiting or off, with the take's length and the saved and discarded counts. A saved take shows "Saved N" for
   2 seconds and is spoken. Settings → Recording repeats the counts.
@@ -45,20 +51,33 @@ What a person using the app notices:
   reports no recorder or does not say. Every STOP is sent to the server, also when the robot is already stopped.
   A STOP pressed with no link goes out after the next connection; until then the screen shows the link's state,
   not STOPPED. Settings shows a red STOPPED band while the robot is stopped.
-- **The guide** shows the work area from above and from behind: where the jaws pinch, where the arm is being sent,
-  the height above the table, how far the jaws are open, the wrist's turn and tilt, and, when the server reports a
-  task, the target, the goal, "On target" and "Holding". It works for any arm and replaces the guide drawn for the
-  cube task. It is on by default (Settings → Task aid).
+- **The guide**, drawn in the two phone modes, shows the work area from above and from behind: where the jaws
+  pinch, where the arm is being sent, the height above the table, how far the jaws are open, the wrist's turn and
+  tilt, and, when the server reports a task, the target, the goal, "On target" and "Holding". It works for any arm
+  and replaces the guide drawn for the cube task. It is on by default (Settings → Task aid). Buttons shows the pad
+  in its place.
+- **Where the jaws close.** When the server reports its grasp point (`tool_pos`), the guide's jaw marker is that
+  point. Otherwise the app estimates it from the arm's position and the wrist angles; where the estimate may be
+  off by more than half the on-target window, the marker is a hollow ring with no centre dot, an orange line says
+  "Jaw position is approximate", and the guide never says "On target".
 - **Practice without a robot** takes the place of the Real server switch: Connect → "Practice without a robot", or
   Settings → Practice. Purple stripes and PRACTICE 練習 mark it, nothing is sent or recorded, and every launch is
   on the real server. It cannot start or end while the robot is stopped.
 - **Connect** opens from a tap on "Not connected", and says "Connection lost. The arm stopped." after a lost link.
   The address field starts empty.
 - **Settings** has Mode, Hand, Arm speed (in place of Sensitivity), Smoothing (Off, Low, High), Task aid,
-  Recording, Server, Practice, Language and About; five taps on the version show the developer log.
+  Recording, Server, Practice, Replay tutorial, Language and About; five taps on the version show the developer
+  log.
 - **First launch** asks for the camera only, then shows three tutorial pages for the control mode; once the
-  operating screen has been reached, launches open on it and connect to the saved server. Settings no longer has
-  Replay tutorial, so the tutorial shows only until the operating screen is first reached.
+  operating screen has been reached, launches open on it and connect to the saved server. Settings → Replay
+  tutorial shows the pages again; it is hidden while the robot is stopped, because the tutorial pages do not show
+  the stop.
+- **The tutorial's last page** says what the on-target cue means, in every mode. Only in the two phone modes does
+  it also say to keep holding and keep still until the arm stops: in Buttons a held arrow keeps moving the arm.
+- Fixed: on a busy phone a press could end at once with "Too fast." although the hand moved slowly, when two
+  readings of the phone's position came a millisecond apart. The speed is now measured over at least 16 ms.
+- Fixed: when the phone stalled for more than a second, the app said "Link lost." and closed the connection,
+  although the server had kept sending. Silence is now counted only while the app is running.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
   faked latency and its debug sheet, the Motion permission, the Deadband slider, the Developer switch and
@@ -80,7 +99,7 @@ What a maintainer needs to know:
   `turnEnd`) is gone, and so are the routes of the removed screens, with their actions: the mode choice and cloud
   mode (`p1_mode_select`, `p2_cloud_pass`, `p3_cloud_fail`), recording and base mode (`s3a_recording`,
   `s3b_record_end`, `s3m_base`), the fallback screens (`s5_fallback`, `s5a_fallback_recording`) and the errors
-  screen (`s7_errors`). `TeleopAction.replayTutorial` stays, but no screen sends it.
+  screen (`s7_errors`). `TeleopAction.replayTutorial` is sent from Settings, never while the stop is latched.
   `FakeTeleopState.resetClearsStop` records a reset asked for in the stop state. Practice starts and ends only
   through `AppModel.startPractice` and `leavePractice`.
 - Tests: `TeleopServerModel`, checked against 18 recordings of the real server, and `LocalTeleopServer`, which serves
@@ -95,6 +114,20 @@ What a maintainer needs to know:
   a second close loosens the grip; `ServerModelProfileTests` holds the server model to the same numbers.
 - The session safety checker covers the new routes and state. Its promise that every screen shows a latched stop
   (U1) names the one exception: a STOP that reached no server.
+- The guide's pinch point comes from `RobotProfile.pinchPoint`: the server's `tool_pos` when a state carries it,
+  else the gripper link origin plus `toolOffset`, approximate where `estimateBound` allows more than 3 mm of error.
+  The server model reports `tool_pos` unless `ServerModelConfig.reportsToolPoint` is off, and the pick-and-place
+  runs against both. `OnTargetCue` decides the on-target haptic.
+- An upload to App Store Connect has what the repository can give it: a privacy manifest
+  (`App/PrivacyInfo.xcprivacy`: user defaults for the app's own settings, the system uptime for timing events, no
+  tracking, no collected data) and `ITSAppUsesNonExemptEncryption` set to false. `docs/RELEASING.md` lists the
+  steps only the Apple account holder can take.
+- The maintenance tools are in `tools/`: the session safety checker in `tools/session-safety` and the app check
+  scripts in `tools/app-checks`, each with a README.
+- CI builds with Xcode 16.4 again: it could not type-check two long expressions in time. The developer log's line
+  for a link that never got ready says "no welcome or first state from server".
+- `.swift-format` holds the layout the Swift code is written in, and all of it is laid out so.
+  `scripts/check-format.sh` checks it strictly; it is a release step, and CI runs it only as a report.
 - `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/TESTING.md` and `docs/RELEASING.md` describe the app as it is.
 
 ## 0.10.0 (2026-11-11)

@@ -27,7 +27,8 @@ struct ConnectScreen: View {
                         Text("connection.server_address")
                             .font(.system(size: 14))
                             .foregroundStyle(TeleopColors.textSecondary)
-                        TextField(text: $model.session.state.serverAddress, prompt: Text(verbatim: "192.168.0.10:8765")) {
+                        TextField(text: $model.session.state.serverAddress, prompt: Text(verbatim: "192.168.0.10:8765"))
+                        {
                             Text("connection.server_address")
                         }
                         .font(.system(size: 16, design: .monospaced))
@@ -39,7 +40,8 @@ struct ConnectScreen: View {
                         .padding(.horizontal, 12)
                         .frame(minHeight: TeleopMetrics.touch)
                         .background(
-                            state.serverInputError ? TeleopColors.statusAmber.opacity(0.15) : TeleopColors.textSecondary.opacity(0.08),
+                            state.serverInputError
+                                ? TeleopColors.statusAmber.opacity(0.15) : TeleopColors.textSecondary.opacity(0.08),
                             in: RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                         )
                         .accessibilityIdentifier("connect.address_field")
@@ -59,13 +61,21 @@ struct ConnectScreen: View {
                                 .accessibilityIdentifier("connect.in_practice")
                         }
                         HStack(spacing: 8) {
-                            Button { model.connect() } label: { Text("connect.connect") }
-                                .buttonStyle(FilledButtonStyle())
-                                .disabled(practice)
-                                .accessibilityIdentifier("connect.connect")
-                            Button { model.send(.s1Back) } label: { Text("common.back") }
-                                .buttonStyle(OutlineButtonStyle())
-                                .accessibilityIdentifier("connect.back")
+                            Button {
+                                model.connect()
+                            } label: {
+                                Text("connect.connect")
+                            }
+                            .buttonStyle(FilledButtonStyle())
+                            .disabled(practice)
+                            .accessibilityIdentifier("connect.connect")
+                            Button {
+                                model.send(.s1Back)
+                            } label: {
+                                Text("common.back")
+                            }
+                            .buttonStyle(OutlineButtonStyle())
+                            .accessibilityIdentifier("connect.back")
                         }
                         .padding(.top, 4)
                     }
@@ -76,10 +86,12 @@ struct ConnectScreen: View {
                         guard !model.session.state.liveLink else { return }
                         // Practice is the built-in demo: it is there at once, so go straight to the operating screen.
                         model.connect()
-                    } label: { Text("connect.practice") }
-                        .buttonStyle(OutlineButtonStyle(color: TeleopColors.practice))
-                        .disabled(practiceBlocked)
-                        .accessibilityIdentifier("connect.practice")
+                    } label: {
+                        Text("connect.practice")
+                    }
+                    .buttonStyle(OutlineButtonStyle(color: TeleopColors.practice))
+                    .disabled(practiceBlocked)
+                    .accessibilityIdentifier("connect.practice")
                     if practiceBlocked {
                         Text(model.practiceBlockedReason)
                             .font(.system(size: 14))

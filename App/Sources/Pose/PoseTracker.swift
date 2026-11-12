@@ -72,7 +72,8 @@ struct PoseDelta: Equatable {
     }
 
     var logLine: String {
-        String(format: "pose Δ x %.1f y %.1f z %.1f cm, %.0f°",
-               translationCm.x, translationCm.y, translationCm.z, rotationDegrees)
+        String(
+            format: "pose Δ x %.1f y %.1f z %.1f cm, %.0f°",
+            translationCm.x, translationCm.y, translationCm.z, rotationDegrees)
     }
 }

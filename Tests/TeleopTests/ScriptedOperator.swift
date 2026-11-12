@@ -27,7 +27,10 @@ final class ScriptedOperator {
     private var lastFrame: TimeInterval = 0
     private let savedMode: String?
 
-    init(address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1, haptics: HapticsPlaying = NoHaptics()) {
+    init(
+        address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
+        haptics: HapticsPlaying = NoHaptics()
+    ) {
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
@@ -51,7 +54,8 @@ final class ScriptedOperator {
     /// come within `seconds`.
     func connect(within seconds: TimeInterval) -> Bool {
         model.connect()
-        let up = wait(seconds, until: { model.session.state.connected || model.session.state.serverInputError })
+        let up =
+            wait(seconds, until: { model.session.state.connected || model.session.state.serverInputError })
             && model.session.state.connected
         if up, model.session.route != .p4 { model.send(.closeConnection) }
         return up
@@ -187,9 +191,11 @@ final class ScriptedOperator {
         }
         let arm = model.link.armPosition ?? target
         let off = simd_distance(arm, target)
-        print(String(format: "PICK %@ (%@): %d holds, %.0f s, ended %.1f cm from target, estop %@",
-                     name, mode.rawValue, holds, Date().timeIntervalSince(started), off * 100,
-                     model.session.state.emergencyStop ? "YES" : "no"))
+        print(
+            String(
+                format: "PICK %@ (%@): %d holds, %.0f s, ended %.1f cm from target, estop %@",
+                name, mode.rawValue, holds, Date().timeIntervalSince(started), off * 100,
+                model.session.state.emergencyStop ? "YES" : "no"))
         return off < 0.008
     }
 
@@ -288,7 +294,8 @@ final class ScriptedOperator {
         let started = Date()
         let profile = model.profile
         guard let objectStart = model.link.objectPosition, let goal = model.link.goalPosition,
-              let armStart = model.link.armPosition else {
+            let armStart = model.link.armPosition
+        else {
             throw XCTSkip("the server did not report the task object, goal and arm positions")
         }
         let lift = SIMD3<Float>(0, 0, 0.03)
@@ -333,8 +340,10 @@ final class ScriptedOperator {
         let inGoal = abs(objectEnd.x - goal.x) <= 0.025 && abs(objectEnd.y - goal.y) <= 0.025
         // A success resets the scene at once, which also puts the object back at its start.
         let resetBySuccess = simd_distance(objectEnd, objectStart) < 0.005
-        print(String(format: "PICK RESULT (%@): in goal %@, scene reset after success %@, %.0f s in all",
-                     mode.rawValue, inGoal ? "YES" : "no", resetBySuccess ? "YES" : "no", Date().timeIntervalSince(started)))
+        print(
+            String(
+                format: "PICK RESULT (%@): in goal %@, scene reset after success %@, %.0f s in all",
+                mode.rawValue, inGoal ? "YES" : "no", resetBySuccess ? "YES" : "no", Date().timeIntervalSince(started)))
         XCTAssertFalse(model.session.state.emergencyStop)
         XCTAssertTrue(inGoal || resetBySuccess, "\(mode): the object did not end in the goal")
     }

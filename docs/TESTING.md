@@ -29,11 +29,13 @@ Two more checks sit beside the tests:
 
 - The **session safety checker** tries every action in every reachable state of the real `TeleopSession`
   (`docs/ARCHITECTURE.md` says what it proves). Run it with
-  `.cursor/skills/verify-session-safety/scripts/check.sh`.
+  `tools/session-safety/scripts/check.sh`.
 - **Scripts.** `python3 scripts/check-strings.py` checks every string table in `App/Resources`: each key has English
   and Traditional Chinese, the two carry the same format specifiers, the Chinese uses full-width punctuation, and no
   key the code uses is missing and none is unused. `python3 scripts/check-dead-buttons.py` fails on a button with an
-  empty action. `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py` tests two of
+  empty action. `scripts/check-format.sh` fails when a Swift file of the app, the core package, the tests or the
+  safety checker is not laid out as `.swift-format` says (`swift format lint --strict`); the same file list with
+  `swift format format -i --parallel` lays them out. `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py` tests two of
   the scripts; `-B` leaves no `scripts/__pycache__/` behind for `git status` to show.
 
 ## How to run each
@@ -157,8 +159,8 @@ carries the task object to the goal, lowers it and lets go, each with the chosen
 
 The same script runs in two places:
 
-- `LocalPickAndPlaceTests`, in every default run, once per control mode, against `LocalTeleopServer` stepping
-  60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
+- `LocalPickAndPlaceTests`, in every default run, once per control mode against a model that reports `tool_pos`
+  and once against one that does not, against `LocalTeleopServer` stepping 60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
   reach the grasp point, the jaws do not close on the object, the object is not lifted, it does not end in the goal,
   or the phone shows an emergency stop at the end. The test then checks that the server's episode count is 1 (the
   scene reset once, after the success) and that the server's last `state` has no emergency stop. It does not check
@@ -183,7 +185,8 @@ Sim's nominal rate, faster than the lab machine manages; the protocol timers (th
 
 Strictly: every ack (seq, status, reason, in the same order), whether a `state` came with each ack and that
 state's `estop` and `ik`, every error and echo, no other `state` while the client keeps sending at least every
-200 ms, the same `state` keys and JSON types, and the final `estop`, `ik`, `episode`, `gripper`, `step`,
+200 ms, the same `state` keys and JSON types (the recordings have no `tool_pos`, so the replay turns the model's
+`reportsToolPoint` off), and the final `estop`, `ik`, `episode`, `gripper`, `step`,
 `task_success` and recorder fields. Loosely, with the reason in the test's header: the number of states in a
 silence, ack times, final positions and angles. Two stalls of the real server's event loop are exempt from the
 timing rules (`Exclusion.all`). In s11 the real jaws came down on the cube and stopped a move; the replay puts an
@@ -245,12 +248,20 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 `.github/workflows/ios.yml` (a copy is kept in `ci/ios.yml`) runs on every push and pull request, on GitHub's
 `macos-15` image with the Xcode that image ships:
 
-1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`;
+1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`, then `scripts/check-format.sh`,
+   which only reports (below);
 2. `swift test` in `Packages/TeleopCore`;
 3. `brew install xcodegen` and `xcodegen generate`;
 4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
    `CODE_SIGNING_ALLOWED=NO`;
 5. it uploads the xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+
+The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
+older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
+differently, so a file that passes here can be reported there. `.swift-format` names only the settings that differ
+from swift format's defaults (four-space indents, 120 columns, no indent inside `#if`, every rewriting rule off), so
+that the older version can read it too. The strict check that counts is a step of the release procedure
+(`docs/RELEASING.md`), run with the current Xcode.
 
 CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
 whenever a change touches the session, its state, the screens' actions or the hold handling.

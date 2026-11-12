@@ -147,12 +147,14 @@ public final class TeleopLink {
     public func poseUpdate(positionMeters p: [Double]) {
         releaseHeldStart(force: false)
         guard holdActive, heldBack == nil, p.count == 3, p.allSatisfy(\.isFinite) else { return }
-        emit("pose_update", [
-            "p_rel_m": p.map { ($0 * 10000).rounded() / 10000 },
-            // Translation mode: the server ignores rotation, so send none.
-            "q_rel": [0, 0, 0, 1],
-            "gripper_delta": 0,
-        ])
+        emit(
+            "pose_update",
+            [
+                "p_rel_m": p.map { ($0 * 10000).rounded() / 10000 },
+                // Translation mode: the server ignores rotation, so send none.
+                "q_rel": [0, 0, 0, 1],
+                "gripper_delta": 0,
+            ])
     }
 
     /// Ends the hold. Safe to call when none is active.
@@ -316,6 +318,13 @@ public final class TeleopLink {
         if ready { lastHeardAt = now() }
     }
 
+    /// The app did not run for `ms` (its main thread stalled). What arrived meanwhile has not been read yet, so that
+    /// time does not count as silence, and an echo that waited through it says nothing about the round trip.
+    public func stalled(forMs ms: Int) {
+        probes = [:]
+        if let heard = lastHeardAt { lastHeardAt = min(now(), heard + max(0, ms)) }
+    }
+
     /// How long since anything arrived on this connection; nil before `welcome`.
     public var quietMs: Int? { lastHeardAt.map { now() - $0 } }
 
@@ -346,8 +355,9 @@ public final class TeleopLink {
 
     public func receive(_ text: String) -> LinkEvent? {
         guard let data = text.data(using: .utf8),
-              let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = message["type"] as? String else { return nil }
+            let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let type = message["type"] as? String
+        else { return nil }
         let payload = message["payload"] as? [String: Any] ?? [:]
         if welcomed { lastHeardAt = now() }
         switch type {
@@ -377,7 +387,9 @@ public final class TeleopLink {
             guard let seq = message["seq"] as? Int, let sent = probes.removeValue(forKey: seq) else { return nil }
             return .latency(ms: max(0, now() - sent))
         case "ack":
-            guard let seq = payload["seq"] as? Int, let sentType = sentTypes.removeValue(forKey: seq) else { return nil }
+            guard let seq = payload["seq"] as? Int, let sentType = sentTypes.removeValue(forKey: seq) else {
+                return nil
+            }
             let finishedStop = seq == stopping?.seq
             let finishedPose = finishedStop && stopping?.isPose == true
             if finishedStop {
@@ -443,27 +455,31 @@ public final class TeleopLink {
         stopping = nil
         switch start {
         case .pose(let params):
-            holdSeq = emit("pose_start", [
-                "frame": "webxr_local",
-                "rate_hz": Self.poseRateHz,
-                "control_mode": "translation",
-                "gain": params.gain,
-                // Required by the server's validation (0 to 15) and ignored by it in every hold.
-                "deadband_deg": 0.0,
-                "smoothing": params.smoothing,
-            ])
+            holdSeq = emit(
+                "pose_start",
+                [
+                    "frame": "webxr_local",
+                    "rate_hz": Self.poseRateHz,
+                    "control_mode": "translation",
+                    "gain": params.gain,
+                    // Required by the server's validation (0 to 15) and ignored by it in every hold.
+                    "deadband_deg": 0.0,
+                    "smoothing": params.smoothing,
+                ])
             lastStart = SentStart(seq: seq, kind: .pose, atMs: now())
         case .gripperJog(let target):
             gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
             lastStart = SentStart(seq: seq, kind: .gripper(target), atMs: now())
         case .orient:
-            turnSeq = emit("orient_start", [
-                "frame": "phone_body",
-                "rate_hz": Self.poseRateHz,
-                "gain": 1.0,
-                "deadband_deg": 0.0,
-                "smoothing": 0.0,
-            ])
+            turnSeq = emit(
+                "orient_start",
+                [
+                    "frame": "phone_body",
+                    "rate_hz": Self.poseRateHz,
+                    "gain": 1.0,
+                    "deadband_deg": 0.0,
+                    "smoothing": 0.0,
+                ])
             lastStart = SentStart(seq: seq, kind: .wrist, atMs: now())
         }
     }
@@ -488,10 +504,13 @@ public final class TeleopLink {
             "v": Self.protocolVersion, "type": type, "ts": now(), "seq": seq, "payload": payload,
         ]
         // pose_update, orient_update and test get no ack; remembering them would only grow the table.
-        if type != "pose_update", type != "orient_update", type != "test", type != "jog_keepalive" { sentTypes[seq] = type }
+        if type != "pose_update", type != "orient_update", type != "test", type != "jog_keepalive" {
+            sentTypes[seq] = type
+        }
         if sentTypes.count > 64, let oldest = sentTypes.keys.min() { sentTypes[oldest] = nil }
         if let data = try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys]),
-           let text = String(data: data, encoding: .utf8) {
+            let text = String(data: data, encoding: .utf8)
+        {
             send(text)
         }
         return seq

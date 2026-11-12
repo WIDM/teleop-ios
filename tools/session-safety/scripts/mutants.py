@@ -12,8 +12,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-SKILL = Path(__file__).resolve().parents[1]
-ROOT = SKILL.parents[2]
+TOOL = Path(__file__).resolve().parents[1]
+ROOT = TOOL.parents[1]
 SOURCES = [
     "Sources/TeleopCore/TeleopSession.swift",
     "Sources/TeleopCore/FakeTeleopState.swift",
@@ -309,6 +309,30 @@ SOURCE_VARIANTS = [
         "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
     ),
     (
+        "Settings offers Replay tutorial while stopped",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "if !model.session.state.emergencyStop {",
+        "if true {",
+        "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
+    ),
+    (
+        "Settings comments out the guard of Replay tutorial",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "if !model.session.state.emergencyStop {",
+        "if true {  // if !model.session.state.emergencyStop {",
+        "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
+    ),
+    (
+        "Settings leaves the guard of Replay tutorial in a block comment",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "if !model.session.state.emergencyStop {",
+        "if true { /* if !model.session.state.emergencyStop { */",
+        "DRIFT SettingsScreen offers replayTutorial while stopped, but shippedActions in main.swift hides it then",
+    ),
+    (
         "Leaving fewer routes ends a hold",
         "Operating/OperatingController.swift",
         "final class OperatingController {",
@@ -330,12 +354,12 @@ SOURCE_VARIANTS = [
 
 
 def main():
-    work = Path(tempfile.gettempdir()) / "verify-session-safety-mutants"
+    work = Path(tempfile.gettempdir()) / "teleop-session-safety-mutants"
     core = work / "TeleopCore"
     scratch = work / "build"
     work.mkdir(exist_ok=True)
     env = {**os.environ, "TELEOP_CORE_PATH": str(core)}
-    known = SKILL / "known-findings.txt"
+    known = TOOL / "known-findings.txt"
     bad = 0
 
     def fresh_core():
@@ -355,7 +379,7 @@ def main():
                 "-c",
                 "release",
                 "--package-path",
-                str(SKILL / "checker"),
+                str(TOOL / "checker"),
                 "--scratch-path",
                 str(scratch),
                 "-q",
@@ -388,11 +412,11 @@ def main():
                     f"Variant '{label}' no longer applies: {old!r} not found. Update scripts/mutants.py."
                 )
             path.write_text(path.read_text().replace(old, new, 1))
-        run(label, SKILL / "ui-map.tsv", expected)
+        run(label, TOOL / "ui-map.tsv", expected)
 
     fresh_core()
     for label, route, remove, expected in MAP_VARIANTS:
-        lines = (SKILL / "ui-map.tsv").read_text().splitlines()
+        lines = (TOOL / "ui-map.tsv").read_text().splitlines()
         changed = [
             l.replace(remove, "") if l.startswith(route + "\t") else l for l in lines
         ]
@@ -412,7 +436,7 @@ def main():
             )
         path.write_text(before + anchor + after.replace(old, new, 1))
         result = subprocess.run(
-            [sys.executable, str(SKILL / "scripts/drift.py")],
+            [sys.executable, str(TOOL / "scripts/drift.py")],
             env={**os.environ, "TELEOP_APP_SOURCES": str(app)},
             capture_output=True,
             text=True,

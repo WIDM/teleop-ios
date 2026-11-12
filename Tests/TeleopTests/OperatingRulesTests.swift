@@ -40,27 +40,58 @@ final class OperatingRulesTests: XCTestCase {
             ("link lost", lost, .linkLost),
             ("ready", connected(), .ready),
             ("moving", connected { $0.engaged = .translation }, .moving(catchingUp: false)),
-            ("catching up", connected { $0.engaged = .translation; $0.catchingUp = true }, .moving(catchingUp: true)),
-            ("turning", connected {
-                $0.engaged = .wrist
-                $0.wristTarget = WristTarget(axis: .turn, degrees: -42)
-                $0.wristMeasured = true
-            }, .turning(degrees: 42, limit: 55, estimated: false)),
-            ("tilting, estimated", connected {
-                $0.engaged = .wrist
-                $0.wristTarget = WristTarget(axis: .tilt, degrees: 12)
-            }, .tilting(degrees: 12, limit: 20, estimated: true)),
-            ("wrist before it commits", connected { $0.engaged = .wrist; $0.wristMeasured = true },
-             .turning(degrees: 0, limit: 55, estimated: false)),
+            (
+                "catching up",
+                connected {
+                    $0.engaged = .translation; $0.catchingUp = true
+                }, .moving(catchingUp: true)
+            ),
+            (
+                "turning",
+                connected {
+                    $0.engaged = .wrist
+                    $0.wristTarget = WristTarget(axis: .turn, degrees: -42)
+                    $0.wristMeasured = true
+                }, .turning(degrees: 42, limit: 55, estimated: false)
+            ),
+            (
+                "tilting, estimated",
+                connected {
+                    $0.engaged = .wrist
+                    $0.wristTarget = WristTarget(axis: .tilt, degrees: 12)
+                }, .tilting(degrees: 12, limit: 20, estimated: true)
+            ),
+            (
+                "wrist before it commits",
+                connected {
+                    $0.engaged = .wrist; $0.wristMeasured = true
+                },
+                .turning(degrees: 0, limit: 55, estimated: false)
+            ),
             ("opening", connected { $0.engaged = .gripper(.open) }, .opening),
             ("closing", connected { $0.engaged = .gripper(.closed) }, .closing(gripped: false)),
-            ("gripped", connected { $0.engaged = .gripper(.closed); $0.gripping = true }, .closing(gripped: true)),
+            (
+                "gripped",
+                connected {
+                    $0.engaged = .gripper(.closed); $0.gripping = true
+                }, .closing(gripped: true)
+            ),
             ("saving", connected { $0.serverSaving = true }, .wait(.saving)),
             ("resetting", connected { $0.serverResetting = true }, .wait(.resetting)),
             ("camera stopped", connected { $0.cameraStopped = true }, .trackingLost),
             ("refused", connected { $0.lastRefusal = (.slowLink, 9_500) }, .refused(.slowLink)),
-            ("slow link", connected { $0.commandsBlocked = true; $0.latencyMs = 450 }, .slowLink(ms: 450)),
-            ("stopped", connected { $0.emergencyStop = true; $0.stopCause = .button }, .stopped(cause: .button)),
+            (
+                "slow link",
+                connected {
+                    $0.commandsBlocked = true; $0.latencyMs = 450
+                }, .slowLink(ms: 450)
+            ),
+            (
+                "stopped",
+                connected {
+                    $0.emergencyStop = true; $0.stopCause = .button
+                }, .stopped(cause: .button)
+            ),
             ("saved", connected { $0.lastSaved = (13, 8_500) }, .saved(count: 13)),
         ]
         for (name, facts, expected) in rows {
@@ -127,7 +158,8 @@ final class OperatingRulesTests: XCTestCase {
         assertClose(reading?.target ?? .zero, SIMD3<Float>(0.005, -0.2, 0.0525), accuracy: 1e-6)
         assertClose(reading?.goal ?? .zero, SIMD3<Float>(0.075, -0.2, 0.0535), accuracy: 1e-6)
         XCTAssertEqual(reading?.gripping, true)
-        XCTAssertEqual(reading?.pinchSource, .estimated(approximate: true), "3 cm toward the base of where the offset holds")
+        XCTAssertEqual(
+            reading?.pinchSource, .estimated(approximate: true), "3 cm toward the base of where the offset holds")
         XCTAssertEqual(reading?.boxShift, .zero)
         let unknown = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "estop": false])
         let bare = OperatingRules.arm(unknown, commanded: nil, gripping: false, profile: profile)
@@ -143,7 +175,8 @@ final class OperatingRulesTests: XCTestCase {
             "ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "object_pos": [0.005, -0.2, 0.1025],
             "estop": false,
         ])
-        let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.04, -0.14, 0.16), gripping: false, profile: profile))
+        let reading = try! XCTUnwrap(
+            OperatingRules.arm(state, commanded: SIMD3(0.04, -0.14, 0.16), gripping: false, profile: profile))
         assertClose(reading.pinchPoint, SIMD3(0.03, -0.17, 0.08), accuracy: 1e-6)
         XCTAssertEqual(reading.pinchSource, .reported)
         let measured = SIMD3<Float>(0.01, -0.03, -0.08)
@@ -156,11 +189,13 @@ final class OperatingRulesTests: XCTestCase {
     func testTheGuidesPinchPointFallsBackToTheEstimate() {
         let profile = RobotProfile.so101Simulator
         let tools: [Any] = [
-            NSNull(), [0.03, -0.17], [0.03, Double.nan, 0.08], [0.03, Double.infinity, 0.08], "0.03", [1e39, -0.17, 0.08],
+            NSNull(), [0.03, -0.17], [0.03, Double.nan, 0.08], [0.03, Double.infinity, 0.08], "0.03",
+            [1e39, -0.17, 0.08],
         ]
         for tool in tools {
             let state = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "tool_pos": tool, "estop": false])
-            let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.03, -0.14, 0.16), gripping: false, profile: profile))
+            let reading = try! XCTUnwrap(
+                OperatingRules.arm(state, commanded: SIMD3(0.03, -0.14, 0.16), gripping: false, profile: profile))
             assertClose(reading.pinchPoint, SIMD3<Float>(0.027, -0.176, 0.072), accuracy: 1e-6)
             assertClose(reading.commanded ?? .zero, SIMD3<Float>(0.037, -0.176, 0.072), accuracy: 1e-6)
             XCTAssertEqual(reading.pinchSource, .estimated(approximate: true), "\(tool)")
@@ -173,7 +208,9 @@ final class OperatingRulesTests: XCTestCase {
     /// so the box keeps its size and the guide is built, saying the pinch point is outside, instead of stopping the app.
     func testAGripperPointBeyondFloatRangeLeavesTheBoxAlone() {
         let profile = RobotProfile.so101Simulator
-        let state = ServerState(payload: ["ee_pos": [1e39, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "estop": false])
+        let state = ServerState(payload: [
+            "ee_pos": [1e39, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "estop": false,
+        ])
         let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile))
         XCTAssertEqual(reading.pinchSource, .estimated(approximate: true))
         XCTAssertEqual(reading.boxShift, .zero)

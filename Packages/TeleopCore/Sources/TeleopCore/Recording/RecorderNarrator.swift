@@ -109,7 +109,8 @@ public struct RecorderNarrator {
             labelBeforeStop = state.recorder?.label
         }
         if let label = state.recorder?.label, label == .armed || label == .capturing { notRecordingSaid = false }
-        if moving, state.recorder?.label == .off, !state.estop, !state.simBusy, pendingSuccess == nil, !notRecordingSaid {
+        if moving, state.recorder?.label == .off, !state.estop, !state.simBusy, pendingSuccess == nil, !notRecordingSaid
+        {
             notRecordingSaid = true
             events.append(.notRecording)
         }
@@ -170,7 +171,9 @@ public struct RecorderNarrator {
         } else {
             absorbDiscard = false
             if newRun { events.append(.serverRestarted) }
-            if let recorder = state.recorder, recorder.records { events.append(.recordingSession(saved: recorder.saved)) }
+            if let recorder = state.recorder, recorder.records {
+                events.append(.recordingSession(saved: recorder.saved))
+            }
         }
         if Self.ready(state) {
             events.append(.ready)
@@ -196,7 +199,8 @@ public struct RecorderNarrator {
                 events.append(.taskSuccess)
             }
         }
-        let discarded = before.recorder != nil && state.recorder != nil
+        let discarded =
+            before.recorder != nil && state.recorder != nil
             && (state.recorder?.discarded ?? 0) > (before.recorder?.discarded ?? 0)
         let newEpisode = state.episode != nil && before.episode != nil && state.episode != before.episode
         if pendingSuccess != nil, discarded || newEpisode {

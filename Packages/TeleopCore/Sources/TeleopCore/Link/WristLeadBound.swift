@@ -57,7 +57,8 @@ public struct WristLeadBound: Equatable, Sendable {
     /// nil when none has.
     public mutating func bounded(_ target: WristTarget, measured: WristReadings, ageMs: Int?) -> WristTarget {
         guard var current = hold, let axis = target.axis, let start = current.start[axis],
-              let now = Self.angle(axis, measured) else {
+            let now = Self.angle(axis, measured)
+        else {
             hold?.lastSent = target
             return target
         }
@@ -81,7 +82,8 @@ public struct WristLeadBound: Equatable, Sendable {
     public mutating func holdEnded(measured: WristReadings) {
         defer { hold = nil }
         guard let current = hold, let sent = current.lastSent, let axis = sent.axis,
-              let start = current.start[axis], let now = Self.angle(axis, measured) else { return }
+            let start = current.start[axis], let now = Self.angle(axis, measured)
+        else { return }
         let commanded = start + (current.carried[axis] ?? 0) + sent.degrees
         memory[axis] = Memory(lead: commanded - now, measuredAtEnd: now)
     }

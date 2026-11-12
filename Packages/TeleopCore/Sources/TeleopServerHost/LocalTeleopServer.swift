@@ -35,8 +35,9 @@ public final class LocalTeleopServer {
         for socket in sockets.values { socket.cancel() }
     }
 
-    /// Starts listening and returns once the port is known.
-    public func start(timeout: TimeInterval = 5) throws {
+    /// Starts listening and returns once the port is known. The listener is normally ready within milliseconds; the
+    /// generous bound is for a CI runner that stalls for many seconds at a time, where 5 s ran out.
+    public func start(timeout: TimeInterval = 30) throws {
         let parameters = NWParameters.tcp
         let webSocket = NWProtocolWebSocket.Options()
         webSocket.autoReplyPing = true
@@ -60,7 +61,8 @@ public final class LocalTeleopServer {
         listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
         startedAt = DispatchTime.now()
         listener.start(queue: queue)
-        guard ready.wait(timeout: .now() + timeout) == .success, failure == nil, let port = listener.port?.rawValue else {
+        guard ready.wait(timeout: .now() + timeout) == .success, failure == nil, let port = listener.port?.rawValue
+        else {
             listener.cancel()
             throw failure ?? NWError.posix(.ETIMEDOUT)
         }
@@ -115,7 +117,8 @@ public final class LocalTeleopServer {
                 closed(id)
                 return
             }
-            let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata
+            let metadata =
+                context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata
             switch metadata?.opcode {
             case .text?:
                 if let data, let text = String(data: data, encoding: .utf8) {
@@ -142,7 +145,8 @@ public final class LocalTeleopServer {
             guard let socket = sockets[output.connection] else { continue }
             let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])
-            socket.send(content: Data(output.text.utf8), contentContext: context, isComplete: true, completion: .idempotent)
+            socket.send(
+                content: Data(output.text.utf8), contentContext: context, isComplete: true, completion: .idempotent)
         }
     }
 }
