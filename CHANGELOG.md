@@ -115,11 +115,11 @@ The wrist can tilt, and the guide shows how high the jaws are.
 - On a scene that starts with the jaws already side by side (a start wrist roll of 90 degrees), the caption
   "Jaws sideways first" no longer shows and nothing has to be turned before a grasp. The app shows that caption
   only for a setup whose scene starts the jaws front to back.
-- Known limit: the app expects a server that leaves the arm's targets as commanded when a hold ends. On a server
-  that copies the measured arm and gripper angles into their targets at that moment, the arm sinks about half a
-  centimetre and bounces, and a cube held at the jaw tips is shaken out: through the app's own code the cube was
-  dropped in 3 of 6 runs and the task succeeded 1 time in 4. With the targets left as commanded there were no
-  drops and it succeeded 10 times in 10 (seven plain runs and three after a dozen extra holds).
+- Known limit: the app expects the arm's targets to stay as commanded when a hold ends. Then, through the app's
+  own code, no cube was dropped and the task succeeded 10 times in 10 (seven plain runs and three after a dozen
+  extra holds). Without it, when the measured arm and gripper angles are copied into their targets at that moment,
+  the arm sinks about half a centimetre and bounces, and a cube held at the jaw tips is shaken out: the cube was
+  dropped in 3 of 6 runs and the task succeeded 1 time in 4.
 - Why: in a hand test the jaws were closed 1 to 2 cm from the grasp point and not side by side, because
   nothing on the screen showed how high they were, the turn had to be remembered after every Reset, and the
   wrist tilt could not be moved at all. The cube, wedged between the jaws and the table, trembled by 4 to 7 mm.
@@ -155,12 +155,12 @@ The jaws can turn now, so the cube can be held.
 - The whole task now passes end to end through the app's own code against the simulator
   (`ServerMotionTests.testPickAndPlaceByScript`, 135 s): open, two presses of Turn, two holds to the grasp
   point, close, lift, carry, lower, open.
-- Known limit: on a server that copies the measured, sagged wrist angle into the wrist target at every hold
-  start and stop, every hold lets the wrist droop a little more, about 0.2 to 0.5 degrees a hold (3 to 6
-  degrees over the 9 to 35 holds of a hand-driven attempt). The jaw tips then sit up to a centimetre behind
-  where the map shows them. On such a server, reach the cube in few holds and Reset if it took many. On a
-  server that keeps the wrist target as commanded, the wrist stays within 0.2 degrees over 12 holds, and
-  `ServerMotionTests.testPickAndPlaceAfterManyHolds` passes.
+- Known limit: the app expects the wrist target to stay as commanded when a hold starts and stops. Then the
+  wrist stays within 0.2 degrees over 12 holds, and `ServerMotionTests.testPickAndPlaceAfterManyHolds` passes.
+  Without it, when the measured, sagged wrist angle is copied into the wrist target at every hold start and stop,
+  every hold lets the wrist droop a little more, about 0.2 to 0.5 degrees a hold (3 to 6 degrees over the 9 to
+  35 holds of a hand-driven attempt), and the jaw tips sit up to a centimetre behind where the map shows them.
+  Then reach the cube in few holds, and Reset if it took many.
 - Only one of the arm hold, the gripper hold and the jaw turn runs at a time, as on the server: starting one
   ends the other, and a turn is refused while the arm is held.
 - The turn handles are not on the fallback screens (no volume keys) yet.
