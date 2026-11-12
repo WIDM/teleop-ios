@@ -891,7 +891,7 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertNil(server("test", seq: seq))
     }
 
-    /// A stall of the app is taken out of the silence, and the probe it held up is forgotten.
+    /// A stall of the app is taken out of the silence, never past now, and the probe it held up is forgotten.
     func testAStallOfTheAppIsNotSilence() {
         bringUp()
         link.probe()
@@ -900,11 +900,14 @@ final class TeleopLinkTests: XCTestCase {
         link.stalled(forMs: 1200)
         XCTAssertEqual(link.quietMs, 300)
         XCTAssertNil(server("test", seq: seq), "the echo waited through the stall")
+        clock += 100
+        link.stalled(forMs: 5000)
+        XCTAssertEqual(link.quietMs, 0, "never later than now")
     }
 
-    /// A message read before the tick that reports a stall shows the server talking: that stall needs no excuse, and
-    /// the next one is still excused.
-    func testAStallDuringWhichTheServerWasHeardKeepsTheExcuse() {
+    /// Messages read before the tick that reports a stall arrived after it began, so the next stall is taken out too:
+    /// what arrived during it still waits behind its tick.
+    func testMessagesReadBeforeAStallsTickKeepTheNextStallExcused() {
         bringUp()
         clock += 1500
         _ = server("state", ["estop": false])
@@ -915,7 +918,17 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(link.quietMs, 33, "the next stall is excused")
     }
 
-    /// Only the first stall since the last message is excused: when nothing arrived after it, the server is silent.
+    /// A message read just before the main thread stalls is not mistaken for one read during the stall.
+    func testAStallThatBeganAfterAMessageIsTakenOut() {
+        bringUp()
+        clock += 50
+        _ = server("state", ["estop": false])
+        clock += 1500
+        link.stalled(forMs: 1517)
+        XCTAssertEqual(link.quietMs, 0)
+    }
+
+    /// Once a stall is taken out, the next is not when nothing arrived after the first began: the server is silent.
     func testAStallWithNothingHeardSinceTheLastOneIsSilence() {
         bringUp()
         clock += 300

@@ -1406,6 +1406,20 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.connected, "the second stall's messages still wait behind its tick")
     }
 
+    /// A stall that begins just after both connections read a message is taken out too: what arrives during it still
+    /// waits behind its tick.
+    func testAStallThatBeginsJustAfterAMessageIsNotALostLink() {
+        bringUp()
+        bringUpObserver()
+        tick()
+        clock += 50
+        transport.server("state", ["estop": false, "gripper": "closed"])
+        observer.server("state", ["estop": false, "gripper": "closed"])
+        clock += 1500
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "what arrived during the stall still waits behind its tick")
+    }
+
     /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
     /// its commands are not getting through.
     func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
