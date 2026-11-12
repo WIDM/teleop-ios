@@ -679,7 +679,7 @@ final class LiveLinkController {
             if observer.isStale {
                 observerDropped("server went quiet")
             } else if !observer.ready, nowMs() - observerOpenedAtMs > Int(Self.connectTimeout * 1000) {
-                observerDropped("no welcome")
+                observerDropped("no welcome or first state from server")
             }
         }
         if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true {
