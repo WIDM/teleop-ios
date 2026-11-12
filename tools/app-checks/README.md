@@ -43,11 +43,12 @@ keeps one check's evidence together. Builds go to `$SCRATCH` (default `/tmp/tele
 - The UI tests name their screenshots by what they show (`ready-en-874.png`, `settings-lower-rows.png`), not by
   screen id, so `figma-compare.py` pairs none of them as they are and exits 2. Copy the screenshots to compare into
   a folder of their own under names that hold the screen id (`S6-settings.png`), and pass that folder as `--shots`.
-- `check-english.sh` uses `grep -P`, which the `grep` that ships with macOS does not have: there every search prints
-  a usage message and reports `OK`, so run it where GNU grep is installed. It then lists every file with such
-  characters.
-  The string catalogs in `App/Resources`, the tests that check Chinese strings and `scripts/test_check_strings.py`
-  hold Traditional Chinese on purpose; only other hits are findings.
+- `check-english.sh` searches with Perl, so it works the same on a Mac and on Linux; without Perl it stops with
+  `FAIL cannot search` and exit 2, never `OK`. It lists every tracked file with such characters, so on this
+  repository it always reports `FAIL`: the string catalogs in `App/Resources`, the tests that check Chinese strings,
+  `scripts/test_check_strings.py`, and the bilingual labels PRACTICE and STOP and the name of the Chinese language
+  where code, comments, the changelog, the documents and the feature notes quote them hold Traditional Chinese on
+  purpose. Only other hits, and any hit in commit messages, file names or a pull request, are findings.
 - A result names the commit it ran on (`git rev-parse --short HEAD`) and, for CI, the run id.
 
 ## Changing it
