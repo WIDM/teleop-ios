@@ -1377,9 +1377,9 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.session.state.connected, "a 300 ms stall every second kept a silent link up")
     }
 
-    /// Two stalls in a row on a server that keeps sending, the first one's messages read before its tick and the
-    /// second one's still waiting behind it: not a lost link.
-    func testTwoStallsInARowOnATalkingServerAreNotALostLink() {
+    /// Stalls in a row on a server that keeps sending, the first one's messages read before its tick and the later
+    /// ones' still waiting behind theirs: not a lost link.
+    func testStallsInARowOnATalkingServerAreNotALostLink() {
         bringUp()
         bringUpObserver()
         clock += 1500
@@ -1389,6 +1389,9 @@ final class LiveLinkTests: XCTestCase {
         clock += 1500
         model.link.tick()
         XCTAssertTrue(model.session.state.connected, "the second stall's messages still wait behind its tick")
+        clock += 1500
+        model.link.tick()
+        XCTAssertTrue(model.session.state.connected, "and the third's")
     }
 
     /// A stall that begins just after both connections read a message: what arrives during it still waits behind its

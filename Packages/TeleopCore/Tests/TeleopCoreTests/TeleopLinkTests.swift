@@ -905,9 +905,9 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(link.quietMs, 0, "never later than now")
     }
 
-    /// A stall whose messages were read before its tick, then one whose messages still wait behind it: both are taken
-    /// out of the silence.
-    func testTwoStallsInARowAreBothTakenOut() {
+    /// A stall whose messages were read before its tick, then two whose messages still wait behind theirs: all are
+    /// taken out of the silence.
+    func testStallsInARowAreAllTakenOut() {
         bringUp()
         clock += 1500
         _ = server("state", ["estop": false])
@@ -916,6 +916,9 @@ final class TeleopLinkTests: XCTestCase {
         clock += 1500
         link.stalled(forMs: 1467)
         XCTAssertEqual(link.quietMs, 33, "the second stall is taken out too")
+        clock += 1500
+        link.stalled(forMs: 1467)
+        XCTAssertEqual(link.quietMs, 66, "and the third")
     }
 
     /// A stall that begins just after a message was read is taken out of the silence, up to now.
