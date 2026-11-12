@@ -5,6 +5,22 @@ robot arm in a simulator, and turns the simulator's answers into vibrations, sou
 work mostly without looking at the screen. This note says where each part lives and how the parts talk. The
 messages themselves are in `docs/PROTOCOL.md`; the tests are in `docs/TESTING.md`.
 
+A few words recur here. `docs/PROTOCOL.md` explains them in full under "Words used here".
+
+- **Control mode**: screen turns (scheme A), key turns (scheme B) or buttons. The first two, the *phone modes*,
+  move the arm with the phone itself; buttons mode uses on-screen buttons.
+- **Hold**: a control that runs only while a key, a thumb or a button stays down. The app sends a start when the
+  press begins, updates or keepalives while it lasts, and a stop when it ends. The server runs one hold at a time.
+- **Final ack**: the server's answer to a start once the hold it started has really ended. A new start or a reset
+  waits for it, at most 800 ms.
+- **Probe**: the `test` message the app sends twice a second; its echo times the round trip and shows the link is
+  alive.
+- **Resync**: during a long arm hold, ending the hold on the server and starting a new one from where the arm got
+  to, so the server's target never runs too far ahead of the arm.
+- **Take**: one attempt recorded by the server's recorder; it is kept as a demonstration if it ends in success.
+- **Stop exits**: the ways out of an emergency stop that the screen offers: reset the scene, or release the stop
+  and keep the scene.
+
 ```mermaid
 flowchart LR
   keys[Volume keys] --> AM
@@ -81,9 +97,9 @@ where a press the session accepts goes live at once and no message is sent.
 
 | Route | Drawn by | How the operator gets there |
 |---|---|---|
-| `s2_permissions` | `PermissionsScreen` | the first launch after an install |
-| `t1_tutorial` to `t3_tutorial` | `TutorialScreen` | Continue on the permissions screen, the first time: three pages on the controls of the mode chosen in Settings |
-| `p4_standby` | `OperatingScreen` | every later launch; Done in Settings; the end of the tutorial; leaving a stop |
+| `s2_permissions` | `PermissionsScreen` | every launch until `p4_standby` has been reached once: the first launch after an install, and a launch after one that ended during the tutorial |
+| `t1_tutorial` to `t3_tutorial` | `TutorialScreen` | Continue on the permissions screen: three pages on the controls of the mode chosen in Settings |
+| `p4_standby` | `OperatingScreen` | every launch once it has been reached; Done in Settings; the end of the tutorial; leaving a stop |
 | `p5_connection` | `OperatingScreen` | a connection made from Connect; Back on Connect |
 | `p6_high_latency` | `OperatingScreen` | two slow round trips in a row while on `p4_standby` |
 | `p7_keyboard` | `OperatingScreen` | only the launch argument `-startRoute` |
@@ -282,14 +298,17 @@ It needs `swift` and `python3`. Exit 0 means every promise holds (or is a listed
 a stale known finding or drift between the checker's tables and the code; 2 that `swift` is missing (a skip, not a
 pass). For a violation it prints the shortest sequence of actions from launch that breaks the promise.
 
-Update it before a change counts as safe:
+Update it before a change counts as safe. The checker's tables are in
+`.cursor/skills/verify-session-safety/checker/Sources/SafetyCheck/main.swift`, and the screens' actions in
+`.cursor/skills/verify-session-safety/ui-map.tsv`:
 
-- when a `TeleopAction` is added: add it to the checker's action table and, if a screen sends it, to `ui-map.tsv`;
-- when a stored field is added to `FakeTeleopState`: add it to the checker's state key, or to its list of fields
-  no action changes;
+- when a `TeleopAction` is added: add it to `actionTable` in `main.swift` and, if a screen sends it, to
+  `ui-map.tsv`;
+- when a stored field is added to `FakeTeleopState`: add it to `StateKey` in `main.swift`, or to the "Not in key"
+  comment there if no action changes it;
 - when a screen gains or loses a control that sends an action: update its row in `ui-map.tsv`;
 - when a covered file changes: read the change, confirm the checker still describes the code, and move the sync
-  commit in `SKILL.md`.
+  commit in `SKILL.md`, which lists the full steps.
 
 `drift.py`, run by `check.sh`, fails when one of the first three is forgotten. For the fourth, `check.sh` prints a
 `REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure. The sync
