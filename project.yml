@@ -36,6 +36,8 @@ targets:
         # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # Only the system's own encryption (URLSession for wss://), which is exempt: no export question on upload.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app
