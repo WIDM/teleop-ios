@@ -25,7 +25,7 @@ final class LocalPickAndPlaceTests: XCTestCase {
         hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
         XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
         // The script skips without these, which suits the live server; against the local one it is a failure.
-        _ = try XCTUnwrap(hand.model.link.objectPosition, "the local server reported no cube")
+        _ = try XCTUnwrap(hand.model.link.objectPosition, "the local server reported no task object")
         _ = try XCTUnwrap(hand.model.link.goalPosition, "the local server reported no goal")
         _ = try XCTUnwrap(hand.model.link.armPosition, "the local server reported no arm position")
     }

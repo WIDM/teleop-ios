@@ -125,9 +125,9 @@ final class ServerMotionTests: XCTestCase {
         try hand.pickAndPlace(warmUpHolds: 0)
     }
 
-    /// The same after a dozen extra holds, the way a hand works its way to the cube. This needs a server that
+    /// The same after a dozen extra holds, the way a hand works its way to the object. This needs a server that
     /// keeps its wrist target: one that copies the sagged wrist angle into the target at every hold droops the
-    /// gripper about 4 to 7 degrees over these holds, and the jaws then close beside the cube.
+    /// gripper about 4 to 7 degrees over these holds, and the jaws then close beside the object.
     func testPickAndPlaceAfterManyHolds() throws {
         try hand.pickAndPlace(warmUpHolds: 12)
     }
