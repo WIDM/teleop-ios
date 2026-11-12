@@ -27,14 +27,18 @@ final class ScriptedOperator {
     private var lastFrame: TimeInterval = 0
     private let savedMode: String?
 
+    /// - Parameter makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or
+    ///   cuts the network path.
     init(
         address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
-        haptics: HapticsPlaying = NoHaptics()
+        haptics: HapticsPlaying = NoHaptics(), makeTransport: ((URL) -> LinkTransport)? = nil
     ) {
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
-        model = AppModel(start: .s1, haptics: haptics, pose: { [unowned self] in camera }, liveLink: true)
+        model = AppModel(
+            start: .s1, haptics: haptics, pose: { [unowned self] in camera }, liveLink: true,
+            makeTransport: makeTransport ?? { WebSocketTransport(url: $0) })
         model.session.state.serverAddress = address
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
