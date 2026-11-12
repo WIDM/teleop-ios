@@ -42,6 +42,8 @@ final class ScriptedOperator {
     private(set) var linkLostDuring: String?
     /// When the newest `state` arrived.
     private var lastStateAt: Date?
+    /// When the newest probe the control connection echoed was sent: the echo's arrival less its round trip.
+    private var lastEchoedProbeSentAt: Date?
     /// What the hand is doing now, named in the failure if the run cannot go on.
     var step = "connecting"
     /// The step at which the run could not go on; nil while it can.
@@ -78,6 +80,7 @@ final class ScriptedOperator {
         }
         let onAction = model.link.onAction
         model.link.onAction = { [unowned self] action in
+            if case .linkLatency(let ms) = action { lastEchoedProbeSentAt = Date() - Double(ms) / 1000 }
             if action == .linkLost, model.session.state.connected, linkLostDuring == nil { linkLostDuring = step }
             onAction?(action)
         }
@@ -104,16 +107,26 @@ final class ScriptedOperator {
         return true
     }
 
-    /// Waits for a `state` less than 1 s old, or one that arrived after `since`; the server sends one after every
-    /// 200 ms of silence on either connection. False, after failing the run, when none comes while the link stays up:
-    /// steering from an old arm position, or judging the run on an old object position, would be a guess. The wait
-    /// outlasts the link's 3 s limit, so a stall of the path ends in a fresh state or a lost link.
+    /// Waits for a `state` less than 1 s old; the server sends one after every 200 ms of silence on either connection.
+    /// With `since`, waits instead for a `state` that arrived after it and for the control connection's echo of a probe
+    /// the app sent after it, so both connections still worked then. False, after failing the run, when none comes
+    /// while the link stays up: steering from an old arm position, or judging the run on an old object position, would
+    /// be a guess. The wait outlasts the link's 3 s limit, so a stall of the path ends in a fresh state or a lost link.
     private func freshState(arrivedAfter since: Date? = nil) -> Bool {
         guard going() else { return false }
         let after = since ?? Date().addingTimeInterval(-1)
-        let fresh = wait(5) { linkLostDuring != nil || lastStateAt.map { $0 > after } == true }
+        let fresh = wait(5) {
+            linkLostDuring != nil
+                || (lastStateAt.map { $0 > after } == true
+                    && (since == nil || lastEchoedProbeSentAt.map { $0 > after } == true))
+        }
         guard going() else { return false }
-        if !fresh { halt("the server's states stopped while the link stayed up", during: step) }
+        if !fresh {
+            let what =
+                lastStateAt.map { $0 > after } == true
+                ? "the control connection stopped echoing the app's probes" : "the server's states stopped"
+            halt("\(what) while the link stayed up", during: step)
+        }
         return fresh
     }
 
@@ -390,9 +403,9 @@ final class ScriptedOperator {
     ///
     /// It passes only on what the server reported after the jaws let go on the goal: a `state` that said
     /// `task_success`, or a `state` arriving after the last wait with the object resting inside the goal and the jaws
-    /// reported open. A new episode alone is no success. A lost link, an emergency stop or states that stopped coming fail the run at that
-    /// step, as do the grasp point not reached, the jaws not closing on the object and the object not lifted or not
-    /// carried. Every run prints one `PICK RUN` line to check against the server's own log.
+    /// reported open. A new episode alone is no success. A lost link, an emergency stop or states that stopped coming
+    /// fail the run at that step, as do the grasp point not reached, the jaws not closing on the object and the object
+    /// not lifted or not carried. Every run prints one `PICK RUN` line to check against the server's own log.
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = model.profile
@@ -477,8 +490,8 @@ final class ScriptedOperator {
         }
         step = "waiting for the server after the release"
         pump(4)
-        // Judged on a state that arrives after the wait, not on whatever state the app kept last: a link that went down
-        // in the wait gives none, and is caught.
+        // Judged on a state that arrives after the wait, not on whatever state the app kept last, and only once the
+        // control connection has echoed a probe sent after the wait: a link that went down in the wait is caught.
         guard freshState(arrivedAfter: Date()), let end = model.serverState else { return }
         if let at = end.object {
             inGoal =

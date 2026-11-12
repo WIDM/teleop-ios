@@ -182,7 +182,8 @@ The same script runs in two places:
   last log lines. The arm and the object are read from the newest `state` on either connection, less than a second
   old. It passes only on what the server reported after the jaws let go on the goal: a `state` with
   `task_success`, or a `state` arriving after the last wait with the object resting inside the goal and the jaws
-  reported open; a link that goes down during that wait gives no such state and fails the run. A new episode alone is no success, because the server
+  reported open. That state, and the control connection's echo of a probe sent after the wait, must both arrive, so
+  a link that goes down during the wait fails the run. A new episode alone is no success, because the server
   also resets when the object falls off the table. The test then checks that a success was seen, that the server's
   episode count is 1 (the scene reset once, after the success) and that the server's last `state` has no emergency
   stop. One more test runs it with a recorder on and checks that the guide, the saved take and the server's Wait
