@@ -323,11 +323,11 @@ public final class TeleopLink {
     /// The app did not run for `ms` (its main thread stalled). What arrived meanwhile has not been read yet, so that
     /// time does not count as silence, and an echo that waited through it says nothing about the round trip. Only
     /// the first stall since the last message is excused: when nothing has arrived after it, the server is silent,
-    /// and the stalls that follow count.
+    /// and the stalls that follow count. A connection heard during the stall needs no excuse and keeps it.
     public func stalled(forMs ms: Int) {
         probes = [:]
-        guard !stallExcused, let last = lastHeardAt else { return }
-        lastHeardAt = min(now(), last + max(0, ms))
+        guard ms > 0, !stallExcused, let last = lastHeardAt, last < now() - ms else { return }
+        lastHeardAt = last + ms
         stallExcused = true
     }
 
