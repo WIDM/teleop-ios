@@ -27,9 +27,9 @@ phone.
 
 ## Known not to work
 
-- After a lost link, the operating screen can show "Link lost" with "Reconnecting…", but the app does not reconnect
-  by itself: the operator connects again from Settings → Server. On `p4_standby` and `p6_high_latency` a lost link
-  opens Connect instead.
+- The app does not reconnect by itself after a lost link: the operating screen shows "Link lost" with "Connect again
+  in Settings", and the operator connects again from Settings → Server. On `p4_standby` and `p6_high_latency` a lost
+  link opens Connect instead.
 - A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
   address all read "Could not connect to that address."; the operating screen says only "Not connected".
 - Practice shows no guide: the practice link has no arm to report.

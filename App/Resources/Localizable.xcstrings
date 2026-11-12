@@ -401,6 +401,22 @@
         }
       }
     },
+    "detail.connect_in_settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect again in Settings"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到設定重新連線"
+          }
+        }
+      }
+    },
     "detail.estimated": {
       "localizations": {
         "en": {
@@ -493,22 +509,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "還沒準備好"
-          }
-        }
-      }
-    },
-    "detail.reconnecting": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnecting…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新連線中…"
           }
         }
       }

@@ -76,8 +76,9 @@ enum OperatingWords {
             }
             return Look(word: L10n.string("state.stopped"), details: details, colour: TeleopColors.stateRed)
         case .linkLost:
+            // Nothing reconnects by itself: the way back is Connect in Settings, behind the gear on this screen.
             return Look(
-                word: L10n.string("state.link_lost"), details: [L10n.string("detail.reconnecting")],
+                word: L10n.string("state.link_lost"), details: [L10n.string("detail.connect_in_settings")],
                 colour: TeleopColors.stateDarkGrey)
         case .saved(let count):
             return Look(
