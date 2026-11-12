@@ -2321,6 +2321,22 @@
         }
       }
     },
+    "tutorial.cue.hold_still": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The arm is slower than your hand. Keep holding and keep still until the arm stops, then let go."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂比你的手慢。繼續按著、手機不要動，等手臂停下來再放開。"
+          }
+        }
+      }
+    },
     "tutorial.cue.letgo": {
       "localizations": {
         "en": {
@@ -2337,18 +2353,18 @@
         }
       }
     },
-    "tutorial.cue.purr": {
+    "tutorial.cue.on_target": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hold still to feel the arm: a purr means it is still on its way; quiet means it has arrived. Hold until quiet."
+            "value": "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "停住不動，感覺手臂：有低鳴＝還在跑；安靜＝到了。按到安靜再放。"
+            "value": "畫面上有目標時，輕點一下接著一段柔和的震動，表示夾爪對準了。先放開，再夾緊。"
           }
         }
       }

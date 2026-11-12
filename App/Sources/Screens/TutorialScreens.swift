@@ -28,8 +28,9 @@ struct TutorialScreen: View {
             }
         default:
             return Page(title: "tutorial.cues.title", lines: [
-                "tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go", "tutorial.cue.purr", "tutorial.cue.dead",
-                "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.grip", "tutorial.cue.alarm",
+                "tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go", "tutorial.cue.hold_still",
+                "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
+                "tutorial.cue.grip", "tutorial.cue.alarm",
             ])
         }
     }

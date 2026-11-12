@@ -25,7 +25,9 @@ final class ConnectFlowTests: XCTestCase {
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
         XCTAssertFalse(app.element("tutorial.skip").exists, "the last page has Back, not Skip")
-        XCTAssertTrue(text(app, "a purr means it is still on its way"), "rule O3, the cue the pause rests on")
+        XCTAssertTrue(text(app, "keep still until the arm stops, then let go"),
+                      "rule O3: the arm is slower than the hand, so hold still until it stops, then let go")
+        XCTAssertTrue(text(app, "When the guide shows a target"), "the on-target cue, taught so it is true on every server")
         attachScreenshot("04-tutorial-cues")
         app.element("tutorial.back").tap()
         expectLabel(app.element("tutorial.title"), "Thumb and turn")
