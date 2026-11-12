@@ -78,6 +78,10 @@ What a person using the app notices:
   readings of the phone's position came a millisecond apart. The speed is now measured over at least 16 ms.
 - Fixed: when the phone stalled for more than a second, the app said "Link lost." and closed the connection,
   although the server had kept sending. Silence is now counted only while the app is running.
+- Fixed: a short stall of an ordinary wireless network ended the session. The link now counts as lost only after
+  3 seconds in which the server answers nothing. A shorter stall costs the hold in progress (the server's own
+  watchdog ends it, and the phone says "Link hiccup."), not the connection, and the next press works.
+- **Link lost** on the operating screen now says "Connect again in Settings": the app does not reconnect by itself.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
   faked latency and its debug sheet, the Motion permission, the Deadband slider, the Developer switch and
@@ -94,7 +98,8 @@ What a maintainer needs to know:
   recorder; `StopExits` chooses the ways out of a stop; `WristLeadBound` bounds wrist commands. The players for
   haptics, sounds and speech decide nothing.
 - A second, listening connection receives `state` during holds. The app names itself
-  `teleop-ios/<version> (<build>)` in `hello`. The link counts as lost after 1.2 s when both connections are quiet.
+  `teleop-ios/<version> (<build>)` in `hello`. The link counts as lost after 3 s with nothing on the control
+  connection, or on either connection while the listening one is up (it was 2 s and 1.2 s).
 - Session: `wristStart`, `wristEnd`, `sceneResetDone` and `switchLink` are new. The jaw turn (`turnStart`,
   `turnEnd`) is gone, and so are the routes of the removed screens, with their actions: the mode choice and cloud
   mode (`p1_mode_select`, `p2_cloud_pass`, `p3_cloud_fail`), recording and base mode (`s3a_recording`,
@@ -104,8 +109,10 @@ What a maintainer needs to know:
   through `AppModel.startPractice` and `leavePractice`.
 - Tests: `TeleopServerModel`, checked against 18 recordings of the real server, and `LocalTeleopServer`, which serves
   it on a local socket. `ScriptedOperator` presses raw inputs only, and `LocalPickAndPlaceTests` runs a whole
-  pick-and-place in each control mode in every default run. The scheme has a Default and a Live test plan; the Live
-  plan holds `OperatorLiveTests` and `ServerMotionTests`.
+  pick-and-place in each control mode in every default run; a run passes only on the server's own report of the
+  object in the goal or of a success, and a link that goes down fails it. `LinkStallTests` stalls the network path
+  under the app against the local server. The scheme has a Default and a Live test plan; the Live plan holds
+  `OperatorLiveTests` and `ServerMotionTests`.
 - UI tests launch silent (`-quietCues YES`) and draw every operating state from `OperatingFixtures`, in both
   languages and at two screen heights (`-screenFrame`).
 - `scripts/check-strings.py` checks all four string catalogs in both languages, their format specifiers and the

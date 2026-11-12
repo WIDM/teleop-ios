@@ -255,8 +255,10 @@ Every `state` from either connection goes to `FeedbackMonitor` and then to `AppM
 earlier than one already handled is dropped). `AppModel` keeps it as `serverState`, for the guide and the operating
 state, and hands it to `RecorderNarrator`. Only a `state` on the control connection latches the emergency stop or
 ends a resync. The link counts as lost when the socket closes, when the link is not ready (a `welcome` and a first
-`state`) within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up,
-when neither hears anything for 1.2 s.
+`state`) within 5 s, when the control connection hears nothing for 3 s, or, while the listening connection is up,
+when neither hears anything for 3 s (`TeleopLink.staleAfterMs`, `LiveLinkController.quietLinkMs`). An ordinary
+wireless network was measured holding every message back for up to 1.8 s; a stall shorter than the limit ends only
+the hold in progress, by the server's own 0.75 s watchdog, and the app does not reconnect after a longer one.
 
 ## From an event to something felt or heard
 

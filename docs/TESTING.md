@@ -21,7 +21,7 @@ to the real thing.
 | Conformance | `ConformanceTests` | the model drifting from the real server in any of the 18 recorded scenarios | situations no recording has: the recorder on, a success, a tracking stop |
 | Link against the model | `LinkTests`, `FeedbackFromModelTests`, `NarrationTests` | the app's real `TeleopLink`, `FeedbackMonitor` and `RecorderNarrator` disagreeing with the server's rules, in one process on a test clock | sockets, threads, real time |
 | Socket host | `LocalTeleopServerTests` | `LocalTeleopServer` failing to serve the model on a real WebSocket at 127.0.0.1 | the app |
-| App | `Tests/TeleopTests` | the wiring of `AppModel`, `OperatingController` and `LiveLinkController` over a fake socket on a test clock (`LiveLinkTests`, `OperatingLinkTests`, `AppModelTests`), and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, and, through raw inputs only, `LocalOperatorTests` and `LocalPickAndPlaceTests`); the operating state (`OperatingRulesTests`); the guide's numbers (`GuidePictureTests`); the robot profile (`RobotProfileTests`, `ServerModelProfileTests`); the spoken strings in both languages (`SpeechTextTests`) | ARKit (the phone's pose is scripted), real touches, the volume keys themselves, what the operator actually feels or hears, the real server |
+| App | `Tests/TeleopTests` | the wiring of `AppModel`, `OperatingController` and `LiveLinkController` over a fake socket on a test clock (`LiveLinkTests`, `OperatingLinkTests`, `AppModelTests`), and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, and, through raw inputs only, `LocalOperatorTests`, `LocalPickAndPlaceTests` and `LinkStallTests`); the operating state (`OperatingRulesTests`); the guide's numbers (`GuidePictureTests`); the robot profile (`RobotProfileTests`, `ServerModelProfileTests`); the spoken strings in both languages (`SpeechTextTests`) | ARKit (the phone's pose is scripted), real touches, the volume keys themselves, what the operator actually feels or hears, the real server |
 | UI | `Tests/TeleopUITests` | every operating state, in both languages and at two screen heights (`OperatingScreenTests`); touches on the bands and the gear (`OperatingTouchTests`); practice, Settings, Connect, the tutorial and the first-run camera prompt (`PracticeTests`, `SettingsTests`, `ConnectFlowTests`, `ManualCheckTests`); the app connecting to a model served by the test process (`LocalServerUITests`); which haptics the app asks for | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
 | Live | `OperatorLiveTests`, `ServerMotionTests` in `Tests/TeleopTests` | the app against the real server in Isaac Sim: its lag, its safety stop, a pick-and-place in each control mode | anything, unless someone runs it: it moves the shared arm in Isaac Sim, so it never runs by default or in CI |
 
@@ -148,6 +148,18 @@ URL to forward to, such as `ws://127.0.0.1:9000`. Then:
     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Live \
       -destination "platform=iOS Simulator,name=$SIM"
 
+### Counting live runs
+
+A count of live runs is evidence for the release only when it is taken this way:
+
+1. On a Mac that is doing nothing else: no build, no other test run, no other simulator in use. A busy Mac stalls
+   the app's main thread and the relay, and the count then measures the Mac.
+2. Each run's `PICK RUN` line is checked against the server's own log: a pass counts only when the server logged a
+   success for that episode. A run whose line says the link was lost is counted apart, as a lost link, with the
+   time it happened.
+3. Report how many runs were made in each scheme, how many passed by both the line and the server's log, how many
+   lost the link, and the sum of the holds the server ended.
+
 ## The scripted operator and the server model
 
 `Tests/TeleopTests/ScriptedOperator.swift` plays the operator's hand through the app's raw inputs only, the way a
@@ -161,14 +173,32 @@ The same script runs in two places:
 
 - `LocalPickAndPlaceTests`, in every default run, once per control mode against a model that reports `tool_pos`
   and once against one that does not, against `LocalTeleopServer` stepping 60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
-  reach the grasp point, the jaws do not close on the object, the object is not lifted, it does not end in the goal,
-  or the phone shows an emergency stop at the end. The test then checks that the server's episode count is 1 (the
+  reach the grasp point, the jaws do not close on the object, the object is not lifted, or the phone shows an
+  emergency stop at the end. It passes only on what the server reported: the object inside the goal, a `state`
+  with `task_success`, or the episode moving on after the jaws let go. A working link that goes down fails the run
+  at that step, with the app's last log lines. The test then checks that the server's episode count is 1 (the
   scene reset once, after the success) and that the server's last `state` has no emergency stop. It does not check
   that no emergency stop happened along the way. One more test runs it with a recorder on and checks that the guide,
   the saved take and the server's Wait reach the operating screen.
-- `OperatorLiveTests`, in the Live plan, once per control mode, against the real server in Isaac Sim at full waits.
-  `ServerMotionTests` adds scripted hand movements, the wrist following the phone, and the pick-and-place after
-  many holds.
+- `OperatorLiveTests`, in the Live plan, once per control mode, against the real server in Isaac Sim at full waits,
+  with the same rule for a pass. `ServerMotionTests` adds scripted hand movements, the wrist following the phone,
+  and the pick-and-place after many holds.
+
+Every run prints one line, for example:
+
+    PICK RUN (screenTurns): episode 0 -> 1, success seen YES, holds ended by the server 0, link lost no, object in goal no, 24 s: PASS
+
+It names the scheme, the server's episode before and after the run, whether a `state` said `task_success`, how
+many holds the server ended while they were held (its watchdog, or a late refusal), whether the link was lost and
+during which step, and whether the server last reported the object in the goal. `testALinkCutAfterTheLiftFailsTheRun`
+cuts the network path while the object is carried and expects the run to fail for that reason.
+
+`LinkStallTests` puts a network path under both of the app's sockets that can hold every message back in both
+directions and then deliver them together, as an ordinary wireless network was measured doing for up to 1.8 s. A
+1.8 s stall during an arm, gripper or wrist hold must cost that hold and nothing else: the link stays up, the
+server's watchdog ends the hold, the phone plays LETGO with "Link hiccup." and no refusal, and the next hold
+works. A longer stall is a lost link 3 s after the control connection's last message, and STOP pressed during a
+short stall reaches the server when the path comes back.
 
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,
