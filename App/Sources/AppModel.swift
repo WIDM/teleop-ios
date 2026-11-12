@@ -68,6 +68,8 @@ final class AppModel {
     @ObservationIgnored let profile = RobotProfile.so101Simulator
     /// When the guide's "On target" is felt.
     @ObservationIgnored private var onTargetCue: OnTargetCue
+    /// A reset's answer came; the next `state` arms the on-target cue again.
+    @ObservationIgnored private var onTargetRearmOwed = false
     /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
     @ObservationIgnored private(set) var controller: OperatingController!
     /// The measured flex in the first state after the last reset, for the tilt window (I-8.3).
@@ -490,12 +492,15 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
+        // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until a new
+        // state arrives the guide still shows the arm from before the reset.
+        if onTargetRearmOwed {
+            onTargetRearmOwed = false
+            onTargetCue.rearm()
+        }
         if let episode = state.episode {
             if let last = lastEpisode, episode != last {
                 sceneWasReset()
-                // Armed here, on the first state after the reset, never on a reset's answer: until this state the
-                // guide still shows the arm from before the reset. Without `episode` the arm's trip back to its start
-                // pose leaves the wider window and arms it.
                 onTargetCue.rearm()
             }
             lastEpisode = episode
@@ -642,6 +647,7 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
+        if action == .sceneResetDone { onTargetRearmOwed = true }
         session.perform(action)
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)

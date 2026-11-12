@@ -1310,13 +1310,14 @@ final class LiveLinkTests: XCTestCase {
     /// task object (world frame) right under the estimated pinch point of `objectUnder`, or no task object.
     private func armState(
         _ arm: SIMD3<Double>, objectUnder: SIMD3<Double>? = nil, noObject: Bool = false, gripper: String? = "open",
-        tool: SIMD3<Double>? = nil, episode: Int = 0, estop: Bool = false
+        tool: SIMD3<Double>? = nil, episode: Int? = 0, estop: Bool = false
     ) -> [String: Any] {
         var state: [String: Any] = [
-            "estop": estop, "ee_pos": [arm.x, arm.y, arm.z], "episode": episode,
+            "estop": estop, "ee_pos": [arm.x, arm.y, arm.z],
             "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg, "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
         ]
         if let gripper { state["gripper"] = gripper }
+        if let episode { state["episode"] = episode }
         if !noObject {
             let object = (objectUnder ?? graspArm) + SIMD3<Double>(model.profile.toolOffset + model.profile.baseInWorld)
             state["object_pos"] = [object.x, object.y, object.z]
@@ -1439,6 +1440,24 @@ final class LiveLinkTests: XCTestCase {
         clock += 1000
         observer.server("state", armState(graspArm, episode: 1))
         XCTAssertEqual(feltOnTarget, 2, "the next approach after the reset")
+    }
+
+    /// A server that reports no episode: the reset's answer arms the cue on the first state after it, even with the
+    /// jaws left open and the pinch point never more than 9 mm from the target.
+    func testOnAServerWithoutEpisodesTheStateAfterAResetsAnswerArmsTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        XCTAssertEqual(feltOnTarget, 1)
+        observer.server("state", armState(graspArm + SIMD3(0.007, 0, 0), episode: nil))
+        XCTAssertEqual(feltOnTarget, 1, "7 mm off: out of the window")
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 2, "the approach after the reset")
     }
 
     /// A state that does not say how the jaws are is neither open nor a close: it neither plays the cue nor arms it.
