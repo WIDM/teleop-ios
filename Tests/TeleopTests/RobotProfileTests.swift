@@ -80,7 +80,9 @@ final class RobotProfileTests: XCTestCase {
             XCTAssertEqual(past, .estimated(approximate: true), what)
         }
         let error = profile.estimateError(gripper: profile.offsetMeasuredAt + SIMD3(0.01, 0.002, -0.003), flexDeg: 42.24, rollDeg: 80)
-        XCTAssertEqual(error ?? 0, (2.56 * 1 + 11.12 * 0.2 + 8.43 * 0.3 + 1.65 * 2 + 0.23 * 10) / 1000, accuracy: 1e-6)
+        // One term each, in mm: 1 cm across, 0.2 cm toward the base, 0.3 cm down, 2° of tilt, 10° of turn.
+        let terms: [Float] = [2.56 * 1, 11.12 * 0.2, 8.43 * 0.3, 1.65 * 2, 0.23 * 10]
+        XCTAssertEqual(error ?? 0, terms.reduce(0, +) / 1000, accuracy: 1e-6)
     }
 
     /// Without both wrist angles a tilt cannot be ruled out, so the estimate is approximate even where it was measured.
