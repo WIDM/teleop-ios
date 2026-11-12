@@ -801,7 +801,9 @@ final class TeleopLinkTests: XCTestCase {
         _ = server("welcome", ["session": "run-1"])
         XCTAssertEqual(link.serverSession, "run-1")
         clock = 4321
-        _ = server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3, "gripper_deg": 8.5])
+        _ = server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3, "gripper_deg": 8.5,
+                             "ee_pos": [0.25, -0.5, 0.75], "tool_pos": [0.125, -0.5, 0.25]])
+        XCTAssertEqual(link.lastState?.toolPoint, SIMD3(0.125, -0.5, 0.25), "the listening connection reads the tool point too")
         XCTAssertEqual(link.lastState?.activity, .gripperContact)
         XCTAssertEqual(link.lastState?.recorder?.saved, 3)
         XCTAssertEqual(link.lastState?.gripperDeg, 8.5)

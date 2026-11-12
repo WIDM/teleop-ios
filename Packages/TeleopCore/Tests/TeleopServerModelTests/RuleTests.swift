@@ -327,12 +327,49 @@ final class RuleTests: XCTestCase {
         XCTAssertEqual(fields, [
             "ee_pos:array3", "episode:number", "estop:bool", "goal_pos:array3", "gripper:string", "gripper_deg:number",
             "ik:string", "object_pos:array3", "rec:string", "rec_discarded:number", "rec_samples:number",
-            "rec_saved:number", "step:string", "task_success:bool", "wrist_flex_deg:number", "wrist_roll_deg:number",
+            "rec_saved:number", "step:string", "task_success:bool", "tool_pos:array3", "wrist_flex_deg:number",
+            "wrist_roll_deg:number",
         ])
         XCTAssertEqual(phone.lastState["rec"], "none", "a server started without recording")
         phone.moveArm(to: bench.config.armStart)
         XCTAssertTrue(Comparison.signature(phone.lastState).contains("orient_deg:number"), "a pose hold adds orient_deg")
         XCTAssertTrue(Comparison.signature(phone.lastState).contains("gripper_delta:number"))
+    }
+
+    /// `tool_pos` is the world's pinch point in every state that carries `ee_pos`, during a hold too; the switch
+    /// leaves it out everywhere.
+    func testTheToolPointGoesWithTheArmUnlessSwitchedOff() {
+        let offset = bench.config.toolOffset
+        func check(_ state: JSONValue, _ what: String) {
+            let arm = state["ee_pos"]?.arrayValue?.compactMap(\.numberValue) ?? []
+            let tool = state["tool_pos"]?.arrayValue?.compactMap(\.numberValue) ?? []
+            XCTAssertEqual(arm.count, 3, what)
+            XCTAssertEqual(tool.count, 3, what)
+            for axis in 0..<min(arm.count, tool.count, 3) {
+                XCTAssertEqual(tool[axis] - arm[axis], offset[axis], accuracy: 1e-12, "\(what), axis \(axis)")
+            }
+        }
+        check(phone.lastState, "at the start")
+        let listener = bench.client()
+        phone.poseStart()
+        phone.stream(for: 1) { phone.poseUpdate(base: SIMD3(0.02, 0, 0)) }
+        check(listener.lastState, "heard during a hold")
+        phone.send("pose_stop")
+        bench.wait(0.5)
+        check(phone.lastState, "after the hold")
+        XCTAssertNotEqual(phone.lastState["ee_pos"], phone.states.first?.payload["ee_pos"], "the arm moved")
+
+        var config = ServerModelConfig.s4Simulator
+        config.reportsToolPoint = false
+        let other = Bench(config)
+        let client = other.client()
+        other.wait(0.5)
+        client.moveArm(to: config.armStart + SIMD3(0, 0, 0.01))
+        XCTAssertFalse(client.states.isEmpty)
+        for state in client.states {
+            XCTAssertNotNil(state.payload["ee_pos"])
+            XCTAssertNil(state.payload["tool_pos"])
+        }
     }
 }
 

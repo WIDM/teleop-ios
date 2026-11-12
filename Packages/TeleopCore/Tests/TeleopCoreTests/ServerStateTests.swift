@@ -28,6 +28,7 @@ final class ServerStateTests: XCTestCase {
         let state = parse(#"{"estop": false, "rec_saved": 4}"#)
         XCTAssertNil(state.recorder)
         XCTAssertNil(state.wristRollDeg)
+        XCTAssertNil(state.toolPoint)
         XCTAssertEqual(parse(#"{"rec": "none"}"#).recorder?.label, RecorderLabel.none)
         XCTAssertEqual(parse(#"{"rec": "none"}"#).recorder?.records, false)
         XCTAssertNil(parse(#"{"rec": "paused"}"#).recorder, "an unknown label is not guessed at")
@@ -38,6 +39,27 @@ final class ServerStateTests: XCTestCase {
         XCTAssertNil(state.gripperDeg)
         XCTAssertNil(state.episode)
         XCTAssertNil(state.endEffector)
+    }
+
+    func testTheToolPointIsReadWhenItIsThreeNumbers() {
+        let state = parse(#"{"ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.027, -0.176, 0.072]}"#)
+        XCTAssertEqual(state.toolPoint, SIMD3(0.027, -0.176, 0.072))
+        XCTAssertEqual(parse(#"{"tool_pos": [0, -1, 2]}"#).toolPoint, SIMD3(0, -1, 2), "whole numbers are numbers")
+    }
+
+    /// A missing key, null, or anything that is not three finite numbers: the server does not report a tool point.
+    func testAToolPointThatIsNotThreeFiniteNumbersIsNotReported() {
+        for json in [
+            #"{"ee_pos": [0.02, -0.14, 0.16]}"#, #"{"tool_pos": null}"#, #"{"tool_pos": [0.1, 0.2]}"#,
+            #"{"tool_pos": [0.1, 0.2, 0.3, 0.4]}"#, #"{"tool_pos": [0.1, "0.2", 0.3]}"#, #"{"tool_pos": [0.1, true, 0.3]}"#,
+            #"{"tool_pos": [0.1, null, 0.3]}"#, #"{"tool_pos": "0.1, 0.2, 0.3"}"#, #"{"tool_pos": {"x": 0.1}}"#,
+        ] {
+            XCTAssertNil(parse(json).toolPoint, json)
+        }
+        // JSON text cannot carry these, but a payload can.
+        for bad in [Double.nan, .infinity, -.infinity] {
+            XCTAssertNil(ServerState(payload: ["tool_pos": [0.1, bad, 0.3]]).toolPoint, "\(bad)")
+        }
     }
 
     /// A count too large for an Int must not crash the app.
