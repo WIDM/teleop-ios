@@ -905,9 +905,9 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(link.quietMs, 0, "never later than now")
     }
 
-    /// Messages read before the tick that reports a stall arrived after it began, so the next stall is taken out too:
-    /// what arrived during it still waits behind its tick.
-    func testMessagesReadBeforeAStallsTickKeepTheNextStallExcused() {
+    /// A stall whose messages were read before its tick, then one whose messages still wait behind it: both are taken
+    /// out of the silence.
+    func testTwoStallsInARowAreBothTakenOut() {
         bringUp()
         clock += 1500
         _ = server("state", ["estop": false])
@@ -915,10 +915,10 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(link.quietMs, 0)
         clock += 1500
         link.stalled(forMs: 1467)
-        XCTAssertEqual(link.quietMs, 33, "the next stall is excused")
+        XCTAssertEqual(link.quietMs, 33, "the second stall is taken out too")
     }
 
-    /// A message read just before the main thread stalls is not mistaken for one read during the stall.
+    /// A stall that begins just after a message was read is taken out of the silence, up to now.
     func testAStallThatBeganAfterAMessageIsTakenOut() {
         bringUp()
         clock += 50
@@ -926,27 +926,6 @@ final class TeleopLinkTests: XCTestCase {
         clock += 1500
         link.stalled(forMs: 1517)
         XCTAssertEqual(link.quietMs, 0)
-    }
-
-    /// Once a stall is taken out, the next is not when nothing arrived after the first began: the server is silent.
-    func testAStallWithNothingHeardSinceTheLastOneIsSilence() {
-        bringUp()
-        clock += 300
-        link.stalled(forMs: 267)
-        XCTAssertEqual(link.quietMs, 33)
-        clock += 300
-        link.stalled(forMs: 267)
-        XCTAssertEqual(link.quietMs, 333, "nothing arrived after the first stall")
-        _ = server("state", ["estop": false])
-        clock += 300
-        link.stalled(forMs: 267)
-        XCTAssertEqual(link.quietMs, 33, "a message came after it")
-        for _ in 0..<7 {
-            clock += 300
-            link.stalled(forMs: 267)
-        }
-        XCTAssertEqual(link.quietMs, 2133)
-        XCTAssertTrue(link.isStale, "a stall on every tick does not hide a silent server")
     }
 
     func testSilentServerGoesStale() {

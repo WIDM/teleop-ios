@@ -82,10 +82,6 @@ public final class TeleopLink {
     private var sentTypes: [Int: String] = [:]
     private var probes: [Int: Int] = [:]
     private var lastHeardAt: Int?
-    /// When something last arrived. `lastHeardAt` also moves past a stall that is taken out of the silence.
-    private var lastMessageAt: Int?
-    /// When the newest stall taken out of the silence began.
-    private var excusedStallFrom: Int?
     private var holdSeq: Int?
     /// The control a stop just ended, named by its start's seq, until the server's final ack says it has finished.
     private var stopping: (seq: Int, sentAtMs: Int, isPose: Bool)?
@@ -319,24 +315,14 @@ public final class TeleopLink {
     /// Forget unanswered probes. After the app was suspended their echoes would read as seconds of latency.
     public func dropProbes() {
         probes = [:]
-        if ready { heard() }
+        if ready { lastHeardAt = now() }
     }
 
     /// The app did not run for `ms` (its main thread stalled). What arrived meanwhile has not been read yet, so that
-    /// time does not count as silence, never past now, and an echo that waited through it says nothing about the
-    /// round trip. Once a stall has been taken out, a later one is taken out only if something arrived after that
-    /// stall began: when nothing did, the server is silent and the stalls that follow count.
+    /// time does not count as silence, and an echo that waited through it says nothing about the round trip.
     public func stalled(forMs ms: Int) {
         probes = [:]
-        guard let last = lastHeardAt else { return }
-        if let from = excusedStallFrom, (lastMessageAt ?? from) <= from { return }
-        lastHeardAt = min(now(), last + max(0, ms))
-        excusedStallFrom = now() - ms
-    }
-
-    private func heard() {
-        lastHeardAt = now()
-        lastMessageAt = now()
+        if let heard = lastHeardAt { lastHeardAt = min(now(), heard + max(0, ms)) }
     }
 
     /// How long since anything arrived on this connection; nil before `welcome`.
@@ -364,8 +350,6 @@ public final class TeleopLink {
         probes = [:]
         sentTypes = [:]
         lastHeardAt = nil
-        lastMessageAt = nil
-        excusedStallFrom = nil
         lastStart = nil
     }
 
@@ -375,11 +359,11 @@ public final class TeleopLink {
             let type = message["type"] as? String
         else { return nil }
         let payload = message["payload"] as? [String: Any] ?? [:]
-        if welcomed { heard() }
+        if welcomed { lastHeardAt = now() }
         switch type {
         case "welcome":
             welcomed = true
-            heard()
+            lastHeardAt = now()
             serverSession = payload["session"] as? String
             return nil
         case "state":

@@ -77,8 +77,7 @@ What a person using the app notices:
 - Fixed: on a busy phone a press could end at once with "Too fast." although the hand moved slowly, when two
   readings of the phone's position came a millisecond apart. The speed is now measured over at least 16 ms.
 - Fixed: when the phone stalled for more than a second, the app said "Link lost." and closed the connection,
-  although the server had kept sending. A stall no longer counts as the server's silence while the server keeps
-  sending.
+  although the server had kept sending. Silence is now counted only while the app is running.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
   faked latency and its debug sheet, the Motion permission, the Deadband slider, the Developer switch and

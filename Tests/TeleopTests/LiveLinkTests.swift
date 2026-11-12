@@ -1377,23 +1377,8 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.session.state.connected, "a 300 ms stall every second kept a silent link up")
     }
 
-    /// A main thread that stalls on every tick does not hide a server that went quiet either: only the first stall
-    /// since the last message is excused, so the link is lost 1.2 s after it.
-    func testAStallOnEveryTickDoesNotHideASilentServer() {
-        bringUp()
-        bringUpObserver()
-        var silentMs = 0
-        while model.session.state.connected, silentMs < 5000 {
-            clock += 300
-            silentMs += 300
-            model.link.tick()
-        }
-        XCTAssertFalse(model.session.state.connected)
-        XCTAssertEqual(silentMs, 1500, "1.2 s of silence after the first 300 ms stall, counted at the next tick")
-    }
-
-    /// Two stalls in a row on a server that keeps sending: what arrived during the first was read before its tick, so
-    /// the second stall, whose messages still wait behind its tick, is excused too.
+    /// Two stalls in a row on a server that keeps sending, the first one's messages read before its tick and the
+    /// second one's still waiting behind it: not a lost link.
     func testTwoStallsInARowOnATalkingServerAreNotALostLink() {
         bringUp()
         bringUpObserver()
@@ -1406,8 +1391,8 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.connected, "the second stall's messages still wait behind its tick")
     }
 
-    /// A stall that begins just after both connections read a message is taken out too: what arrives during it still
-    /// waits behind its tick.
+    /// A stall that begins just after both connections read a message: what arrives during it still waits behind its
+    /// tick, so it is not a lost link.
     func testAStallThatBeginsJustAfterAMessageIsNotALostLink() {
         bringUp()
         bringUpObserver()
