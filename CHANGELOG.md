@@ -8,6 +8,8 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+## 1.0.0 (2026-11-13)
+
 One operating screen, held rather than looked at, takes the place of every control screen, and everything the
 design mock-up only pretended to do is gone.
 
