@@ -325,7 +325,8 @@ state instead of STOPPED, and sends `estop` first thing after the next `welcome`
 The server engages the stop by itself too, and the app learns of it only from `state.estop`:
 
 - the connection that owns a running hold closes (the phone's socket dropped mid-hold); a new connection then finds
-  `estop: true` in its first `state`, and the phone shows the stop as found on connecting;
+  `estop: true` in its first `state`. The phone gives the cause as "The link dropped during a move" when one of its
+  holds was engaged at the loss, and as "The robot was already stopped" when none was, or after a fresh launch;
 - the arm falls more than 10 cm behind its target (`pose_tracking_safety_stop`); the final ack with that reason
   comes just before the `state`, and the phone names it as the cause (the arm fell behind);
 - another client sent `estop`.
