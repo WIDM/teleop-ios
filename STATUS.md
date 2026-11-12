@@ -21,7 +21,8 @@ What the app does now, what is known not to work, and what version 1 leaves out.
 ## Only a person can check
 
 The tests cannot press the volume keys, move a real phone, touch the glass with a real thumb, or feel and hear the
-cues. Those, and everything against the real simulator (the `Live` test plan), need a person with a phone.
+cues. Those, and everything against the real server in Isaac Sim (the `Live` test plan), need a person with a
+phone.
 
 ## Known not to work
 

@@ -127,7 +127,7 @@ no commands. If the link is not ready within 5 seconds, the app drops the socket
 
 The server also accepts messages the app does not send: `mode`, `move_delta`, `jog_start`, `jog_stop`,
 `joint_jog_start`, `joint_jog_stop`, `joint_delta` and the one-shot `gripper`. The one-shot `gripper` is avoided on
-purpose: in the simulator one such command kept every other command waiting for tens of seconds.
+purpose: in Isaac Sim one such command kept every other command waiting for tens of seconds.
 
 ### `test`: the round trip and the heartbeat
 
@@ -480,7 +480,7 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
   gripper link origin's start position: in the base frame x from −0.059 to 0.101 m, y from −0.221 to −0.061 m and
   z from 0.080 to 0.240 m (`ServerModelConfig.armStart`, `workspaceHalfSize`). A hold asking for more just stops
   there; the only sign is `ik: pose_clamped` in `state`, which the control connection sees only after the hold.
-- **Directions the arm cannot go from its start pose.** Measured on the simulator: from the reset pose the arm
+- **Directions the arm cannot go from its start pose.** Measured in Isaac Sim: from the reset pose the arm
   moves no more than about 1.9 cm toward the robot base, and it does not move straight down. The server model does
   not have this limit. The server says nothing; the arm simply stops following. The app notices from the listening
   connection's positions (the target at least 10 mm ahead and the arm moving less than 2 mm in 1 s,

@@ -1,8 +1,11 @@
 # Testing
 
-The app drives a robot arm in a simulator on a lab machine that is slow, shared and out of reach of CI. So most
-tests run against a model of that simulator's server instead (`TeleopServerModel`), and the model is itself
+The app drives a robot arm in Isaac Sim, a robot simulator, on a lab machine that is slow, shared and out of reach
+of CI. So most tests run against a model of its server instead (`TeleopServerModel`), and the model is itself
 checked against recordings of the real server. Only the live layer touches the real one.
+
+Two simulators appear below. *Isaac Sim* is always the robot simulator the server runs in. An *iPhone simulator*
+is Xcode's simulated phone, which the app and UI tests run on.
 
 All commands below run from the repository root unless they say otherwise.
 
@@ -20,7 +23,7 @@ to the real thing.
 | Socket host | `LocalTeleopServerTests` | `LocalTeleopServer` failing to serve the model on a real WebSocket at 127.0.0.1 | the app |
 | App | `Tests/TeleopTests` | the wiring of `AppModel`, `OperatingController` and `LiveLinkController` over a fake socket on a test clock (`LiveLinkTests`, `OperatingLinkTests`, `AppModelTests`), and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, and, through raw inputs only, `LocalOperatorTests` and `LocalPickAndPlaceTests`); the operating state (`OperatingRulesTests`); the guide's numbers (`GuidePictureTests`); the robot profile (`RobotProfileTests`, `ServerModelProfileTests`); the spoken strings in both languages (`SpeechTextTests`) | ARKit (the phone's pose is scripted), real touches, the volume keys themselves, what the operator actually feels or hears, the real server |
 | UI | `Tests/TeleopUITests` | every operating state, in both languages and at two screen heights (`OperatingScreenTests`); touches on the bands and the gear (`OperatingTouchTests`); practice, Settings, Connect, the tutorial and the first-run camera prompt (`PracticeTests`, `SettingsTests`, `ConnectFlowTests`, `ManualCheckTests`); the app connecting to a model served by the test process (`LocalServerUITests`); which haptics the app asks for | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
-| Live | `OperatorLiveTests`, `ServerMotionTests` in `Tests/TeleopTests` | the app against the real simulator: its lag, its safety stop, a pick-and-place in each control mode | anything, unless someone runs it: it moves the shared simulator's arm, so it never runs by default or in CI |
+| Live | `OperatorLiveTests`, `ServerMotionTests` in `Tests/TeleopTests` | the app against the real server in Isaac Sim: its lag, its safety stop, a pick-and-place in each control mode | anything, unless someone runs it: it moves the shared arm in Isaac Sim, so it never runs by default or in CI |
 
 Two more checks sit beside the tests:
 
@@ -38,7 +41,7 @@ Two more checks sit beside the tests:
 ### The core package
 
 Everything in `Packages/TeleopCore/Tests`, from the core rules to the socket host, in about half a minute, with no
-simulator:
+iPhone simulator:
 
     cd Packages/TeleopCore && swift test
 
@@ -59,7 +62,7 @@ These need Xcode, XcodeGen and an iPhone simulator. Generate the project first, 
 
     xcodegen generate
 
-Pick a simulator the same way CI does, then run the default test plan:
+Pick an iPhone simulator the same way CI does, then run the default test plan:
 
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
     xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
@@ -68,9 +71,10 @@ Pick a simulator the same way CI does, then run the default test plan:
 A full run takes about twenty minutes, most of it the UI tests. Two things make a run fail for reasons that have
 nothing to do with the code:
 
-- **Nothing else may use the simulator while the tests run on it**: no second test run, and no other tool that
-  drives, records or streams that device. Another tool attached to the same simulator can make UI tests fail.
-  Give a run its own simulator, chosen by its UDID (`-destination 'id=<UDID>'`), when something else needs one.
+- **Nothing else may use the iPhone simulator while the tests run on it**: no second test run, and no other tool
+  that drives, records or streams that device. Another tool attached to the same iPhone simulator can make UI
+  tests fail. Give a run its own iPhone simulator, chosen by its UDID (`-destination 'id=<UDID>'`), when
+  something else needs one.
 - **The Mac must stay awake for the whole run.** A Mac that sleeps, from idle or from a closed lid, breaks the
   timing of the local-server tests and the pick-and-place. Keep the lid open and start the run under
   `caffeinate -i`, which keeps the Mac from idle sleep while the command runs.
@@ -92,7 +96,8 @@ To see what a plan contains without running it, build once and list the tests:
 
 The app reads these from its launch arguments (`XCUIApplication.launchArguments`). Every UI test launch passes
 `-quietCues YES`, through `XCUIApplication.quiet` and `XCUIApplication.teleop` in `UITestSupport.swift`, so the
-simulator plays no vibration, sound or speech through the computer's speakers; the app still records every cue.
+iPhone simulator plays no vibration, sound or speech through the computer's speakers; the app still records every
+cue.
 The app is silent by itself as the unit-test host.
 
 | Argument | What it does |
@@ -115,27 +120,27 @@ The scheme has two test plans (`TestPlans/`):
 - **Default** runs every test in `TeleopTests` and `TeleopUITests` except `OperatorLiveTests` and
   `ServerMotionTests`. It needs no server: the tests that need one start the model on a local socket themselves.
   It is what CI runs.
-- **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the real simulator.
+- **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
 
-The live tests move the simulated arm on a machine other people use, so three things guard them:
+The live tests move the arm in Isaac Sim on a machine other people use, so three things guard them:
 
 1. They are in the Live plan only; the Default plan skips them by name.
 2. They skip unless the test runner's environment has `TELEOP_MOTION` set, which `xcodebuild` passes on when the
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
 3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below).
 
-Run them only when the simulator is free and you mean to move its arm. They need the scene at its reset pose with
+Run them only when Isaac Sim is free and you mean to move its arm. They need the scene at its reset pose with
 nobody else driving it; `OperatorLiveTests` also needs the server running without a recording session. Each test
-first resets the scene the way holding the top band does, which also releases an emergency stop left latched. Start the path to
-the simulator first, each in its own terminal:
+first resets the scene the way holding the top band does, which also releases an emergency stop left latched.
+Start the path to the server first, each in its own terminal:
 
     pip install websockets                 # once: dev_relay.py and trace_scenarios.py need it
-    scripts/dev_tunnel.sh <user@host>      # an SSH tunnel from 127.0.0.1:8766 to port 8766 on the simulator's machine
+    scripts/dev_tunnel.sh <user@host>      # an SSH tunnel from 127.0.0.1:8766 to port 8766 on Isaac Sim's machine
     python3 scripts/dev_relay.py           # listens on port 8765 and forwards each client to 127.0.0.1:8766
 
-The tunnel forwards port 8766, the simulator's own port, and reconnects when it drops. The relay listens on 8765
-on every network interface of the Mac, so a phone on the same network can connect to it too, and gives each client
-its own connection upstream. `--listen` takes another port to listen on, and `--upstream` another WebSocket
+The tunnel forwards port 8766, the port the server listens on there, and reconnects when it drops. The relay
+listens on 8765 on every network interface of the Mac, so a phone on the same network can connect to it too, and
+gives each client its own connection upstream. `--listen` takes another port to listen on, and `--upstream` another WebSocket
 URL to forward to, such as `ws://127.0.0.1:9000`. Then:
 
     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Live \
@@ -159,7 +164,7 @@ The same script runs in two places:
   scene reset once, after the success) and that the server's last `state` has no emergency stop. It does not check
   that no emergency stop happened along the way. One more test runs it with a recorder on and checks that the guide,
   the saved take and the server's Wait reach the operating screen.
-- `OperatorLiveTests`, in the Live plan, once per control mode, against the real simulator at full waits.
+- `OperatorLiveTests`, in the Live plan, once per control mode, against the real server in Isaac Sim at full waits.
   `ServerMotionTests` adds scripted hand movements, the wrist following the phone, and the pick-and-place after
   many holds.
 
@@ -170,8 +175,8 @@ the app leaves the foreground or the camera stops.
 `TeleopServerModel` (`Packages/TeleopCore/Sources/TeleopServerModel`) is one deterministic type with time passed
 in. It applies the server's WebSocket rules and runs its simulation loop over a small world. Every number it uses
 is in `ServerModelConfig`, with where it came from. `LocalTeleopServer` (`Sources/TeleopServerHost`) serves it on a
-real WebSocket at 127.0.0.1, on a port the system picks, in real time. Its default is 60 steps a second, the
-simulator's nominal rate, faster than the lab machine manages; the protocol timers (the 750 ms watchdog, the
+real WebSocket at 127.0.0.1, on a port the system picks, in real time. Its default is 60 steps a second, Isaac
+Sim's nominal rate, faster than the lab machine manages; the protocol timers (the 750 ms watchdog, the
 200 ms state broadcast) keep their real lengths.
 
 ## How the conformance tests compare
@@ -195,7 +200,7 @@ added, the step size.
 
 ## Recording a new scenario
 
-This moves the real simulator's arm a few centimetres: do it only when nobody else is using it (needs the live
+This moves the arm in Isaac Sim a few centimetres: do it only when nobody else is using it (needs the live
 server, and the tunnel and the relay started as in the live tests above).
 
 1. Write it as a function in `scripts/trace_scenarios.py` and add it to `SCENARIOS`.
@@ -250,8 +255,8 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
 whenever a change touches the session, its state, the screens' actions or the hold handling.
 
-CI's simulator and Xcode can be older than a current Mac's, so a UI test that passes locally can fail there. Two
-differences matter: on iOS 18 a system permission alert's buttons have no identifiers (the UI tests'
+CI's iPhone simulator and Xcode can be older than a current Mac's, so a UI test that passes locally can fail
+there. Two differences matter: on iOS 18 a system permission alert's buttons have no identifiers (the UI tests'
 `answerSystemPrompts` in `SystemPrompts.swift` falls back to their order), and a SwiftUI control built from `Label`
 exposes its icon as a second accessibility element unless it has `.accessibilityElement(children: .ignore)` and an
 `.accessibilityLabel`.

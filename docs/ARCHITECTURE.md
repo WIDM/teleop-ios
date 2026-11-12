@@ -1,9 +1,9 @@
 # Architecture
 
 The app turns the iPhone's volume keys, touches on the screen and the phone's own movement into commands for a
-robot arm in a simulator, and turns the simulator's answers into vibrations, sounds and speech, so the operator can
-work mostly without looking at the screen. This note says where each part lives and how the parts talk. The
-messages themselves are in `docs/PROTOCOL.md`; the tests are in `docs/TESTING.md`.
+robot arm in Isaac Sim, a robot simulator, and turns the server's answers into vibrations, sounds and speech, so
+the operator can work mostly without looking at the screen. This note says where each part lives and how the parts
+talk. The messages themselves are in `docs/PROTOCOL.md`; the tests are in `docs/TESTING.md`.
 
 A few words recur here. `docs/PROTOCOL.md` explains them in full under "Words used here".
 
@@ -51,7 +51,7 @@ The three package targets are one Swift package (`Packages/TeleopCore/Package.sw
 project from `project.yml` (`xcodegen generate`); the project is not committed. Every app file that names a core type
 needs `import TeleopCore`.
 
-Everything that decides something lives in the core, where it runs in seconds without a simulator or a phone. The
+Everything that decides something lives in the core, where it runs in seconds without an iPhone simulator or a phone. The
 app target connects it to the device. Nothing in the core reads a clock: `TeleopLink(send:now:)` takes a clock
 closure, and the input rules, the feedback and the recorder narration take the time on every call. So a test can
 play ten seconds in a millisecond, and the same input always gives the same output. The device parts (haptics,
@@ -249,9 +249,9 @@ or practice).
 Every `state` from either connection goes to `FeedbackMonitor` and then to `AppModel` (a state that left the server
 earlier than one already handled is dropped). `AppModel` keeps it as `serverState`, for the guide and the operating
 state, and hands it to `RecorderNarrator`. Only a `state` on the control connection latches the emergency stop or
-ends a resync. The link counts as lost when the socket closes, when the link is not ready
-(a `welcome` and a first `state`) within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up, when
-neither hears anything for 1.2 s.
+ends a resync. The link counts as lost when the socket closes, when the link is not ready (a `welcome` and a first
+`state`) within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up,
+when neither hears anything for 1.2 s.
 
 ## From an event to something felt or heard
 

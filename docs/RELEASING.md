@@ -35,7 +35,7 @@ a phone gets a new version and an entry there first.
 
 ## The checks to run first
 
-All of these must pass on the commit that will carry the version. The first group needs no simulator:
+All of these must pass on the commit that will carry the version. The first group needs no iPhone simulator:
 
     git status --porcelain
     (cd Packages/TeleopCore && swift test)
@@ -45,27 +45,27 @@ All of these must pass on the commit that will carry the version. The first grou
     python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
 
 `git status --porcelain` must print nothing. `-B` keeps Python from writing `scripts/__pycache__/`, which
-`.gitignore` does not list and which would otherwise show up the next time the checks run. The safety checker must exit 0; `docs/ARCHITECTURE.md` says what it
-proves. `check-strings.py` fails on any string, in any of the four catalogs, that lacks English or Traditional
-Chinese.
+`.gitignore` does not list and which would otherwise show up the next time the checks run. The safety checker must
+exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on any string, in any of the four
+catalogs, that lacks English or Traditional Chinese.
 
-Then the full default test plan, about twenty minutes, on a simulator nothing else uses and a Mac that stays awake
-(`docs/TESTING.md` explains both):
+Then the full default test plan, about twenty minutes, on an iPhone simulator nothing else uses and a Mac that
+stays awake (`docs/TESTING.md` explains both):
 
     xcodegen generate
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
-Do not set `TEST_RUNNER_TELEOP_MOTION` for a release check. The live tests move the shared simulator and are a
-separate, deliberate step.
+Do not set `TEST_RUNNER_TELEOP_MOTION` for a release check. The live tests move the shared arm in Isaac Sim and
+are a separate, deliberate step.
 
 ## Commit and tag
 
 Versions are cut on the release branch, `release-1.0`, which carries every version tag; `main` carries none. The
 version bump in `project.yml` and the changelog entry go in one commit on that branch; regenerating the project
-leaves nothing else to commit. Put an annotated tag on that commit, named `v` and the version, with the version and the one-line
-summary as its message, and check it:
+leaves nothing else to commit. Put an annotated tag on that commit, named `v` and the version, with the version
+and the one-line summary as its message, and check it:
 
     git tag -a v1.0.0 -m "1.0.0: <one-line summary>"
     git show v1.0.0 --no-patch
