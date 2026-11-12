@@ -374,7 +374,7 @@ final class LiveLinkTests: XCTestCase {
         bringUp()
         // The timer keeps ticking while the server says nothing; a clock jump with no ticks would be a stall of the app.
         for _ in 0..<(TeleopLink.staleAfterMs / 33) { tick() }
-        XCTAssertTrue(model.session.state.connected, "1.98 s")
+        XCTAssertTrue(model.session.state.connected, "2.97 s")
         tick()
         XCTAssertFalse(model.session.state.connected)
         XCTAssertEqual(model.session.route, .s1)
@@ -1102,9 +1102,11 @@ final class LiveLinkTests: XCTestCase {
     func testAListeningConnectionThatGoesQuietIsReplaced() {
         bringUp()
         bringUpObserver()
-        run(ticks: 65)
+        run(ticks: 90)
+        XCTAssertFalse(observers[0].closed, "2.97 s of silence")
+        run(ticks: 1)
         XCTAssertEqual(observers.count, 1)
-        XCTAssertTrue(observers[0].closed, "closed after 2 s of silence")
+        XCTAssertTrue(observers[0].closed, "closed after 3 s of silence")
         run(ticks: 65)
         XCTAssertEqual(observers.count, 2)
         XCTAssertTrue(model.session.state.connected, "the control connection was answering all along")
@@ -1334,18 +1336,18 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_update"), "nothing more is streamed for it")
     }
 
-    /// I-7: with the listening connection up, 1.2 s with nothing on either connection is a lost link.
-    func testWithTheListeningConnectionUpTheLinkIsLostAfter1point2sOfSilence() {
+    /// I-7: with the listening connection up, 3 s with nothing on either connection is a lost link.
+    func testWithTheListeningConnectionUpTheLinkIsLostAfter3sOfSilence() {
         bringUp()
         bringUpObserver()
-        for _ in 0..<36 { tick() }
-        XCTAssertTrue(model.session.state.connected, "1.19 s")
+        for _ in 0..<90 { tick() }
+        XCTAssertTrue(model.session.state.connected, "2.97 s")
         tick()
-        XCTAssertFalse(model.session.state.connected, "1.22 s")
+        XCTAssertFalse(model.session.state.connected, "3.00 s")
         XCTAssertEqual(sounds.played, [.linkLost])
     }
 
-    /// A tick 1.3 s late means the app's main thread stalled (a long frame, an accessibility snapshot), and what the
+    /// A tick 3.1 s late means the app's main thread stalled (a long frame, an accessibility snapshot), and what the
     /// server sent meanwhile still waits behind it: not a lost link. Silence after the stall still is one, and an
     /// echo that waited out the stall does not count as a slow round trip.
     func testAStalledTickIsNotSilenceButSilenceAfterItIs() {
@@ -1354,22 +1356,22 @@ final class LiveLinkTests: XCTestCase {
         for _ in 0..<(TeleopLink.poseRateHz / 2) { tick() }
         let probe = transport.sent.last!
         XCTAssertEqual(probe["type"] as? String, "test")
-        clock += 1300
+        clock += 3100
         model.link.tick()
         XCTAssertTrue(model.session.state.connected, "a stall of the app is not the server going quiet")
         transport.server("test", seq: probe["seq"] as! Int)
         XCTAssertNil(model.session.state.latencyMs, "the echo waited behind the stall")
-        for _ in 0..<36 { tick() }
-        XCTAssertTrue(model.session.state.connected, "1.19 s after the stall")
+        for _ in 0..<90 { tick() }
+        XCTAssertTrue(model.session.state.connected, "2.97 s after the stall")
         tick()
-        XCTAssertFalse(model.session.state.connected, "1.22 s of silence after the stall")
+        XCTAssertFalse(model.session.state.connected, "3.00 s of silence after the stall")
     }
 
-    /// Stalls that keep coming do not hide a server that went quiet: the time the app ran still adds up to 1.2 s.
+    /// Stalls that keep coming do not hide a server that went quiet: the time the app ran still adds up to 3 s.
     func testRepeatedStallsDoNotHideASilentServer() {
         bringUp()
         bringUpObserver()
-        for _ in 0..<5 where model.session.state.connected {
+        for _ in 0..<8 where model.session.state.connected {
             clock += 300
             model.link.tick()
             for _ in 0..<21 { tick() }
@@ -1382,14 +1384,14 @@ final class LiveLinkTests: XCTestCase {
     func testStallsInARowOnATalkingServerAreNotALostLink() {
         bringUp()
         bringUpObserver()
-        clock += 1500
+        clock += 3300
         transport.server("state", ["estop": false, "gripper": "closed"])
         observer.server("state", ["estop": false, "gripper": "closed"])
         model.link.tick()
-        clock += 1500
+        clock += 3300
         model.link.tick()
         XCTAssertTrue(model.session.state.connected, "the second stall's messages still wait behind its tick")
-        clock += 1500
+        clock += 3300
         model.link.tick()
         XCTAssertTrue(model.session.state.connected, "and the third's")
     }
@@ -1403,21 +1405,21 @@ final class LiveLinkTests: XCTestCase {
         clock += 50
         transport.server("state", ["estop": false, "gripper": "closed"])
         observer.server("state", ["estop": false, "gripper": "closed"])
-        clock += 1500
+        clock += 3300
         model.link.tick()
         XCTAssertTrue(model.session.state.connected, "what arrived during the stall still waits behind its tick")
     }
 
-    /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
+    /// A talking listening connection does not keep a control connection alive that has heard nothing for 3 s:
     /// its commands are not getting through.
-    func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
+    func testAListeningConnectionThatKeepsTalkingCoversAtMost3sOfControlSilence() {
         bringUp()
         bringUpObserver()
-        for step in 0..<60 {
+        for step in 0..<90 {
             tick()
             if step % 6 == 0 { observer.server("state", ["estop": false, "gripper": "closed"]) }
         }
-        XCTAssertTrue(model.session.state.connected, "the control connection alone allows 2 s")
+        XCTAssertTrue(model.session.state.connected, "the control connection alone allows 3 s")
         for _ in 0..<5 { tick() }
         XCTAssertFalse(model.session.state.connected, "and no more")
     }

@@ -23,8 +23,11 @@ final class LiveLinkController {
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
-    /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
-    static let quietLinkMs = 1200
+    /// (I-7). The control connection alone counts as lost after `TeleopLink.staleAfterMs`, the same 3 s today, so the
+    /// listening connection no longer makes a silent server known sooner. An ordinary wireless network was measured
+    /// holding every message back for up to 1.8 s and then delivering them together; 3 s rides that out, and the
+    /// server's own watchdog ends a hold whose updates stopped after 0.75 s.
+    static let quietLinkMs = 3000
     /// A tick this long after the one before means the app's main thread did not run in between (a long frame, an
     /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so the stall does not count as
     /// silence and no probe's round trip across it counts. The server's watchdog still ends a hold whose updates
