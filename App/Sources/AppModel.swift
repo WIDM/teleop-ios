@@ -564,6 +564,9 @@ final class AppModel {
 
     /// Plays ON TARGET once as the guide's "On target" turns true with the jaws open, during a hold or after one.
     private func feelOnTarget(_ display: OperatingDisplay) {
+        // Only with the server connected: practice draws no arm, and a closed link leaves its last state behind, which
+        // must not count as a target reported anew when the link or the real server comes back.
+        guard session.state.liveLink, session.state.connected else { return }
         let picture = display.arm.map { GuidePicture(reading: $0, profile: profile) }
         // A stop the server reports counts before the session has latched it: the same state may bring both.
         let stopped = session.state.emergencyStop || serverState?.estop == true

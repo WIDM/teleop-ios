@@ -1520,4 +1520,24 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertNotNil(model.operating.arm)
         XCTAssertEqual(feltOnTarget, 0)
     }
+
+    /// Practice draws no arm, and the closed link leaves its last state behind. Coming back to the real server is not a
+    /// target reported anew: nothing is felt before the server says anything, nor when the same run says the jaws are
+    /// still where they were.
+    func testComingBackFromPracticeDoesNotReplayTheCueFromTheLastState() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.startPractice()
+        model.inputsChanged()
+        model.leavePractice()
+        model.inputsChanged()
+        XCTAssertFalse(model.session.state.connected)
+        XCTAssertEqual(feltOnTarget, 1, "nothing new from the server")
+        transport.server("welcome")
+        transport.server("state", armState(graspArm))
+        XCTAssertTrue(model.session.state.connected)
+        XCTAssertEqual(feltOnTarget, 1, "the same server run: the jaws did not move")
+    }
 }
