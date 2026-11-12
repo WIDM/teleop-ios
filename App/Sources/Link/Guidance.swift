@@ -9,7 +9,8 @@ struct RobotProfile: Equatable {
     /// in the robot base frame, metres. Holds while the wrist joints stay put, as in translation mode.
     /// This is the grasp point with the jaws turned sideways, measured on the S4 simulator on 2026-11-11:
     /// the reported point sat at the cube's centre plus (−0.007, +0.036, +0.088) m. The front-to-back grasp it
-    /// replaces lifted the cube 1 time in 16.
+    /// replaces lifted the cube 1 time in 16. The scene starts with the jaws sideways (a start wrist roll of
+    /// 90 degrees), so the point holds from the start pose; a scene that starts them front to back needs another.
     var toolOffset: SIMD3<Float>
     /// Where the robot base sits in the world frame, metres. The server reports the arm in the base frame
     /// and objects in the world frame; this brings objects into the base frame.
@@ -34,10 +35,6 @@ struct RobotProfile: Equatable {
     /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
     /// 0.4 degrees on the S4 simulator (recording s15); this is that plus 2, until the device check sets it.
     var gripperEmptyDeg = 2.0
-    /// The scene's start pose has the jaws side by side (a start wrist roll of 90 degrees), the grasp `toolOffset` was
-    /// measured for. A scene that starts them front to back needs a quarter turn of the wrist before this grasp point
-    /// means anything; its profile sets this false.
-    var jawsStartSideways = true
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
     /// reports to 8 cm either way of where that point is after a reset (`WORKSPACE_RADIUS_M` around
     /// `initial_ee_pos_b`); this is that box moved by `toolOffset`, so it holds while the wrist keeps its start pose.

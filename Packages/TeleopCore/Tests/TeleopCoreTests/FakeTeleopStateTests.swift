@@ -19,16 +19,13 @@ final class FakeTeleopStateTests: XCTestCase {
         XCTAssertFalse(s.commandsBlocked)
     }
 
-    func testLatencyIsAmberWhenBlockedOrSlow() {
+    func testClearingTheLatencyUnblocksCommands() {
         var s = FakeTeleopState()
-        XCTAssertFalse(s.latencyIsAmber)
+        s.latencyMs = 420
         s.commandsBlocked = true
-        XCTAssertTrue(s.latencyIsAmber)
         s.clearLatency()
+        XCTAssertNil(s.latencyMs)
         XCTAssertFalse(s.commandsBlocked)
-        XCTAssertFalse(s.latencyIsAmber)
-        s.latencyMs = FakeTeleopState.amberLatencyMs
-        XCTAssertTrue(s.latencyIsAmber)
     }
 
     func testGripperMovesTowardATargetUntilStopped() {

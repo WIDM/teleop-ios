@@ -31,14 +31,9 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public init() {}
 
-    public static let amberLatencyMs = 150
     /// Round trip at or above this blocks commands.
     public static let blockLatencyMs = 400
     public static let smoothingRange = 0.0...1.0
-
-    public var latencyIsAmber: Bool {
-        commandsBlocked || (latencyMs ?? 0) >= Self.amberLatencyMs
-    }
 
     public mutating func markConnected() {
         connected = true
