@@ -68,7 +68,8 @@ final class AppModel {
     @ObservationIgnored let profile = RobotProfile.so101Simulator
     /// When the guide's "On target" is felt.
     @ObservationIgnored private var onTargetCue: OnTargetCue
-    /// A reset's answer came; the next `state` arms the on-target cue again.
+    /// A reset's answer came from a server that reports no episode; the next `state` from after the reset arms the
+    /// on-target cue again.
     @ObservationIgnored private var onTargetRearmOwed = false
     /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
     @ObservationIgnored private(set) var controller: OperatingController!
@@ -492,9 +493,9 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
-        // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until a new
-        // state arrives the guide still shows the arm from before the reset.
-        if onTargetRearmOwed {
+        // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until then the
+        // guide still shows the arm from before the reset, and so may a state the server sent while still resetting.
+        if onTargetRearmOwed, state.activity != .resetting {
             onTargetRearmOwed = false
             onTargetCue.rearm()
         }
@@ -647,7 +648,8 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
-        if action == .sceneResetDone { onTargetRearmOwed = true }
+        // A server that counts episodes says every reset with a new episode, which arms the cue once (`stateArrived`).
+        if action == .sceneResetDone, lastEpisode == nil { onTargetRearmOwed = true }
         session.perform(action)
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)

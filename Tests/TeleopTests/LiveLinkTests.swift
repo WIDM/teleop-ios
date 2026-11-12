@@ -1460,6 +1460,43 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(feltOnTarget, 2, "the approach after the reset")
     }
 
+    /// On a server without episodes, a state sent while the reset was still running can arrive after the reset's
+    /// answer, on the other connection. It still shows the arm from before the reset, so it does not arm the cue.
+    func testAStateFromWhileTheResetRanArrivingAfterItsAnswerDoesNotReplayTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        var late = armState(graspArm, episode: nil)
+        late["ik"] = "resetting"
+        observer.server("state", late)
+        XCTAssertEqual(feltOnTarget, 1, "sent while the server was still resetting")
+        observer.server("state", armState(graspArm + SIMD3(0.007, 0, 0), episode: nil))
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 2, "the approach after the reset")
+    }
+
+    /// On a server with episodes the new episode is the one sign of a reset: the reset's answer coming after it does
+    /// not arm the cue a second time.
+    func testOneResetArmsTheCueOnceWhenTheNewEpisodeComesBeforeTheAnswer() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the new episode armed it")
+        clock += 1000
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the answer to the same reset does not arm it again")
+    }
+
     /// A state that does not say how the jaws are is neither open nor a close: it neither plays the cue nor arms it.
     func testAStateWithoutTheJawsLabelNeitherPlaysNorArmsTheCue() {
         bringUp()
