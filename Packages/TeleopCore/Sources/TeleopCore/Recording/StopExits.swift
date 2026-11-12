@@ -24,7 +24,9 @@ public struct StopExits: Equatable, Sendable {
     ///   - practice: the built-in demo, which has no server and no recorder.
     public static func offered(recorder: RecorderStatus?, practice: Bool = false) -> StopExits {
         if practice { return StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false) }
-        guard let recorder else { return StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true) }
+        guard let recorder else {
+            return StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true)
+        }
         return recorder.records
             ? StopExits(exits: [.resetScene], recordingMayStayOff: false)
             : StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false)

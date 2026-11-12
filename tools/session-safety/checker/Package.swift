@@ -13,6 +13,6 @@ let package = Package(
         .executableTarget(
             name: "SafetyCheck",
             dependencies: [.product(name: "TeleopCore", package: "TeleopCore")]
-        ),
+        )
     ]
 )

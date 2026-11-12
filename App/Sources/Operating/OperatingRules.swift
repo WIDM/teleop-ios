@@ -88,7 +88,8 @@ enum OperatingRules {
     ) -> ArmReading? {
         guard let state, let reported = state.endEffector.map(float) else { return nil }
         let pinch = profile.pinchPoint(
-            gripper: reported, tool: state.toolPoint.map(float), flexDeg: state.wristFlexDeg, rollDeg: state.wristRollDeg
+            gripper: reported, tool: state.toolPoint.map(float), flexDeg: state.wristFlexDeg,
+            rollDeg: state.wristRollDeg
         )
         return ArmReading(
             pinchPoint: pinch.point,

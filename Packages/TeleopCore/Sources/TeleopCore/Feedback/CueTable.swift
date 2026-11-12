@@ -88,7 +88,10 @@ public struct CueRow: Equatable, Sendable {
     /// Nil when nothing is spoken.
     public let level: SpeechLevel?
 
-    init(_ key: CueKey, _ haptic: Haptic? = nil, sound: Sound? = nil, say speech: [SpeechKey] = [], _ level: SpeechLevel? = nil) {
+    init(
+        _ key: CueKey, _ haptic: Haptic? = nil, sound: Sound? = nil, say speech: [SpeechKey] = [],
+        _ level: SpeechLevel? = nil
+    ) {
         self.key = key
         self.haptic = haptic
         self.sound = sound
@@ -133,15 +136,26 @@ public enum CueTable {
         CueRow(.letGo(.lateRejection), .letGo, say: [.refusedMove], .p4),
 
         CueRow(.emergencyStop(.button, takeDiscarded: false), .alarm, say: [.estop, .causeButton, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.button, takeDiscarded: true), .alarm, say: [.estop, .causeButton, .takeDiscarded, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.button, takeDiscarded: true), .alarm,
+            say: [.estop, .causeButton, .takeDiscarded, .resetPrompt], .p1),
         CueRow(.emergencyStop(.behind, takeDiscarded: false), .alarm, say: [.estop, .causeBehind, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.behind, takeDiscarded: true), .alarm, say: [.estop, .causeBehind, .takeDiscarded, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.behind, takeDiscarded: true), .alarm,
+            say: [.estop, .causeBehind, .takeDiscarded, .resetPrompt], .p1),
         CueRow(.emergencyStop(.other, takeDiscarded: false), .alarm, say: [.estop, .causeOther, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.other, takeDiscarded: true), .alarm, say: [.estop, .causeOther, .takeDiscarded, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.other, takeDiscarded: true), .alarm,
+            say: [.estop, .causeOther, .takeDiscarded, .resetPrompt], .p1),
         CueRow(.emergencyStop(.link, takeDiscarded: false), .alarm, say: [.estop, .causeLink, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.link, takeDiscarded: true), .alarm, say: [.estop, .causeLink, .takeDiscarded, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.onConnect, takeDiscarded: false), .alarm, say: [.estop, .causeOnConnect, .resetPrompt], .p1),
-        CueRow(.emergencyStop(.onConnect, takeDiscarded: true), .alarm, say: [.estop, .causeOnConnect, .takeDiscarded, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.link, takeDiscarded: true), .alarm,
+            say: [.estop, .causeLink, .takeDiscarded, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.onConnect, takeDiscarded: false), .alarm, say: [.estop, .causeOnConnect, .resetPrompt], .p1),
+        CueRow(
+            .emergencyStop(.onConnect, takeDiscarded: true), .alarm,
+            say: [.estop, .causeOnConnect, .takeDiscarded, .resetPrompt], .p1),
 
         CueRow(.linkLost(holdEngaged: false), sound: .linkLost, say: [.linkLost], .p1),
         CueRow(.linkLost(holdEngaged: true), .letGo, sound: .linkLost, say: [.linkLost], .p1),
@@ -161,7 +175,8 @@ public enum CueTable {
         CueRow(.notReset, say: [.notReset], .p2),
     ]
 
-    private static let byKey: [CueKey: CueRow] = Dictionary(rows.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+    private static let byKey: [CueKey: CueRow] = Dictionary(
+        rows.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
 
     public static func row(for key: CueKey) -> CueRow {
         // Every key has a row; CueTableTests holds the table to that.

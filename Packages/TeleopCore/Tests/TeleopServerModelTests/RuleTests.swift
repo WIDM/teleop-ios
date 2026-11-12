@@ -38,7 +38,8 @@ final class RuleTests: XCTestCase {
         bench.wait(bench.stepTime + 0.001)
         let finished = phone.ack(hold)
         XCTAssertEqual(finished.map { "\($0.status) \($0.reason)" }, "ok pose_stopped")
-        XCTAssertLessThanOrEqual((finished?.time ?? 99) - stoppedAt, bench.stepTime + 1e-9, "about one step after the stop")
+        XCTAssertLessThanOrEqual(
+            (finished?.time ?? 99) - stoppedAt, bench.stepTime + 1e-9, "about one step after the stop")
         let next = phone.send("gripper_jog_start", .object(["action": "open", "step": "coarse"]))
         bench.wait(0.1)
         XCTAssertNil(phone.ack(next), "after the final ack a new start is taken")
@@ -177,8 +178,9 @@ final class RuleTests: XCTestCase {
         // The other socket's updates do not keep the hold alive.
         other.stream(for: 1.0) { other.poseUpdate(base: .zero) }
         XCTAssertEqual(phone.reason(hold), "rejected pose_watchdog_timeout")
-        XCTAssertFalse(other.received.contains { $0.payload["reason"] == "pose_watchdog_timeout" },
-                       "acks go only to the socket that sent the command")
+        XCTAssertFalse(
+            other.received.contains { $0.payload["reason"] == "pose_watchdog_timeout" },
+            "acks go only to the socket that sent the command")
     }
 
     // MARK: Reset behind a stop
@@ -251,7 +253,8 @@ final class RuleTests: XCTestCase {
         phone.poseStart()
         phone.stream(for: 0.5) { phone.poseUpdate(base: SIMD3(0, 0, 0.05)) }
         let steps = 0.5 * bench.config.stepsPerSecond + 1
-        XCTAssertLessThanOrEqual(length(bench.model.world.arm - start), steps * bench.config.poseCarrySpeed * bench.config.simStep + 1e-9)
+        XCTAssertLessThanOrEqual(
+            length(bench.model.world.arm - start), steps * bench.config.poseCarrySpeed * bench.config.simStep + 1e-9)
     }
 
     // MARK: Grasp
@@ -289,7 +292,9 @@ final class RuleTests: XCTestCase {
         let releasedAt = bench.now
         let open = phone.gripperJog("open", seconds: 3, release: false)
         let success = phone.ack(open)
-        XCTAssertEqual(success.map { "\($0.status) \($0.reason)" }, "ok task_success", "the hold still pressed ends with the success")
+        XCTAssertEqual(
+            success.map { "\($0.status) \($0.reason)" }, "ok task_success",
+            "the hold still pressed ends with the success")
         let steps = ((success?.time ?? 0) - releasedAt) * bench.config.stepsPerSecond
         // 30 resting steps, the server's --success-stable-steps default, written out so that a wrong constant in the
         // model fails. Before them come the pass that takes the jog and lets go and the pass where the cube lands,
@@ -324,15 +329,19 @@ final class RuleTests: XCTestCase {
 
     func testStateCarriesEveryFieldWithItsType() {
         let fields = Comparison.signature(phone.lastState)
-        XCTAssertEqual(fields, [
-            "ee_pos:array3", "episode:number", "estop:bool", "goal_pos:array3", "gripper:string", "gripper_deg:number",
-            "ik:string", "object_pos:array3", "rec:string", "rec_discarded:number", "rec_samples:number",
-            "rec_saved:number", "step:string", "task_success:bool", "tool_pos:array3", "wrist_flex_deg:number",
-            "wrist_roll_deg:number",
-        ])
+        XCTAssertEqual(
+            fields,
+            [
+                "ee_pos:array3", "episode:number", "estop:bool", "goal_pos:array3", "gripper:string",
+                "gripper_deg:number",
+                "ik:string", "object_pos:array3", "rec:string", "rec_discarded:number", "rec_samples:number",
+                "rec_saved:number", "step:string", "task_success:bool", "tool_pos:array3", "wrist_flex_deg:number",
+                "wrist_roll_deg:number",
+            ])
         XCTAssertEqual(phone.lastState["rec"], "none", "a server started without recording")
         phone.moveArm(to: bench.config.armStart)
-        XCTAssertTrue(Comparison.signature(phone.lastState).contains("orient_deg:number"), "a pose hold adds orient_deg")
+        XCTAssertTrue(
+            Comparison.signature(phone.lastState).contains("orient_deg:number"), "a pose hold adds orient_deg")
         XCTAssertTrue(Comparison.signature(phone.lastState).contains("gripper_delta:number"))
     }
 
@@ -399,7 +408,8 @@ final class RecorderTests: XCTestCase {
         XCTAssertEqual(Double(samples), bench.config.stepsPerSecond / 2, accuracy: 1.5)
         phone.send("pose_stop")
         bench.wait(1)
-        XCTAssertEqual(Double(samples), bench.config.stepsPerSecond, accuracy: 2, "pauses after the first command are kept")
+        XCTAssertEqual(
+            Double(samples), bench.config.stepsPerSecond, accuracy: 2, "pauses after the first command are kept")
     }
 
     func testASuccessSavesTheTake() {

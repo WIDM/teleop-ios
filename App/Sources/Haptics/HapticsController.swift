@@ -28,7 +28,8 @@ final class HapticsController: HapticsPlaying {
         interruptions = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] note in
-            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(
+                AVAudioSession.InterruptionType.init)
             if type == .ended { try? self?.engine?.start() }
         }
     }
@@ -58,7 +59,8 @@ final class HapticsController: HapticsPlaying {
                 CHHapticEventParameter(parameterID: .hapticSharpness, value: Float(pulse.sharpness)),
             ]
             return pulse.isTransient
-                ? CHHapticEvent(eventType: .hapticTransient, parameters: parameters, relativeTime: Double(pulse.startMs) / 1000)
+                ? CHHapticEvent(
+                    eventType: .hapticTransient, parameters: parameters, relativeTime: Double(pulse.startMs) / 1000)
                 : CHHapticEvent(
                     eventType: .hapticContinuous, parameters: parameters,
                     relativeTime: Double(pulse.startMs) / 1000, duration: Double(pulse.durationMs) / 1000

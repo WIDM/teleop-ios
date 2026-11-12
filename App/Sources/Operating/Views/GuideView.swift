@@ -60,11 +60,12 @@ struct GuideView: View {
 
     private func lineView(_ line: GuidePicture.Line) -> some View {
         let text = GuideWords.text(line)
-        let flag: Color? = switch line {
-        case .onTarget, .holding: TeleopColors.guideOnTarget
-        case .outside, .approximate: TeleopColors.guideTarget
-        default: nil
-        }
+        let flag: Color? =
+            switch line {
+            case .onTarget, .holding: TeleopColors.guideOnTarget
+            case .outside, .approximate: TeleopColors.guideTarget
+            default: nil
+            }
         return Text(verbatim: text)
             .font(.system(size: lineSize, weight: flag == nil ? .medium : .bold))
             .foregroundStyle(flag ?? .white)
@@ -105,8 +106,9 @@ private enum GuideInk {
     }
 
     static func rect(_ area: GuidePicture.Area, in size: CGSize) -> CGRect {
-        CGRect(x: area.minX * size.width, y: area.minY * size.height,
-               width: (area.maxX - area.minX) * size.width, height: (area.maxY - area.minY) * size.height)
+        CGRect(
+            x: area.minX * size.width, y: area.minY * size.height,
+            width: (area.maxX - area.minX) * size.width, height: (area.maxY - area.minY) * size.height)
     }
 
     /// The ring around the pinch point: a little wider than the target, never too small to see.
@@ -129,10 +131,14 @@ private enum GuideInk {
     }
 
     static func commanded(_ context: inout GraphicsContext, from: CGPoint, to: CGPoint, radius: Double) {
-        context.stroke(Path { $0.move(to: from); $0.addLine(to: to) }, with: .color(.white.opacity(0.7)),
-                       style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-        context.stroke(Path(ellipseIn: square(at: to, edge: radius * 2)), with: .color(.white.opacity(0.7)),
-                       style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+        context.stroke(
+            Path {
+                $0.move(to: from); $0.addLine(to: to)
+            }, with: .color(.white.opacity(0.7)),
+            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+        context.stroke(
+            Path(ellipseIn: square(at: to, edge: radius * 2)), with: .color(.white.opacity(0.7)),
+            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
     }
 
     static func backdrop<Content: View>(_ content: Content) -> some View {
@@ -151,24 +157,30 @@ private struct GuideAbove: View {
     var body: some View {
         GuideInk.backdrop(
             Canvas { context, size in
-                context.stroke(Path(GuideInk.rect(picture.boxAbove, in: size)), with: .color(GuideInk.box),
-                               style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                context.stroke(
+                    Path(GuideInk.rect(picture.boxAbove, in: size)), with: .color(GuideInk.box),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 if let goal = picture.goal {
-                    let rect = GuideInk.square(at: GuideInk.point(goal.above, in: size), edge: picture.goalEdge * size.width)
-                    context.stroke(Path(roundedRect: rect, cornerRadius: 3), with: .color(TeleopColors.guideGoal),
-                                   style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                    let rect = GuideInk.square(
+                        at: GuideInk.point(goal.above, in: size), edge: picture.goalEdge * size.width)
+                    context.stroke(
+                        Path(roundedRect: rect, cornerRadius: 3), with: .color(TeleopColors.guideGoal),
+                        style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
                 }
                 if let target = picture.target {
-                    let rect = GuideInk.square(at: GuideInk.point(target.above, in: size), edge: picture.targetEdge * size.width)
+                    let rect = GuideInk.square(
+                        at: GuideInk.point(target.above, in: size), edge: picture.targetEdge * size.width)
                     context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(TeleopColors.guideTarget))
                 }
                 let pinch = GuideInk.point(picture.pinch.above, in: size)
                 let radius = GuideInk.ringRadius(picture, width: size.width)
                 if let commanded = picture.commanded {
-                    GuideInk.commanded(&context, from: pinch, to: GuideInk.point(commanded.above, in: size), radius: radius)
+                    GuideInk.commanded(
+                        &context, from: pinch, to: GuideInk.point(commanded.above, in: size), radius: radius)
                 }
-                context.stroke(Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(GuideInk.jaws(picture)),
-                               lineWidth: picture.onTarget ? 4 : 2.5)
+                context.stroke(
+                    Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(GuideInk.jaws(picture)),
+                    lineWidth: picture.onTarget ? 4 : 2.5)
                 GuideInk.centre(&context, at: pinch, picture)
             }
         )
@@ -188,28 +200,42 @@ private struct GuideBehind: View {
         GuideInk.backdrop(
             Canvas { context, size in
                 let tableY = picture.tableY * size.height
-                context.fill(Path(CGRect(x: 0, y: tableY, width: size.width, height: size.height - tableY)),
-                             with: .color(.white.opacity(0.12)))
-                context.stroke(Path { $0.move(to: CGPoint(x: 0, y: tableY)); $0.addLine(to: CGPoint(x: size.width, y: tableY)) },
-                               with: .color(.white.opacity(0.7)), lineWidth: 2)
-                context.stroke(Path(GuideInk.rect(picture.boxBehind, in: size)), with: .color(GuideInk.box),
-                               style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                context.fill(
+                    Path(CGRect(x: 0, y: tableY, width: size.width, height: size.height - tableY)),
+                    with: .color(.white.opacity(0.12)))
+                context.stroke(
+                    Path {
+                        $0.move(to: CGPoint(x: 0, y: tableY)); $0.addLine(to: CGPoint(x: size.width, y: tableY))
+                    },
+                    with: .color(.white.opacity(0.7)), lineWidth: 2)
+                context.stroke(
+                    Path(GuideInk.rect(picture.boxBehind, in: size)), with: .color(GuideInk.box),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 if let goal = picture.goal {
                     let centre = GuideInk.point(goal.behind, in: size)
                     let half = picture.goalEdge * size.width / 2
-                    context.stroke(Path { $0.move(to: CGPoint(x: centre.x - half, y: centre.y)); $0.addLine(to: CGPoint(x: centre.x + half, y: centre.y)) },
-                                   with: .color(TeleopColors.guideGoal), style: StrokeStyle(lineWidth: 4, dash: [5, 4]))
+                    context.stroke(
+                        Path {
+                            $0.move(to: CGPoint(x: centre.x - half, y: centre.y));
+                            $0.addLine(to: CGPoint(x: centre.x + half, y: centre.y))
+                        },
+                        with: .color(TeleopColors.guideGoal), style: StrokeStyle(lineWidth: 4, dash: [5, 4]))
                 }
                 if let target = picture.target {
-                    let rect = GuideInk.square(at: GuideInk.point(target.behind, in: size), edge: picture.targetEdge * size.width)
+                    let rect = GuideInk.square(
+                        at: GuideInk.point(target.behind, in: size), edge: picture.targetEdge * size.width)
                     context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(TeleopColors.guideTarget))
                 }
                 let pinch = GuideInk.point(picture.pinch.behind, in: size)
-                context.stroke(Path { $0.move(to: pinch); $0.addLine(to: CGPoint(x: pinch.x, y: tableY)) },
-                               with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                context.stroke(
+                    Path {
+                        $0.move(to: pinch); $0.addLine(to: CGPoint(x: pinch.x, y: tableY))
+                    },
+                    with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
                 let radius = GuideInk.ringRadius(picture, width: size.width)
                 if let commanded = picture.commanded {
-                    GuideInk.commanded(&context, from: pinch, to: GuideInk.point(commanded.behind, in: size), radius: radius)
+                    GuideInk.commanded(
+                        &context, from: pinch, to: GuideInk.point(commanded.behind, in: size), radius: radius)
                 }
                 drawJaws(&context, at: pinch, radius: radius)
             }
@@ -225,7 +251,8 @@ private struct GuideBehind: View {
     private func drawJaws(_ context: inout GraphicsContext, at pinch: CGPoint, radius: Double) {
         let ink = GuideInk.jaws(picture)
         guard let open = picture.jawOpening else {
-            context.stroke(Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(ink), lineWidth: 2.5)
+            context.stroke(
+                Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(ink), lineWidth: 2.5)
             return
         }
         let half = 2 + (radius - 2) * open
@@ -237,7 +264,8 @@ private struct GuideBehind: View {
                 $0.addLine(to: CGPoint(x: pinch.x + half, y: pinch.y - rise))
                 $0.addLine(to: CGPoint(x: pinch.x + half, y: pinch.y))
             },
-            with: .color(ink), style: StrokeStyle(lineWidth: picture.onTarget ? 4 : 3, lineCap: .round, lineJoin: .round)
+            with: .color(ink),
+            style: StrokeStyle(lineWidth: picture.onTarget ? 4 : 3, lineCap: .round, lineJoin: .round)
         )
         GuideInk.centre(&context, at: pinch, picture)
     }

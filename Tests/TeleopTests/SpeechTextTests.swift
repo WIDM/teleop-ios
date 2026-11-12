@@ -20,8 +20,11 @@ final class SpeechTextTests: XCTestCase {
     }
 
     func testAnEventIsSpokenAsOneSentence() {
-        XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .recordingSession(saved: 12)), language: .en), "Recording session. 12 saved.")
-        XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .recordingSession(saved: 12)), language: .zhHant), "錄製模式。已存 12 筆。")
+        XCTAssertEqual(
+            SpeechText.string(CueTable.phrases(for: .recordingSession(saved: 12)), language: .en),
+            "Recording session. 12 saved.")
+        XCTAssertEqual(
+            SpeechText.string(CueTable.phrases(for: .recordingSession(saved: 12)), language: .zhHant), "錄製模式。已存 12 筆。")
         XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .takeSaved(count: 13)), language: .en), "Saved. 13.")
     }
 

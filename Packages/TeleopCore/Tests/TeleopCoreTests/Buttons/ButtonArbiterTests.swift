@@ -9,7 +9,9 @@ final class ButtonArbiterTests: XCTestCase {
         XCTAssertEqual(pad.press(.forward, atMs: 1_000, gripping: false), [.startTranslation(.forward)])
         XCTAssertEqual(pad.engaged, .forward)
         XCTAssertEqual(pad.tick(atMs: 1_000), [.updateTranslation(.zero)])
-        XCTAssertEqual(pad.tick(atMs: 1_500), [.updateTranslation(OperatorDirection.forward.linkVector * 0.02)], "Coarse by default")
+        XCTAssertEqual(
+            pad.tick(atMs: 1_500), [.updateTranslation(OperatorDirection.forward.linkVector * 0.02)],
+            "Coarse by default")
         XCTAssertEqual(pad.release(.forward), [.stopTranslation])
         XCTAssertNil(pad.engaged)
         XCTAssertEqual(pad.tick(atMs: 1_600), [], "nothing streams after the stop")
@@ -85,7 +87,8 @@ final class ButtonArbiterTests: XCTestCase {
         var pad = ButtonArbiter()
         XCTAssertEqual(pad.press(.close, atMs: 0, gripping: true), [.cue(.alreadyGripping)])
         XCTAssertNil(pad.engaged)
-        XCTAssertEqual(pad.press(.forward, atMs: 100, gripping: true), [.cue(.deadInput)], "the refused button is still down")
+        XCTAssertEqual(
+            pad.press(.forward, atMs: 100, gripping: true), [.cue(.deadInput)], "the refused button is still down")
         XCTAssertEqual(pad.release(.close), [], "nothing was started, so nothing is stopped")
         _ = pad.release(.forward)
         XCTAssertEqual(pad.press(.close, atMs: 300, gripping: false), [.startGripper(.closed)])
@@ -112,8 +115,9 @@ final class ButtonArbiterTests: XCTestCase {
         }
         XCTAssertEqual(commands, [.stopTranslation])
         XCTAssertEqual(pad.release(.forward), [], "the later lift sends nothing more")
-        XCTAssertEqual(pad.press(.back, atMs: 900, gripping: false), [.startTranslation(.back)],
-                       "a slipped finger no longer holds the pad")
+        XCTAssertEqual(
+            pad.press(.back, atMs: 900, gripping: false), [.startTranslation(.back)],
+            "a slipped finger no longer holds the pad")
     }
 
     // MARK: Fine / Coarse
@@ -126,7 +130,7 @@ final class ButtonArbiterTests: XCTestCase {
         XCTAssertEqual(pad.speed, .coarse)
         _ = pad.release(.down)
 
-        _ = pad.press(.close, atMs: 100, gripping: true) // refused, but still down
+        _ = pad.press(.close, atMs: 100, gripping: true)  // refused, but still down
         XCTAssertEqual(pad.selectSpeed(.fine), [.cue(.speedRefused)])
         _ = pad.release(.close)
 

@@ -52,15 +52,19 @@ final class ProtocolTests: XCTestCase {
         let phone = bench.client()
         let start = phone.send("jog_start", .object(["axis": "x", "dir": 1.0, "step": "fine"]))
         XCTAssertEqual(phone.reason(start), "rejected jog_invalid_dir")
-        let rate = phone.send("orient_start", .object([
-            "frame": "phone_body", "rate_hz": 30.0, "gain": 1, "deadband_deg": 0, "smoothing": 0,
-        ]))
+        let rate = phone.send(
+            "orient_start",
+            .object([
+                "frame": "phone_body", "rate_hz": 30.0, "gain": 1, "deadband_deg": 0, "smoothing": 0,
+            ]))
         XCTAssertEqual(phone.reason(rate), "rejected invalid_orient_rate")
     }
 
     func testMalformedUpdatesAreAnsweredWithAnError() {
         let phone = bench.client()
-        phone.send("pose_update", .object(["p_rel_m": .numbers([0, 0]), "q_rel": .numbers([0, 0, 0, 1]), "gripper_delta": 0]))
+        phone.send(
+            "pose_update",
+            .object(["p_rel_m": .numbers([0, 0]), "q_rel": .numbers([0, 0, 0, 1]), "gripper_delta": 0]))
         XCTAssertEqual(phone.received.last?.payload["code"], "invalid_pose_position")
         phone.send("orient_update", .object(["q_rel": .numbers([0, 0, 0, 2])]))
         XCTAssertEqual(phone.received.last?.payload["code"], "invalid_orient_quaternion")

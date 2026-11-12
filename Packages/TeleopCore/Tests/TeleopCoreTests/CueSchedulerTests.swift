@@ -15,13 +15,19 @@ final class CueSchedulerTests: XCTestCase {
 
     private func speech(_ outputs: [CueOutput]) -> [(keys: [SpeechKey], interrupt: Bool, id: Int)] {
         outputs.compactMap {
-            if case .speak(let phrases, let interrupt, let id) = $0 { return (phrases.map(\.key), interrupt, id) } else { return nil }
+            if case .speak(let phrases, let interrupt, let id) = $0 {
+                return (phrases.map(\.key), interrupt, id)
+            } else {
+                return nil
+            }
         }
     }
 
     func testAHigherCuePreemptsALowerOne() {
         XCTAssertEqual(haptics(scheduler.raise(.limit(.workspace), at: 0, currentHold: nil)), [.end])
-        XCTAssertEqual(haptics(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 100, currentHold: nil)), [.alarm])
+        XCTAssertEqual(
+            haptics(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 100, currentHold: nil)), [.alarm]
+        )
     }
 
     func testALowerCueArrivingWhileAHigherPlaysIsDropped() {
@@ -41,7 +47,9 @@ final class CueSchedulerTests: XCTestCase {
     /// ON TARGET sits between END and GO: GO waits for it, END cuts it short, and it goes into the cue log.
     func testOnTargetPlaysAboveGoAndBelowEnd() {
         XCTAssertEqual(haptics(scheduler.raise(.onTarget, at: 0, currentHold: 2)), [.onTarget])
-        XCTAssertEqual(scheduler.log.last, CueLogEntry(atMs: 0, event: .onTarget, haptic: .onTarget, sound: nil, speech: [], dropped: false))
+        XCTAssertEqual(
+            scheduler.log.last,
+            CueLogEntry(atMs: 0, event: .onTarget, haptic: .onTarget, sound: nil, speech: [], dropped: false))
         XCTAssertEqual(haptics(scheduler.raise(.holdLive(hold: 2), at: 100, currentHold: 2)), [])
         XCTAssertEqual(haptics(scheduler.tick(at: 349, currentHold: 2)), [])
         XCTAssertEqual(haptics(scheduler.tick(at: 350, currentHold: 2)), [.go])
@@ -145,6 +153,7 @@ final class CueSchedulerTests: XCTestCase {
         _ = scheduler.raise(.holdLive(hold: 1), at: 10, currentHold: 1)
         XCTAssertEqual(scheduler.stopHaptics(), [.stopHaptics])
         XCTAssertEqual(haptics(scheduler.tick(at: 500, currentHold: 1)), [])
-        XCTAssertEqual(haptics(scheduler.raise(.limit(.wrist), at: 520, currentHold: nil)), [.end], "nothing plays any more")
+        XCTAssertEqual(
+            haptics(scheduler.raise(.limit(.wrist), at: 520, currentHold: nil)), [.end], "nothing plays any more")
     }
 }

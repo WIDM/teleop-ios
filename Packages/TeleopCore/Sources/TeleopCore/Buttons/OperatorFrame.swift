@@ -9,7 +9,7 @@ public enum OperatorDirection: String, CaseIterable, Sendable {
         switch self {
         case .forward: return (.y, -1)
         case .back: return (.y, +1)
-        case .left: return (.x, +1) // toward the goal
+        case .left: return (.x, +1)  // toward the goal
         case .right: return (.x, -1)
         case .up: return (.z, +1)
         case .down: return (.z, -1)

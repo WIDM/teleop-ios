@@ -26,7 +26,8 @@ final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
         interruptions = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] note in
-            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(
+                AVAudioSession.InterruptionType.init)
             if type == .began { self?.synthesizer.stopSpeaking(at: .immediate) }
             if type == .ended { CueAudioSession.reactivate() }
         }
@@ -80,7 +81,8 @@ enum SpeechText {
         // Chinese sentences follow each other with no space between them.
         let separator = voiceLanguage(language).hasPrefix("zh") ? "" : " "
         return phrases.map { phrase in
-            let format = bundle.localizedString(forKey: phrase.key.rawValue, value: phrase.key.rawValue, table: "Speech")
+            let format = bundle.localizedString(
+                forKey: phrase.key.rawValue, value: phrase.key.rawValue, table: "Speech")
             return phrase.number.map { String(format: format, $0) } ?? format
         }.joined(separator: separator)
     }
@@ -93,8 +95,9 @@ enum SpeechText {
 
     private static func bundle(for language: AppLanguage) -> Bundle {
         guard language != .system,
-              let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj"),
-              let bundle = Bundle(path: path) else { return .main }
+            let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj"),
+            let bundle = Bundle(path: path)
+        else { return .main }
         return bundle
     }
 }

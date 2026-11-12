@@ -81,7 +81,8 @@ struct RobotProfile: Equatable {
     func pinchPoint(gripper: SIMD3<Float>, tool: SIMD3<Float>?, flexDeg: Double?, rollDeg: Double?) -> PinchPoint {
         guard let tool, case let offset = tool - gripper, [offset.x, offset.y, offset.z].allSatisfy(\.isFinite) else {
             let approximate = estimateIsApproximate(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg)
-            return PinchPoint(point: gripper + toolOffset, source: .estimated(approximate: approximate), offset: toolOffset)
+            return PinchPoint(
+                point: gripper + toolOffset, source: .estimated(approximate: approximate), offset: toolOffset)
         }
         return PinchPoint(point: tool, source: .reported, offset: offset)
     }
@@ -92,7 +93,8 @@ struct RobotProfile: Equatable {
         guard let flexDeg, let rollDeg else { return nil }
         let moved = (gripper - offsetMeasuredAt) * 100
         let b = estimateBound
-        let millimetres = b.xMmPerCm * abs(moved.x) + b.plusYMmPerCm * max(moved.y, 0) + b.minusYMmPerCm * max(-moved.y, 0)
+        let millimetres =
+            b.xMmPerCm * abs(moved.x) + b.plusYMmPerCm * max(moved.y, 0) + b.minusYMmPerCm * max(-moved.y, 0)
             + b.zMmPerCm * abs(moved.z) + b.flexMmPerDeg * Float(abs(flexDeg - offsetMeasuredFlexDeg))
             + b.rollMmPerDeg * Float(abs(rollDeg - offsetMeasuredRollDeg))
         return millimetres / 1000

@@ -12,7 +12,8 @@ final class RobotProfileTests: XCTestCase {
         let estimated = straightDown.pinchPoint(gripper: SIMD3(0.01, -0.2, 0.15), tool: nil, flexDeg: nil, rollDeg: nil)
         XCTAssertLessThan(simd_distance(estimated.point, SIMD3(0.01, -0.2, 0.05)), 1e-6)
         XCTAssertEqual(estimated.offset, straightDown.toolOffset)
-        XCTAssertLessThan(simd_distance(straightDown.inBase(world: SIMD3(0.01, -0.2, 0.10)), SIMD3(0.01, -0.2, 0.05)), 1e-6)
+        XCTAssertLessThan(
+            simd_distance(straightDown.inBase(world: SIMD3(0.01, -0.2, 0.10)), SIMD3(0.01, -0.2, 0.05)), 1e-6)
     }
 
     /// A reported tool point wins over the estimate, and the offset that moves the command and the box is the one
@@ -79,7 +80,8 @@ final class RobotProfileTests: XCTestCase {
             XCTAssertEqual(inside, .estimated(approximate: false), what)
             XCTAssertEqual(past, .estimated(approximate: true), what)
         }
-        let error = profile.estimateError(gripper: profile.offsetMeasuredAt + SIMD3(0.01, 0.002, -0.003), flexDeg: 42.24, rollDeg: 80)
+        let error = profile.estimateError(
+            gripper: profile.offsetMeasuredAt + SIMD3(0.01, 0.002, -0.003), flexDeg: 42.24, rollDeg: 80)
         // One term each, in mm: 1 cm across, 0.2 cm toward the base, 0.3 cm down, 2° of tilt, 10° of turn.
         let terms: [Float] = [2.56 * 1, 11.12 * 0.2, 8.43 * 0.3, 1.65 * 2, 0.23 * 10]
         XCTAssertEqual(error ?? 0, terms.reduce(0, +) / 1000, accuracy: 1e-6)
@@ -97,7 +99,8 @@ final class RobotProfileTests: XCTestCase {
     /// The places of the research note: right after a reset the drawn point is 3 cm off, and a cube nudged 4 cm
     /// sideways is 9 to 10 mm off. The rule calls both approximate; a 1 cm nudge across stays solid.
     func testThePlacesFromTheHandSessions() {
-        let afterReset = profile.pinchPoint(gripper: SIMD3(0.020617, -0.141418, 0.159985), tool: nil, flexDeg: 40.24, rollDeg: 90)
+        let afterReset = profile.pinchPoint(
+            gripper: SIMD3(0.020617, -0.141418, 0.159985), tool: nil, flexDeg: 40.24, rollDeg: 90)
         XCTAssertEqual(afterReset.source, .estimated(approximate: true))
         XCTAssertEqual(source(SIMD3(4, 0, 0)), .estimated(approximate: true))
         XCTAssertEqual(source(SIMD3(1, 0, 0)), .estimated(approximate: false))
@@ -115,7 +118,9 @@ final class PhonePostureTests: XCTestCase {
 
     func testUprightPhoneIsFine() {
         XCTAssertEqual(PhonePosture.of(TestPose.portrait), .upright)
-        XCTAssertEqual(PhonePosture.of(TestPose.portrait(turned: 115, about: SIMD3(0, 1, 0))), .upright, "facing another way is still fine")
+        XCTAssertEqual(
+            PhonePosture.of(TestPose.portrait(turned: 115, about: SIMD3(0, 1, 0))), .upright,
+            "facing another way is still fine")
     }
 
     func testLeaningBackIsFineAllTheWayToFlat() {

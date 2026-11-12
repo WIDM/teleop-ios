@@ -34,8 +34,9 @@ enum L10n {
 
     static func string(_ key: String) -> String {
         if language != .system,
-           let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
+            let path = Bundle.main.path(forResource: language.rawValue, ofType: "lproj"),
+            let bundle = Bundle(path: path)
+        {
             return bundle.localizedString(forKey: key, value: key, table: nil)
         }
         return Bundle.main.localizedString(forKey: key, value: key, table: nil)

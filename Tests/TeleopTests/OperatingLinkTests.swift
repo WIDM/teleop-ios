@@ -91,7 +91,8 @@ final class OperatingLinkTests: XCTestCase {
 
     private func lastRoll() -> Double? {
         guard let update = transport.sent.last(where: { $0["type"] as? String == "orient_update" }),
-              let q = (update["payload"] as? [String: Any])?["q_rel"] as? [Double] else { return nil }
+            let q = (update["payload"] as? [String: Any])?["q_rel"] as? [Double]
+        else { return nil }
         return -2 * asin(q[1]) * 180 / .pi
     }
 
@@ -116,9 +117,12 @@ final class OperatingLinkTests: XCTestCase {
             XCTAssertEqual(Double(sent.z), offset.z, accuracy: 1e-6)
         }
         // And the axis table agrees with the server's calibration: right → −X, forward → −Y, up → +Z.
-        XCTAssertEqual(OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 1, forward: 0, up: 0)), SIMD3(-1, 0, 0))
-        XCTAssertEqual(OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 1, up: 0)), SIMD3(0, -1, 0))
-        XCTAssertEqual(OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 0, up: 1)), SIMD3(0, 0, 1))
+        XCTAssertEqual(
+            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 1, forward: 0, up: 0)), SIMD3(-1, 0, 0))
+        XCTAssertEqual(
+            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 1, up: 0)), SIMD3(0, -1, 0))
+        XCTAssertEqual(
+            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 0, up: 1)), SIMD3(0, 0, 1))
     }
 
     /// Scheme B: vol− starts the wrist hold at once; the phone's turn becomes the target, and a frozen wrist holds the
@@ -196,7 +200,8 @@ final class OperatingLinkTests: XCTestCase {
         // No final ack comes: the start goes out on its own after 800 ms.
         while !transport.types.contains("orient_start") { step() }
         let start = transport.sent.lastIndex { $0["type"] as? String == "orient_start" }!
-        let rolls = transport.sent[start...].filter { $0["type"] as? String == "orient_update" }.map { message -> Double in
+        let rolls = transport.sent[start...].filter { $0["type"] as? String == "orient_update" }.map {
+            message -> Double in
             let q = (message["payload"] as! [String: Any])["q_rel"] as! [Double]
             return -2 * asin(q[1]) * 180 / .pi
         }
@@ -239,14 +244,18 @@ final class OperatingLinkTests: XCTestCase {
         model.buttonDown(.up)
         XCTAssertTrue(model.session.state.armMoving)
         step(30)
-        let p = (transport.sent.last { $0["type"] as? String == "pose_update" }?["payload"] as? [String: Any])?["p_rel_m"] as? [Double]
+        let p =
+            (transport.sent.last { $0["type"] as? String == "pose_update" }?["payload"] as? [String: Any])?["p_rel_m"]
+            as? [Double]
         // Up is base +Z, which the link frame sends as −z.
         XCTAssertEqual(p?[0] ?? .nan, 0, accuracy: 1e-6)
         XCTAssertEqual(p?[1] ?? .nan, 0, accuracy: 1e-6)
         XCTAssertEqual(p?[2] ?? .nan, -0.04 * 0.99, accuracy: 0.002)
         // Past 2 s the ramp asks for more than 8 cm: the update is capped, and a resync finds out where the arm got.
         step(40)
-        let capped = (transport.sent.last { $0["type"] as? String == "pose_update" }?["payload"] as? [String: Any])?["p_rel_m"] as? [Double]
+        let capped =
+            (transport.sent.last { $0["type"] as? String == "pose_update" }?["payload"] as? [String: Any])?["p_rel_m"]
+            as? [Double]
         XCTAssertEqual(capped?[2] ?? .nan, -0.08, accuracy: 1e-6, "never more than 8 cm ahead of the arm")
         model.buttonUp(.up)
         XCTAssertFalse(model.session.state.armMoving)
@@ -372,20 +381,26 @@ final class OperatingLinkTests: XCTestCase {
         step()
         let layout = model.operating.layout!
         let bottom = layout.bottomBand
-        model.touch(TouchSample(id: 1, phase: .began, x: 200, y: bottom.y + 20, majorRadius: 8), at: Double(clock) / 1000)
+        model.touch(
+            TouchSample(id: 1, phase: .began, x: 200, y: bottom.y + 20, majorRadius: 8), at: Double(clock) / 1000)
         XCTAssertTrue(model.session.state.emergencyStop)
         XCTAssertEqual(transport.types.last, "estop")
-        model.touch(TouchSample(id: 1, phase: .ended, x: 200, y: bottom.y + 20, majorRadius: 8), at: Double(clock) / 1000)
+        model.touch(
+            TouchSample(id: 1, phase: .ended, x: 200, y: bottom.y + 20, majorRadius: 8), at: Double(clock) / 1000)
         transport.server("state", ["estop": true])
 
-        model.touch(TouchSample(id: 2, phase: .began, x: 200, y: layout.topBand.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
+        model.touch(
+            TouchSample(id: 2, phase: .began, x: 200, y: layout.topBand.maxY - 20, majorRadius: 8),
+            at: Double(clock) / 1000)
         step(45)
         XCTAssertEqual(model.operating.resetCountdown ?? 0, 0.7, accuracy: 0.05)
         XCTAssertFalse(transport.types.contains("reset_scene"))
         step(20)
         XCTAssertTrue(transport.types.contains("reset_scene"))
         XCTAssertTrue(model.session.state.emergencyStop, "asking for the reset releases nothing")
-        model.touch(TouchSample(id: 2, phase: .ended, x: 200, y: layout.topBand.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
+        model.touch(
+            TouchSample(id: 2, phase: .ended, x: 200, y: layout.topBand.maxY - 20, majorRadius: 8),
+            at: Double(clock) / 1000)
         let reset = seq(of: "reset_scene")
         transport.server("state", ["estop": false, "ik": "resetting"])
         transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
@@ -498,8 +513,12 @@ final class OperatingLinkTests: XCTestCase {
         UserDefaults.standard.set(ControlMode.screenTurns.rawValue, forKey: AppModel.controlModeKey)
         let practice = AppModel(
             start: .p4, haptics: NoHaptics(), pose: { TestPose.portrait }, liveLink: false,
-            makeTransport: { _ in sockets += 1; return WireTransport() },
-            makeObserverTransport: { _ in sockets += 1; return WireTransport() }
+            makeTransport: { _ in
+                sockets += 1; return WireTransport()
+            },
+            makeObserverTransport: { _ in
+                sockets += 1; return WireTransport()
+            }
         )
         practice.keyEvent(.upper, down: true)
         XCTAssertTrue(practice.session.state.armMoving, "the practice arm moves")

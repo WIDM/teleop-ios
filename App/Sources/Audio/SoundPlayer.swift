@@ -35,7 +35,8 @@ final class SoundPlayer: SoundPlaying {
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
-    private lazy var buffers: [Sound: AVAudioPCMBuffer] = Dictionary(uniqueKeysWithValues: Sound.allCases.map { ($0, render($0)) })
+    private lazy var buffers: [Sound: AVAudioPCMBuffer] = Dictionary(
+        uniqueKeysWithValues: Sound.allCases.map { ($0, render($0)) })
 
     init() {
         CueAudioSession.activate()
@@ -75,7 +76,8 @@ final class SoundPlayer: SoundPlaying {
             let count = Int(rate * Double(milliseconds) / 1000)
             for i in 0..<count {
                 let edge = min(1, Double(min(i, count - 1 - i)) / Double(ramp))
-                samples[index + i] = frequency == 0 ? 0 : Float(0.5 * edge * sin(2 * .pi * frequency * Double(i) / rate))
+                samples[index + i] =
+                    frequency == 0 ? 0 : Float(0.5 * edge * sin(2 * .pi * frequency * Double(i) / rate))
             }
             index += count
         }

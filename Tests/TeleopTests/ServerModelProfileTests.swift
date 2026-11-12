@@ -16,6 +16,7 @@ final class ServerModelProfileTests: XCTestCase {
         XCTAssertEqual(Float(model.cubeSize), profile.targetSize)
         XCTAssertEqual(Float(model.goalHalfExtents.x * 2), profile.goalSize)
         XCTAssertEqual(Float(model.goalHalfExtents.y * 2), profile.goalSize)
-        XCTAssertEqual(model.wristRollStart, model.sidewaysRoll, "the profile's grasp point holds from a sideways start")
+        XCTAssertEqual(
+            model.wristRollStart, model.sidewaysRoll, "the profile's grasp point holds from a sideways start")
     }
 }

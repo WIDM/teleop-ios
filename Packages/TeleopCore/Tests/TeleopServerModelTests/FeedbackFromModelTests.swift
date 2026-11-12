@@ -6,8 +6,9 @@ import XCTest
 /// What `ServerOutput` says, as the app reads a `state`.
 func serverState(_ output: ServerOutput) -> ServerState? {
     guard output.type == "state",
-          let message = try? JSONSerialization.jsonObject(with: Data(output.text.utf8)) as? [String: Any],
-          let payload = message["payload"] as? [String: Any] else { return nil }
+        let message = try? JSONSerialization.jsonObject(with: Data(output.text.utf8)) as? [String: Any],
+        let payload = message["payload"] as? [String: Any]
+    else { return nil }
     return ServerState(payload: payload)
 }
 
@@ -49,7 +50,9 @@ final class FeedbackFromModelTests: XCTestCase {
         let since = bench.now
         phone.poseStart()
         phone.stream(for: 1.5) { phone.poseUpdate(base: .zero) }
-        let during = { (client: Bench.Client) in client.received(after: since + 0.05).filter { $0.type == "state" && $0.time < since + 1.5 }.count }
+        let during = { (client: Bench.Client) in
+            client.received(after: since + 0.05).filter { $0.type == "state" && $0.time < since + 1.5 }.count
+        }
         XCTAssertEqual(during(phone), 0, "the control connection gets no state while it streams")
         XCTAssertGreaterThanOrEqual(during(observer), 6, "the listening connection gets one every 200 ms")
     }

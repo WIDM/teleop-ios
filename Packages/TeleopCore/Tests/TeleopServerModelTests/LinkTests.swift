@@ -111,8 +111,10 @@ final class LinkTests: XCTestCase {
         wire.run(0.5)
         XCTAssertEqual(wire.acks("busy").count, 0)
         XCTAssertEqual(
-            wire.fromServer.filter { $0.type == "ack" && $0.payload["status"] == "ok" }.compactMap { $0.payload["reason"]?.stringValue }
-                .filter { $0.hasSuffix("_stopped") },
+            wire.fromServer.filter { $0.type == "ack" && $0.payload["status"] == "ok" }.compactMap {
+                $0.payload["reason"]?.stringValue
+            }
+            .filter { $0.hasSuffix("_stopped") },
             ["gripper_jog_stopped", "orient_stopped", "gripper_jog_stopped", "pose_stopped"]
         )
         XCTAssertFalse(wire.events.contains { if case .holdRefused = $0 { return true } else { return false } })
@@ -171,7 +173,9 @@ final class LinkTests: XCTestCase {
         wire.link.estop()
         wire.run(0.3)
         XCTAssertEqual(wire.acks("estop_engaged").count, 1)
-        XCTAssertEqual(wire.events.last { if case .state = $0 { return true } else { return false } }, .state(estop: true, gripper: .closed))
+        XCTAssertEqual(
+            wire.events.last { if case .state = $0 { return true } else { return false } },
+            .state(estop: true, gripper: .closed))
         XCTAssertTrue(wire.link.poseStart(params))
         wire.run(0.3) { wire.link.poseUpdate(positionMeters: [0, 0, 0]) }
         XCTAssertTrue(wire.events.contains(.holdRefused(reason: "estop_active")))

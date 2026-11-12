@@ -91,7 +91,8 @@ public enum Haptic: String, CaseIterable, Sendable {
     public var pattern: HapticPattern {
         switch self {
         case .go:
-            return HapticPattern(pulses: [HapticPulse(startMs: 0, durationMs: 0, intensity: 0.8, sharpness: 0.9)], loopLengthMs: nil)
+            return HapticPattern(
+                pulses: [HapticPulse(startMs: 0, durationMs: 0, intensity: 0.8, sharpness: 0.9)], loopLengthMs: nil)
         case .onTarget:
             return HapticPattern(
                 pulses: [
@@ -111,7 +112,8 @@ public enum Haptic: String, CaseIterable, Sendable {
                 loopLengthMs: nil
             )
         case .end:
-            return HapticPattern(pulses: [HapticPulse(startMs: 0, durationMs: 380, intensity: 0.9, sharpness: 0.5)], loopLengthMs: nil)
+            return HapticPattern(
+                pulses: [HapticPulse(startMs: 0, durationMs: 380, intensity: 0.9, sharpness: 0.5)], loopLengthMs: nil)
         case .letGo:
             return HapticPattern(
                 pulses: [0, 420].map { HapticPulse(startMs: $0, durationMs: 300, intensity: 0.9, sharpness: 0.5) },

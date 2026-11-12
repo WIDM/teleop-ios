@@ -50,11 +50,15 @@ final class SettingsTests: XCTestCase {
         app.buttons["Left"].tap()
         done()
         expect(app, "buttons.close")
-        XCTAssertLessThan(app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX, "left hand: Close on the left")
+        XCTAssertLessThan(
+            app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX,
+            "left hand: Close on the left")
         openSettings()
         app.buttons["Right"].tap()
         done()
-        XCTAssertGreaterThan(app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX, "right hand: Close on the right")
+        XCTAssertGreaterThan(
+            app.element("buttons.close").frame.midX, app.element("buttons.open").frame.midX,
+            "right hand: Close on the right")
     }
 
     func testOnlyTheVersionOneRowsAreThere() {
@@ -69,7 +73,10 @@ final class SettingsTests: XCTestCase {
         app.swipeUp()
         app.swipeUp()
         // These tests run in practice, where Connect would reach no server: the row says so instead.
-        for id in ["settings.rec_status", "settings.address", "settings.server_practice", "settings.leave_practice", "settings.language", "settings.version"] {
+        for id in [
+            "settings.rec_status", "settings.address", "settings.server_practice", "settings.leave_practice",
+            "settings.language", "settings.version",
+        ] {
             XCTAssertTrue(app.element(id).exists, id)
         }
         XCTAssertFalse(app.element("settings.connect").exists)

@@ -24,7 +24,10 @@ public struct RecorderStatus: Equatable, Sendable {
     public var session: String?
     public var mode: String?
 
-    public init(label: RecorderLabel, saved: Int = 0, discarded: Int = 0, samples: Int = 0, session: String? = nil, mode: String? = nil) {
+    public init(
+        label: RecorderLabel, saved: Int = 0, discarded: Int = 0, samples: Int = 0, session: String? = nil,
+        mode: String? = nil
+    ) {
         self.label = label
         self.saved = saved
         self.discarded = discarded

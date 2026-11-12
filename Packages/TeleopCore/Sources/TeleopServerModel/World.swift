@@ -97,7 +97,8 @@ public struct World: Equatable, Sendable {
 
     /// The cube's centre height when resting: on the table, or on the floor beside it.
     private func restingHeight(_ config: ServerModelConfig) -> Double {
-        let onTable = cube.x >= config.tableMinWorld.x && cube.x <= config.tableMaxWorld.x
+        let onTable =
+            cube.x >= config.tableMinWorld.x && cube.x <= config.tableMaxWorld.x
             && cube.y >= config.tableMinWorld.y && cube.y <= config.tableMaxWorld.y
         return (onTable ? config.tableTopWorld : 0) + config.cubeSize / 2
     }

@@ -28,7 +28,8 @@ final class SameInstantTests: XCTestCase {
 
     func testALiftGivenBeforeAnAttitudeSampleStartsNothing() {
         var rig = undecidedThumb()
-        XCTAssertEqual(rig.batch([rig.sample(1, .ended, Rig.middle, radius: 8), .attitude(rig.attitude)], after: 0.016), [])
+        XCTAssertEqual(
+            rig.batch([rig.sample(1, .ended, Rig.middle, radius: 8), .attitude(rig.attitude)], after: 0.016), [])
     }
 
     func testAnAttitudeSampleGivenFirstIsJudgedFirst() {
@@ -56,7 +57,8 @@ final class SameInstantTests: XCTestCase {
         rig.turn = 6
         let up = Rig.middle + SIMD2(0, -10 * Rig.pointsPerMm)
         // vol+ is not down, so its key-up does nothing.
-        let commands = rig.batch([rig.sample(1, .moved, up, radius: 8), .keyUp(.upper), .attitude(rig.attitude)], after: 0.01)
+        let commands = rig.batch(
+            [rig.sample(1, .moved, up, radius: 8), .keyUp(.upper), .attitude(rig.attitude)], after: 0.01)
         XCTAssertEqual(commands.withoutUpdates, [.startWrist])
     }
 
@@ -68,8 +70,9 @@ final class SameInstantTests: XCTestCase {
         XCTAssertEqual(rig.batch([.keyUp(.lower), .attitude(rig.attitude)], after: 0.016), [.stopWrist])
         // Nor before one that ends a hold pressed earlier in the same call.
         rig.turn = 30
-        XCTAssertEqual(rig.batch([.keyDown(.lower), .keyUp(.lower), .attitude(rig.attitude)], after: 1),
-                       [.startWrist, .wristUpdate(.identity), .stopWrist])
+        XCTAssertEqual(
+            rig.batch([.keyDown(.lower), .keyUp(.lower), .attitude(rig.attitude)], after: 1),
+            [.startWrist, .wristUpdate(.identity), .stopWrist])
     }
 
     // MARK: An event at a timer's deadline

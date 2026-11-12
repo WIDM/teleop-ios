@@ -39,7 +39,8 @@ final class WristLeadBoundTests: XCTestCase {
         XCTAssertEqual(bound.bounded(turn(-30), measured: roll(-10), ageMs: 0), turn(-12))
         var tilt = WristLeadBound()
         tilt.holdStarted(measured: WristReadings(rollDeg: 0, flexDeg: 40))
-        let sent = tilt.bounded(WristTarget(axis: .tilt, degrees: 15), measured: WristReadings(rollDeg: 0, flexDeg: 41), ageMs: 200)
+        let sent = tilt.bounded(
+            WristTarget(axis: .tilt, degrees: 15), measured: WristReadings(rollDeg: 0, flexDeg: 41), ageMs: 200)
         XCTAssertEqual(sent.degrees, 41 + 4 - 40, accuracy: 1e-9)
     }
 
@@ -49,7 +50,8 @@ final class WristLeadBoundTests: XCTestCase {
         XCTAssertEqual(bound.bounded(turn(10), measured: roll(88), ageMs: 0), turn(0))
         // The newest state is old now: 0 sent is 2 ahead of the wrist, and stays at most that.
         XCTAssertEqual(bound.bounded(turn(20), measured: roll(88), ageMs: 900), turn(0))
-        XCTAssertEqual(bound.bounded(turn(-1), measured: roll(88), ageMs: 900), turn(-1), "back toward the wrist is fine")
+        XCTAssertEqual(
+            bound.bounded(turn(-1), measured: roll(88), ageMs: 900), turn(-1), "back toward the wrist is fine")
         XCTAssertEqual(bound.bounded(turn(20), measured: roll(88), ageMs: nil), turn(-1))
     }
 

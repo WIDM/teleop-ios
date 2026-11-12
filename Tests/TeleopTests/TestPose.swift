@@ -4,12 +4,13 @@ import simd
 enum TestPose {
     /// A phone held upright in portrait, back camera looking along world −z. ARKit's camera +x runs toward the
     /// phone's bottom edge, +y toward its right edge, +z out of the screen.
-    static let portrait = simd_float4x4(columns: (
-        SIMD4(0, -1, 0, 0),
-        SIMD4(1, 0, 0, 0),
-        SIMD4(0, 0, 1, 0),
-        SIMD4(0, 0, 0, 1)
-    ))
+    static let portrait = simd_float4x4(
+        columns: (
+            SIMD4(0, -1, 0, 0),
+            SIMD4(1, 0, 0, 0),
+            SIMD4(0, 0, 1, 0),
+            SIMD4(0, 0, 0, 1)
+        ))
 
     /// That phone after turning it `degrees` about a world axis.
     static func portrait(turned degrees: Float, about axis: SIMD3<Float>) -> simd_float4x4 {

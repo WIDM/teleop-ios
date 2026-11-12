@@ -60,7 +60,8 @@ public final class LocalTeleopServer {
         listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
         startedAt = DispatchTime.now()
         listener.start(queue: queue)
-        guard ready.wait(timeout: .now() + timeout) == .success, failure == nil, let port = listener.port?.rawValue else {
+        guard ready.wait(timeout: .now() + timeout) == .success, failure == nil, let port = listener.port?.rawValue
+        else {
             listener.cancel()
             throw failure ?? NWError.posix(.ETIMEDOUT)
         }
@@ -115,7 +116,8 @@ public final class LocalTeleopServer {
                 closed(id)
                 return
             }
-            let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata
+            let metadata =
+                context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata
             switch metadata?.opcode {
             case .text?:
                 if let data, let text = String(data: data, encoding: .utf8) {
@@ -142,7 +144,8 @@ public final class LocalTeleopServer {
             guard let socket = sockets[output.connection] else { continue }
             let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])
-            socket.send(content: Data(output.text.utf8), contentContext: context, isComplete: true, completion: .idempotent)
+            socket.send(
+                content: Data(output.text.utf8), contentContext: context, isComplete: true, completion: .idempotent)
         }
     }
 }

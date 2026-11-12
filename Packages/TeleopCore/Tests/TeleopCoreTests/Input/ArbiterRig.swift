@@ -44,10 +44,14 @@ struct ArbiterRig {
     }
 
     @discardableResult
-    mutating func press(_ key: InputKey, after dt: TimeInterval = 0) -> [InputCommand] { send(.keyDown(key), after: dt) }
+    mutating func press(_ key: InputKey, after dt: TimeInterval = 0) -> [InputCommand] {
+        send(.keyDown(key), after: dt)
+    }
 
     @discardableResult
-    mutating func release(_ key: InputKey, after dt: TimeInterval = 0) -> [InputCommand] { send(.keyUp(key), after: dt) }
+    mutating func release(_ key: InputKey, after dt: TimeInterval = 0) -> [InputCommand] {
+        send(.keyUp(key), after: dt)
+    }
 
     @discardableResult
     mutating func wait(_ dt: TimeInterval) -> [InputCommand] { send(.tick, after: dt) }
@@ -57,7 +61,9 @@ struct ArbiterRig {
     }
 
     @discardableResult
-    mutating func touchDown(_ id: Int, at p: SIMD2<Double>, radius: Double = 8, after dt: TimeInterval = 0) -> [InputCommand] {
+    mutating func touchDown(_ id: Int, at p: SIMD2<Double>, radius: Double = 8, after dt: TimeInterval = 0)
+        -> [InputCommand]
+    {
         points[id] = p
         radii[id] = radius
         return send(sample(id, .began, p, radius: radius), after: dt)
@@ -65,7 +71,9 @@ struct ArbiterRig {
 
     /// Moves the touch to `p` in one sample.
     @discardableResult
-    mutating func move(_ id: Int, to p: SIMD2<Double>, radius: Double? = nil, after dt: TimeInterval = 0) -> [InputCommand] {
+    mutating func move(_ id: Int, to p: SIMD2<Double>, radius: Double? = nil, after dt: TimeInterval = 0)
+        -> [InputCommand]
+    {
         points[id] = p
         if let radius { radii[id] = radius }
         return send(sample(id, .moved, p, radius: radii[id] ?? 8), after: dt)
@@ -104,7 +112,9 @@ struct ArbiterRig {
 
     /// Turns the phone gradually to the given angles in `steps` samples, `dt` apart.
     @discardableResult
-    mutating func rotate(turn: Double? = nil, tilt: Double? = nil, steps: Int = 10, dt: TimeInterval = 1.0 / 60) -> [InputCommand] {
+    mutating func rotate(turn: Double? = nil, tilt: Double? = nil, steps: Int = 10, dt: TimeInterval = 1.0 / 60)
+        -> [InputCommand]
+    {
         let from = (self.turn, self.tilt)
         let to = (turn ?? self.turn, tilt ?? self.tilt)
         var commands: [InputCommand] = []

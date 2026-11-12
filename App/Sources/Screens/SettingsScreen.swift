@@ -20,9 +20,13 @@ struct SettingsScreen: View {
             HStack {
                 Text("settings.title").font(.system(size: 20, weight: .bold))
                 Spacer()
-                Button { model.send(.settingsDone) } label: { Text("common.done") }
-                    .buttonStyle(TextActionStyle(color: TeleopColors.primary))
-                    .accessibilityIdentifier("settings.done")
+                Button {
+                    model.send(.settingsDone)
+                } label: {
+                    Text("common.done")
+                }
+                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+                .accessibilityIdentifier("settings.done")
             }
             .padding(.horizontal, TeleopMetrics.margin)
             Form {
@@ -121,7 +125,9 @@ struct SettingsScreen: View {
         Binding(
             get: {
                 let value = model.session.state.smoothing
-                return Self.smoothingSteps.indices.min { abs(Self.smoothingSteps[$0].value - value) < abs(Self.smoothingSteps[$1].value - value) } ?? 1
+                return Self.smoothingSteps.indices.min {
+                    abs(Self.smoothingSteps[$0].value - value) < abs(Self.smoothingSteps[$1].value - value)
+                } ?? 1
             },
             set: { model.session.state.setSmoothing(Self.smoothingSteps[$0].value) }
         )
@@ -144,10 +150,18 @@ struct SettingsScreen: View {
             Text(verbatim: OperatingWords.recLine(display)?.spoken ?? L10n.string("settings.rec_unknown"))
                 .accessibilityIdentifier("settings.rec_status")
             if !display.practice, let saved = display.recorder.saved {
-                LabeledContent { Text(verbatim: "\(saved)") } label: { Text("settings.rec_saved") }
+                LabeledContent {
+                    Text(verbatim: "\(saved)")
+                } label: {
+                    Text("settings.rec_saved")
+                }
             }
             if !display.practice, let discarded = display.recorder.discarded {
-                LabeledContent { Text(verbatim: "\(discarded)") } label: { Text("settings.rec_discarded") }
+                LabeledContent {
+                    Text(verbatim: "\(discarded)")
+                } label: {
+                    Text("settings.rec_discarded")
+                }
             }
         } header: {
             Text("settings.recording")
@@ -172,16 +186,22 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("settings.server_practice")
             } else {
                 HStack(spacing: 8) {
-                    Button { model.connect() } label: { Text("connect.connect") }
-                        .buttonStyle(FilledButtonStyle())
-                        .accessibilityIdentifier("settings.connect")
+                    Button {
+                        model.connect()
+                    } label: {
+                        Text("connect.connect")
+                    }
+                    .buttonStyle(FilledButtonStyle())
+                    .accessibilityIdentifier("settings.connect")
                     Button {
                         // Disconnect goes back to Connect, with no error (§7.3).
                         model.send(.disconnect)
                         model.send(.changeServer)
-                    } label: { Text("connect.disconnect") }
-                        .buttonStyle(OutlineButtonStyle())
-                        .accessibilityIdentifier("settings.disconnect")
+                    } label: {
+                        Text("connect.disconnect")
+                    }
+                    .buttonStyle(OutlineButtonStyle())
+                    .accessibilityIdentifier("settings.disconnect")
                 }
             }
         } header: {
@@ -194,13 +214,21 @@ struct SettingsScreen: View {
         let stopped = model.session.state.emergencyStop
         return Section {
             if model.operating.practice {
-                Button { model.leavePractice() } label: { Text("settings.leave_practice") }
-                    .disabled(stopped)
-                    .accessibilityIdentifier("settings.leave_practice")
+                Button {
+                    model.leavePractice()
+                } label: {
+                    Text("settings.leave_practice")
+                }
+                .disabled(stopped)
+                .accessibilityIdentifier("settings.leave_practice")
             } else {
-                Button { model.startPractice() } label: { Text("settings.start_practice") }
-                    .disabled(stopped)
-                    .accessibilityIdentifier("settings.start_practice")
+                Button {
+                    model.startPractice()
+                } label: {
+                    Text("settings.start_practice")
+                }
+                .disabled(stopped)
+                .accessibilityIdentifier("settings.start_practice")
             }
             if stopped {
                 Text(model.practiceBlockedReason)
@@ -217,8 +245,12 @@ struct SettingsScreen: View {
     @ViewBuilder private var tutorial: some View {
         if !model.session.state.emergencyStop {
             Section {
-                Button { model.send(.replayTutorial) } label: { Text("settings.replay_tutorial") }
-                    .accessibilityIdentifier("settings.replay_tutorial")
+                Button {
+                    model.send(.replayTutorial)
+                } label: {
+                    Text("settings.replay_tutorial")
+                }
+                .accessibilityIdentifier("settings.replay_tutorial")
             }
         }
     }
@@ -273,13 +305,18 @@ struct SettingsScreen: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings.log")
             }
-            Button { model.clearLog() } label: { Text("settings.clear_log") }
-                .accessibilityIdentifier("settings.clear_log")
+            Button {
+                model.clearLog()
+            } label: {
+                Text("settings.clear_log")
+            }
+            .accessibilityIdentifier("settings.clear_log")
         } header: {
             Text("settings.developer")
         }
     }
 
-    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    private static let version =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     private static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 }

@@ -25,9 +25,11 @@ final class ConnectFlowTests: XCTestCase {
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
         XCTAssertFalse(app.element("tutorial.skip").exists, "the last page has Back, not Skip")
-        XCTAssertTrue(text(app, "keep still until the arm stops, then let go"),
-                      "rule O3: the arm is slower than the hand, so hold still until it stops, then let go")
-        XCTAssertTrue(text(app, "When the guide shows a target"), "the on-target cue, taught so it is true on every server")
+        XCTAssertTrue(
+            text(app, "keep still until the arm stops, then let go"),
+            "rule O3: the arm is slower than the hand, so hold still until it stops, then let go")
+        XCTAssertTrue(
+            text(app, "When the guide shows a target"), "the on-target cue, taught so it is true on every server")
         attachScreenshot("04-tutorial-cues")
         app.element("tutorial.back").tap()
         expectLabel(app.element("tutorial.title"), "Thumb and turn")
@@ -44,12 +46,15 @@ final class ConnectFlowTests: XCTestCase {
         let keyTurns = XCUIApplication.teleop(["-startRoute", "t1_tutorial", "-controlMode", "keyTurns"])
         keyTurns.launch()
         expect(keyTurns, "tutorial.title")
-        XCTAssertTrue(keyTurns.staticTexts.containing(NSPredicate(format: "label CONTAINS 'turn the phone: the wrist turns'")).firstMatch.exists)
+        XCTAssertTrue(
+            keyTurns.staticTexts.containing(NSPredicate(format: "label CONTAINS 'turn the phone: the wrist turns'"))
+                .firstMatch.exists)
         keyTurns.element("tutorial.next").tap()
         expectLabel(keyTurns.element("tutorial.title"), "The two halves of the screen")
         keyTurns.terminate()
 
-        let buttons = XCUIApplication.teleop(["-startRoute", "t1_tutorial", "-controlMode", "buttons"], language: "zh-Hant")
+        let buttons = XCUIApplication.teleop(
+            ["-startRoute", "t1_tutorial", "-controlMode", "buttons"], language: "zh-Hant")
         buttons.launch()
         expect(buttons, "tutorial.title")
         XCTAssertEqual(buttons.element("tutorial.title").label, "按住按鈕")
@@ -72,9 +77,11 @@ final class ConnectFlowTests: XCTestCase {
     /// Nothing answers at the discard port: Connect says so and still offers practice.
     func testConnectShowsWhyItFailedAndOffersPractice() {
         let app = XCUIApplication()
-        app.launchArguments = XCUIApplication.quiet + [
-            "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect", "-firstRunDone", "YES",
-        ]
+        app.launchArguments =
+            XCUIApplication.quiet + [
+                "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect", "-firstRunDone",
+                "YES",
+            ]
         app.launch()
         expect(app, "connect.failure", timeout: 8)
         // The link gives no reason of its own yet: the screen says only what it knows.
@@ -87,10 +94,12 @@ final class ConnectFlowTests: XCTestCase {
     /// A later launch whose saved server does not answer lands on Not connected; tapping the word opens Connect (§7.2).
     func testTheNotConnectedWordOpensConnect() {
         let app = XCUIApplication()
-        app.launchArguments = XCUIApplication.quiet + [
-            "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby", "-firstRunDone", "YES",
-            "-controlMode", "screenTurns",
-        ]
+        app.launchArguments =
+            XCUIApplication.quiet + [
+                "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby", "-firstRunDone",
+                "YES",
+                "-controlMode", "screenTurns",
+            ]
         app.launch()
         expectLabel(app.element("operating.state"), "Not connected", timeout: 8)
         XCTAssertTrue(app.staticTexts["Tap here to choose a server"].exists)

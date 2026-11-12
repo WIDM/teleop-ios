@@ -9,10 +9,11 @@ extension XCUIApplication {
     /// mode, the hand and the task aid are saved settings, so every launch pins them.
     static func teleop(_ extra: [String] = [], language: String = "en") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = quiet + [
-            "-appLanguage", language, "-liveLink", "NO", "-controlMode", "screenTurns", "-hand", "right",
-            "-taskAid", "YES", "-firstRunDone", "YES",
-        ] + extra
+        app.launchArguments =
+            quiet + [
+                "-appLanguage", language, "-liveLink", "NO", "-controlMode", "screenTurns", "-hand", "right",
+                "-taskAid", "YES", "-firstRunDone", "YES",
+            ] + extra
         return app
     }
 
@@ -22,7 +23,10 @@ extension XCUIApplication {
 }
 
 extension XCTestCase {
-    func expect(_ app: XCUIApplication, _ id: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line) {
+    func expect(
+        _ app: XCUIApplication, _ id: String, timeout: TimeInterval = 5, file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         XCTAssertTrue(app.element(id).waitForExistence(timeout: timeout), "missing \(id)", file: file, line: line)
     }
 
@@ -34,15 +38,22 @@ extension XCTestCase {
     }
 
     /// Waits until the element's label is `label`.
-    func expectLabel(_ element: XCUIElement, _ label: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line) {
+    func expectLabel(
+        _ element: XCUIElement, _ label: String, timeout: TimeInterval = 5, file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let predicate = NSPredicate(format: "label == %@", label)
-        let found = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: timeout)
-        XCTAssertEqual(found, .completed, "\(element) reads \(element.exists ? element.label : "nothing"), not \(label)", file: file, line: line)
+        let found = XCTWaiter().wait(
+            for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: timeout)
+        XCTAssertEqual(
+            found, .completed, "\(element) reads \(element.exists ? element.label : "nothing"), not \(label)",
+            file: file, line: line)
     }
 
     /// Nothing in the app says "Connected" or 已連線: practice never claims a connection (§7.4).
     func assertNoConnectedWord(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        let claims = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Connected' OR label CONTAINS '已連線'"))
+        let claims = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS 'Connected' OR label CONTAINS '已連線'"))
         XCTAssertEqual(claims.count, 0, "\(claims.allElementsBoundByIndex.map(\.label))", file: file, line: line)
     }
 }

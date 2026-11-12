@@ -58,7 +58,8 @@ final class ButtonPadLayoutTests: XCTestCase {
     }
 
     func testCloseIsOnTheNearSideOfTheHoldingHand() {
-        XCTAssertGreaterThan(reference.buttons[.close]!.minX, reference.buttons[.open]!.minX, "right hand: Close on the right")
+        XCTAssertGreaterThan(
+            reference.buttons[.close]!.minX, reference.buttons[.open]!.minX, "right hand: Close on the right")
         let left = ButtonPadLayout.make(width: 402, height: 530, nearSideIsRight: false)
         XCTAssertLessThan(left.buttons[.close]!.minX, left.buttons[.open]!.minX, "left hand: Close on the left")
         XCTAssertEqual(left.buttons[.forward], reference.buttons[.forward], "only the gripper row follows the hand")
@@ -68,8 +69,8 @@ final class ButtonPadLayoutTests: XCTestCase {
 
     func testNoTargetIsUnder60PointsNoneOverlapAndAllFit() {
         var sizes: [(Double, Double)] = [
-            (402, 530),                                                  // reference
-            (375, padHeight(screen: 667, safeTop: 20, safeBottom: 0)),   // iPhone SE, 667 pt
+            (402, 530),  // reference
+            (375, padHeight(screen: 667, safeTop: 20, safeBottom: 0)),  // iPhone SE, 667 pt
             (375, padHeight(screen: 812, safeTop: 50, safeBottom: 34)),  // mini
             (390, padHeight(screen: 844, safeTop: 47, safeBottom: 34)),
             (440, padHeight(screen: 956, safeTop: 62, safeBottom: 34)),  // Pro Max

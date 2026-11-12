@@ -247,20 +247,23 @@ final class TeleopLinkTests: XCTestCase {
         bringUp()
         link.poseStart(params)
         var seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .holdRefused(reason: TeleopLink.successReason))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .holdRefused(reason: TeleopLink.successReason))
         XCTAssertFalse(link.holdActive)
         link.poseUpdate(positionMeters: [0, 0, 0.01])
         XCTAssertEqual(types.last, "pose_start", "nothing more is streamed for it")
         link.gripperJogStart(.open)
         seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .gripperRefused(reason: "task_success"))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .gripperRefused(reason: "task_success"))
         XCTAssertFalse(link.gripperJogActive)
         link.orientStart()
         seq = lastSeq
-        XCTAssertEqual(server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
-                       .turnRefused(reason: "task_success"))
+        XCTAssertEqual(
+            server("ack", seq: seq, ["seq": seq, "status": "ok", "reason": "task_success"]),
+            .turnRefused(reason: "task_success"))
         XCTAssertFalse(link.turnActive)
     }
 
@@ -327,7 +330,9 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.suffix(2), ["gripper_jog_start", "gripper_jog_stop"])
         finish(first)
         XCTAssertEqual(types.suffix(3), ["gripper_jog_start", "gripper_jog_stop", "gripper_jog_start"])
-        let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map { $0["payload"] as! [String: String] }
+        let starts = sent.filter { $0["type"] as? String == "gripper_jog_start" }.map {
+            $0["payload"] as! [String: String]
+        }
         XCTAssertEqual(starts.map { $0["action"] }, ["close", "open"])
         XCTAssertEqual(Set(starts[0].keys), ["action", "step"])
     }
@@ -801,9 +806,15 @@ final class TeleopLinkTests: XCTestCase {
         _ = server("welcome", ["session": "run-1"])
         XCTAssertEqual(link.serverSession, "run-1")
         clock = 4321
-        _ = server("state", ["estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3, "gripper_deg": 8.5,
-                             "ee_pos": [0.25, -0.5, 0.75], "tool_pos": [0.125, -0.5, 0.25]])
-        XCTAssertEqual(link.lastState?.toolPoint, SIMD3(0.125, -0.5, 0.25), "the listening connection reads the tool point too")
+        _ = server(
+            "state",
+            [
+                "estop": false, "gripper": "close", "ik": "gripper_contact", "rec": "armed", "rec_saved": 3,
+                "gripper_deg": 8.5,
+                "ee_pos": [0.25, -0.5, 0.75], "tool_pos": [0.125, -0.5, 0.25],
+            ])
+        XCTAssertEqual(
+            link.lastState?.toolPoint, SIMD3(0.125, -0.5, 0.25), "the listening connection reads the tool point too")
         XCTAssertEqual(link.lastState?.activity, .gripperContact)
         XCTAssertEqual(link.lastState?.recorder?.saved, 3)
         XCTAssertEqual(link.lastState?.gripperDeg, 8.5)

@@ -245,8 +245,9 @@ public struct FeedbackMonitor {
     /// The commanded point is far ahead and the measured arm has stood still for the whole window.
     private static func isBlocked(_ hold: Engaged, at now: Int) -> Bool {
         guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < freshStateMs,
-              length(target - newest.position) >= blockedShortMeters,
-              let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= blockedWindowMs }) else { return false }
+            length(target - newest.position) >= blockedShortMeters,
+            let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= blockedWindowMs })
+        else { return false }
         let window = hold.samples.filter { $0.atMs >= oldest.atMs }
         return window.allSatisfy { length($0.position - oldest.position) < blockedMovedMeters }
     }

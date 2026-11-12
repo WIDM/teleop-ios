@@ -94,8 +94,10 @@ struct GuidePicture: Equatable {
     let lines: [Line]
 
     init(reading: ArmReading, profile: RobotProfile) {
-        let corners = (Self.operatorPoint(profile.workspaceMin + reading.boxShift),
-                       Self.operatorPoint(profile.workspaceMax + reading.boxShift))
+        let corners = (
+            Self.operatorPoint(profile.workspaceMin + reading.boxShift),
+            Self.operatorPoint(profile.workspaceMax + reading.boxShift)
+        )
         // Corners swap sides where an axis is mirrored into the operator's frame.
         let boxLow = simd_min(corners.0, corners.1), boxHigh = simd_max(corners.0, corners.1)
         let span = boxHigh - boxLow
@@ -117,13 +119,16 @@ struct GuidePicture: Equatable {
             let above = Spot(x: share(p.x, across), y: 1 - share(p.y, depth))
             let behind = Spot(x: share(p.x, across), y: 1 - share(p.z, height))
             let shown = (above: Self.clamp(above), behind: Self.clamp(behind))
-            return Mark(above: shown.above, behind: shown.behind, pinned: shown.above != above || shown.behind != behind)
+            return Mark(
+                above: shown.above, behind: shown.behind, pinned: shown.above != above || shown.behind != behind)
         }
 
-        boxAbove = Area(minX: share(boxLow.x, across), minY: 1 - share(boxHigh.y, depth),
-                        maxX: share(boxHigh.x, across), maxY: 1 - share(boxLow.y, depth))
-        boxBehind = Area(minX: share(boxLow.x, across), minY: 1 - share(boxHigh.z, height),
-                         maxX: share(boxHigh.x, across), maxY: 1 - share(floor, height))
+        boxAbove = Area(
+            minX: share(boxLow.x, across), minY: 1 - share(boxHigh.y, depth),
+            maxX: share(boxHigh.x, across), maxY: 1 - share(boxLow.y, depth))
+        boxBehind = Area(
+            minX: share(boxLow.x, across), minY: 1 - share(boxHigh.z, height),
+            maxX: share(boxHigh.x, across), maxY: 1 - share(floor, height))
         tableY = 1 - share(table, height)
 
         let pinchPoint = Self.operatorPoint(reading.pinchPoint)
@@ -146,7 +151,8 @@ struct GuidePicture: Equatable {
         func compare(_ thing: SIMD3<Float>) -> (across: Double, height: Height, within: Bool) {
             let gap = gap(to: thing)
             let rise = gap.y
-            let height: Height = abs(rise) <= tolerance.y ? .level : (rise > 0 ? .above(cm: rise * 100) : .below(cm: -rise * 100))
+            let height: Height =
+                abs(rise) <= tolerance.y ? .level : (rise > 0 ? .above(cm: rise * 100) : .below(cm: -rise * 100))
             return (gap.x, height, OnTargetCue.inside(gap, window: tolerance))
         }
 
@@ -156,8 +162,10 @@ struct GuidePicture: Equatable {
         var lines: [Line] = [.height(cm: (pinchPoint.z - table) * 100)]
         if let open = jawOpening { lines.append(.jaws(percentOpen: Int((open * 100).rounded()))) }
         if reading.wristTurnDeg != nil || reading.wristTiltDeg != nil {
-            lines.append(.wrist(turnDeg: reading.wristTurnDeg.map { Int($0.rounded()) },
-                                tiltDeg: reading.wristTiltDeg.map { Int($0.rounded()) }))
+            lines.append(
+                .wrist(
+                    turnDeg: reading.wristTurnDeg.map { Int($0.rounded()) },
+                    tiltDeg: reading.wristTiltDeg.map { Int($0.rounded()) }))
         }
         if approximate { lines.append(.approximate) }
         var onTarget = false

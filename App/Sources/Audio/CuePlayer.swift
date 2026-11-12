@@ -63,13 +63,15 @@ final class CuePlayer {
             case .stopHaptics: haptics.stop()
             case .sound(let sound): sounds.play(sound)
             case .speak(let phrases, let interrupt, let id):
-                speech.speak(SpeechText.string(phrases), language: SpeechText.voiceLanguage(), interrupt: interrupt, id: id)
+                speech.speak(
+                    SpeechText.string(phrases), language: SpeechText.voiceLanguage(), interrupt: interrupt, id: id)
             }
         }
     }
 
     private static func describe(_ entry: CueLogEntry) -> String {
         let parts = [entry.haptic?.rawValue, entry.sound.map { "sound:\($0.rawValue)" }] + entry.speech.map(\.rawValue)
-        return "cue \(entry.event): " + parts.compactMap { $0 }.joined(separator: " ") + (entry.dropped ? " (dropped)" : "")
+        return "cue \(entry.event): " + parts.compactMap { $0 }.joined(separator: " ")
+            + (entry.dropped ? " (dropped)" : "")
     }
 }

@@ -100,7 +100,9 @@ final class Replay {
     private static let plan: [Step] = {
         var steps: [Step] = [.open, .scenario("s00_hello")]
         for name in order[1...13] { steps += [.settle, .scenario(name)] }
-        steps += [.settle, .close, .open, .hello(wait: 1.0), .settle, .scenario("s14_disconnect_in_hold"), .settle, .close]
+        steps += [
+            .settle, .close, .open, .hello(wait: 1.0), .settle, .scenario("s14_disconnect_in_hold"), .settle, .close,
+        ]
         steps += [.open, .hello(wait: 1.5)]
         for name in order[15...] { steps += [.settle, .scenario(name)] }
         return steps
@@ -165,7 +167,9 @@ final class Replay {
 
     private func send(_ type: String, _ payload: JSONValue = .object([])) {
         lastSeq += 1
-        let message = JSONValue.object(["v": 1, "type": .string(type), "ts": 0, "seq": .int(lastSeq), "payload": payload])
+        let message = JSONValue.object([
+            "v": 1, "type": .string(type), "ts": 0, "seq": .int(lastSeq), "payload": payload,
+        ])
         _ = model.receive(message.text, from: socket, at: clock)
     }
 
@@ -225,7 +229,8 @@ struct Comparison {
         let recording = window.recording
         let horizon = exclusion.until ?? recording.duration + 0.001
         let recorded = Self.events(recording.received.filter { $0.time <= horizon }.map { ($0.time, $0.message) })
-        let modelled = Self.events(window.outputs.map { ($0.time - window.start, $0.message) }.filter { $0.0 <= horizon })
+        let modelled = Self.events(
+            window.outputs.map { ($0.time - window.start, $0.message) }.filter { $0.0 <= horizon })
         let sent = recording.sent.filter { $0.time <= horizon }
         var problems: [String] = []
 
@@ -236,7 +241,9 @@ struct Comparison {
         same("acks (seq, status, reason)") { $0.filter { $0.type == "ack" }.map(Self.ackText) }
         same("state with each ack (seq, estop, ik)", Self.statesWithAcks)
         same("errors (seq, code)") { events in
-            events.filter { $0.type == "error" }.map { "\($0.message["seq"]?.intValue ?? 0) \($0.payload["code"]?.stringValue ?? "")" }
+            events.filter { $0.type == "error" }.map {
+                "\($0.message["seq"]?.intValue ?? 0) \($0.payload["code"]?.stringValue ?? "")"
+            }
         }
         same("test echoes") { $0.filter { $0.type == "test" }.map { $0.message["seq"]?.intValue ?? 0 } }
         same("welcome config") { $0.filter { $0.type == "welcome" }.map { $0.payload["config"] ?? .null } }
@@ -271,14 +278,20 @@ struct Comparison {
             problems.append("states: recorded \(realStates.count), model \(modelStates.count)")
         }
         if let firstReal = realStates.first, let lastReal = realStates.last,
-           let firstModel = modelStates.first, let lastModel = modelStates.last {
+            let firstModel = modelStates.first, let lastModel = modelStates.last
+        {
             for (which, real, model) in [("first", firstReal, firstModel), ("last", lastReal, lastModel)] {
                 let a = Self.signature(real.payload), b = Self.signature(model.payload)
                 if a != b { problems.append("\(which) state fields: recorded \(a), model \(b)") }
             }
-            for key in ["estop", "ik", "episode", "gripper", "step", "task_success", "rec", "rec_saved", "rec_discarded", "rec_samples"] {
+            for key in [
+                "estop", "ik", "episode", "gripper", "step", "task_success", "rec", "rec_saved", "rec_discarded",
+                "rec_samples",
+            ] {
                 let real = lastReal.payload[key], model = lastModel.payload[key]
-                if real != model { problems.append("final \(key): recorded \(Self.text(real)), model \(Self.text(model))") }
+                if real != model {
+                    problems.append("final \(key): recorded \(Self.text(real)), model \(Self.text(model))")
+                }
             }
             problems += Self.loose(lastReal.payload, lastModel.payload, start: window)
         }
@@ -286,16 +299,22 @@ struct Comparison {
     }
 
     private static let oneShots: Set<String> = ["move_delta", "joint_delta", "gripper", "reset_scene"]
-    private static let startsAndOneShots = oneShots.union(["jog_start", "joint_jog_start", "gripper_jog_start", "orient_start", "pose_start"])
+    private static let startsAndOneShots = oneShots.union([
+        "jog_start", "joint_jog_start", "gripper_jog_start", "orient_start", "pose_start",
+    ])
 
-    private static func ackTiming(_ recorded: [Event], _ modelled: [Event], sent: [Recording.Line], exclusion: Exclusion) -> [String] {
+    private static func ackTiming(
+        _ recorded: [Event], _ modelled: [Event], sent: [Recording.Line], exclusion: Exclusion
+    ) -> [String] {
         var problems: [String] = []
         for real in recorded where real.type == "ack" && !exclusion.stalls.contains(where: { $0.contains(real.time) }) {
             let seq = real.payload["seq"]?.intValue
             guard let model = modelled.first(where: { $0.type == "ack" && $0.payload["seq"]?.intValue == seq }),
-                  let request = sent.first(where: { $0.seq == seq }) else { continue }
+                let request = sent.first(where: { $0.seq == seq })
+            else { continue }
             let reason = real.payload["reason"]?.stringValue ?? ""
-            let atOnce = !startsAndOneShots.contains(request.type) || ["busy", "estop_active", "sim_not_ready"].contains(reason)
+            let atOnce =
+                !startsAndOneShots.contains(request.type) || ["busy", "estop_active", "sim_not_ready"].contains(reason)
                 || reason.hasPrefix("invalid_") || reason.hasSuffix("_not_supported")
             let tolerance: Double
             if atOnce {
@@ -306,7 +325,8 @@ struct Comparison {
                 tolerance = 0.1
             }
             if abs(model.time - real.time) > tolerance {
-                problems.append(String(format: "ack %d %@ at %.3f s, recorded at %.3f s", seq ?? -1, reason, model.time, real.time))
+                problems.append(
+                    String(format: "ack %d %@ at %.3f s, recorded at %.3f s", seq ?? -1, reason, model.time, real.time))
             }
         }
         return problems
@@ -316,8 +336,10 @@ struct Comparison {
         var previous: (time: Double, message: JSONValue)?
         return list.map { time, message in
             defer { previous = (time, message) }
-            guard message["type"] == "state", let previous, ["ack", "welcome"].contains(previous.message["type"]?.stringValue),
-                  previous.message["seq"] == message["seq"], time - previous.time <= 0.02 else {
+            guard message["type"] == "state", let previous,
+                ["ack", "welcome"].contains(previous.message["type"]?.stringValue),
+                previous.message["seq"] == message["seq"], time - previous.time <= 0.02
+            else {
                 return Event(time: time, message: message, follows: false)
             }
             return Event(time: time, message: message, follows: true)
@@ -337,7 +359,8 @@ struct Comparison {
 
     private static func ackText(_ event: Event) -> String {
         let payload = event.payload
-        return "\(payload["seq"]?.intValue ?? -1) \(payload["status"]?.stringValue ?? "") \(payload["reason"]?.stringValue ?? "")"
+        return
+            "\(payload["seq"]?.intValue ?? -1) \(payload["status"]?.stringValue ?? "") \(payload["reason"]?.stringValue ?? "")"
     }
 
     /// Runs of client messages less than 200 ms apart, from the first to the last.

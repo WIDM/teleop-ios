@@ -6,10 +6,11 @@ final class PracticeTests: XCTestCase {
     /// On the real server at an address where nothing answers (the discard port), so the app stays unconnected.
     private func launchOnTheRealServer() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = XCUIApplication.quiet + [
-            "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect",
-            "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
-        ]
+        app.launchArguments =
+            XCUIApplication.quiet + [
+                "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect",
+                "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
+            ]
         app.launch()
         return app
     }
@@ -93,10 +94,11 @@ final class PracticeTests: XCTestCase {
         app.element("connect.practice").tap()
         XCTAssertTrue(app.element("practice.mark").waitForExistence(timeout: 5))
         app.terminate()
-        app.launchArguments = XCUIApplication.quiet + [
-            "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby",
-            "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
-        ]
+        app.launchArguments =
+            XCUIApplication.quiet + [
+                "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby",
+                "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
+            ]
         app.launch()
         expect(app, "operating.state")
         XCTAssertFalse(app.element("practice.mark").exists)

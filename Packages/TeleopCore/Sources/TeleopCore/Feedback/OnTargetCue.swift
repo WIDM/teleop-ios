@@ -78,7 +78,8 @@ public struct OnTargetCue {
             closed = nil
             if !close.lifted { armed = true }
         }
-        let onTarget = Self.inside(gap, window: window) && !look.approximate && !look.holding && look.taskAid
+        let onTarget =
+            Self.inside(gap, window: window) && !look.approximate && !look.holding && look.taskAid
             && look.jawsOpen == true
         guard armed, onTarget, !look.stopped else { return false }
         armed = false

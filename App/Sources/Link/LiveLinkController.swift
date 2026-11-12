@@ -160,9 +160,10 @@ final class LiveLinkController {
         guard !trimmed.isEmpty, !trimmed.contains(" ") else { return nil }
         let text = trimmed.contains("://") ? trimmed : "ws://" + trimmed
         guard var parts = URLComponents(string: text),
-              parts.scheme == "ws" || parts.scheme == "wss",
-              let host = parts.host, !host.isEmpty,
-              host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == ":" }) else { return nil }
+            parts.scheme == "ws" || parts.scheme == "wss",
+            let host = parts.host, !host.isEmpty,
+            host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == ":" })
+        else { return nil }
         if parts.port == nil { parts.port = defaultPort }
         return parts.url
     }
@@ -678,7 +679,9 @@ final class LiveLinkController {
                 observerDropped("no welcome")
             }
         }
-        if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true { openObserver() }
+        if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true {
+            openObserver()
+        }
     }
 
     private func drop(_ why: String) {
