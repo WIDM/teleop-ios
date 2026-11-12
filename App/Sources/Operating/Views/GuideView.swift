@@ -108,11 +108,8 @@ private enum GuideInk {
 
     static func jaws(_ picture: GuidePicture) -> Color { picture.onTarget ? TeleopColors.guideOnTarget : .white }
 
-    /// The pinch point's outline. An approximate one is hollow: dashed, with no dot at its centre.
-    static func outline(_ picture: GuidePicture, width: Double) -> StrokeStyle {
-        StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round, dash: picture.approximate ? [4, 3] : [])
-    }
-
+    /// The dot at the pinch point. An approximate pinch point has none: its marker is hollow. Its outline stays solid,
+    /// unlike the dashed ring of where the arm is being sent.
     static func centre(_ context: inout GraphicsContext, at pinch: CGPoint, _ picture: GuidePicture) {
         guard !picture.approximate else { return }
         context.fill(Path(ellipseIn: square(at: pinch, edge: 4)), with: .color(jaws(picture)))
@@ -163,7 +160,7 @@ private struct GuideAbove: View {
                     GuideInk.commanded(&context, from: pinch, to: GuideInk.point(commanded.above, in: size), radius: radius)
                 }
                 context.stroke(Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(GuideInk.jaws(picture)),
-                               style: GuideInk.outline(picture, width: picture.onTarget ? 4 : 2.5))
+                               lineWidth: picture.onTarget ? 4 : 2.5)
                 GuideInk.centre(&context, at: pinch, picture)
             }
         )
@@ -220,8 +217,7 @@ private struct GuideBehind: View {
     private func drawJaws(_ context: inout GraphicsContext, at pinch: CGPoint, radius: Double) {
         let ink = GuideInk.jaws(picture)
         guard let open = picture.jawOpening else {
-            context.stroke(Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(ink),
-                           style: GuideInk.outline(picture, width: 2.5))
+            context.stroke(Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(ink), lineWidth: 2.5)
             return
         }
         let half = 2 + (radius - 2) * open
@@ -233,7 +229,7 @@ private struct GuideBehind: View {
                 $0.addLine(to: CGPoint(x: pinch.x + half, y: pinch.y - rise))
                 $0.addLine(to: CGPoint(x: pinch.x + half, y: pinch.y))
             },
-            with: .color(ink), style: GuideInk.outline(picture, width: picture.onTarget ? 4 : 3)
+            with: .color(ink), style: StrokeStyle(lineWidth: picture.onTarget ? 4 : 3, lineCap: .round, lineJoin: .round)
         )
         GuideInk.centre(&context, at: pinch, picture)
     }
