@@ -571,7 +571,7 @@ final class AppModel {
         // A stop the server reports counts before the session has latched it: the same state may bring both.
         let stopped = session.state.emergencyStop || serverState?.estop == true
         let look = OnTargetCue.Look(
-            gap: picture?.targetGap, pinch: display.arm.map { GuidePicture.operatorPoint($0.pinchPoint) },
+            gap: picture?.targetGap, target: display.arm?.target.map(GuidePicture.operatorPoint),
             approximate: picture?.approximate ?? false, holding: picture?.holding ?? false, taskAid: display.taskAid,
             jawsOpen: serverState?.gripper.map { $0 == .open }, stopped: stopped
         )

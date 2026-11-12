@@ -2,7 +2,8 @@ import XCTest
 @testable import TeleopCore
 
 /// When the on-target cue plays: once as "on target" turns true, never again until the pinch point has left a window
-/// half as large again, the scene reset, a target appeared, or the jaws closed and opened again where they closed.
+/// half as large again, the scene reset, a target appeared, or the jaws closed and opened again on a target that stayed
+/// put.
 final class OnTargetCueTests: XCTestCase {
     /// The S4 simulator's window: 6 mm across, 8 mm in height.
     private let window = SIMD2(0.006, 0.008)
@@ -14,20 +15,19 @@ final class OnTargetCueTests: XCTestCase {
         clock = 0
     }
 
-    /// One look, 200 ms after the last. True when the cue played. The pinch point is `at`, or else `across` to the
-    /// right of a target that stays at the origin and `height` above it.
+    /// One look, 200 ms after the last. True when the cue played. The pinch point is `across` from the target and
+    /// `height` above it; the target is at `target`, the origin unless said.
     @discardableResult
     private func look(
-        across: Double?, height: Double = 0, at: SIMD3<Double>? = nil, approximate: Bool = false, holding: Bool = false,
-        taskAid: Bool = true, jawsOpen: Bool? = true, stopped: Bool = false
+        across: Double?, height: Double = 0, target: SIMD3<Double> = .zero, approximate: Bool = false,
+        holding: Bool = false, taskAid: Bool = true, jawsOpen: Bool? = true, stopped: Bool = false
     ) -> Bool {
         clock += 200
         let gap = across.map { SIMD2($0, height) }
-        let pinch = across.map { at ?? SIMD3($0, 0, height) }
         return cue.observe(
             OnTargetCue.Look(
-                gap: gap, pinch: pinch, approximate: approximate, holding: holding, taskAid: taskAid, jawsOpen: jawsOpen,
-                stopped: stopped
+                gap: gap, target: across.map { _ in target }, approximate: approximate, holding: holding,
+                taskAid: taskAid, jawsOpen: jawsOpen, stopped: stopped
             ),
             at: clock
         )
@@ -106,18 +106,18 @@ final class OnTargetCueTests: XCTestCase {
             XCTAssertEqual(look(across: feltOnTheWayIn ? 0.002 : 0.007), feltOnTheWayIn)
             XCTAssertFalse(look(across: 0.0, jawsOpen: false), "closed; the closing jaws centre the target")
             for step in 0...20 {
-                XCTAssertFalse(look(across: 0.0, at: SIMD3(Double(step) / 200, 0, 0.02), holding: true, jawsOpen: false))
+                XCTAssertFalse(look(across: 0.0, target: SIMD3(Double(step) / 200, 0, 0.02), holding: true, jawsOpen: false))
             }
             let goal = SIMD3(0.1, 0, 0.0)
-            XCTAssertFalse(look(across: 0.0, at: goal, jawsOpen: false), "the open press ends the hold before the label")
-            for _ in 0..<5 { XCTAssertFalse(look(across: 0.0, at: goal), "opened on the target, over the goal") }
-            XCTAssertFalse(look(across: 0.0, height: 0.013, at: goal + SIMD3(0, 0, 0.013)), "lifted past 12 mm")
-            XCTAssertTrue(look(across: 0.0, at: goal), "a new approach")
+            XCTAssertFalse(look(across: 0.0, target: goal, jawsOpen: false), "the open press ends the hold before the label")
+            for _ in 0..<5 { XCTAssertFalse(look(across: 0.0, target: goal), "opened on the target, over the goal") }
+            XCTAssertFalse(look(across: 0.0, height: 0.013, target: goal), "lifted past 12 mm")
+            XCTAssertTrue(look(across: 0.0, target: goal), "a new approach")
         }
     }
 
     /// A grasp that took hold but did not lift, or one that touched the target a little off it: the jaws open again
-    /// where they closed, and arriving on the target is felt.
+    /// on a target that stayed put, and arriving on it is felt.
     func testOpeningWhereAHoldingCloseHappenedArmsItAgain() {
         XCTAssertTrue(look(across: 0.002))
         XCTAssertFalse(look(across: 0.002, jawsOpen: false))
@@ -129,6 +129,16 @@ final class OnTargetCueTests: XCTestCase {
         for _ in 0..<5 { XCTAssertFalse(look(across: 0.0075, holding: true, jawsOpen: false)) }
         XCTAssertFalse(look(across: 0.0075), "opened, 7.5 mm off")
         XCTAssertTrue(look(across: 0.003), "nudged onto the target")
+    }
+
+    /// A miss, then the closed jaws slid from one side of the target to the other, never 9 mm from it: opening there
+    /// on the target is felt, however far the jaws went while closed.
+    func testAfterAMissOpeningOnTheTargetIsFeltWhereverTheClosedJawsWent() {
+        XCTAssertTrue(look(across: 0.005), "5 mm to the right")
+        XCTAssertFalse(look(across: 0.005, jawsOpen: false), "closed on nothing")
+        XCTAssertFalse(look(across: 0.0, jawsOpen: false))
+        XCTAssertFalse(look(across: 0.005, jawsOpen: false), "5 mm to the left, 10 mm from where they closed")
+        XCTAssertTrue(look(across: 0.005), "opened on the target")
     }
 
     func testASceneResetOrANewTargetArmsItAgain() {
@@ -145,12 +155,13 @@ final class OnTargetCueTests: XCTestCase {
         var plays: [String: Int] = [:]
         var played = 0
         func counted(
-            across: Double?, height: Double = 0, at: SIMD3<Double>? = nil, approximate: Bool = false, holding: Bool = false,
-            jawsOpen: Bool = true
+            across: Double?, height: Double = 0, target: SIMD3<Double> = .zero, approximate: Bool = false,
+            holding: Bool = false, jawsOpen: Bool = true
         ) {
-            if look(across: across, height: height, at: at, approximate: approximate, holding: holding, jawsOpen: jawsOpen) {
-                played += 1
-            }
+            let felt = look(
+                across: across, height: height, target: target, approximate: approximate, holding: holding, jawsOpen: jawsOpen
+            )
+            if felt { played += 1 }
         }
         func count(_ name: String, _ looks: () -> Void) {
             played = 0
@@ -185,16 +196,16 @@ final class OnTargetCueTests: XCTestCase {
         count("the grasp, lift and carry") {
             for _ in 0..<5 { counted(across: 0.0, jawsOpen: false) }
             for step in 0...30 {
-                counted(across: 0.0005, at: goal * Double(step) / 30 + SIMD3(0, 0, 0.03), holding: true, jawsOpen: false)
+                counted(across: 0.0005, target: goal * Double(step) / 30 + SIMD3(0, 0, 0.03), holding: true, jawsOpen: false)
             }
-            for _ in 0..<5 { counted(across: 0.0005, at: goal, holding: true, jawsOpen: false) }
+            for _ in 0..<5 { counted(across: 0.0005, target: goal, holding: true, jawsOpen: false) }
         }
         count("let go over the goal") {
-            counted(across: 0.0005, height: 0.002, at: goal, jawsOpen: false)
-            for _ in 0..<5 { counted(across: 0.0005, height: 0.002, at: goal) }
+            counted(across: 0.0005, height: 0.002, target: goal, jawsOpen: false)
+            for _ in 0..<5 { counted(across: 0.0005, height: 0.002, target: goal) }
         }
         count("lift away") {
-            for step in 0...30 { counted(across: 0.0005, height: 0.002 + Double(step) / 1000, at: goal + SIMD3(0, 0, Double(step) / 1000)) }
+            for step in 0...30 { counted(across: 0.0005, height: 0.002 + Double(step) / 1000, target: goal) }
         }
 
         XCTAssertEqual(plays["after the reset"], 0)
