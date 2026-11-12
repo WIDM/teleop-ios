@@ -8,37 +8,88 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
-What was left from the design mock-up and only pretended is gone, so every control on screen now does something
-real.
+One operating screen, held rather than looked at, takes the place of every control screen, and everything the
+design mock-up only pretended to do is gone.
 
-- No mode choice on every launch. Cloud mode was simulated: its two safety checks were hard-coded to pass, and a
-  hidden long press faked a failure. A fresh install opens on the permissions screen, then the tutorial; once you
-  have reached standby (by finishing or skipping the tutorial, or by releasing a STOP pressed during it), every
-  launch opens straight on standby. On a real server the app tries the saved address at launch, as choosing a mode
-  used to. "Switch mode" is gone from Settings, and the Real server switch now changes the link where you are
-  instead of going back to a mode choice.
-- No base mode. The Base panel on the right edge of the camera view opened a screen that sent nothing, and the
-  simulated arm has no mobile base. The hint no longer says "Hold right edge: move base".
-- No Record, recording screens, timer, Save or Discard. Nothing was ever stored or sent.
-- No "Recent" servers on the connect screen: they were two labels that could not be tapped.
-- No errors screen. It always showed the same three cards and said "Reconnecting..." when nothing reconnected.
-  Disconnect now ends the link and stays on the connect screen. When a working link to the server drops on
-  standby, high latency or the on-screen controls, the app goes to the connect screen and says "Connection lost.
-  The arm stopped." E-stop still stays on screen when the link drops.
-- No faked latency. Tapping the latency row used to set 420 ms and block commands, even on a real server, and
-  holding the mode pill opened a debug sheet with "Simulate high latency". The high-latency screen stays; it comes
-  from two slow round trips in a row on a real link. The latency row says "Not measured" until a round trip has been
-  measured on the link that is up, instead of a fixed 80 ms; the demo measures none.
-- No "Robot heartbeat: Received just now" on the connection sheet; it was fixed text. The connection chip now
-  follows the connection alone, so the demo no longer says "Not connected" after Disconnect and Connect, and the
-  chip on the connect screen no longer always says "Not connected".
-- No Motion permission. The answer was never used, and its card claimed phone rotation turns the wrist, which it
-  does not. First launch asks for the camera only.
-- No "Send hello" in developer mode; it logged a made-up line.
-- The server address starts empty, with 192.168.0.10:8765 greyed as the expected form, instead of the placeholder
-  value 192.168.x.x:8765. A saved address still loads.
-- No Deadband slider: the server ignores the value in every hold. `pose_start` always sends 0, which the server
-  accepts.
+What a person using the app notices:
+
+- **One operating screen.** Standby, the camera view and its handles, the high-latency screen, the fallback screens
+  and the stop screen are one screen. A red STOP band runs along the bottom and stops at touch-down. The top band
+  holds the gear (Settings), the REC line, the link dot and the mode chip; holding it for 2 seconds resets the
+  scene. The middle shows one word in a colour (Ready, Moving, Turning, Closing, Wait, Slow link, STOPPED,
+  Link lost and others) with a line or two under it. The phone stays awake while it shows.
+- **Three control modes**, in Settings → Control → Mode, and Settings → Hand for the hand that holds the phone:
+  - Screen turns (A): hold vol+ and the arm follows the phone; hold vol− to close the jaws; hold a thumb on the
+    glass and turn the phone to turn or tilt the wrist; slide the thumb up and hold to open the jaws.
+  - Key turns (B): hold vol+ and the arm follows the phone; hold vol− and turn the phone to turn or tilt the wrist;
+    hold the half of the screen under the thumb to close the jaws, the other half to open them.
+  - Buttons: hold Forward, Back, Left, Right, Up, Down, Open or Close; Fine and Coarse set the speed. The phone's
+    movement is not used, and the volume keys change the volume.
+- **The wrist follows the phone** while its input is held: one axis per hold, up to 55 degrees of turn or 20 of
+  tilt, and never more than about 2 degrees ahead of the measured wrist. The Turn and Tilt handles are gone.
+- **One thing at a time.** A press made while another control is held does nothing until it is let go, and the
+  phone signals that it did nothing. Every hold ends, with its stop sent, when the app leaves the foreground, when
+  Settings or Connect opens, and when the camera stops; a key or a thumb held across that stays dead until it is
+  released.
+- **Closing again while the jaws hold something is refused** ("Already gripping."), because a second close
+  loosens the grip.
+- **The upright prompt no longer buzzes as the phone moves.** A vol+ press with the phone held sideways or face down
+  is refused with "Hold the phone upright."
+- **You hear and feel what happened** without looking: a vibration pattern for each kind of event, three sounds,
+  and spoken reasons, limits, stops and recorder news in English or Traditional Chinese. The tutorial teaches them.
+- **The recorder shows.** The REC line says whether the server records and whether it is armed, capturing,
+  waiting or off, with the take's length and the saved and discarded counts. A saved take shows "Saved N" for
+  2 seconds and is spoken. Settings → Recording repeats the counts.
+- **Leaving a stop.** Holding the top band for 2 seconds resets the scene and, once the server confirms it,
+  releases the stop. **Release, keep scene** (hold 1 second) is offered only when the server reports no recorder
+  or does not say. Every STOP is sent to the server, also when the robot is already stopped. A STOP pressed with no
+  link goes out after the next connection; until then the screen shows the link's state, not STOPPED. Settings
+  shows a red STOPPED band while the robot is stopped.
+- **The guide** shows the work area from above and from behind: where the jaws pinch, where the arm is being sent,
+  the height above the table, how far the jaws are open, the wrist's turn and tilt, and, when the server reports a
+  task, the target, the goal, "On target" and "Holding". It works for any arm and replaces the guide drawn for the
+  cube task. It is on by default (Settings → Task aid).
+- **Practice without a robot** takes the place of the Real server switch: Connect → "Practice without a robot", or
+  Settings → Practice. Purple stripes and PRACTICE 練習 mark it, nothing is sent or recorded, and every launch is
+  on the real server. It cannot start or end while the robot is stopped.
+- **Connect** opens from a tap on "Not connected", and says "Connection lost. The arm stopped." after a lost link.
+  The address field starts empty.
+- **Settings** has Mode, Hand, Arm speed (in place of Sensitivity), Smoothing (Off, Low, High), Task aid,
+  Recording, Server, Practice, Language and About; five taps on the version show the developer log.
+- **First launch** asks for the camera only, then shows three tutorial pages for the control mode; later launches
+  open on the operating screen and connect to the saved server.
+- Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
+  screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
+  faked latency and its debug sheet, the Motion permission, the Deadband slider, the Developer switch and
+  "Send hello".
+- Every screen keeps its own colours on a phone in dark mode.
+
+What a maintainer needs to know:
+
+- The input rules are in `TeleopCore`: `InputArbiter` (schemes A and B), `ButtonArbiter`, `SurfaceLayout`,
+  `RotationMapper` and `InputConstants`. `OperatingController` is the one place where keys, touches, the phone's
+  attitude and the pad become commands. `OperatingRules` works out the screen's state and the arm reading, and
+  `GuidePicture` the guide, as pure functions.
+- Feedback: `FeedbackMonitor`, `CueTable` and `CueScheduler` decide every cue; `RecorderNarrator` speaks for the
+  recorder; `StopExits` chooses the ways out of a stop; `WristLeadBound` bounds wrist commands. The players for
+  haptics, sounds and speech decide nothing.
+- A second, listening connection receives `state` during holds. The app names itself
+  `teleop-ios/<version> (<build>)` in `hello`. The link counts as lost after 1.2 s when both connections are quiet.
+- Session: `wristStart`, `wristEnd`, `sceneResetDone` and `switchLink` are new; the jaw turn, the fallback route and
+  the routes P1 to P3, S3a, S3b, S3m, S5, S5a and S7 are gone. `FakeTeleopState.resetClearsStop` records a reset
+  asked for in the stop state. Practice starts and ends only through `AppModel.startPractice` and `leavePractice`.
+- Tests: `TeleopServerModel`, checked against 18 recordings of the real server, and `LocalTeleopServer`, which serves
+  it on a local socket. `ScriptedOperator` presses raw inputs only, and `LocalPickAndPlaceTests` runs a whole
+  pick-and-place in each control mode in every default run. The scheme has a Default and a Live test plan; the Live
+  plan holds `OperatorLiveTests` and `ServerMotionTests`.
+- UI tests launch silent (`-quietCues YES`) and draw every operating state from `OperatingFixtures`, in both
+  languages and at two screen heights (`-screenFrame`).
+- `scripts/check-strings.py` checks all four string catalogs in both languages, their format specifiers and the
+  Chinese punctuation; `scripts/check-dead-buttons.py` fails on a button with an empty action.
+- `RobotProfile` holds the object and goal sizes, the workspace box, the table height, the wrist signs and whether
+  a second close loosens the grip; `ServerModelProfileTests` holds the server model to the same numbers.
+- The session safety checker covers the new routes and state; its U1 promise states the STOP that reached no server.
+- `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, `docs/TESTING.md` and `docs/RELEASING.md` describe the app as it is.
 
 ## 0.10.0 (2026-11-11)
 
