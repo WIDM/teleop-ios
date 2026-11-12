@@ -14,10 +14,7 @@ struct GuideView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let lineHeight = lineSize * 1.45
-            let words = 2 * (captionSize * 1.4 + 2 + 2) + Double(picture.lines.count) * lineHeight + 2 * 4 + 4 * 4
-            let room = max(0, proxy.size.height - words)
-            let width = max(0, min(proxy.size.width, room / (1 / picture.aboveAspect + 1 / picture.behindAspect)))
+            let width = viewWidth(in: proxy.size)
             VStack(spacing: 4) {
                 caption("guide.from_above")
                 GuideAbove(picture: picture)
@@ -39,6 +36,17 @@ struct GuideView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("guide")
+    }
+
+    /// The width both views get: the height left once the captions and read-outs are placed, shared by the two views
+    /// by their aspects, and never wider than the guide. Typed step by step so older compilers check it in time.
+    private func viewWidth(in size: CGSize) -> Double {
+        let captions: Double = 2 * (captionSize * 1.4 + 2 + 2)
+        let lines: Double = Double(picture.lines.count) * (lineSize * 1.45)
+        let spacing: Double = 2 * 4 + 4 * 4
+        let room: Double = max(0, size.height - (captions + lines + spacing))
+        let heightPerWidth: Double = 1 / picture.aboveAspect + 1 / picture.behindAspect
+        return max(0, min(size.width, room / heightPerWidth))
     }
 
     private func caption(_ key: LocalizedStringKey) -> some View {
