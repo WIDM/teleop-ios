@@ -66,6 +66,11 @@ final class AppModel {
     private var taskAidSetting: Bool
     private var surfaceLayout: SurfaceLayout?
     @ObservationIgnored let profile = RobotProfile.so101Simulator
+    /// When the guide's "On target" is felt.
+    @ObservationIgnored private var onTargetCue: OnTargetCue
+    /// A reset's answer came from a server that reports no episode, or a new server run said welcome; the next `state`
+    /// from after it arms the on-target cue again.
+    @ObservationIgnored private var onTargetRearmOwed = false
     /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
     @ObservationIgnored private(set) var controller: OperatingController!
     /// The measured flex in the first state after the last reset, for the tilt window (I-8.3).
@@ -158,6 +163,7 @@ final class AppModel {
         modeSetting = mode
         handSetting = hand
         taskAidSetting = taskAid
+        onTargetCue = OnTargetCue(window: SIMD2(profile.graspTolerance))
         self.fixture = fixture
         operating = fixture ?? OperatingDisplay(
             mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
@@ -487,8 +493,17 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
+        // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until then the
+        // guide still shows the arm from before the reset, and so may a state the server sent while still resetting.
+        if onTargetRearmOwed, state.activity != .resetting {
+            onTargetRearmOwed = false
+            onTargetCue.rearm()
+        }
         if let episode = state.episode {
-            if let last = lastEpisode, episode != last { sceneWasReset() }
+            if let last = lastEpisode, episode != last {
+                sceneWasReset()
+                onTargetCue.rearm()
+            }
             lastEpisode = episode
         }
         if flexAtResetOwed, !state.estop, !state.simBusy, let flex = state.wristFlexDeg {
@@ -511,6 +526,7 @@ final class AppModel {
             lastWelcomeSession = run
             lastEpisode = nil
             sceneWasReset()
+            onTargetRearmOwed = true
         }
         guard stopOwed else { return }
         stopOwed = false
@@ -544,6 +560,23 @@ final class AppModel {
             practice: !s.liveLink, taskAid: taskAidSetting
         )
         if operating != display { operating = display }
+        feelOnTarget(display)
+    }
+
+    /// Plays ON TARGET once as the guide's "On target" turns true with the jaws open, during a hold or after one.
+    private func feelOnTarget(_ display: OperatingDisplay) {
+        // Only with the server connected: practice draws no arm, and a closed link leaves its last state behind, which
+        // must not count as a target reported anew when the link or the real server comes back.
+        guard session.state.liveLink, session.state.connected else { return }
+        let picture = display.arm.map { GuidePicture(reading: $0, profile: profile) }
+        // A stop the server reports counts before the session has latched it: the same state may bring both.
+        let stopped = session.state.emergencyStop || serverState?.estop == true
+        let look = OnTargetCue.Look(
+            gap: picture?.targetGap, target: display.arm?.target.map(GuidePicture.operatorPoint),
+            approximate: picture?.approximate ?? false, holding: picture?.holding ?? false, taskAid: display.taskAid,
+            jawsOpen: serverState?.gripper.map { $0 == .open }, stopped: stopped
+        )
+        if onTargetCue.observe(look, at: nowMs()) { raise(.onTarget) }
     }
 
     private var operatingFacts: OperatingFacts {
@@ -620,6 +653,8 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
+        // A server that counts episodes says every reset with a new episode, which arms the cue once (`stateArrived`).
+        if action == .sceneResetDone, lastEpisode == nil { onTargetRearmOwed = true }
         session.perform(action)
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)

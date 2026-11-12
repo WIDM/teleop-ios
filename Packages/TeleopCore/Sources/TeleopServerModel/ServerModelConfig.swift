@@ -3,10 +3,10 @@ import Foundation
 /// Every robot, task and protocol number the server model uses, in one place.
 ///
 /// Unless a line says otherwise, a value is the S4 simulator server's own constant (2026-11-11) or a value measured
-/// from recordings of it. The model behaves as the app expects a server to: `state` carries the recorder and the
-/// measured wrist and jaw angles, a take starts with a held command, and a held control keeps the targets it was
-/// given when it starts, ends or is ended by the watchdog. Lengths are metres, angles degrees, positions in the robot
-/// base frame unless the name ends in `World`.
+/// from recordings of it. The model behaves as the app expects a server to: `state` carries the recorder, the
+/// measured wrist and jaw angles and, unless `reportsToolPoint` is off, the tool point; a take starts with a held
+/// command, and a held control keeps the targets it was given when it starts, ends or is ended by the watchdog.
+/// Lengths are metres, angles degrees, positions in the robot base frame unless the name ends in `World`.
 public struct ServerModelConfig: Equatable, Sendable {
     // MARK: Pace
 
@@ -55,6 +55,9 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     /// From the reported point to where the jaws pinch, base frame (the app's `RobotProfile.so101Simulator`).
     public var toolOffset = SIMD3<Double>(0.007, -0.036, -0.088)
+    /// `state` carries `tool_pos`, the pinch point, wherever it carries `ee_pos`. False leaves it out, as from a server
+    /// that reports no tool point.
+    public var reportsToolPoint = true
     /// How close the pinch point must be to the cube's centre, across the table and in height, for closing
     /// the jaws to take hold of it (the app's `RobotProfile.graspTolerance`).
     public var graspToleranceAcross = 0.006
@@ -175,14 +178,18 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     public init() {}
 
-    /// The lab server as recorded on 2026-11-11: no cameras, no recording.
+    /// The lab server's numbers as recorded on 2026-11-11: no cameras, no recording. Whether `state` carries the tool
+    /// point is the model's own switch (`reportsToolPoint`, on here), not one of those numbers.
     public static let s4Simulator = ServerModelConfig()
 
-    /// The same server, `stepsPerSecond` steps a wall second.
-    public static func s4Simulator(stepsPerSecond: Double, recorder: Recorder? = nil) -> ServerModelConfig {
+    /// The same server, `stepsPerSecond` steps a wall second. `reportsToolPoint` false: `state` carries no tool point.
+    public static func s4Simulator(
+        stepsPerSecond: Double, recorder: Recorder? = nil, reportsToolPoint: Bool = true
+    ) -> ServerModelConfig {
         var config = ServerModelConfig()
         config.stepsPerSecond = stepsPerSecond
         config.recorder = recorder
+        config.reportsToolPoint = reportsToolPoint
         return config
     }
 }

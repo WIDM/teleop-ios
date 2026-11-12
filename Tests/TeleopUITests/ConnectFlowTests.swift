@@ -25,7 +25,9 @@ final class ConnectFlowTests: XCTestCase {
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
         XCTAssertFalse(app.element("tutorial.skip").exists, "the last page has Back, not Skip")
-        XCTAssertTrue(text(app, "a purr means it is still on its way"), "rule O3, the cue the pause rests on")
+        XCTAssertTrue(text(app, "keep still until the arm stops, then let go"),
+                      "rule O3: the arm is slower than the hand, so hold still until it stops, then let go")
+        XCTAssertTrue(text(app, "When the guide shows a target"), "the on-target cue, taught so it is true on every server")
         attachScreenshot("04-tutorial-cues")
         app.element("tutorial.back").tap()
         expectLabel(app.element("tutorial.title"), "Thumb and turn")
@@ -52,6 +54,11 @@ final class ConnectFlowTests: XCTestCase {
         expect(buttons, "tutorial.title")
         XCTAssertEqual(buttons.element("tutorial.title").label, "按住按鈕")
         attachScreenshot("tutorial-buttons-zh")
+        buttons.element("tutorial.next").tap()
+        buttons.element("tutorial.next").tap()
+        expectLabel(buttons.element("tutorial.title"), "急停、重置和震動的意思")
+        XCTAssertFalse(text(buttons, "等手臂停下來再放開"), "a held arrow keeps moving the arm: holding still is for the phone")
+        XCTAssertTrue(text(buttons, "畫面上有目標時"), "the on-target cue is the same in every mode")
     }
 
     func testALaterLaunchOpensOnTheOperatingScreen() {

@@ -127,10 +127,78 @@ final class OperatingRulesTests: XCTestCase {
         assertClose(reading?.target ?? .zero, SIMD3<Float>(0.005, -0.2, 0.0525), accuracy: 1e-6)
         assertClose(reading?.goal ?? .zero, SIMD3<Float>(0.075, -0.2, 0.0535), accuracy: 1e-6)
         XCTAssertEqual(reading?.gripping, true)
+        XCTAssertEqual(reading?.pinchSource, .estimated(approximate: true), "3 cm toward the base of where the offset holds")
+        XCTAssertEqual(reading?.boxShift, .zero)
         let unknown = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "estop": false])
         let bare = OperatingRules.arm(unknown, commanded: nil, gripping: false, profile: profile)
         XCTAssertNil(bare?.jawOpening)
         XCTAssertNil(bare?.target)
+    }
+
+    /// With `tool_pos` the guide's pinch point is the server's; the commanded ring and the box move by the measured
+    /// `tool_pos − ee_pos` instead of the profile's offset.
+    func testTheGuidesPinchPointIsTheReportedToolPoint() {
+        let profile = RobotProfile.so101Simulator
+        let state = ServerState(payload: [
+            "ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "object_pos": [0.005, -0.2, 0.1025],
+            "estop": false,
+        ])
+        let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.04, -0.14, 0.16), gripping: false, profile: profile))
+        assertClose(reading.pinchPoint, SIMD3(0.03, -0.17, 0.08), accuracy: 1e-6)
+        XCTAssertEqual(reading.pinchSource, .reported)
+        let measured = SIMD3<Float>(0.01, -0.03, -0.08)
+        assertClose(reading.commanded ?? .zero, SIMD3<Float>(0.04, -0.14, 0.16) + measured, accuracy: 1e-6)
+        assertClose(reading.boxShift, measured - profile.toolOffset, accuracy: 1e-6)
+    }
+
+    /// No `tool_pos`, or one that is not three finite numbers, or one too large for the guide's arithmetic: the
+    /// estimate, as before, and a guide that can be drawn.
+    func testTheGuidesPinchPointFallsBackToTheEstimate() {
+        let profile = RobotProfile.so101Simulator
+        let tools: [Any] = [
+            NSNull(), [0.03, -0.17], [0.03, Double.nan, 0.08], [0.03, Double.infinity, 0.08], "0.03", [1e39, -0.17, 0.08],
+        ]
+        for tool in tools {
+            let state = ServerState(payload: ["ee_pos": [0.02, -0.14, 0.16], "tool_pos": tool, "estop": false])
+            let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: SIMD3(0.03, -0.14, 0.16), gripping: false, profile: profile))
+            assertClose(reading.pinchPoint, SIMD3<Float>(0.027, -0.176, 0.072), accuracy: 1e-6)
+            assertClose(reading.commanded ?? .zero, SIMD3<Float>(0.037, -0.176, 0.072), accuracy: 1e-6)
+            XCTAssertEqual(reading.pinchSource, .estimated(approximate: true), "\(tool)")
+            XCTAssertEqual(reading.boxShift, .zero)
+            XCTAssertFalse(GuidePicture(reading: reading, profile: profile).lines.isEmpty)
+        }
+    }
+
+    /// A gripper point too large for the guide's arithmetic next to an ordinary tool point: the tool point is not used,
+    /// so the box keeps its size and the guide is built, saying the pinch point is outside, instead of stopping the app.
+    func testAGripperPointBeyondFloatRangeLeavesTheBoxAlone() {
+        let profile = RobotProfile.so101Simulator
+        let state = ServerState(payload: ["ee_pos": [1e39, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "estop": false])
+        let reading = try! XCTUnwrap(OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile))
+        XCTAssertEqual(reading.pinchSource, .estimated(approximate: true))
+        XCTAssertEqual(reading.boxShift, .zero)
+        let picture = GuidePicture(reading: reading, profile: profile)
+        XCTAssertTrue(picture.outside)
+        let box = [picture.boxAbove.minX, picture.boxAbove.maxX, picture.boxBehind.minY, picture.boxBehind.maxY]
+        XCTAssertTrue(box.allSatisfy(\.isFinite), "\(box)")
+    }
+
+    /// The estimate is judged on the state's own gripper point and wrist angles: solid where the offset was measured,
+    /// approximate a tilt or a few millimetres toward the base away.
+    func testTheStateDecidesWhetherTheEstimateIsApproximate() {
+        let profile = RobotProfile.so101Simulator
+        func source(_ arm: SIMD3<Float>, flex: Double) -> PinchSource? {
+            let state = ServerState(payload: [
+                "ee_pos": [Double(arm.x), Double(arm.y), Double(arm.z)], "wrist_flex_deg": flex, "wrist_roll_deg": 90.0,
+                "object_pos": [0.005, -0.2, 0.1025], "estop": false,
+            ])
+            return OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile)?.pinchSource
+        }
+        let measured = profile.offsetMeasuredAt
+        XCTAssertEqual(source(measured, flex: 40.24), .estimated(approximate: false))
+        XCTAssertEqual(source(measured, flex: 40.4), .estimated(approximate: false), "the wrist's own sag")
+        XCTAssertEqual(source(measured, flex: 45), .estimated(approximate: true))
+        XCTAssertEqual(source(measured + SIMD3(0, 0.005, 0), flex: 40.24), .estimated(approximate: true))
     }
 
     /// Practice stripes every state, is entered only by `startPractice`, and is never what a launch starts in.

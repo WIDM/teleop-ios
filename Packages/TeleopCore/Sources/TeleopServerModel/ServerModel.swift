@@ -187,6 +187,10 @@ public final class ServerModel {
 
     func update(_ fields: KeyValuePairs<String, JSONValue>) {
         for (key, value) in fields { state = state.setting(key, value) }
+        // Every `ee_pos` is the world's arm, so the pinch point goes with it.
+        if config.reportsToolPoint, fields.contains(where: { $0.key == "ee_pos" }) {
+            state = state.setting("tool_pos", .numbers(world.pinch(config)))
+        }
     }
 
     // MARK: Front end

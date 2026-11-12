@@ -34,6 +34,10 @@ struct ArmReading: Equatable, Sendable {
     var target: SIMD3<Float>?         // a task object, when the server reports one
     var goal: SIMD3<Float>?           // where it should go, when the server reports one
     var gripping: Bool
+    var pinchSource: PinchSource = .estimated(approximate: false)
+    /// How far the workspace box is drawn from the profile's: the reading's gripper-to-pinch offset minus the
+    /// profile's `toolOffset`. Zero unless the server reports a tool point.
+    var boxShift: SIMD3<Float> = .zero
 }
 
 /// Everything the operating screen draws. The screens read this and nothing else about the link.

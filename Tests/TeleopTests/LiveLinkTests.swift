@@ -539,7 +539,7 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertLessThan(simd_distance(commanded, SIMD3(0.01, -0.16, 0.165)), 0.0001, "\(commanded)")
         // The input rules' 30 Hz tick redraws the screen; here it is called directly.
         model.inputsChanged()
-        XCTAssertEqual(model.operating.arm?.commanded, model.profile.toolPoint(reported: commanded), "the guide draws it")
+        XCTAssertEqual(model.operating.arm?.commanded, commanded + model.profile.toolOffset, "the guide draws it")
         model.send(.holdArmEnd)
         XCTAssertNil(model.link.commandedArm)
     }
@@ -1299,5 +1299,265 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.connected, "the control connection alone allows 2 s")
         for _ in 0..<5 { tick() }
         XCTAssertFalse(model.session.state.connected, "and no more")
+    }
+
+    // MARK: On target is felt
+
+    /// Where the profile's offset was measured: there the estimated pinch point is exact.
+    private var graspArm: SIMD3<Double> { SIMD3(model.profile.offsetMeasuredAt) }
+
+    /// A state with the gripper point at `arm`, the wrist where the offset was measured and the jaws' label, and the
+    /// task object (world frame) right under the estimated pinch point of `objectUnder`, or no task object.
+    private func armState(
+        _ arm: SIMD3<Double>, objectUnder: SIMD3<Double>? = nil, noObject: Bool = false, gripper: String? = "open",
+        tool: SIMD3<Double>? = nil, episode: Int? = 0, estop: Bool = false
+    ) -> [String: Any] {
+        var state: [String: Any] = [
+            "estop": estop, "ee_pos": [arm.x, arm.y, arm.z],
+            "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg, "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
+        ]
+        if let gripper { state["gripper"] = gripper }
+        if let episode { state["episode"] = episode }
+        if !noObject {
+            let object = (objectUnder ?? graspArm) + SIMD3<Double>(model.profile.toolOffset + model.profile.baseInWorld)
+            state["object_pos"] = [object.x, object.y, object.z]
+        }
+        if let tool { state["tool_pos"] = [tool.x, tool.y, tool.z] }
+        return state
+    }
+
+    private var feltOnTarget: Int { felt.felt.filter { $0 == .play(.onTarget) }.count }
+
+    private var guide: GuidePicture? { model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile) } }
+
+    /// Felt once as the guide turns On target during a hold, from the listening connection, and not again while the
+    /// pinch point stays inside the window 1.5 times as large; after the hold, leaving that window arms it again.
+    func testOnTargetIsFeltOnceDuringAHoldAndAgainOnlyAfterLeavingTheWiderWindow() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0.02, 0.02, 0.02)))
+        model.send(.holdArmStart)
+        run(ticks: 10)
+        XCTAssertTrue(model.session.state.armMoving)
+        observer.server("state", armState(graspArm + SIMD3(0, 0, 0.02)))
+        XCTAssertEqual(feltOnTarget, 0, "2 cm above the object")
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(guide?.onTarget, true)
+        XCTAssertEqual(feltOnTarget, 1, "heard on the listening connection while the hold runs")
+        XCTAssertTrue(model.cueLog.contains { $0.event == .onTarget && $0.haptic == .onTarget && $0.sound == nil && $0.speech.isEmpty })
+        for x in [0.004, 0.0065, 0.003, 0.0085, 0.0] {
+            run(ticks: 6)
+            observer.server("state", armState(graspArm + SIMD3(x, 0, 0)))
+        }
+        model.send(.holdArmEnd)
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "out of the window and back, never past 9 mm: once")
+        clock += 1000
+        transport.server("state", armState(graspArm + SIMD3(0.0095, 0, 0)))
+        XCTAssertEqual(guide?.approximate, false)
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 2, "after the hold, back from past 9 mm")
+    }
+
+    /// A close arms it again, so opening on the target after a miss is felt; a scene reset arms it again too.
+    func testACloseOrAResetArmsTheOnTargetCueAgain() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: "close"))
+        XCTAssertEqual(feltOnTarget, 1, "the jaws are not open")
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: "open"))
+        XCTAssertEqual(feltOnTarget, 2, "opened again on the target")
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 3, "a new episode is a scene reset")
+    }
+
+    /// 1 cm nearer the base than where the offset was measured, with the object under the estimated pinch point: the
+    /// estimate may be 11 mm off, so the marker is approximate and nothing is felt. The same place with a reported
+    /// tool point is felt.
+    func testOnTargetIsNotFeltWhileTheMarkerIsApproximate() {
+        bringUp()
+        let nearer = graspArm + SIMD3(0, 0.01, 0)
+        bringUpObserver(armState(nearer + SIMD3(0, 0, 0.03), objectUnder: nearer))
+        observer.server("state", armState(nearer, objectUnder: nearer))
+        XCTAssertEqual(guide?.approximate, true)
+        XCTAssertEqual(guide?.onTarget, false)
+        XCTAssertEqual(feltOnTarget, 0)
+        let pinch = nearer + SIMD3<Double>(model.profile.toolOffset)
+        observer.server("state", armState(nearer, objectUnder: nearer, tool: pinch))
+        XCTAssertEqual(guide?.approximate, false)
+        XCTAssertEqual(feltOnTarget, 1, "a reported tool point is never approximate")
+    }
+
+    func testOnTargetIsNotFeltWithTheTaskAidOff() {
+        let saved = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
+        defer { UserDefaults.standard.set(saved, forKey: AppModel.taskAidKey) }
+        bringUp()
+        model.taskAid = false
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 0)
+        model.taskAid = true
+        XCTAssertEqual(feltOnTarget, 1, "turned on with the jaws on the target: the guide turns On target now")
+    }
+
+    func testOnTargetIsNotFeltWhileTheStopIsLatched() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+        model.send(.stop)
+        observer.server("state", armState(graspArm, estop: true))
+        XCTAssertEqual(feltOnTarget, 0)
+        XCTAssertEqual(felt.felt, [.play(.alarm)])
+    }
+
+    /// A stop the server reports in the very state that brings the jaws onto the target, on either connection, is a
+    /// latched stop too: only the rattle.
+    func testOnTargetIsNotFeltInAStateThatReportsAStop() {
+        for onObserver in [true, false] {
+            bringUp()
+            bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+            let on = onObserver ? observer : transport!
+            on.server("state", armState(graspArm, estop: true))
+            XCTAssertEqual(feltOnTarget, 0, onObserver ? "listening connection" : "control connection")
+        }
+    }
+
+    /// A reset's answer can come before the first state after it. The state from before the reset, still on the
+    /// target, must not be felt again as if the jaws had just arrived.
+    func testAResetAnsweredBeforeItsStateDoesNotReplayTheCueFromTheOldState() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        run(ticks: 3)
+        XCTAssertEqual(feltOnTarget, 1, "nothing new is known about the jaws yet")
+        observer.server("state", armState(graspArm + SIMD3(0.02, 0.02, 0.02), gripper: "closed", episode: 1))
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the next approach after the reset")
+    }
+
+    /// A server that reports no episode: the reset's answer arms the cue on the first state after it, even with the
+    /// jaws left open and the pinch point never more than 9 mm from the target.
+    func testOnAServerWithoutEpisodesTheStateAfterAResetsAnswerArmsTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        XCTAssertEqual(feltOnTarget, 1)
+        observer.server("state", armState(graspArm + SIMD3(0.007, 0, 0), episode: nil))
+        XCTAssertEqual(feltOnTarget, 1, "7 mm off: out of the window")
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 2, "the approach after the reset")
+    }
+
+    /// On a server without episodes, a state sent while the reset was still running can arrive after the reset's
+    /// answer, on the other connection. It still shows the arm from before the reset, so it does not arm the cue.
+    func testAStateFromWhileTheResetRanArrivingAfterItsAnswerDoesNotReplayTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        var late = armState(graspArm, episode: nil)
+        late["ik"] = "resetting"
+        observer.server("state", late)
+        XCTAssertEqual(feltOnTarget, 1, "sent while the server was still resetting")
+        observer.server("state", armState(graspArm + SIMD3(0.007, 0, 0), episode: nil))
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: nil))
+        XCTAssertEqual(feltOnTarget, 2, "the approach after the reset")
+    }
+
+    /// On a server with episodes the new episode is the one sign of a reset: the reset's answer coming after it does
+    /// not arm the cue a second time.
+    func testOneResetArmsTheCueOnceWhenTheNewEpisodeComesBeforeTheAnswer() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.send(.resetScene)
+        let reset = lastSeq(of: "reset_scene")
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the new episode armed it")
+        clock += 1000
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok"])
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 2, "the answer to the same reset does not arm it again")
+    }
+
+    /// A state that does not say how the jaws are is neither open nor a close: it neither plays the cue nor arms it.
+    func testAStateWithoutTheJawsLabelNeitherPlaysNorArmsTheCue() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03), gripper: nil))
+        observer.server("state", armState(graspArm, gripper: nil))
+        XCTAssertEqual(feltOnTarget, 0, "the jaws may be shut")
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: nil))
+        clock += 1000
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "no close, no reset, never out of the window: once")
+    }
+
+    /// No task object reported: nothing to be on, wherever the jaws are.
+    func testOnTargetIsNotFeltWithoutATarget() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03), noObject: true))
+        observer.server("state", armState(graspArm, noObject: true))
+        XCTAssertNotNil(model.operating.arm)
+        XCTAssertEqual(feltOnTarget, 0)
+    }
+
+    /// A new server run starts the scene over: its first state is a new approach, even with the jaws already open on
+    /// the target. A reconnect to the same run is not.
+    func testANewServerRunArmsTheCueOnItsFirstState() {
+        makeModel(at: .p4)
+        model.connect()
+        transport.server("welcome", ["session": "run-1"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.connect()
+        transport.server("welcome", ["session": "run-1"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "a reconnect to the same run")
+        clock += 1000
+        model.connect()
+        transport.server("welcome", ["session": "run-2"])
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 2, "a new run")
+    }
+
+    /// Practice draws no arm, and the closed link leaves its last state behind. Coming back to the real server is not a
+    /// target reported anew: nothing is felt before the server says anything, nor when the same run says the jaws are
+    /// still where they were.
+    func testComingBackFromPracticeDoesNotReplayTheCueFromTheLastState() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        model.startPractice()
+        model.inputsChanged()
+        model.leavePractice()
+        model.inputsChanged()
+        XCTAssertFalse(model.session.state.connected)
+        XCTAssertEqual(feltOnTarget, 1, "nothing new from the server")
+        transport.server("welcome")
+        transport.server("state", armState(graspArm))
+        XCTAssertTrue(model.session.state.connected)
+        XCTAssertEqual(feltOnTarget, 1, "the same server run: the jaws did not move")
     }
 }

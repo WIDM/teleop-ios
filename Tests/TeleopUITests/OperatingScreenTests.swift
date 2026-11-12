@@ -31,6 +31,8 @@ final class OperatingScreenTests: XCTestCase {
         "saved": ("Saved 13", "已存 13"),
         "rec_off_countdown": ("Ready", "就緒"),
         "outside": ("Ready", "就緒"),
+        "approximate": ("Ready", "就緒"),
+        "approximate_hotel": ("Moving", "移動中"),
         "practice_ready": ("Ready", "就緒"),
         "practice_stopped": ("STOPPED", "已急停"),
         "buttons_ready": ("Ready", "就緒"),
@@ -221,12 +223,33 @@ final class OperatingScreenTests: XCTestCase {
     func testTiltingEstimated() {
         let app = render("tilting_estimated")
         XCTAssertTrue(app.staticTexts["8° of 20° · estimated"].exists)
+        XCTAssertEqual(app.element("readout.approximate").label, "Jaw position is approximate", "no measured wrist angles")
     }
 
     func testOpeningOnTarget() {
         let app = render("opening")
         XCTAssertEqual(app.element("readout.target").label, "Target 0.2 cm across · level")
         XCTAssertEqual(app.element("readout.on_target").label, "On target")
+        XCTAssertFalse(exists(app, "readout.approximate"))
+        XCTAssertEqual(app.element("guide.above").value as? String ?? "", "", "a solid pinch point has nothing to add")
+    }
+
+    /// The same reading as On target, but an estimate that may be off by more than half the window: drawn hollow,
+    /// said in words and to VoiceOver, and never On target.
+    func testAnApproximatePinchPointSaysSoAndIsNeverOnTarget() {
+        let app = render("approximate")
+        XCTAssertEqual(app.element("readout.approximate").label, "Jaw position is approximate")
+        XCTAssertEqual(app.element("readout.target").label, "Target 0.2 cm across · level")
+        XCTAssertFalse(exists(app, "readout.on_target"))
+        XCTAssertEqual(app.element("guide.above").value as? String, "Jaw position is approximate")
+        XCTAssertEqual(app.element("guide.behind").value as? String, "Jaw position is approximate")
+    }
+
+    func testAnApproximatePinchPointWithNoTaskObjects() {
+        let app = render("approximate_hotel")
+        XCTAssertEqual(app.element("readout.approximate").label, "Jaw position is approximate")
+        XCTAssertFalse(exists(app, "readout.target"))
+        XCTAssertEqual(app.element("guide.above").value as? String, "Jaw position is approximate")
     }
 
     func testClosingGripped() {

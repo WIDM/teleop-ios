@@ -22,8 +22,8 @@ public struct CueLogEntry: Equatable, Sendable {
 
 /// Decides which cue plays when two coincide (§5.4). Pure: time is passed in, nothing is played here.
 ///
-/// Haptics are one channel, ALARM > LETGO > NO > GRIP > END > GO. A higher cue pre-empts a lower one that plays;
-/// a lower one arriving while a higher one plays is dropped. The same pattern never starts twice within
+/// Haptics are one channel, ALARM > LETGO > NO > GRIP > END > ON TARGET > GO. A higher cue pre-empts a lower one
+/// that plays; a lower one arriving while a higher one plays is dropped. The same pattern never starts twice within
 /// `repeatMs`. GO is never dropped for either reason: it waits until the channel is free and its own repeat gap has
 /// passed (at most `goWaitMaxMs`) and plays then, if its own hold is still the one engaged. Speech follows its
 /// level; sounds always play at once.

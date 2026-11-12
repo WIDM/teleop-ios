@@ -16,6 +16,8 @@ enum GuideWords {
             return String(format: L10n.string("guide.wrist_tilt"), tilt)
         case .wrist(nil, nil):
             return ""
+        case .approximate:
+            return L10n.string("guide.approximate")
         case .target(let across, let height):
             return gap(("guide.target_above", "guide.target_below", "guide.target_level"), across: across, height: height)
         case .goal(let across, let height):

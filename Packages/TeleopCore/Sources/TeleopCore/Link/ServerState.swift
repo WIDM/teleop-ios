@@ -75,6 +75,9 @@ public struct ServerState: Equatable, Sendable {
     public var activity: ServerActivity?
     /// Arm tip, task object and goal, metres; the arm in the robot base frame, the others in the world frame.
     public var endEffector: SIMD3<Double>?
+    /// `tool_pos`: the point between the jaw tips, where the centre of a held object sits, in the frame of
+    /// `endEffector`. Nil when the server does not report it: the key is missing, null, or not three finite numbers.
+    public var toolPoint: SIMD3<Double>?
     public var object: SIMD3<Double>?
     public var goal: SIMD3<Double>?
     public var taskSuccess: Bool?
@@ -90,12 +93,14 @@ public struct ServerState: Equatable, Sendable {
         estop: Bool = false, gripper: GripperState? = nil, activity: ServerActivity? = nil,
         endEffector: SIMD3<Double>? = nil, object: SIMD3<Double>? = nil, goal: SIMD3<Double>? = nil,
         taskSuccess: Bool? = nil, episode: Int? = nil, recorder: RecorderStatus? = nil,
-        wristFlexDeg: Double? = nil, wristRollDeg: Double? = nil, gripperDeg: Double? = nil
+        wristFlexDeg: Double? = nil, wristRollDeg: Double? = nil, gripperDeg: Double? = nil,
+        toolPoint: SIMD3<Double>? = nil
     ) {
         self.estop = estop
         self.gripper = gripper
         self.activity = activity
         self.endEffector = endEffector
+        self.toolPoint = toolPoint
         self.object = object
         self.goal = goal
         self.taskSuccess = taskSuccess
@@ -112,6 +117,9 @@ public struct ServerState: Equatable, Sendable {
         gripper = (payload["gripper"] as? String).flatMap(Self.gripperState)
         activity = (payload["ik"] as? String).map(ServerActivity.init)
         endEffector = Self.vector(payload["ee_pos"])
+        toolPoint = Self.vector(payload["tool_pos"]).flatMap { point in
+            [point.x, point.y, point.z].allSatisfy(\.isFinite) ? point : nil
+        }
         object = Self.vector(payload["object_pos"])
         goal = Self.vector(payload["goal_pos"])
         taskSuccess = payload["task_success"] as? Bool

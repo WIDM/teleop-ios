@@ -38,6 +38,19 @@ final class CueSchedulerTests: XCTestCase {
         XCTAssertEqual(haptics(scheduler.tick(at: 380, currentHold: 7)), [.go], "END is 380 ms long")
     }
 
+    /// ON TARGET sits between END and GO: GO waits for it, END cuts it short, and it goes into the cue log.
+    func testOnTargetPlaysAboveGoAndBelowEnd() {
+        XCTAssertEqual(haptics(scheduler.raise(.onTarget, at: 0, currentHold: 2)), [.onTarget])
+        XCTAssertEqual(scheduler.log.last, CueLogEntry(atMs: 0, event: .onTarget, haptic: .onTarget, sound: nil, speech: [], dropped: false))
+        XCTAssertEqual(haptics(scheduler.raise(.holdLive(hold: 2), at: 100, currentHold: 2)), [])
+        XCTAssertEqual(haptics(scheduler.tick(at: 349, currentHold: 2)), [])
+        XCTAssertEqual(haptics(scheduler.tick(at: 350, currentHold: 2)), [.go])
+        XCTAssertEqual(haptics(scheduler.raise(.onTarget, at: 1000, currentHold: nil)), [.onTarget])
+        XCTAssertEqual(haptics(scheduler.raise(.limit(.blocked), at: 1100, currentHold: nil)), [.end])
+        _ = scheduler.raise(.limit(.workspace), at: 2000, currentHold: nil)
+        XCTAssertEqual(haptics(scheduler.raise(.onTarget, at: 2100, currentHold: nil)), [], "dropped under END")
+    }
+
     func testGoNeverWaitsLongerThan400Ms() {
         _ = scheduler.raise(.letGo(.watchdog), at: 0, currentHold: 3)
         _ = scheduler.raise(.holdLive(hold: 3), at: 10, currentHold: 3)

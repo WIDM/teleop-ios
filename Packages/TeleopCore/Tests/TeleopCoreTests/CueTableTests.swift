@@ -19,7 +19,7 @@ final class CueTableTests: XCTestCase {
             XCTAssertFalse(keys.isEmpty, "\(kind)")
             for key in keys { XCTAssertEqual(key.kind, kind, "\(key)") }
         }
-        XCTAssertEqual(CueKey.allCases.count, 11 + 6 + 5 + 10 + 2 + 15)
+        XCTAssertEqual(CueKey.allCases.count, 11 + 6 + 5 + 10 + 2 + 15 + 1)
     }
 
     func testEveryEventIsFeltOrHeard() {
@@ -103,10 +103,18 @@ final class CueTableTests: XCTestCase {
     }
 
     /// C-F2: no two event patterns share their count of pulses and their sequence of long and short.
-    func testTheSixPatternsDifferInRhythm() {
+    func testTheSevenPatternsDifferInRhythm() {
         let rhythms = Haptic.allCases.map(\.rhythm)
+        XCTAssertEqual(Haptic.allCases.count, 7)
         XCTAssertEqual(Set(rhythms.map { $0.map { $0 ? "L" : "s" }.joined() }).count, Haptic.allCases.count)
         XCTAssertEqual(Haptic.go.rhythm, [false])
+        XCTAssertEqual(Haptic.onTarget.rhythm, [false, true], "a tick, then a long one")
+        XCTAssertEqual(Haptic.onTarget.durationMs, 350)
+        // Its long part must not pass for END: shorter, lighter and duller.
+        let swell = Haptic.onTarget.pattern.pulses[1], end = Haptic.end.pattern.pulses[0]
+        XCTAssertLessThan(swell.durationMs, end.durationMs)
+        XCTAssertLessThan(swell.intensity, end.intensity)
+        XCTAssertLessThan(swell.sharpness, end.sharpness)
         XCTAssertEqual(Haptic.no.rhythm, [false, false, false])
         XCTAssertEqual(Haptic.grip.rhythm, [false, false])
         XCTAssertEqual(Haptic.end.rhythm, [true])
@@ -116,7 +124,17 @@ final class CueTableTests: XCTestCase {
     }
 
     func testPriorityOrder() {
-        let order: [Haptic] = [.alarm, .letGo, .no, .grip, .end, .go]
+        let order: [Haptic] = [.alarm, .letGo, .no, .grip, .end, .onTarget, .go]
         XCTAssertEqual(Haptic.allCases.sorted { $0.priority > $1.priority }, order)
+    }
+
+    /// The on-target cue is felt and nothing else: no sound, no speech. Its pattern is its own.
+    func testOnTargetIsFeltOnly() {
+        let row = CueTable.row(for: .onTarget)
+        XCTAssertEqual(row.haptic, .onTarget)
+        XCTAssertNil(row.sound)
+        XCTAssertTrue(row.speech.isEmpty)
+        XCTAssertEqual(CueTable.rows.filter { $0.haptic == .onTarget }.map(\.key), [.onTarget])
+        XCTAssertEqual(FeedbackEvent.onTarget.key, .onTarget)
     }
 }

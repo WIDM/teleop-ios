@@ -125,7 +125,12 @@ final class Replay {
         let outputs: [ServerOutput]
     }
 
-    let model = ServerModel(config: .s4Simulator)
+    /// The recordings carry no `tool_pos`, so the replay leaves it out too.
+    let model: ServerModel = {
+        var config = ServerModelConfig.s4Simulator
+        config.reportsToolPoint = false
+        return ServerModel(config: config)
+    }()
     private(set) var windows: [String: Window] = [:]
     private var clock = 0.0
     private var socket = 0

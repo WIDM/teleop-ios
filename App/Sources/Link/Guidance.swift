@@ -12,6 +12,18 @@ struct RobotProfile: Equatable {
     /// replaces lifted the cube 1 time in 16. The scene starts with the jaws sideways (a start wrist roll of
     /// 90 degrees), so the point holds from the start pose; a scene that starts them front to back needs another.
     var toolOffset: SIMD3<Float>
+    /// Where `toolOffset` was measured: the reported point (the cube's resting centre minus `toolOffset`), robot base
+    /// frame, metres, and the measured wrist flex and roll, degrees. There the estimate is exact.
+    var offsetMeasuredAt = SIMD3<Float>(-0.002, -0.164, 0.1405)
+    var offsetMeasuredFlexDeg = 40.24
+    var offsetMeasuredRollDeg = 90.0
+    /// How far the estimate may be off elsewhere. Computed from the SO-101's description and the server's solver:
+    /// fitted never to underestimate within 6 cm across and 5 cm above the measured place, tested with tilt and turn up
+    /// to 30 degrees. +y is toward the base. Below the measured height, where the fit has no places, the rate for up
+    /// is used; outside the fitted region the bound is already over 10 mm.
+    var estimateBound = EstimateBound(
+        xMmPerCm: 2.56, plusYMmPerCm: 11.12, minusYMmPerCm: 1.80, zMmPerCm: 8.43, flexMmPerDeg: 1.65, rollMmPerDeg: 0.23
+    )
     /// Where the robot base sits in the world frame, metres. The server reports the arm in the base frame
     /// and objects in the world frame; this brings objects into the base frame.
     var baseInWorld: SIMD3<Float>
@@ -38,6 +50,7 @@ struct RobotProfile: Equatable {
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
     /// reports to 8 cm either way of where that point is after a reset (`WORKSPACE_RADIUS_M` around
     /// `initial_ee_pos_b`); this is that box moved by `toolOffset`, so it holds while the wrist keeps its start pose.
+    /// With a reported tool point the guide moves it by the measured offset instead (`ArmReading.boxShift`).
     var workspaceMin = SIMD3<Float>(-0.052383, -0.257418, -0.008015)
     var workspaceMax = SIMD3<Float>(0.107617, -0.097418, 0.151985)
     /// Height of the table surface in the robot base frame, metres (`TABLE_TOP_Z_M` minus the base height).
@@ -61,10 +74,74 @@ struct RobotProfile: Equatable {
         return constants
     }
 
-    /// Where the jaws pinch, robot base frame.
-    func toolPoint(reported arm: SIMD3<Float>) -> SIMD3<Float> { arm + toolOffset }
+    /// Where the jaws pinch, robot base frame: the server's tool point when it reports one, else the reported gripper
+    /// point plus `toolOffset`, judged by `estimateIsApproximate`. Everything that draws the pinch point gets it here.
+    /// A tool point that cannot be moved to as a `Float` (either point beyond its range) counts as not reported: the
+    /// guide's box moves by the offset, and an infinite one would leave it no size.
+    func pinchPoint(gripper: SIMD3<Float>, tool: SIMD3<Float>?, flexDeg: Double?, rollDeg: Double?) -> PinchPoint {
+        guard let tool, case let offset = tool - gripper, [offset.x, offset.y, offset.z].allSatisfy(\.isFinite) else {
+            let approximate = estimateIsApproximate(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg)
+            return PinchPoint(point: gripper + toolOffset, source: .estimated(approximate: approximate), offset: toolOffset)
+        }
+        return PinchPoint(point: tool, source: .reported, offset: offset)
+    }
+
+    /// How far the estimated pinch point may be from the true one, metres, by `estimateBound`, with the gripper point
+    /// and wrist angles of one reading. Nil without both wrist angles: a tilt alone moves the true point centimetres.
+    func estimateError(gripper: SIMD3<Float>, flexDeg: Double?, rollDeg: Double?) -> Float? {
+        guard let flexDeg, let rollDeg else { return nil }
+        let moved = (gripper - offsetMeasuredAt) * 100
+        let b = estimateBound
+        let millimetres = b.xMmPerCm * abs(moved.x) + b.plusYMmPerCm * max(moved.y, 0) + b.minusYMmPerCm * max(-moved.y, 0)
+            + b.zMmPerCm * abs(moved.z) + b.flexMmPerDeg * Float(abs(flexDeg - offsetMeasuredFlexDeg))
+            + b.rollMmPerDeg * Float(abs(rollDeg - offsetMeasuredRollDeg))
+        return millimetres / 1000
+    }
+
+    /// The estimate may be off by more than half the on-target window across: the guide draws it approximate. Half,
+    /// because a lift needed the jaws within about 1 cm in the hand sessions and the window is 6 mm. The bound
+    /// overestimates by centimetres, so it decides only this and never sizes anything.
+    func estimateIsApproximate(gripper: SIMD3<Float>, flexDeg: Double?, rollDeg: Double?) -> Bool {
+        guard let error = estimateError(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg) else { return true }
+        return error > graspTolerance.x / 2
+    }
+
     /// A world-frame position in the robot base frame.
     func inBase(world: SIMD3<Float>) -> SIMD3<Float> { world - baseInWorld }
+}
+
+/// A bound on how far an estimated pinch point is from the true one, in millimetres: so many per centimetre the
+/// reported gripper point has moved from where the offset was measured, along each axis of the robot base frame (x and
+/// z either way, +y and −y apart), plus so many per degree the wrist's flex and roll are from their measured values.
+struct EstimateBound: Equatable {
+    var xMmPerCm: Float
+    var plusYMmPerCm: Float
+    var minusYMmPerCm: Float
+    var zMmPerCm: Float
+    var flexMmPerDeg: Float
+    var rollMmPerDeg: Float
+}
+
+/// Where the pinch point of one reading came from.
+enum PinchSource: Equatable, Sendable {
+    /// The server reported it (`tool_pos`). Never approximate.
+    case reported
+    /// The reported gripper point plus the profile's `toolOffset`. `approximate`: it may be off by more than half the
+    /// on-target window, so the guide draws it hollow, says so, and never says "On target".
+    case estimated(approximate: Bool)
+
+    var isApproximate: Bool { self == .estimated(approximate: true) }
+}
+
+/// The pinch point of one reading, and how to move a gripper-link point there.
+struct PinchPoint: Equatable, Sendable {
+    var point: SIMD3<Float>
+    var source: PinchSource
+    /// From the gripper link origin to the pinch point: `tool_pos − ee_pos` of the same reading when the server reports
+    /// a tool point, else `toolOffset`. The server's command and workspace box are for the gripper link, so the guide
+    /// moves them by this to draw them for the pinch point. A measured offset is exact only while the wrist keeps its
+    /// pose: the next tilt or turn moves the jaws around the gripper link.
+    var offset: SIMD3<Float>
 }
 
 /// The phone's own directions in the world, for a phone held in portrait.

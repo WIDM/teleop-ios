@@ -120,6 +120,22 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertFalse(picture(reading(SIMD3(lo.x - 0.0005, c.y, c.z))).outside)
     }
 
+    /// With a reported tool point the box the server keeps the gripper link in is drawn moved by the measured offset.
+    func testTheBoxMovesWithTheMeasuredOffset() {
+        let shift = SIMD3<Float>(0.02, -0.01, 0.015)
+        var moved = reading(centre + shift)
+        moved.boxShift = shift
+        let p = picture(moved)
+        XCTAssertEqual(p.pinch.above.x, 0.5, accuracy: 1e-6, "the moved box is centred on the moved point")
+        XCTAssertEqual(p.pinch.above.y, 0.5, accuracy: 1e-6)
+        XCTAssertFalse(p.outside)
+        // Inside the profile's box, but nearer the base than the moved box's near face.
+        var past = reading(SIMD3(centre.x, profile.workspaceMax.y - 0.005, centre.z))
+        past.boxShift = SIMD3(0, -0.02, 0)
+        XCTAssertFalse(picture(reading(past.pinchPoint)).outside)
+        XCTAssertTrue(picture(past).outside)
+    }
+
     // MARK: Task objects
 
     func testATargetAloneAddsItsMarkAndTheGap() {
@@ -153,6 +169,45 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertFalse(tooLow.onTarget, "too far in height")
         guard case .target(_, .below(let cm)) = tooLow.lines[3] else { return XCTFail("\(tooLow.lines)") }
         XCTAssertEqual(cm, Double(tolerance.y * 1.3) * 100, accuracy: 1e-3)
+    }
+
+    /// An estimate that may be off by more than half the window is drawn hollow, says so in one line, and is never
+    /// on target, even inside the window. A reported or close estimate draws as before.
+    func testAnApproximatePinchPointIsNeverOnTarget() {
+        let inside = centre + SIMD3(profile.graspTolerance.x * 0.3, 0, 0)
+        var approximate = reading(target: inside)
+        approximate.pinchSource = .estimated(approximate: true)
+        let p = picture(approximate)
+        XCTAssertTrue(p.approximate)
+        XCTAssertFalse(p.onTarget)
+        XCTAssertFalse(p.lines.contains(.onTarget))
+        XCTAssertEqual(p.lines, [p.lines[0], .jaws(percentOpen: 60), .wrist(turnDeg: 88, tiltDeg: -4), .approximate, p.lines[4]])
+        guard case .target(let across, .level) = p.lines[4] else { return XCTFail("\(p.lines)") }
+        XCTAssertEqual(across, Double(profile.graspTolerance.x) * 30, accuracy: 1e-4)
+        XCTAssertEqual(p.pinch, picture(reading(target: inside)).pinch, "drawn where it is, at the usual size")
+        for source in [PinchSource.reported, .estimated(approximate: false)] {
+            var solid = reading(target: inside)
+            solid.pinchSource = source
+            XCTAssertFalse(picture(solid).approximate)
+            XCTAssertTrue(picture(solid).onTarget, "\(source)")
+            XCTAssertFalse(picture(solid).lines.contains(.approximate))
+        }
+        var hotel = reading()
+        hotel.pinchSource = .estimated(approximate: true)
+        XCTAssertEqual(picture(hotel).lines.last, .approximate, "said with no task objects too")
+    }
+
+    /// The on-target cue judges the same gap the read-out shows: across the table, and the pinch point's height
+    /// above the target. None without a target.
+    func testTheTargetGapIsTheOneTheReadOutShows() {
+        let p = picture(reading(target: centre + SIMD3(0.003, -0.004, -0.02)))
+        let gap = try! XCTUnwrap(p.targetGap)
+        XCTAssertEqual(gap.x, 0.005, accuracy: 1e-6)
+        XCTAssertEqual(gap.y, 0.02, accuracy: 1e-6)
+        guard case .target(let across, .above(let cm)) = p.lines.last else { return XCTFail("\(p.lines)") }
+        XCTAssertEqual(across, gap.x * 100, accuracy: 1e-6)
+        XCTAssertEqual(cm, gap.y * 100, accuracy: 1e-6)
+        XCTAssertNil(picture(reading()).targetGap)
     }
 
     func testTargetAndGoalShowBothMarksAndTheGapToTheTarget() {
@@ -214,7 +269,9 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertEqual(GuideWords.text(.onTarget), "On target")
         XCTAssertEqual(GuideWords.text(.holding), "Holding")
         XCTAssertEqual(GuideWords.text(.outside), "Outside the work area")
+        XCTAssertEqual(GuideWords.text(.approximate), "Jaw position is approximate")
         L10n.language = .zhHant
+        XCTAssertEqual(GuideWords.text(.approximate), "夾爪位置只是大概")
         XCTAssertEqual(GuideWords.text(.height(cm: 6.04)), "離桌面 6.0 公分")
         XCTAssertEqual(GuideWords.text(.jaws(percentOpen: 60)), "夾爪張開 60%")
         XCTAssertEqual(GuideWords.text(.wrist(turnDeg: 88, tiltDeg: -4)), "手腕轉 88° · 傾 -4°")
