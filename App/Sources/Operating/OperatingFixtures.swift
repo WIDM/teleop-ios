@@ -21,7 +21,10 @@ enum OperatingFixtures {
         all["moving_hotel"] = display(.moving(catchingUp: true), arm: hotel(moving: true), recorder: notRecording)
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
         all["turning"] = display(.turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
-        all["tilting_estimated"] = display(.tilting(degrees: 8, limit: 20, estimated: true), arm: task(), recorder: .unknown)
+        // A server that measures no wrist angles: the estimated pinch point cannot rule out a tilt, so it is approximate.
+        all["tilting_estimated"] = display(
+            .tilting(degrees: 8, limit: 20, estimated: true), arm: approximate(task()), recorder: .unknown
+        )
         all["opening"] = display(.opening, arm: onTarget(), recorder: armed)
         all["closing_gripped"] = display(.closing(gripped: true), mode: .keyTurns, arm: holding(), recorder: capturing)
         all["holding"] = display(.moving(catchingUp: false), arm: holding(moving: true), recorder: capturing)

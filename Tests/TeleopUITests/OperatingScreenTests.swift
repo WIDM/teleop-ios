@@ -223,6 +223,7 @@ final class OperatingScreenTests: XCTestCase {
     func testTiltingEstimated() {
         let app = render("tilting_estimated")
         XCTAssertTrue(app.staticTexts["8° of 20° · estimated"].exists)
+        XCTAssertEqual(app.element("readout.approximate").label, "Jaw position is approximate", "no measured wrist angles")
     }
 
     func testOpeningOnTarget() {
