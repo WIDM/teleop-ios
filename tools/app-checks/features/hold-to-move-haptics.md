@@ -1,27 +1,32 @@
-# F4 Hold-to-move and haptic patterns
+# Holding a control to move, and the cues that answer
 
-Holding vol+ moves the arm and releasing stops it; holding vol- closes the gripper and holding the left edge opens it, both only while held; haptics confirm state without looking.
+Nothing moves unless the operator holds a control, and it stops where it is on release. The phone answers every
+press with a cue the operator feels and hears, so the screen is rarely needed.
 
-## Sub-features
+## What the app does
 
-- F4.a vol+ down -> moving; vol+ up -> stop immediately.
-- F4.b Gripper moves only while held: vol- (or the on-screen Close button on S5) closes, the left-edge Open handle (or the Open button on S5) opens. Start of closing = 1 short pulse, start of opening = 2 short pulses. Release stops it where it is.
-- F4.c Blocked command = 3 short pulses.
-- F4.d Short pulse 60 ms on / 120 ms gap; long buzz 400/200 repeating only for E-stop, disconnect, 750 ms watchdog.
-- F4.e S5 screen fallback: on-screen hold area behaves like vol+.
+- Three control modes, chosen in Settings: Screen turns (A), Key turns (B) and Buttons. In A and B, holding the
+  upper volume key makes the arm follow the phone. In A the lower key closes the jaws, and a thumb on the screen
+  opens them (slide up) or turns and tilts the wrist (turn the phone). In B the lower key and a turn of the phone
+  turn the wrist, and the two halves of the screen close and open the jaws. Buttons mode draws a pad: arrows,
+  Open and Close, Fine and Coarse.
+- One thing at a time: after a press is taken, every other press does nothing until it is let go.
+- The cues: one tick when the arm starts to follow (go); one long buzz at a limit (end); two heavy thumps when the
+  jaws hold something (grip); two long buzzes when the phone ends the hold for the operator, because it moved faster
+  than 0.8 m/s or lost tracking (let go); three quick ticks for a press that did nothing, followed by why (no); a
+  long rattle for the emergency stop (alarm); and, with a target on the guide, a tick then a soft buzz when the jaws
+  are on it. The tutorial teaches them with the same words.
+- Opening Settings, leaving the app or losing the camera ends every hold, with its stop sent to the server.
 
-## How to get to it (user POV)
+## How to check it
 
-- From P4 Standby press the volume keys; S5 fallback via `volume_hint`.
-
-## Driving it with XCUITest / swift test
-
-Preconditions: baseline, connected, not E-stopped.
-
-- Logic: `swift test --filter HapticPatternTests` (timings) and `TeleopSessionTests` (`.gripperStart(.closed)` drains `.play(.gripperClosed)`, `.gripperStart(.open)` drains `.play(.gripperOpened)`, `.gripperEnd` stops).
-- UI: volume keys cannot be pressed by XCUITest; on CI the on-screen holds are drivable: `gripper.close` and `gripper.open` on S5, `gripper.open` on P4 (`StopFlowTests`). Real vol+/vol- needs a physical iPhone.
-
-## Gotchas
-
-- TeleopCore currently has no vol+ hold/release action and no 750 ms watchdog; F4.a and the watchdog part of F4.d are NOT verifiable yet. Report as gap, not PASS.
-- Simulator has no haptic engine; haptic proof is the command list, not feel.
+- Core: the input rules (`Input/` tests, `InputArbiterPropertyTests` with 12,000 generated cases), the pad
+  (`Buttons/` tests), the cues (`CueTableTests`, `FeedbackMonitorTests`, `OnTargetCueTests`), `HapticPatternTests`.
+- App: `OperatingLinkTests` (what each mode streams), `LiveLinkTests.testMovingThePhoneTooFastEndsTheHold` and the
+  tests around it, `LocalOperatorTests` (the wrist in each scheme, holds ended by Settings, the background and the
+  camera), and `LocalPickAndPlaceTests`, which picks up and places the task object in every mode against the local
+  server.
+- UI: `OperatingScreenTests` draws every operating state; `-recordHaptics YES` puts the haptics the app asks for in
+  a hidden element (`test.haptics`) a UI test can read.
+- By hand, on a phone: XCUITest cannot press the volume keys or move the phone, and the iPhone simulator has no
+  haptic engine, so how a cue feels and the keys themselves are checked on a real iPhone.

@@ -1,27 +1,28 @@
-# F5 STOP / E-stop reachability
+# STOP on every screen, and the way out
 
-The red STOP control is visible and tappable on every teleop screen; tapping it goes to S4 E-stopped with the long-buzz loop; Release (hold) returns to teleop. Red appears only on STOP, S4 and the lost-connection line on S1.
+STOP can always be reached, a stop is always shown while it is latched, and there is always a way out of it.
 
-## Sub-features
+## What the app does
 
-- F5.a `stop` exists and is hittable on P4, P6, S5, S1, S2, S6.
-- F5.b STOP -> S4, plays `.emergencyLoop`.
-- F5.c S4 Release (hold 1 s) -> back, cancels the loop.
-- F5.d No other red element on any page.
+- The operating screen's bottom band is STOP 急停 (`operating.stop`). Settings, Connect, the permissions screen and
+  the tutorial pages pin a STOP band to their bottom edge (`stop`).
+- STOP sends `estop` on both connections and the long buzz starts. The operating screen turns red and says
+  STOPPED, with the cause; Settings shows a STOPPED band above everything. A STOP pressed with no link up has
+  reached no robot: the screen then says Not connected, every press is answered "No link.", and the STOP goes out
+  after the next welcome unless it was released first.
+- Two ways out. Holding the top edge for 2 s resets the scene, which also releases the stop once the server confirms
+  the reset. **Release, keep scene** (`stop.release`, a one-second hold) releases the stop and leaves the scene as
+  it is; it is not offered when the server reports a recorder, which only a reset arms again.
+- While the stop is latched Settings does not offer Replay tutorial, and practice cannot start or end.
 
-## How to get to it (user POV)
+## How to check it
 
-- Any teleop screen -> STOP.
-
-## Driving it with XCUITest / swift test
-
-Preconditions: baseline, connected.
-
-- Logic: `swift test --filter TeleopSessionTests` -> `.stop` asserts `.s4` and drained `.play(.emergencyLoop)`; `.releaseStop` asserts `.cancel`.
-- UI: on each listed screen assert `app.buttons["stop"].isHittable`, tap it, expect `stop.release`, shot `NN-S4-estopped`.
-- Red check: in the Figma compare side-by-sides, review red only on STOP/S4/the S1 lost-connection line.
-
-## Gotchas
-
-- Current UI test does not tap STOP; F5 is logic-only until a UI test is added.
-- A STOP hidden under the keyboard on P7 is a FAIL.
+- Safety checker: `tools/session-safety/scripts/check.sh` proves STOP from every state, the latch, the stop always
+  shown (U1), a way out (U3) and STOP on every screen (U5) for the real session code.
+- UI: `OperatingTouchTests` (the band, Release, keep scene, Settings while stopped, the band on Settings),
+  `SettingsTests.testTheTutorialIsNotOfferedWhileStopped`, `PracticeTests.testPracticeIsRefusedWhileStoppedAndSaysWhy`.
+- App: `LiveLinkTests` (`testStopSendsEstopAndNothingMovesAfter`, `testStopGoesOutOnBothConnections`,
+  `testStopWithNoLinkIsNotPretendedAndIsSentAfterTheNextWelcome`), `ObserverTests.testStopReachesTheServerOnBothConnections`,
+  `LocalOperatorTests` (STOP during a hold and both ways out against the local server), `OperatingLinkTests`
+  (the reset that releases the stop).
+- By hand, on a phone: the long buzz itself.

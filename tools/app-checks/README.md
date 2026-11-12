@@ -1,68 +1,63 @@
----
-name: verify-teleop-ios
-description: Verify the Teleop iOS app (WIDM/teleop-ios, SwiftUI, 12 screens from Mockup v2) - the phone volume-key teleoperation app. Use before claiming any PR PASS: runs TeleopCore logic tests (swift test), fetches macOS CI xcodebuild results and simulator screenshots, compares each screen page-by-page with the Figma frames, and checks the repo is English-only.
----
+# App checks
 
-# verify-teleop-ios
+Helper scripts for checking the app outside `xcodebuild test`: they run the core tests and fetch a CI run's
+artifacts into one evidence folder outside the repository, and compare the UI tests' screenshots with the Mockup v2
+frames in Figma. The feature notes in `features/` say how to check three behaviours a person relies on, and which
+tests cover them. The test suites themselves, and what each layer can and cannot catch, are in `docs/TESTING.md`.
 
-What the app is: a phone app that teleoperates a robot arm. Hold vol+ to move, release to stop; hold vol- to close the gripper and hold the left edge of the camera view to open it (it moves only while held); haptics report state (haptics-v1 H1-H15: short pulse 60 ms on / 120 ms gap, 1-3 pulses; long buzz 400 on / 200 off reserved for E-stop, disconnect and the 750 ms watchdog). STOP is reachable on every teleop screen; red is used only for STOP, E-stop (S4) and the lost-connection line on S1. All UI text is English. Current build is fake-state only (no robot link).
+## Set up
 
-Sources of truth: Figma `inLwADDDptRo8qIw34DRqP`, page Mockup v2 `121:134`, the iOS frames at 402x874 that the app still has (`scripts/frames.tsv`); per-page acceptance points in `docs/figma-map.md` (owned by the planner, do not edit here); navigation per visual spec v1.14: every status chip -> P5, S1 Connect -> P5, S1 Back -> P5, S1 Disconnect stays on S1, P5 Change server -> S1; a fresh install opens on S2, later launches on P4.
+Needs `bash`, `git` and `python3`; `swift` for the core tests, `gh` (signed in) for CI, and Pillow and numpy for the
+screenshot compare (`pip install pillow numpy`). From the repository root, once per check:
 
-Repo layout: `Packages/TeleopCore` (pure Swift: Route, TeleopSession, HapticPattern; runs on Linux), `App/Sources` (SwiftUI), `Tests/TeleopUITests/ConnectFlowScreenshotTests.swift` (XCUITest that attaches named screenshots like `06-S1-connect`), `ci/ios.yml` -> `.github/workflows/ios.yml`.
+    export RUN_ID=$(date +%Y%m%d-%H%M%S)
+    T=tools/app-checks/scripts
+    $T/doctor.sh local     # or: $T/doctor.sh ci
 
-Two paths. Pick by host: Linux/no Xcode -> local path (logic only). UI, layout, screenshots -> CI path. Never claim a UI PASS from the local path.
+Every script writes into `$EVIDENCE_ROOT/$RUN_ID` (default `~/teleop-ios-evidence/<RUN_ID>`), so one `RUN_ID`
+keeps one check's evidence together. Builds go to `$SCRATCH` (default `/tmp/teleop-app-checks-<RUN_ID>`).
 
-All helpers are in `scripts/` relative to this file. Set `RUN_ID` once per run so evidence lands in one folder:
+## The scripts
 
-    export RUN_ID=$(date +%Y%m%d-%H%M%S); V=.cursor/skills/verify-teleop-ios/scripts
+| Script | What it does | Exit |
+|---|---|---|
+| `doctor.sh [local\|ci]` | Read-only. Prints `OK` or `FAIL` for the core package, `project.yml`, Pillow and numpy, and then `swift` (local) or `gh` sign-in, the repository and `.github/workflows/ios.yml` on the default branch (ci). | 1 if any line failed |
+| `run-core-tests.sh` | `swift test` in `Packages/TeleopCore`; the log and a one-line result go to `core/`. | 0 pass, 1 fail, 2 no `swift` (a skip, not a pass) |
+| `fetch-ci.sh [run-id]` | Waits for a run of the `ios` workflow (default: the newest on the current branch) and downloads its artifacts (`xcodebuild-log`, `screenshots`, `xcresult`) into `ci/artifacts/`, with `ci/run.json`. | the run's result |
+| `figma-compare.py --figma DIR --shots DIR --out DIR [--only S1,P5] [--threshold 0.10]` | Pairs each frame `<SCREEN_ID>.png` with the screenshot whose name holds that screen id (`06-S1-connect.png`), and writes `<SCREEN_ID>-side-by-side.png` (Figma, iPhone simulator, difference), `report.json` and `report.md`. | 0 all pages under the threshold, 1 otherwise, 2 nothing paired |
+| `frames.tsv` | Screen id, Figma node, frame name and route raw value (for `-startRoute`) of each Mockup v2 frame. | |
+| `export-figma.md` | How to export the frames from Figma without changing the file. | |
+| `check-english.sh [base-ref] [pr-number]` | Looks for Chinese, Japanese or Korean characters in commit messages since `base-ref`, in tracked files, in file names and in a pull request's title and body; results go to `english/`. | 1 if any were found |
+| `cleanup.sh [--sim <udid>]` | Removes `$SCRATCH` (only a path under `/tmp/teleop-app-checks-`) and a simulator you name; never touches the evidence, and prints where it is kept. | 1 if the evidence folder is gone |
 
-## Launch
+## Read the results
 
-Local: nothing long-running. `swift test` builds TeleopCore into `$SCRATCH` (`/tmp/verify-teleop-ios-$RUN_ID`).
+- A check passes only on the path it ran. `run-core-tests.sh` checks logic and nothing on screen; screens, layout
+  and screenshots come from CI or a local `xcodebuild test`. A skip (no `swift`, no CI) is reported as a skip with
+  its reason.
+- The compare score is the share of pixels whose largest colour difference is over 32 after the screenshot is
+  scaled to 402 x 874. The status bar's time and battery always differ, so a score says where to look; the
+  side-by-side image says what differs. `MISSING` means there is no screenshot for that screen yet, not that it
+  passed. The frames are Mockup v2; where the app has moved on from it, a difference is expected.
+- `check-english.sh` uses `grep -P`, which the `grep` that ships with macOS does not have: there every search prints
+  a usage message and reports `OK`, so run it where GNU grep is installed. It then lists every file with such
+  characters.
+  The string catalogs in `App/Resources`, the tests that check Chinese strings and `scripts/test_check_strings.py`
+  hold Traditional Chinese on purpose; only other hits are findings.
+- A result names the commit it ran on (`git rev-parse --short HEAD`) and, for CI, the run id.
 
-    $V/run-core-tests.sh        # exit 0 pass, 1 fail, 2 = swift not installed (SKIP, not PASS)
+## Changing it
 
-Mac with Xcode (optional local UI): `xcodegen generate && xcodebuild test -project Teleop.xcodeproj -scheme Teleop -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -resultBundlePath $SCRATCH/Teleop.xcresult CODE_SIGNING_ALLOWED=NO`. Any screen can be opened directly with launch argument `-startRoute <raw>` (raw values in `frames.tsv` column 4).
+- A new script sources `_common.sh` for `REPO_ROOT`, `RUN_ID`, `EVIDENCE`, `SCRATCH`, `GH_REPO` and `CORE_DIR`,
+  writes only into its own folder under `$EVIDENCE`, and exits 0 for a pass, 1 for a failure and 2 for a skip.
+- When a screen is added, removed or redrawn in Figma, update `frames.tsv` and the screen ids in
+  `figma-compare.py`, and the feature note that describes it.
+- When a behaviour in a feature note changes, change the note in the same commit as the code and its tests.
 
-CI: push the branch / open the PR; workflow `ios` (macos-15) runs check-strings, swift test, xcodegen, `xcodebuild test`, exports XCUITest attachments, uploads artifacts `xcodebuild-log`, `screenshots`, `xcresult`. Ready = run conclusion is set.
+## Feature notes
 
-    $V/fetch-ci.sh [run-id]     # waits for the run, downloads artifacts to $EVIDENCE/ci/
-
-## Doctor
-
-Read-only. Run first and whenever anything looks off.
-
-    $V/doctor.sh local          # package present, Pillow/numpy, swift on PATH
-    $V/doctor.sh ci             # gh auth, repo reachable, .github/workflows/ios.yml pushed
-
-Known blocker: pushing `.github/workflows/` needs the gh `workflow` scope, which only the owner can grant. Until then doctor ci FAILs and the CI path is unavailable; report it, do not work around it.
-
-## Drive
-
-- Logic: TeleopCore tests drive `TeleopSession.perform(_:)` with the real actions (`connect`, `s1Back`, `disconnect`, `stop`, `releaseStop`, `gripperStart`, `gripperEnd`, ...) and assert route + drained haptics. Feature files list which test covers which behavior.
-- UI: XCUITest via accessibility identifiers (stable handles; never coordinates): `status.chip`, `connection.change_server`, `connect.connect`, `connect.back`, `connect.disconnect`, `stop`, `stop.release`, `permissions.continue`, `tutorial.skip`, `standby.settings`. Screenshot names must contain the screen id token (`NN-<ID>-slug`) so the compare helper can pair them.
-- Figma page compare: export frames read-only (see `scripts/export-figma.md`) into `$EVIDENCE/figma/<ID>.png`, then
-
-      $V/figma-compare.py --figma $EVIDENCE/figma --shots $EVIDENCE/ci/artifacts/screenshots --out $EVIDENCE/compare [--only S1,P5] [--threshold 0.10]
-
-  Writes `<ID>-side-by-side.png` (Figma | simulator | diff heatmap), `report.json`, `report.md`. Score = fraction of pixels with channel delta > 32 after scaling the shot to 402x874. Status-bar time/battery always differ; treat a score as a pointer to look, then read the side-by-side against `docs/figma-map.md` acceptance points. MISSING means no screenshot for that screen yet; it is not a PASS.
-- English rule:
-
-      $V/check-english.sh origin/main [pr-number]   # any CJK in commits, PR title/body, tracked files or file names = FAIL
-
-## Evidence
-
-Everything goes to `$EVIDENCE_ROOT/$RUN_ID` (default `~/teleop-ios-evidence/<RUN_ID>`, outside the repo): `core/swift-test.log`, `core/result.txt`, `ci/run.json`, `ci/artifacts/{xcodebuild-log,screenshots,xcresult}`, `figma/<ID>.png`, `compare/*`, `english/*`.
-
-Proof standards: drive the real user path (identifiers / session actions), not internal setters; for navigation capture the screen before the tap and after; for haptics assert the drained `HapticCommand` sequence and timings, not just that "something played"; a PASS names the head SHA, the run id and the feature ids covered. A SKIP (no swift, no CI) is reported as SKIP with the reason, never as PASS. The `-startRoute` argument is for page-compare screenshots only, never as proof of navigation.
-
-## Cleanup
-
-    RUN_ID=$RUN_ID $V/cleanup.sh [--sim <udid-you-created>]
-
-Removes only `/tmp/verify-teleop-ios-$RUN_ID` and a simulator you created; never kills by process name; never deletes evidence; prints the kept evidence path and file count (FAIL if gone). CI runners are ephemeral; artifacts expire per repo retention, so the downloaded copy in evidence is the record.
-
-## Feature map
-
-See `features/README.md`. Maintain it with `/maintain-verification-skill` when screens or rules change.
+| Note | Covers |
+|---|---|
+| `features/disconnect-reconnect.md` | Disconnect from Settings, connecting again, and a link that drops by itself |
+| `features/hold-to-move-haptics.md` | Holding a control to move, one control at a time, and the cues that answer |
+| `features/stop-reachability.md` | STOP on every screen, the stopped state, and the two ways out of it |

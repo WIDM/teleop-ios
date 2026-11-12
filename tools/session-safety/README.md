@@ -1,23 +1,20 @@
----
-name: verify-session-safety
-description: Exhaustively check the teleop safety promises in TeleopSession (E-stop latch, when the arm may move, gripper and wrist gating, the stop always shown, E-stop buzz) by running the real TeleopCore code through every reachable state. Use whenever a change touches TeleopSession, FakeTeleopState, the navigator, a screen's model.send calls, or hold handling in OperatingController, and before claiming such a change is safe.
----
+# Session safety checker
 
-# verify-session-safety
+The checker proves the app's safety promises (the E-stop latch, when the arm may move, the gripper and wrist rules, the stop always shown, the E-stop buzz) by running the real `TeleopCore` code through every reachable state. Tests check the sequences someone wrote down. This check tries every action in every reachable state of the real `TeleopSession`, so it also finds orders of taps nobody thought of. There is no separate model to keep in sync: the checker imports `TeleopCore` and calls `perform`.
 
-Tests check the sequences someone wrote down. This check tries every action in every reachable state of the real `TeleopSession`, so it also finds orders of taps nobody thought of. There is no separate model to keep in sync: the checker imports `TeleopCore` and calls `perform`.
+Run it whenever a change touches `TeleopSession`, `FakeTeleopState`, the navigator, a screen's `model.send` calls or the hold handling in `OperatingController`, and before calling such a change safe.
 
 ## Run it
 
 From the repo root:
 
-    .cursor/skills/verify-session-safety/scripts/check.sh
+    tools/session-safety/scripts/check.sh
 
 Needs `swift` and `python3`. Exit 0 means only known findings. Exit 1 means a new violation, a stale finding or drift. Exit 2 means `swift` is missing, which is a skip and not a pass.
 
 After changing the checker or a guarded code path, also prove the check can still fail:
 
-    .cursor/skills/verify-session-safety/scripts/mutants.py
+    tools/session-safety/scripts/mutants.py
 
 It breaks a throwaway copy of `TeleopCore`, never the repo's files. Every line must say `CAUGHT`.
 
@@ -45,7 +42,7 @@ Replay the printed steps as `perform` calls in a `TeleopSessionTests` case.
 - If a U path uses a button the screen does not have, `ui-map.tsv` is wrong. Fix the map from the screen source.
 - If a promise itself is wrong because the product intent changed, get that decision from the project owner first. Then change the property and say so in the change description.
 
-Never weaken a property, shrink the action list, or add to `known-findings.txt` just to get a pass. Do not change product code to fix a finding unless asked.
+Never weaken a property, shrink the action list, or add to `known-findings.txt` just to get a pass. A finding is a report first: fixing the product code is a change of its own, with its own review.
 
 ## Promises checked
 
@@ -72,13 +69,13 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | U4 | The arm is moving only while connected and not latency-blocked. | Same as S6, reachable by tapping. |
 | U5 | Every teleop screen (all but S4) offers STOP. | No STOP on a teleop screen. |
 
-U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable; `verify-teleop-ios` covers that.
+U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable; the UI tests cover that (`docs/TESTING.md`).
 
 `drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4, p5, p6, p7 and s4 (`OperatingScreen`, whose rows are the same), t1 to t3 (`TutorialScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
 
 ## Scope and assumptions
 
-Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from every way the app opens: a fresh install on S2 and every later launch on P4, each on a real server or in practice (`launches` in `main.swift`). Practice starts and ends only from Connect and Settings (`toggleLiveLink`). On shipped screens every launch is tried with a server that records and one that does not: with a recorder, `AppModel` refuses Release, keep scene while stopped on the real server (§6.5), so `shippedActions` does not offer `releaseStop` there and U3 must find the way out through the reset (`resetScene`, then `sceneResetDone`).
+Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from every way the app opens: a fresh install on S2 and every later launch on P4, each on a real server or in practice (`launches` in `main.swift`). Practice starts and ends only from Connect and Settings (`toggleLiveLink`). Settings offers Replay tutorial only while the stop is not latched, as `SettingsScreen` does (`shippedActions` in `main.swift`): the tutorial pages do not show the stop, so offering it then would break U1. On shipped screens every launch is tried with a server that records and one that does not: with a recorder, `AppModel` refuses Release, keep scene while stopped on the real server (§6.5), so `shippedActions` does not offer `releaseStop` there and U3 must find the way out through the reset (`resetScene`, then `sceneResetDone`).
 
 Bounds:
 
