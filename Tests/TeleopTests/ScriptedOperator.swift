@@ -92,24 +92,26 @@ final class ScriptedOperator {
         return false
     }
 
-    /// False once the run cannot go on: the link went down, an emergency stop latched, or the server's states stopped
-    /// (`freshState`). Each fails the test once, loudly, at the step where it happened.
+    /// False once the run cannot go on: the link went down, an emergency stop latched (on the phone, or in a `state`
+    /// from either connection before the control one brings it), or the server's states stopped (`freshState`). Each
+    /// fails the test once, loudly, at the step where it happened.
     private func going() -> Bool {
         guard linkIsUp(), haltedDuring == nil else { return false }
-        guard !model.session.state.emergencyStop else {
+        guard !model.session.state.emergencyStop, model.serverState?.estop != true else {
             halt("an emergency stop latched", during: step)
             return false
         }
         return true
     }
 
-    /// Waits for a `state` less than 1 s old; the server sends one after every 200 ms of silence on either connection.
-    /// False, after failing the run, when none comes while the link stays up: steering from an old arm position, or
-    /// judging the run on an old object position, would be a guess. The wait outlasts the link's 3 s limit, so a stall
-    /// of the path ends in a fresh state or a lost link.
-    private func freshState() -> Bool {
+    /// Waits for a `state` less than 1 s old, or one that arrived after `since`; the server sends one after every
+    /// 200 ms of silence on either connection. False, after failing the run, when none comes while the link stays up:
+    /// steering from an old arm position, or judging the run on an old object position, would be a guess. The wait
+    /// outlasts the link's 3 s limit, so a stall of the path ends in a fresh state or a lost link.
+    private func freshState(arrivedAfter since: Date? = nil) -> Bool {
         guard going() else { return false }
-        let fresh = wait(5) { linkLostDuring != nil || lastStateAt.map { Date().timeIntervalSince($0) < 1 } == true }
+        let after = since ?? Date().addingTimeInterval(-1)
+        let fresh = wait(5) { linkLostDuring != nil || lastStateAt.map { $0 > after } == true }
         guard going() else { return false }
         if !fresh { halt("the server's states stopped while the link stayed up", during: step) }
         return fresh
@@ -282,14 +284,15 @@ final class ScriptedOperator {
         return off < 0.008
     }
 
-    /// Where the server reports the arm now; nil, and said why, when it cannot be known.
+    /// Where the server reports the arm now, in the newest `state` from either connection (the one `freshState` waited
+    /// for); nil, and said why, when it cannot be known.
     private func reportedArm(_ name: String) -> SIMD3<Float>? {
         guard freshState() else { return nil }
-        guard let arm = model.link.armPosition else {
-            print("PICK \(name): the server has reported no arm position. log: \(model.debugLog.suffix(3))")
+        guard let arm = model.serverState?.endEffector else {
+            print("PICK \(name): the server's newest state has no arm position. log: \(model.debugLog.suffix(3))")
             return nil
         }
-        return arm
+        return SIMD3(Float(arm.x), Float(arm.y), Float(arm.z))
     }
 
     /// One vol+ hold that moves the phone by the base-frame offset `remaining`.
@@ -386,8 +389,8 @@ final class ScriptedOperator {
     /// lower, open.
     ///
     /// It passes only on what the server reported after the jaws let go on the goal: a `state` that said
-    /// `task_success`, or a fresh `state` with the object resting inside the goal and the jaws not closed. A new
-    /// episode alone is no success. A lost link, an emergency stop or states that stopped coming fail the run at that
+    /// `task_success`, or a `state` arriving after the last wait with the object resting inside the goal and the jaws
+    /// reported open. A new episode alone is no success. A lost link, an emergency stop or states that stopped coming fail the run at that
     /// step, as do the grasp point not reached, the jaws not closing on the object and the object not lifted or not
     /// carried. Every run prints one `PICK RUN` line to check against the server's own log.
     func pickAndPlace(warmUpHolds: Int) throws {
@@ -474,11 +477,12 @@ final class ScriptedOperator {
         }
         step = "waiting for the server after the release"
         pump(4)
-        // Judged on a state that left the server after all that, not on whatever state the app kept last.
-        guard freshState(), let end = model.serverState else { return }
+        // Judged on a state that arrives after the wait, not on whatever state the app kept last: a link that went down
+        // in the wait gives none, and is caught.
+        guard freshState(arrivedAfter: Date()), let end = model.serverState else { return }
         if let at = end.object {
             inGoal =
-                end.gripper != .closed
+                end.gripper == .open
                 && Self.restsInGoal(
                     SIMD3(Float(at.x), Float(at.y), Float(at.z)), goal: goal, restingHeight: objectStart.z,
                     halfWidth: profile.goalSize / 2)
@@ -490,14 +494,15 @@ final class ScriptedOperator {
         verdict = "PASS"
     }
 
-    /// Where the server reports the task object now; nil, after failing the run, when that cannot be known.
+    /// Where the server reports the task object now, in the newest `state` from either connection; nil, after failing
+    /// the run, when that cannot be known.
     private func reportedObject(_ when: String) -> SIMD3<Float>? {
         guard freshState() else { return nil }
-        guard let object = model.link.objectPosition else {
-            XCTFail("\(mode): the server has reported no object position \(when)")
+        guard let object = model.serverState?.object else {
+            XCTFail("\(mode): the server's newest state has no object position \(when)")
             return nil
         }
-        return object
+        return SIMD3(Float(object.x), Float(object.y), Float(object.z))
     }
 
     /// The object rests inside the goal: across, within the goal's half width of its centre (world frame, as the server

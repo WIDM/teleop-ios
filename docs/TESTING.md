@@ -177,10 +177,12 @@ The same script runs in two places:
 - `LocalPickAndPlaceTests`, in every default run, once per control mode against a model that reports `tool_pos`
   and once against one that does not, against `LocalTeleopServer` stepping 60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
   reach the grasp point, the jaws do not close on the object, or the object is not lifted or leaves the jaws on the
-  way to the goal. A working link that goes down, an emergency stop on the phone, or the server's states stopping
-  while the link stays up (none for 5 s) fails the run at that step, with the app's last log lines. It passes only on
-  what the server reported after the jaws let go on the goal: a `state` with `task_success`, or a fresh `state` with
-  the object resting inside the goal and the jaws not closed. A new episode alone is no success, because the server
+  way to the goal. A working link that goes down, an emergency stop (on the phone, or in the server's `state`), or
+  the server's states stopping while the link stays up (none for 5 s) fails the run at that step, with the app's
+  last log lines. The arm and the object are read from the newest `state` on either connection, less than a second
+  old. It passes only on what the server reported after the jaws let go on the goal: a `state` with
+  `task_success`, or a `state` arriving after the last wait with the object resting inside the goal and the jaws
+  reported open; a link that goes down during that wait gives no such state and fails the run. A new episode alone is no success, because the server
   also resets when the object falls off the table. The test then checks that a success was seen, that the server's
   episode count is 1 (the scene reset once, after the success) and that the server's last `state` has no emergency
   stop. One more test runs it with a recorder on and checks that the guide, the saved take and the server's Wait
@@ -195,9 +197,9 @@ Every run prints one line, for example:
 
 It names the scheme, the server's episode before and after the run, whether a `state` said `task_success` after
 the jaws let go, how many holds the server ended while they were held (its watchdog, or a late refusal), whether
-the link was lost and during which step, and whether the server's last fresh `state` had the object resting in the
-goal. It ends in PASS only when the test passed by the script's rule, FAIL otherwise, or SKIP when the server
-reports no task. `testALinkCutAfterTheLiftFailsTheRun` cuts the network path while the object is carried and
+the link was lost and during which step, and whether the `state` that arrived after the last wait had the object
+resting in the goal with the jaws open. It ends in PASS only when the run passed by the script's rule, FAIL
+otherwise, or SKIP when the server reports no task. `testALinkCutAfterTheLiftFailsTheRun` cuts the network path while the object is carried and
 expects the run to fail for that reason.
 
 `LinkStallTests` puts a network path under both of the app's sockets that can hold every message back in both
