@@ -78,6 +78,37 @@ final class SettingsTests: XCTestCase {
         attachScreenshot("settings-lower-rows")
     }
 
+    /// After the first run the tutorial is still there: Settings opens it, and its last page comes back to the
+    /// operating screen.
+    func testTheTutorialOpensAgainFromSettingsAndComesBack() {
+        openSettings()
+        let replay = app.element("settings.replay_tutorial")
+        app.swipeUp()
+        app.swipeUp()
+        XCTAssertTrue(replay.waitForExistence(timeout: 3))
+        replay.tap()
+        expectLabel(app.element("tutorial.title"), "The two keys")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("tutorial.title"), "Thumb and turn")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
+        app.element("tutorial.next").tap()
+        expectLabel(app.element("operating.state"), "Ready")
+        XCTAssertFalse(app.element("tutorial.title").exists)
+    }
+
+    /// While the robot is stopped the tutorial is not offered: its pages do not show the stop.
+    func testTheTutorialIsNotOfferedWhileStopped() {
+        app.element("operating.stop").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+        openSettings()
+        expect(app, "settings.stopped")
+        app.swipeUp()
+        app.swipeUp()
+        expect(app, "settings.language")
+        XCTAssertFalse(app.element("settings.replay_tutorial").exists)
+    }
+
     func testFiveTapsOnTheVersionShowTheDeveloperLog() {
         openSettings()
         app.swipeUp()

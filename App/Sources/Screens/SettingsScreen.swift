@@ -31,6 +31,7 @@ struct SettingsScreen: View {
                 recording
                 server
                 practiceSection
+                tutorial
                 language
                 about
                 if versionTaps >= 5 { developer }
@@ -208,6 +209,17 @@ struct SettingsScreen: View {
             }
         } header: {
             Text("settings.practice")
+        }
+    }
+
+    /// The first-run tutorial, again. Not while the stop is latched: the tutorial pages do not show it (safety
+    /// property U1).
+    @ViewBuilder private var tutorial: some View {
+        if !model.session.state.emergencyStop {
+            Section {
+                Button { model.send(.replayTutorial) } label: { Text("settings.replay_tutorial") }
+                    .accessibilityIdentifier("settings.replay_tutorial")
+            }
         }
     }
 

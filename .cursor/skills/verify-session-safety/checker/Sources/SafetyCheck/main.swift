@@ -414,6 +414,8 @@ func shippedActions(_ node: Node) -> [String] {
     if node.session.state.liveLink { names += linkEvents.filter { !names.contains($0) } }
     // AppModel.send refuses Release, keep scene while stopped with a recorder on the real server.
     if node.recorder, node.session.state.liveLink, node.session.state.emergencyStop { names.removeAll { $0 == "releaseStop" } }
+    // SettingsScreen offers Replay tutorial only while the stop is not latched.
+    if node.session.state.emergencyStop { names.removeAll { $0 == "replayTutorial" } }
     return names
 }
 /// One of the screen's own actions, other than pressing STOP again, opens a screen that shows the stop.

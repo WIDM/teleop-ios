@@ -1713,6 +1713,22 @@
         }
       }
     },
+    "settings.replay_tutorial": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replay tutorial"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重看教學"
+          }
+        }
+      }
+    },
     "settings.server": {
       "localizations": {
         "en": {
