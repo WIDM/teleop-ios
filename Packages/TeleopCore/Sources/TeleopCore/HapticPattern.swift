@@ -65,11 +65,15 @@ public enum HapticCommand: Equatable, Sendable {
     case cancel
 }
 
-/// The six event patterns the operator feels (interaction specification §5.1), told apart by rhythm: how many,
-/// and whether each is a tick or a long buzz. Weight only reinforces it.
+/// The seven event patterns the operator feels (interaction specification §5.1, plus ON TARGET), told apart by rhythm:
+/// how many, and whether each is a tick or a long buzz. Weight only reinforces it.
 public enum Haptic: String, CaseIterable, Sendable {
     /// One crisp tick: your hold is live.
     case go
+    /// A tick, then a soft swell: the jaws are on the target the guide shows. The only rhythm that mixes a tick and a
+    /// long pulse. It opens with the tick, so its first moment never feels like a limit, and its long part is shorter,
+    /// lighter and duller than END's.
+    case onTarget
     /// Three quick ticks: your press did nothing.
     case no
     /// Two slow heavy thumps: the jaws closed on something.
@@ -88,6 +92,14 @@ public enum Haptic: String, CaseIterable, Sendable {
         switch self {
         case .go:
             return HapticPattern(pulses: [HapticPulse(startMs: 0, durationMs: 0, intensity: 0.8, sharpness: 0.9)], loopLengthMs: nil)
+        case .onTarget:
+            return HapticPattern(
+                pulses: [
+                    HapticPulse(startMs: 0, durationMs: 0, intensity: 0.8, sharpness: 0.7),
+                    HapticPulse(startMs: 110, durationMs: 240, intensity: 0.55, sharpness: 0.2),
+                ],
+                loopLengthMs: nil
+            )
         case .no:
             return HapticPattern(
                 pulses: [0, 90, 180].map { HapticPulse(startMs: $0, durationMs: 0, intensity: 1, sharpness: 1) },
@@ -113,14 +125,16 @@ public enum Haptic: String, CaseIterable, Sendable {
         }
     }
 
-    /// Higher wins the one haptic channel: ALARM > LETGO > NO > GRIP > END > GO.
+    /// Higher wins the one haptic channel: ALARM > LETGO > NO > GRIP > END > ON TARGET > GO. ON TARGET plays once per
+    /// approach, so it sits above GO, which is never dropped: GO waits for it instead.
     public var priority: Int {
         switch self {
-        case .alarm: return 6
-        case .letGo: return 5
-        case .no: return 4
-        case .grip: return 3
-        case .end: return 2
+        case .alarm: return 7
+        case .letGo: return 6
+        case .no: return 5
+        case .grip: return 4
+        case .end: return 3
+        case .onTarget: return 2
         case .go: return 1
         }
     }

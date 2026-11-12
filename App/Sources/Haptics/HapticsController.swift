@@ -10,7 +10,7 @@ protocol HapticsPlaying: AnyObject {
     func stop()
 }
 
-/// Plays the six event patterns with Core Haptics. An audio interruption (a call, Siri) stops the engine, and
+/// Plays the event patterns (`Haptic`) with Core Haptics. An audio interruption (a call, Siri) stops the engine, and
 /// Apple asks apps to restart it before the next pattern, so it is restarted when the interruption ends, from its
 /// own handlers, and before every pattern.
 final class HapticsController: HapticsPlaying {

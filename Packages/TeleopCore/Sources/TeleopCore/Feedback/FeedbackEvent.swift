@@ -71,6 +71,8 @@ public enum FeedbackEvent: Equatable, Sendable {
     case limit(Limit)
     /// E5: the jaws met something while closing.
     case contact
+    /// The guide's "On target" turned true with the jaws open (`OnTargetCue`).
+    case onTarget
     /// E3
     case letGo(LetGoReason)
     /// E7. `takeDiscarded`: a take was being captured, so the stop threw it away.
@@ -107,6 +109,7 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .refused(let refusal): return .refused(refusal)
         case .limit(let limit): return .limit(limit)
         case .contact: return .contact
+        case .onTarget: return .onTarget
         case .letGo(let reason): return .letGo(reason)
         case .emergencyStop(let cause, let discarded): return .emergencyStop(cause, takeDiscarded: discarded)
         case .linkLost(let engaged): return .linkLost(holdEngaged: engaged)
@@ -142,6 +145,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case refused(Refusal)
     case limit(Limit)
     case contact
+    case onTarget
     case letGo(LetGoReason)
     case emergencyStop(EmergencyCause, takeDiscarded: Bool)
     case linkLost(holdEngaged: Bool)
@@ -166,7 +170,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
 
     /// A key without its payload.
     enum Kind: CaseIterable {
-        case holdLive, refused, limit, contact, letGo, emergencyStop, linkLost, reconnected, serverRestarted
+        case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
         case ready, recordingSession, notRecording, notReset
     }
@@ -177,6 +181,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .refused: return .refused
         case .limit: return .limit
         case .contact: return .contact
+        case .onTarget: return .onTarget
         case .letGo: return .letGo
         case .emergencyStop: return .emergencyStop
         case .linkLost: return .linkLost
@@ -202,6 +207,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .refused: return Refusal.allCases.map(CueKey.refused)
         case .limit: return Limit.allCases.map(CueKey.limit)
         case .contact: return [.contact]
+        case .onTarget: return [.onTarget]
         case .letGo: return LetGoReason.allCases.map(CueKey.letGo)
         case .emergencyStop:
             return EmergencyCause.allCases.flatMap { cause in [false, true].map { CueKey.emergencyStop(cause, takeDiscarded: $0) } }

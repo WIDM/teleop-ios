@@ -123,6 +123,9 @@ public enum CueTable {
 
         CueRow(.contact, .grip),
 
+        // Felt only: it can come during a hold, many times a session, and the eyes stay on the arm.
+        CueRow(.onTarget, .onTarget),
+
         CueRow(.letGo(.tooFast), .letGo, say: [.tooFast], .p4),
         CueRow(.letGo(.tracking), .letGo, say: [.lostTracking], .p4),
         CueRow(.letGo(.noAnswer), .letGo, say: [.noAnswer], .p4),
