@@ -225,7 +225,7 @@ dropped. Releasing leaves the wrist where it got to. Each update is also the hol
 | Message | What the app does with it |
 |---|---|
 | `welcome` | marks the connection welcomed, keeps `session`, opens the listening connection (below) |
-| `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; `estop: true` latches the emergency stop on the phone |
+| `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; on the control connection, `estop: true` latches the emergency stop on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
 | `error` | ignored. The server sends it for a malformed message (below). |
@@ -383,8 +383,10 @@ control connection hears only the echoes of its own probes: not where the arm is
 So after the control connection's `welcome`, the app opens a second connection to the same address. It says
 `hello` (named like the control connection, followed by ` observer`) and then sends nothing but `estop` on a STOP,
 so the server sends it a `state` every 200 ms, holds included. It owns no hold, so its closing can never stop the
-robot. Its states go through the same path as the control connection's; a state that left the server earlier than
-one already handled is dropped (`LiveLinkController.stateArrived`). This is what lets the phone tell the operator,
+robot. Its states feed the guide, the operating screen's state, the feedback and the narration, like the control
+connection's; a state that left the server earlier than one already handled is dropped
+(`LiveLinkController.stateArrived`). Only a `state` on the control connection latches the emergency stop or ends a
+resync (`LiveLinkController.handle`). This is what lets the phone tell the operator,
 during the hold, that the arm is blocked, that the jaws closed on something, or that the arm reached the edge of
 its box.
 
@@ -414,7 +416,7 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `gripper` | the label of the last gripper command, not a measurement: `closed` after start or reset, `open` or `close` after a command | the phone's gripper state; the app reads `closed` and `close` the same |
 | `step` | `coarse` or `fine`, the step size of jog and move commands | not used |
 | `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; during `resetting` and `task_success` the screen says Wait and every start is refused |
-| `estop` | the emergency stop is latched | latches the stop on the phone |
+| `estop` | the emergency stop is latched | on the control connection, latches the stop on the phone |
 | `object_pos`, `goal_pos` | the task object's centre and the goal's centre, **world** frame, metres | the guide's target and goal, moved into the base frame (`RobotProfile.baseInWorld`) |
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator; the screen says Wait (Saving) meanwhile |
 | `episode` | counts scene resets of this server run | a change means the scene started over: the jaws hold nothing, and the wrist's tilt limit counts from the new start |
