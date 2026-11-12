@@ -1,5 +1,3 @@
-import simd
-
 /// When the on-target cue plays (`FeedbackEvent.onTarget`), so the operator can feel the jaws arrive on the target and
 /// keep watching the arm. Pure: time is passed in, in milliseconds.
 ///
@@ -7,10 +5,10 @@ import simd
 /// the marker is not approximate, nothing is held, the task aid is on and the jaws are open. The stop being latched
 /// keeps it silent. It is armed again only after the pinch point has left a window `rearmScale` times as large, or
 /// after a scene reset (`rearm`) or a new target (one reported after none), or after a close: when the jaws, seen
-/// closed, open again with the target still inside that larger window around where it was as they closed (a miss, or
-/// a grasp that did not lift it), wherever the jaws went meanwhile. Holding the target ends the approach. Jaws that
-/// carried the target elsewhere and let go of it, which leaves the open jaws on it, play nothing. Jaws whose state is
-/// not known neither play it nor arm it.
+/// closed, open again and the target never rose above the larger window's height over where it was as they closed (a
+/// miss, a push, or a grasp that did not lift it), wherever the jaws and the target went meanwhile. Holding the target
+/// ends the approach. Jaws that lifted the target, carried it and let go of it, which leaves the open jaws on it, play
+/// nothing. Jaws whose state is not known neither play it nor arm it.
 public struct OnTargetCue {
     public static let rearmScale = 1.5
 
@@ -50,8 +48,9 @@ public struct OnTargetCue {
     public let window: SIMD2<Double>
     private var armed = true
     private var hadTarget = false
-    /// Where the target was when the jaws were first seen closed since they were last seen open.
-    private var targetAtClose: SIMD3<Double>?
+    /// The target's height when the jaws were first seen closed since they were last seen open, and whether it has
+    /// risen past the larger window's height above that since: lifted.
+    private var closed: (height: Double, lifted: Bool)?
     /// When the cue last played.
     public private(set) var playedAtMs: Int?
 
@@ -64,23 +63,21 @@ public struct OnTargetCue {
         gap.x <= window.x && abs(gap.y) <= window.y
     }
 
-    /// From `a` to `b` as a gap: the distance across (the first two axes) and the rise (the third).
-    static func gap(from a: SIMD3<Double>, to b: SIMD3<Double>) -> SIMD2<Double> {
-        SIMD2(simd_length(SIMD2(b.x - a.x, b.y - a.y)), b.z - a.z)
-    }
-
     /// One look at the guide. True when the cue plays now.
     public mutating func observe(_ look: Look, at now: Int) -> Bool {
         defer { hadTarget = look.gap != nil }
         guard let gap = look.gap, let target = look.target else { return false }
         let wider = window * Self.rearmScale
         if !hadTarget || !Self.inside(gap, window: wider) { armed = true }
-        // Holding ends the approach, played or not; only opening on a target that stayed put arms it again.
+        // Holding ends the approach, played or not; only opening on a target that was never lifted arms it again.
         if look.holding { armed = false }
-        if look.jawsOpen == false, targetAtClose == nil { targetAtClose = target }
-        if look.jawsOpen == true, let before = targetAtClose {
-            targetAtClose = nil
-            if Self.inside(Self.gap(from: before, to: target), window: wider) { armed = true }
+        if look.jawsOpen == false {
+            let height = closed?.height ?? target.z
+            closed = (height, closed?.lifted == true || target.z - height > wider.y)
+        }
+        if look.jawsOpen == true, let close = closed {
+            closed = nil
+            if !close.lifted { armed = true }
         }
         let onTarget = Self.inside(gap, window: window) && !look.approximate && !look.holding && look.taskAid
             && look.jawsOpen == true
@@ -94,6 +91,6 @@ public struct OnTargetCue {
     /// reports no episode, on the first `state` after the reset's answer whose `ik` is not `resetting`.
     public mutating func rearm() {
         armed = true
-        targetAtClose = nil
+        closed = nil
     }
 }

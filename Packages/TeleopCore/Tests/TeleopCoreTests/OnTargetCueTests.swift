@@ -2,8 +2,8 @@ import XCTest
 @testable import TeleopCore
 
 /// When the on-target cue plays: once as "on target" turns true, never again until the pinch point has left a window
-/// half as large again, the scene reset, a target appeared, or the jaws closed and opened again on a target that stayed
-/// put.
+/// half as large again, the scene reset, a target appeared, or the jaws closed and opened again on a target they never
+/// lifted.
 final class OnTargetCueTests: XCTestCase {
     /// The S4 simulator's window: 6 mm across, 8 mm in height.
     private let window = SIMD2(0.006, 0.008)
@@ -98,8 +98,9 @@ final class OnTargetCueTests: XCTestCase {
         XCTAssertFalse(look(across: 0.001))
     }
 
-    /// Holding the target ends the approach. Jaws that carried it away and let go of it elsewhere, where the open jaws
-    /// are on it again, play nothing, whether or not it was felt on the way in; leaving the larger window arms it.
+    /// Holding the target ends the approach. Jaws that lifted it, carried it away and let go of it elsewhere, where the
+    /// open jaws are on it again, play nothing, whether or not it was felt on the way in; leaving the larger window arms
+    /// it.
     func testLettingGoOfACarriedTargetPlaysNothing() {
         for feltOnTheWayIn in [true, false] {
             setUp()
@@ -117,7 +118,7 @@ final class OnTargetCueTests: XCTestCase {
     }
 
     /// A grasp that took hold but did not lift, or one that touched the target a little off it: the jaws open again
-    /// on a target that stayed put, and arriving on it is felt.
+    /// on a target they never lifted, and arriving on it is felt.
     func testOpeningWhereAHoldingCloseHappenedArmsItAgain() {
         XCTAssertTrue(look(across: 0.002))
         XCTAssertFalse(look(across: 0.002, jawsOpen: false))
@@ -139,6 +140,20 @@ final class OnTargetCueTests: XCTestCase {
         XCTAssertFalse(look(across: 0.0, jawsOpen: false))
         XCTAssertFalse(look(across: 0.005, jawsOpen: false), "5 mm to the left, 10 mm from where they closed")
         XCTAssertTrue(look(across: 0.005), "opened on the target")
+    }
+
+    /// The closed jaws pushed the target 1 cm along the table, never 9 mm from it, and opened: no lift, so on the
+    /// target that is a new try, and it is felt. Raised 13 mm, the target counts as lifted.
+    func testAfterPushingTheTargetOpeningOnItIsFelt() {
+        XCTAssertTrue(look(across: 0.005))
+        XCTAssertFalse(look(across: 0.005, jawsOpen: false))
+        for step in 0...10 { XCTAssertFalse(look(across: 0.005, target: SIMD3(Double(step) / 1000, 0, 0), jawsOpen: false)) }
+        XCTAssertTrue(look(across: 0.005, target: SIMD3(0.01, 0, 0)), "opened on the pushed target")
+
+        XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0), jawsOpen: false))
+        XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0.013), holding: true, jawsOpen: false), "lifted")
+        XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0), jawsOpen: false), "set down where it was")
+        XCTAssertFalse(look(across: 0.003, target: SIMD3(0.01, 0, 0)), "let go of a lifted target")
     }
 
     func testASceneResetOrANewTargetArmsItAgain() {
