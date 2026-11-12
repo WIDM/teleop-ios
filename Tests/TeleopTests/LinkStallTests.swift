@@ -146,14 +146,28 @@ final class LinkStallTests: XCTestCase {
             "\(what): the screen showed \(shown)", file: file, line: line)
     }
 
-    /// While the operator still holds, the screen no longer shows the hold the server's watchdog ended.
-    private func checkTheScreenLeftTheHold(
-        _ showsTheHold: (OperatingState) -> Bool, _ what: String, file: StaticString = #filePath, line: UInt = #line
+    /// The screen shows the hold while it is live (`live`), and no longer once the server's watchdog ended it while the
+    /// operator still holds.
+    private func checkTheScreen(
+        showsTheHold live: Bool, _ showsTheHold: (OperatingState) -> Bool, _ what: String,
+        file: StaticString = #filePath, line: UInt = #line
     ) {
-        XCTAssertFalse(
-            showsTheHold(model.operating.state),
-            "\(what): the screen still shows \(model.operating.state) for a hold the server ended", file: file,
-            line: line)
+        XCTAssertEqual(
+            showsTheHold(model.operating.state), live,
+            "\(what): the screen shows \(model.operating.state) for a hold \(live ? "still live" : "the server ended")",
+            file: file, line: line)
+    }
+
+    private static func moving(_ state: OperatingState) -> Bool {
+        if case .moving = state { return true } else { return false }
+    }
+
+    private static func closing(_ state: OperatingState) -> Bool {
+        if case .closing = state { return true } else { return false }
+    }
+
+    private static func turning(_ state: OperatingState) -> Bool {
+        if case .turning = state { return true } else { return false }
     }
 
     /// Holds the path back for `seconds` while the hand goes on doing what it does, and checks that the link stays up
@@ -179,12 +193,13 @@ final class LinkStallTests: XCTestCase {
         hand.move(to: SIMD3(0, 0, -0.01), in: 0.5)
         XCTAssertTrue(hand.wait(1, until: { heldLive(1) }), "the hold did not go live")
         let index = model.cueLog.count
+        checkTheScreen(showsTheHold: true, Self.moving, "arm")
         shown = [model.operating.state]
         stall(for: 1.8, "arm")
         XCTAssertTrue(hand.wait(1, until: { !model.session.state.armMoving }), "the hold did not end")
         // What the screen shows next, while the operator still holds.
         _ = hand.wait(0.5, until: { false })
-        checkTheScreenLeftTheHold({ if case .moving = $0 { return true } else { return false } }, "arm")
+        checkTheScreen(showsTheHold: false, Self.moving, "arm")
         hand.release(.upper)
         checkTheHoldEndedAndTheLinkStayed(since: index, reason: "hold ended by server: pose_watchdog_timeout", "arm")
         print("STALL arm: the screen showed \(shownNames)")
@@ -213,12 +228,13 @@ final class LinkStallTests: XCTestCase {
         model.buttonDown(.close)
         XCTAssertTrue(hand.wait(1, until: { heldLive(live + 1) }), "the hold did not go live")
         let index = model.cueLog.count
+        checkTheScreen(showsTheHold: true, Self.closing, "gripper")
         shown = [model.operating.state]
         stall(for: 1.8, "gripper")
         XCTAssertTrue(hand.wait(1, until: { model.session.state.gripperMoving == nil }), "the hold did not end")
         // What the screen shows next, while the operator still holds.
         _ = hand.wait(0.5, until: { false })
-        checkTheScreenLeftTheHold({ if case .closing = $0 { return true } else { return false } }, "gripper")
+        checkTheScreen(showsTheHold: false, Self.closing, "gripper")
         model.buttonUp(.close)
         checkTheHoldEndedAndTheLinkStayed(
             since: index, reason: "gripper hold ended by server: gripper_jog_watchdog_timeout", "gripper")
@@ -249,12 +265,13 @@ final class LinkStallTests: XCTestCase {
         XCTAssertTrue(hand.wait(1, until: { heldLive(1) }), "the hold did not go live")
         hand.pump(1)
         let index = model.cueLog.count
+        checkTheScreen(showsTheHold: true, Self.turning, "wrist")
         shown = [model.operating.state]
         stall(for: 1.8, "wrist")
         XCTAssertTrue(hand.wait(1, until: { !model.session.state.wristMoving }), "the hold did not end")
         // What the screen shows next, while the operator still holds.
         _ = hand.wait(0.5, until: { false })
-        checkTheScreenLeftTheHold({ if case .turning = $0 { return true } else { return false } }, "wrist")
+        checkTheScreen(showsTheHold: false, Self.turning, "wrist")
         hand.touchUp(touch, x: point.x, y: point.y)
         checkTheHoldEndedAndTheLinkStayed(
             since: index, reason: "wrist hold ended by server: orient_watchdog_timeout", "wrist")
