@@ -79,8 +79,9 @@ What a person using the app notices:
 - Fixed: when the phone stalled for more than a second, the app said "Link lost." and closed the connection,
   although the server had kept sending. Silence is now counted only while the app is running.
 - Fixed: a short stall of an ordinary wireless network ended the session. The link now counts as lost only after
-  3 seconds in which the server answers nothing. A shorter stall costs the hold in progress (the server's own
-  watchdog ends it, and the phone says "Link hiccup."), not the connection, and the next press works.
+  3 seconds in which the server answers nothing, so a stall of up to about 2.5 s no longer ends the session. One
+  longer than 0.75 s costs the hold in progress (the server's own watchdog ends it, and the phone says "Link
+  hiccup."), and the next press works.
 - **Link lost** on the operating screen now says "Connect again in Settings": the app does not reconnect by itself.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the

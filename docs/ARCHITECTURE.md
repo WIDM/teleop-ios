@@ -257,8 +257,9 @@ state, and hands it to `RecorderNarrator`. Only a `state` on the control connect
 ends a resync. The link counts as lost when the socket closes, when the link is not ready (a `welcome` and a first
 `state`) within 5 s, when the control connection hears nothing for 3 s, or, while the listening connection is up,
 when neither hears anything for 3 s (`TeleopLink.staleAfterMs`, `LiveLinkController.quietLinkMs`). An ordinary
-wireless network was measured holding every message back for up to 1.8 s; a stall shorter than the limit ends only
-the hold in progress, by the server's own 0.75 s watchdog, and the app does not reconnect after a longer one.
+wireless network was measured holding every message back for up to 1.8 s. During a hold the control connection
+hears only the probe echoes, twice a second, so a stall of up to about 2.5 s keeps the link; one longer than 0.75 s
+ends the hold in progress, by the server's own watchdog. The app does not reconnect after a lost link.
 
 ## From an event to something felt or heard
 
