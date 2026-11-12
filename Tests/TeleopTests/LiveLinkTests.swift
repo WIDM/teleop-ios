@@ -1309,13 +1309,14 @@ final class LiveLinkTests: XCTestCase {
     /// A state with the gripper point at `arm`, the wrist where the offset was measured and the jaws' label, and the
     /// task object (world frame) right under the estimated pinch point of `objectUnder`, or no task object.
     private func armState(
-        _ arm: SIMD3<Double>, objectUnder: SIMD3<Double>? = nil, noObject: Bool = false, gripper: String = "open",
+        _ arm: SIMD3<Double>, objectUnder: SIMD3<Double>? = nil, noObject: Bool = false, gripper: String? = "open",
         tool: SIMD3<Double>? = nil, episode: Int = 0, estop: Bool = false
     ) -> [String: Any] {
         var state: [String: Any] = [
-            "estop": estop, "gripper": gripper, "ee_pos": [arm.x, arm.y, arm.z], "episode": episode,
+            "estop": estop, "ee_pos": [arm.x, arm.y, arm.z], "episode": episode,
             "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg, "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
         ]
+        if let gripper { state["gripper"] = gripper }
         if !noObject {
             let object = (objectUnder ?? graspArm) + SIMD3<Double>(model.profile.toolOffset + model.profile.baseInWorld)
             state["object_pos"] = [object.x, object.y, object.z]
@@ -1408,6 +1409,18 @@ final class LiveLinkTests: XCTestCase {
         observer.server("state", armState(graspArm, estop: true))
         XCTAssertEqual(feltOnTarget, 0)
         XCTAssertEqual(felt.felt, [.play(.alarm)])
+    }
+
+    /// A stop the server reports in the very state that brings the jaws onto the target, on either connection, is a
+    /// latched stop too: only the rattle.
+    func testOnTargetIsNotFeltInAStateThatReportsAStop() {
+        for onObserver in [true, false] {
+            bringUp()
+            bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+            let on = onObserver ? observer : transport!
+            on.server("state", armState(graspArm, estop: true))
+            XCTAssertEqual(feltOnTarget, 0, onObserver ? "listening connection" : "control connection")
+        }
     }
 
     /// No task object reported: nothing to be on, wherever the jaws are.

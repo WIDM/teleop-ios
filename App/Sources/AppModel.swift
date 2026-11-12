@@ -553,9 +553,11 @@ final class AppModel {
     /// Plays ON TARGET once as the guide's "On target" turns true with the jaws open, during a hold or after one.
     private func feelOnTarget(_ display: OperatingDisplay) {
         let picture = display.arm.map { GuidePicture(reading: $0, profile: profile) }
+        // A stop the server reports counts before the session has latched it: the same state may bring both.
+        let stopped = session.state.emergencyStop || serverState?.estop == true
         let look = OnTargetCue.Look(
             gap: picture?.targetGap, approximate: picture?.approximate ?? false, holding: picture?.holding ?? false,
-            taskAid: display.taskAid, jawsOpen: serverState?.gripper == .open, stopped: session.state.emergencyStop
+            taskAid: display.taskAid, jawsOpen: serverState?.gripper == .open, stopped: stopped
         )
         if onTargetCue.observe(look, at: nowMs()) { raise(.onTarget) }
     }
