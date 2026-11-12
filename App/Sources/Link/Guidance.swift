@@ -76,12 +76,14 @@ struct RobotProfile: Equatable {
 
     /// Where the jaws pinch, robot base frame: the server's tool point when it reports one, else the reported gripper
     /// point plus `toolOffset`, judged by `estimateIsApproximate`. Everything that draws the pinch point gets it here.
+    /// A tool point that cannot be moved to as a `Float` (either point beyond its range) counts as not reported: the
+    /// guide's box moves by the offset, and an infinite one would leave it no size.
     func pinchPoint(gripper: SIMD3<Float>, tool: SIMD3<Float>?, flexDeg: Double?, rollDeg: Double?) -> PinchPoint {
-        guard let tool else {
+        guard let tool, case let offset = tool - gripper, [offset.x, offset.y, offset.z].allSatisfy(\.isFinite) else {
             let approximate = estimateIsApproximate(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg)
             return PinchPoint(point: gripper + toolOffset, source: .estimated(approximate: approximate), offset: toolOffset)
         }
-        return PinchPoint(point: tool, source: .reported, offset: tool - gripper)
+        return PinchPoint(point: tool, source: .reported, offset: offset)
     }
 
     /// How far the estimated pinch point may be from the true one, metres, by `estimateBound`, with the gripper point

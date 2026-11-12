@@ -28,6 +28,18 @@ final class RobotProfileTests: XCTestCase {
         }
     }
 
+    /// A finite number too large for a `Float` arrives as infinity. A tool point or gripper point like that gives no
+    /// offset to move the box by, so the tool point counts as not reported.
+    func testAToolPointBeyondFloatRangeIsNotUsed() {
+        let profile = RobotProfile.so101Simulator
+        let gripper = SIMD3<Float>(0.02, -0.14, 0.16), tool = SIMD3<Float>(0.03, -0.17, 0.08)
+        for (g, t) in [(gripper, SIMD3(Float(1e39), -0.17, 0.08)), (SIMD3(Float(-1e39), -0.14, 0.16), tool)] {
+            let pinch = profile.pinchPoint(gripper: g, tool: t, flexDeg: 40.24, rollDeg: 90)
+            XCTAssertEqual(pinch.source, .estimated(approximate: true))
+            XCTAssertEqual(pinch.offset, profile.toolOffset)
+        }
+    }
+
     // MARK: The estimate's accuracy rule
 
     private let profile = RobotProfile.so101Simulator
