@@ -82,6 +82,8 @@ public final class TeleopLink {
     private var sentTypes: [Int: String] = [:]
     private var probes: [Int: Int] = [:]
     private var lastHeardAt: Int?
+    /// True once a stall has been taken out of the silence, until something arrives again.
+    private var stallExcused = false
     private var holdSeq: Int?
     /// The control a stop just ended, named by its start's seq, until the server's final ack says it has finished.
     private var stopping: (seq: Int, sentAtMs: Int, isPose: Bool)?
@@ -315,14 +317,23 @@ public final class TeleopLink {
     /// Forget unanswered probes. After the app was suspended their echoes would read as seconds of latency.
     public func dropProbes() {
         probes = [:]
-        if ready { lastHeardAt = now() }
+        if ready { heard() }
     }
 
     /// The app did not run for `ms` (its main thread stalled). What arrived meanwhile has not been read yet, so that
-    /// time does not count as silence, and an echo that waited through it says nothing about the round trip.
+    /// time does not count as silence, and an echo that waited through it says nothing about the round trip. Only
+    /// the first stall since the last message is excused: when nothing has arrived after it, the server is silent,
+    /// and the stalls that follow count.
     public func stalled(forMs ms: Int) {
         probes = [:]
-        if let heard = lastHeardAt { lastHeardAt = min(now(), heard + max(0, ms)) }
+        guard !stallExcused, let last = lastHeardAt else { return }
+        lastHeardAt = min(now(), last + max(0, ms))
+        stallExcused = true
+    }
+
+    private func heard() {
+        lastHeardAt = now()
+        stallExcused = false
     }
 
     /// How long since anything arrived on this connection; nil before `welcome`.
@@ -350,6 +361,7 @@ public final class TeleopLink {
         probes = [:]
         sentTypes = [:]
         lastHeardAt = nil
+        stallExcused = false
         lastStart = nil
     }
 
@@ -359,11 +371,11 @@ public final class TeleopLink {
             let type = message["type"] as? String
         else { return nil }
         let payload = message["payload"] as? [String: Any] ?? [:]
-        if welcomed { lastHeardAt = now() }
+        if welcomed { heard() }
         switch type {
         case "welcome":
             welcomed = true
-            lastHeardAt = now()
+            heard()
             serverSession = payload["session"] as? String
             return nil
         case "state":

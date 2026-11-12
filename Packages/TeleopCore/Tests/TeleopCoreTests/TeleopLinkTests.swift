@@ -905,6 +905,27 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(link.quietMs, 0, "never later than now")
     }
 
+    /// Only the first stall since the last message is excused: when nothing arrived after it, the server is silent.
+    func testAStallWithNothingHeardSinceTheLastOneIsSilence() {
+        bringUp()
+        clock += 300
+        link.stalled(forMs: 267)
+        XCTAssertEqual(link.quietMs, 33)
+        clock += 300
+        link.stalled(forMs: 267)
+        XCTAssertEqual(link.quietMs, 333, "nothing arrived after the first stall")
+        _ = server("state", ["estop": false])
+        clock += 300
+        link.stalled(forMs: 267)
+        XCTAssertEqual(link.quietMs, 33, "a message came after it")
+        for _ in 0..<7 {
+            clock += 300
+            link.stalled(forMs: 267)
+        }
+        XCTAssertEqual(link.quietMs, 2133)
+        XCTAssertTrue(link.isStale, "a stall on every tick does not hide a silent server")
+    }
+
     func testSilentServerGoesStale() {
         bringUp()
         clock += TeleopLink.staleAfterMs

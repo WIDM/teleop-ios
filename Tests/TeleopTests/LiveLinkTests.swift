@@ -1377,6 +1377,21 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertFalse(model.session.state.connected, "a 300 ms stall every second kept a silent link up")
     }
 
+    /// A main thread that stalls on every tick does not hide a server that went quiet either: only the first stall
+    /// since the last message is excused, so the link is lost 1.2 s after it.
+    func testAStallOnEveryTickDoesNotHideASilentServer() {
+        bringUp()
+        bringUpObserver()
+        var silentMs = 0
+        while model.session.state.connected, silentMs < 5000 {
+            clock += 300
+            silentMs += 300
+            model.link.tick()
+        }
+        XCTAssertFalse(model.session.state.connected)
+        XCTAssertEqual(silentMs, 1500, "1.2 s of silence after the first 300 ms stall, counted at the next tick")
+    }
+
     /// A talking listening connection does not keep a control connection alive that has heard nothing for 2 s:
     /// its commands are not getting through.
     func testAListeningConnectionThatKeepsTalkingCoversAtMost2sOfControlSilence() {
