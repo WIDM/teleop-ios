@@ -21,13 +21,17 @@ final class LocalPickAndPlaceTests: XCTestCase {
         UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
     }
 
-    private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil, toolPoint: Bool = true) throws
-    {
+    /// - Parameter path: the network path under both of the app's sockets; none when nil.
+    private func start(
+        _ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil, toolPoint: Bool = true,
+        path: StallingPath? = nil
+    ) throws {
         // Three and a half times the lab server's pace, so the script's waits shrink by about as much.
         server = LocalTeleopServer(
             config: .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint))
         try server.start()
-        hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
+        hand = ScriptedOperator(
+            address: server.address, mode: mode, smoothing: 0.3, pace: 0.3, makeTransport: path.map { $0.transport })
         // The guide, and with it the on-target cue, shows only with the task aid on, its default.
         savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
         hand.model.taskAid = true
@@ -121,6 +125,30 @@ final class LocalPickAndPlaceTests: XCTestCase {
 
     func testPickAndPlaceButtonsWithNoToolPoint() throws {
         try pickAndPlace(.buttons, toolPoint: false)
+    }
+
+    /// A link that goes down after the lift fails the run at that step. The script used to read a lost object position
+    /// as the object back at its start, which it took for a scene reset after a success, and passed. The path is cut
+    /// while the object is carried toward the goal, after the script has checked the lift, and never comes back.
+    func testALinkCutAfterTheLiftFailsTheRun() throws {
+        let path = StallingPath()
+        try start(.screenTurns, path: path)
+        let cubeStart = server.inspect { $0.world.cube }
+        hand.watch = { [unowned self] in
+            guard !path.stalled else { return }
+            let cube = server.inspect { $0.world.cube }
+            if cube.z > cubeStart.z + 0.015, cube.x > cubeStart.x + 0.01 { path.stall() }
+        }
+        let options = XCTExpectedFailure.Options()
+        options.isStrict = true
+        options.issueMatcher = { $0.compactDescription.contains("the link went down") }
+        try XCTExpectFailure("the link is cut while the object is carried", options: options) {
+            try hand.pickAndPlace(warmUpHolds: 0)
+        }
+        hand.watch = nil
+        XCTAssertTrue(path.stalled, "the object was never carried, so the path was never cut")
+        XCTAssertEqual(hand.linkLostDuring, "to the goal")
+        XCTAssertEqual(server.inspect { $0.episode }, 0, "no success: the scene never reset")
     }
 
     /// What the operating screen draws follows the server in real use, not only in fixtures: through a whole
