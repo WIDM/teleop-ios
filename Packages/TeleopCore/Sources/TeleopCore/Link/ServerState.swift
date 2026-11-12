@@ -75,8 +75,9 @@ public struct ServerState: Equatable, Sendable {
     public var activity: ServerActivity?
     /// Arm tip, task object and goal, metres; the arm in the robot base frame, the others in the world frame.
     public var endEffector: SIMD3<Double>?
-    /// `tool_pos`: the point between the jaw tips, where the centre of a held object sits, in the frame of
-    /// `endEffector`. Nil when the server does not report it: the key is missing, null, or not three finite numbers.
+    /// `tool_pos`: the grasp point, the point to put on an object's centre before the jaws close, in the frame of
+    /// `endEffector`. A held object does not stay there: the jaws squeeze it a little way up into them. Nil when the
+    /// server does not report it: the key is missing, null, or not three finite numbers.
     public var toolPoint: SIMD3<Double>?
     public var object: SIMD3<Double>?
     public var goal: SIMD3<Double>?
