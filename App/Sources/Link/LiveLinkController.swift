@@ -409,7 +409,7 @@ final class LiveLinkController {
         ticks += 1
         tickObserver()
         if !link.ready {
-            if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome from server") }
+            if nowMs() - openedAtMs > Int(Self.connectTimeout * 1000) { drop("no welcome or first state from server") }
             return
         }
         if link.isStale || bothConnectionsQuiet {
