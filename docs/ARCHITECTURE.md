@@ -233,8 +233,8 @@ or practice).
 Every `state` from either connection goes to `FeedbackMonitor` and then to `AppModel` (a state that left the server
 earlier than one already handled is dropped). `AppModel` keeps it as `serverState`, for the guide and the operating
 state, and hands it to `RecorderNarrator`. Only a `state` on the control connection latches the emergency stop or
-ends a resync. The link counts as lost when the socket closes, when no `welcome` comes
-within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up, when
+ends a resync. The link counts as lost when the socket closes, when the link is not ready
+(a `welcome` and a first `state`) within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up, when
 neither hears anything for 1.2 s.
 
 ## From an event to something felt or heard

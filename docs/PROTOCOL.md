@@ -469,7 +469,7 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
 - the operating screen goes away: Settings, Connect or the tutorial opens;
 - in buttons mode, the finger slides more than 20 pt off its button;
 - the round trip is slow twice in a row (400 ms or more);
-- the link is lost: the socket closed, no `welcome` in 5 s, or the silence above;
+- the link is lost: the socket closed, no `welcome` and first `state` within 5 s, or the silence above;
 - a resync that does not finish within 1.5 s: in that time the old hold's final ack and then a `state` without
   the emergency stop must both arrive, or the hold ends;
 - STOP.
