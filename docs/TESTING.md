@@ -155,8 +155,11 @@ A count of live runs is evidence for the release only when it is taken this way:
 1. On a Mac that is doing nothing else: no build, no other test run, no other simulator in use. A busy Mac stalls
    the app's main thread and the relay, and the count then measures the Mac.
 2. Each run's `PICK RUN` line is checked against the server's own log: a pass counts only when the server logged a
-   success for that episode. A run whose line says the link was lost is counted apart, as a lost link, with the
-   time it happened.
+   success for that episode. On a success the server prints `S4 PICK_PLACE SUCCESS {'episode': N, ...}` to its
+   console and writes a `task_success` event with the same episode to its JSON-lines log, then resets to episode
+   N + 1; N is the left-hand number of the line's `episode N -> M`. A reset for any other reason
+   (`S4 AUTO RESET ... reason=object_fallen`, or `reason=manual`) also starts a new episode and is no success. A run
+   whose line says the link was lost is counted apart, as a lost link, with the time it happened.
 3. Report how many runs were made in each scheme, how many passed by both the line and the server's log, how many
    lost the link, and the sum of the holds the server ended.
 
