@@ -304,7 +304,7 @@ Node: [`121:236`](https://www.figma.com/design/inLwADDDptRo8qIw34DRqP/?node-id=1
 - [ ] The normal latency dot is green; Change server uses neutral text with a right chevron, not blue text.
 
 Source note: Source gap: the visible Connection chip has no exported link; apply the global chip -> P5 invariant.
-Decision N1 (Kikyo, 2026-11-05): Figma links Close to P4 only because a static prototype cannot return to origin. The app must remember the origin screen. While E-stop is latched, closing P5 must never hide S4.
+Decision N1 (2026-11-05): Figma links Close to P4 only because a static prototype cannot return to origin. The app must remember the origin screen. While E-stop is latched, closing P5 must never hide S4.
 
 ## P6 High latency
 
