@@ -35,8 +35,9 @@ public final class LocalTeleopServer {
         for socket in sockets.values { socket.cancel() }
     }
 
-    /// Starts listening and returns once the port is known.
-    public func start(timeout: TimeInterval = 5) throws {
+    /// Starts listening and returns once the port is known. The listener is normally ready within milliseconds; the
+    /// generous bound is for a CI runner that stalls for many seconds at a time, where 5 s ran out.
+    public func start(timeout: TimeInterval = 30) throws {
         let parameters = NWParameters.tcp
         let webSocket = NWProtocolWebSocket.Options()
         webSocket.autoReplyPing = true
