@@ -1300,4 +1300,122 @@ final class LiveLinkTests: XCTestCase {
         for _ in 0..<5 { tick() }
         XCTAssertFalse(model.session.state.connected, "and no more")
     }
+
+    // MARK: On target is felt
+
+    /// Where the profile's offset was measured: there the estimated pinch point is exact.
+    private var graspArm: SIMD3<Double> { SIMD3(model.profile.offsetMeasuredAt) }
+
+    /// A state with the gripper point at `arm`, the wrist where the offset was measured and the jaws' label, and the
+    /// task object (world frame) right under the estimated pinch point of `objectUnder`, or no task object.
+    private func armState(
+        _ arm: SIMD3<Double>, objectUnder: SIMD3<Double>? = nil, noObject: Bool = false, gripper: String = "open",
+        tool: SIMD3<Double>? = nil, episode: Int = 0, estop: Bool = false
+    ) -> [String: Any] {
+        var state: [String: Any] = [
+            "estop": estop, "gripper": gripper, "ee_pos": [arm.x, arm.y, arm.z], "episode": episode,
+            "wrist_flex_deg": model.profile.offsetMeasuredFlexDeg, "wrist_roll_deg": model.profile.offsetMeasuredRollDeg,
+        ]
+        if !noObject {
+            let object = (objectUnder ?? graspArm) + SIMD3<Double>(model.profile.toolOffset + model.profile.baseInWorld)
+            state["object_pos"] = [object.x, object.y, object.z]
+        }
+        if let tool { state["tool_pos"] = [tool.x, tool.y, tool.z] }
+        return state
+    }
+
+    private var feltOnTarget: Int { felt.felt.filter { $0 == .play(.onTarget) }.count }
+
+    private var guide: GuidePicture? { model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile) } }
+
+    /// Felt once as the guide turns On target during a hold, from the listening connection, and not again while the
+    /// pinch point stays inside the window 1.5 times as large; after the hold, leaving that window arms it again.
+    func testOnTargetIsFeltOnceDuringAHoldAndAgainOnlyAfterLeavingTheWiderWindow() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0.02, 0.02, 0.02)))
+        model.send(.holdArmStart)
+        run(ticks: 10)
+        XCTAssertTrue(model.session.state.armMoving)
+        observer.server("state", armState(graspArm + SIMD3(0, 0, 0.02)))
+        XCTAssertEqual(feltOnTarget, 0, "2 cm above the object")
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(guide?.onTarget, true)
+        XCTAssertEqual(feltOnTarget, 1, "heard on the listening connection while the hold runs")
+        XCTAssertTrue(model.cueLog.contains { $0.event == .onTarget && $0.haptic == .onTarget && $0.sound == nil && $0.speech.isEmpty })
+        for x in [0.004, 0.0065, 0.003, 0.0085, 0.0] {
+            run(ticks: 6)
+            observer.server("state", armState(graspArm + SIMD3(x, 0, 0)))
+        }
+        model.send(.holdArmEnd)
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1, "out of the window and back, never past 9 mm: once")
+        clock += 1000
+        transport.server("state", armState(graspArm + SIMD3(0.0095, 0, 0)))
+        XCTAssertEqual(guide?.approximate, false)
+        transport.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 2, "after the hold, back from past 9 mm")
+    }
+
+    /// A close arms it again, so opening on the target after a miss is felt; a scene reset arms it again too.
+    func testACloseOrAResetArmsTheOnTargetCueAgain() {
+        bringUp()
+        bringUpObserver(armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 1)
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: "close"))
+        XCTAssertEqual(feltOnTarget, 1, "the jaws are not open")
+        clock += 1000
+        observer.server("state", armState(graspArm, gripper: "open"))
+        XCTAssertEqual(feltOnTarget, 2, "opened again on the target")
+        clock += 1000
+        observer.server("state", armState(graspArm, episode: 1))
+        XCTAssertEqual(feltOnTarget, 3, "a new episode is a scene reset")
+    }
+
+    /// 1 cm nearer the base than where the offset was measured, with the object under the estimated pinch point: the
+    /// estimate may be 11 mm off, so the marker is approximate and nothing is felt. The same place with a reported
+    /// tool point is felt.
+    func testOnTargetIsNotFeltWhileTheMarkerIsApproximate() {
+        bringUp()
+        let nearer = graspArm + SIMD3(0, 0.01, 0)
+        bringUpObserver(armState(nearer + SIMD3(0, 0, 0.03), objectUnder: nearer))
+        observer.server("state", armState(nearer, objectUnder: nearer))
+        XCTAssertEqual(guide?.approximate, true)
+        XCTAssertEqual(guide?.onTarget, false)
+        XCTAssertEqual(feltOnTarget, 0)
+        let pinch = nearer + SIMD3<Double>(model.profile.toolOffset)
+        observer.server("state", armState(nearer, objectUnder: nearer, tool: pinch))
+        XCTAssertEqual(guide?.approximate, false)
+        XCTAssertEqual(feltOnTarget, 1, "a reported tool point is never approximate")
+    }
+
+    func testOnTargetIsNotFeltWithTheTaskAidOff() {
+        let saved = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
+        defer { UserDefaults.standard.set(saved, forKey: AppModel.taskAidKey) }
+        bringUp()
+        model.taskAid = false
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+        observer.server("state", armState(graspArm))
+        XCTAssertEqual(feltOnTarget, 0)
+        model.taskAid = true
+        XCTAssertEqual(feltOnTarget, 1, "turned on with the jaws on the target: the guide turns On target now")
+    }
+
+    func testOnTargetIsNotFeltWhileTheStopIsLatched() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03)))
+        model.send(.stop)
+        observer.server("state", armState(graspArm, estop: true))
+        XCTAssertEqual(feltOnTarget, 0)
+        XCTAssertEqual(felt.felt, [.play(.alarm)])
+    }
+
+    /// No task object reported: nothing to be on, wherever the jaws are.
+    func testOnTargetIsNotFeltWithoutATarget() {
+        bringUp()
+        bringUpObserver(armState(graspArm + SIMD3(0, 0, 0.03), noObject: true))
+        observer.server("state", armState(graspArm, noObject: true))
+        XCTAssertNotNil(model.operating.arm)
+        XCTAssertEqual(feltOnTarget, 0)
+    }
 }

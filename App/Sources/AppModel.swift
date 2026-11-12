@@ -66,6 +66,8 @@ final class AppModel {
     private var taskAidSetting: Bool
     private var surfaceLayout: SurfaceLayout?
     @ObservationIgnored let profile = RobotProfile.so101Simulator
+    /// When the guide's "On target" is felt.
+    @ObservationIgnored private var onTargetCue: OnTargetCue
     /// Turns the keys, touches, the phone's attitude and the pad's buttons into commands.
     @ObservationIgnored private(set) var controller: OperatingController!
     /// The measured flex in the first state after the last reset, for the tilt window (I-8.3).
@@ -158,6 +160,7 @@ final class AppModel {
         modeSetting = mode
         handSetting = hand
         taskAidSetting = taskAid
+        onTargetCue = OnTargetCue(window: SIMD2(profile.graspTolerance))
         self.fixture = fixture
         operating = fixture ?? OperatingDisplay(
             mode: mode, hand: hand, state: .notConnected(reason: nil), layout: nil, engaged: nil,
@@ -544,6 +547,17 @@ final class AppModel {
             practice: !s.liveLink, taskAid: taskAidSetting
         )
         if operating != display { operating = display }
+        feelOnTarget(display)
+    }
+
+    /// Plays ON TARGET once as the guide's "On target" turns true with the jaws open, during a hold or after one.
+    private func feelOnTarget(_ display: OperatingDisplay) {
+        let picture = display.arm.map { GuidePicture(reading: $0, profile: profile) }
+        let look = OnTargetCue.Look(
+            gap: picture?.targetGap, approximate: picture?.approximate ?? false, holding: picture?.holding ?? false,
+            taskAid: display.taskAid, jawsOpen: serverState?.gripper == .open, stopped: session.state.emergencyStop
+        )
+        if onTargetCue.observe(look, at: nowMs()) { raise(.onTarget) }
     }
 
     private var operatingFacts: OperatingFacts {
@@ -586,6 +600,7 @@ final class AppModel {
 
     /// A reset, a new episode or a new server run: the tilt window and the wrist lead start again.
     private func sceneWasReset() {
+        onTargetCue.rearm()
         flexAtReset = nil
         flexAtResetOwed = true
         link.sceneWasReset()
@@ -620,6 +635,7 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
+        if action == .sceneResetDone { onTargetCue.rearm() }
         session.perform(action)
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)

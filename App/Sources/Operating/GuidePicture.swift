@@ -88,6 +88,9 @@ struct GuidePicture: Equatable {
     /// Never while `approximate`.
     let onTarget: Bool
     let holding: Bool
+    /// From the target to the pinch point, metres: across the table, and the pinch point's height above it. Nil
+    /// without a target.
+    let targetGap: SIMD2<Double>?
     let lines: [Line]
 
     init(reading: ArmReading, profile: RobotProfile) {
@@ -136,14 +139,18 @@ struct GuidePicture: Equatable {
         }
 
         let tolerance = SIMD2<Double>(profile.graspTolerance)
-        func compare(_ thing: SIMD3<Float>) -> (across: Double, height: Height, within: Bool) {
+        func gap(to thing: SIMD3<Float>) -> SIMD2<Double> {
             let t = Self.operatorPoint(thing)
-            let across = simd_length(SIMD2(pinchPoint.x - t.x, pinchPoint.y - t.y))
-            let rise = pinchPoint.z - t.z
+            return SIMD2(simd_length(SIMD2(pinchPoint.x - t.x, pinchPoint.y - t.y)), pinchPoint.z - t.z)
+        }
+        func compare(_ thing: SIMD3<Float>) -> (across: Double, height: Height, within: Bool) {
+            let gap = gap(to: thing)
+            let rise = gap.y
             let height: Height = abs(rise) <= tolerance.y ? .level : (rise > 0 ? .above(cm: rise * 100) : .below(cm: -rise * 100))
-            return (across, height, across <= tolerance.x && height == .level)
+            return (gap.x, height, OnTargetCue.inside(gap, window: tolerance))
         }
 
+        targetGap = reading.target.map(gap(to:))
         holding = reading.gripping && reading.target != nil
         approximate = reading.pinchSource.isApproximate
         var lines: [Line] = [.height(cm: (pinchPoint.z - table) * 100)]

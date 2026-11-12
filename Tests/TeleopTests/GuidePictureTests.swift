@@ -197,6 +197,19 @@ final class GuidePictureTests: XCTestCase {
         XCTAssertEqual(picture(hotel).lines.last, .approximate, "said with no task objects too")
     }
 
+    /// The on-target cue judges the same gap the read-out shows: across the table, and the pinch point's height
+    /// above the target. None without a target.
+    func testTheTargetGapIsTheOneTheReadOutShows() {
+        let p = picture(reading(target: centre + SIMD3(0.003, -0.004, -0.02)))
+        let gap = try! XCTUnwrap(p.targetGap)
+        XCTAssertEqual(gap.x, 0.005, accuracy: 1e-6)
+        XCTAssertEqual(gap.y, 0.02, accuracy: 1e-6)
+        guard case .target(let across, .above(let cm)) = p.lines.last else { return XCTFail("\(p.lines)") }
+        XCTAssertEqual(across, gap.x * 100, accuracy: 1e-6)
+        XCTAssertEqual(cm, gap.y * 100, accuracy: 1e-6)
+        XCTAssertNil(picture(reading()).targetGap)
+    }
+
     func testTargetAndGoalShowBothMarksAndTheGapToTheTarget() {
         let target = centre + SIMD3(0, 0.03, -0.02), goal = centre + SIMD3(0.06, 0.03, -0.02)
         let p = picture(reading(target: target, goal: goal))
