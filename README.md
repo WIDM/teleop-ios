@@ -1,57 +1,49 @@
-# Teleop iOS app (App/ + Packages/ layout)
+# Teleop iOS
 
-SwiftUI app (iOS 17+) for the phone-teleoperation thesis project. 20 Mockup v2 iOS screens (frame 402x874), fake state only. The Android counterpart lives in its own repository.
+An iPhone app that drives a robot arm, an SO-101 in Isaac Sim, through a teleoperation server on the network. It is
+made to be used mostly without looking at the screen: the volume keys, a thumb on the glass and the phone's own
+movement move the arm, the wrist and the jaws, and vibrations, sounds and speech say what happened. It shows what
+the server's recorder is doing, and it has a practice mode that needs no robot. The Android app lives in its own
+repository.
 
-## Layout
+## What it needs
 
-```
-project.yml                 XcodeGen spec (Teleop app, TeleopTests, TeleopUITests)
-Packages/TeleopCore/        pure Swift package, no UI imports
-  Sources/TeleopCore/         Route, BackStackRules, TeleopNavigator, FakeTeleopState,
-                              HapticPattern, TeleopSession (actions -> state + navigation + haptics), TeleopLink
-  Sources/TeleopServerModel/  a model of the simulator server, for tests (docs/TESTING.md)
-  Sources/TeleopServerHost/   that model on a WebSocket at 127.0.0.1, for app and UI tests
-App/Sources/                SwiftUI views, theme, Core Haptics controller, AppModel
-App/Resources/              Localizable.xcstrings, InfoPlist.xcstrings
-Tests/TeleopTests/          app unit tests, local-server tests, the scripted pick-and-place
-Tests/TeleopUITests/        XCUITest that walks P1 -> ... -> S1 -> P5 and attaches screenshots
-TestPlans/                  Default (everything but the live tests) and Live (only them)
-scripts/check-strings.py    every string key used in views exists in the catalog, and none is unused
-.github/workflows/ios.yml   macOS CI (source copy in ci/ios.yml)
-```
+- An iPhone with iOS 17 or later that supports ARKit world tracking. The volume keys work from iOS 17.2.
+- Camera access: ARKit tracks the phone with it, and iOS reports the volume keys only while the camera is in use.
+- A server on the same network that speaks the protocol in `docs/PROTOCOL.md`, at `host:port` (the port defaults to
+  8765). Without one, practice still works.
+- To build: a Mac with Xcode 16 or later and XcodeGen.
 
-## Build on a Mac
-
-Requires Xcode 16+ and XcodeGen.
+## Build, run and test
 
 ```bash
 brew install xcodegen
-xcodegen generate
+xcodegen generate            # after any change to project.yml or to the list of source files
 open Teleop.xcodeproj
 ```
 
-Choose an iPhone simulator (iPhone 16 Pro matches the 402x874 frame) and Run. Command line:
+Run on an iPhone simulator or a phone (`docs/RELEASING.md` says how to install on a phone). A simulator has neither
+a camera nor volume keys: there the phone modes cannot move the arm, and the buttons mode can.
 
 ```bash
+(cd Packages/TeleopCore && swift test)        # the core, in about half a minute, no simulator
 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' CODE_SIGNING_ALLOWED=NO
 ```
 
-The default plan needs no server: the app talks to a model of the simulator server on a local socket, and
-nothing in it touches port 8765. The `Live` plan drives the lab simulator and is run only on purpose; see
-`docs/TESTING.md` for every layer and how to run it.
+Any available iPhone simulator will do. The default plan needs no server: the tests that need one start a model of
+it on a local socket. The `Live` plan drives the real simulator and is run only on purpose.
 
-Launch any screen directly with the argument `-startRoute s1_connect` (raw values are in `Route.swift`).
+## Where things are
 
-## Core tests
-
-```bash
-cd Packages/TeleopCore
-swift test
-```
-
-The local socket host needs Network.framework, so its tests run only on a Mac.
-
-## Navigation rules
-
-Status chip -> P5. P5 "Change server" -> S1. S1 Back and Connect -> P5. S1 Disconnect -> S7. S7 Reconnect -> S1. Latency text appears only on P5 and P7.
+| Path | What it is |
+|---|---|
+| `App/` | the SwiftUI app: the operating screen, Connect, Settings, the tutorial, the link, the players |
+| `Packages/TeleopCore/` | the pure logic (session, link, input rules, feedback), a model of the server, and its socket host |
+| `Tests/` | app tests, the scripted operator, UI tests |
+| `scripts/` | the string and button checks, and tools for the live server |
+| `docs/ARCHITECTURE.md` | how the app is put together |
+| `docs/PROTOCOL.md` | every message between the app and the server |
+| `docs/TESTING.md` | the test layers and how to run each |
+| `docs/RELEASING.md` | how a version is cut and installed |
+| `CHANGELOG.md`, `STATUS.md` | what each version changed; what works and what does not |
