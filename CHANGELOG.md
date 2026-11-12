@@ -55,14 +55,14 @@ The wrist can tilt, and the guide shows how high the jaws are.
   old height bar is gone.
 - After you tilt the wrist the map no longer shows where the jaw tips are, because it was measured at the start
   tilt. The guide stops saying "On the cube" and says so instead. Press Reset to use it again.
-- The development simulator now starts with the jaws already side by side (its start wrist roll is 90
-  degrees), so the caption "Jaws sideways first" is gone there and nothing has to be turned before a grasp.
-  The app only shows that caption for a setup whose scene starts the jaws front to back.
-- Known limit, in the server as published: when a hold ends it copies the measured arm and gripper angles
-  into their targets. The arm then sinks about half a centimetre and bounces, and a cube held at the jaw
-  tips is shaken out: through the app's own code the cube was dropped in 3 of 6 runs and the task succeeded
-  1 time in 4. With the targets left as commanded (running on the development simulator since 2026-11-11)
-  there were no drops and it succeeded 10 times in 10 (seven plain runs and three after a dozen extra holds).
+- On a scene that starts with the jaws already side by side (a start wrist roll of 90 degrees), the caption
+  "Jaws sideways first" no longer shows and nothing has to be turned before a grasp. The app shows that caption
+  only for a setup whose scene starts the jaws front to back.
+- Known limit: the app expects a server that leaves the arm's targets as commanded when a hold ends. On a server
+  that copies the measured arm and gripper angles into their targets at that moment, the arm sinks about half a
+  centimetre and bounces, and a cube held at the jaw tips is shaken out: through the app's own code the cube was
+  dropped in 3 of 6 runs and the task succeeded 1 time in 4. With the targets left as commanded there were no
+  drops and it succeeded 10 times in 10 (seven plain runs and three after a dozen extra holds).
 - Why: in a hand test the jaws were closed 1 to 2 cm from the grasp point and not side by side, because
   nothing on the screen showed how high they were, the turn had to be remembered after every Reset, and the
   wrist tilt could not be moved at all. The cube, wedged between the jaws and the table, trembled by 4 to 7 mm.
@@ -91,19 +91,18 @@ The jaws can turn now, so the cube can be held.
   time in 19 and never placed it. With the jaws turned 90 degrees (side by side) it lifted the cube 8 times
   in 10, and the server counted the task done 6 times in 10. `scripts/sim_pick_place.py` repeats the
   measurement.
-- The map's grasp point is now the sideways-jaw one, measured on the S4 simulator: 0.7 cm left, 3.6 cm
+- The map's grasp point is now the sideways-jaw one, measured on the simulator: 0.7 cm left, 3.6 cm
   ahead and 8.8 cm below the point the server reports. From the start pose the cube is 2.3 cm right, 2.3 cm
   ahead and 2 cm down. A caption under the map says "Jaws sideways first: hold Turn until it stops, twice" while the cube is
   the target.
 - The whole task now passes end to end through the app's own code against the simulator
   (`ServerMotionTests.testPickAndPlaceByScript`, 135 s): open, two presses of Turn, two holds to the grasp
   point, close, lift, carry, lower, open.
-- Known limit, in the server as published: every hold lets the wrist droop a little more, about 0.2 to 0.5
-  degrees a hold (3 to 6 degrees over the 9 to 35 holds of a hand-driven attempt), because the measured,
-  sagged wrist angle is copied into the wrist target at every hold start and stop. The jaw tips then sit up
-  to a centimetre behind where the map shows them. On such a server, reach the cube in few holds and Reset
-  if it took many. With the wrist target kept as commanded (a four-line change, running on the development
-  simulator since 2026-11-11) the wrist stays within 0.2 degrees over 12 holds, and
+- Known limit: on a server that copies the measured, sagged wrist angle into the wrist target at every hold
+  start and stop, every hold lets the wrist droop a little more, about 0.2 to 0.5 degrees a hold (3 to 6
+  degrees over the 9 to 35 holds of a hand-driven attempt). The jaw tips then sit up to a centimetre behind
+  where the map shows them. On such a server, reach the cube in few holds and Reset if it took many. On a
+  server that keeps the wrist target as commanded, the wrist stays within 0.2 degrees over 12 holds, and
   `ServerMotionTests.testPickAndPlaceAfterManyHolds` passes.
 - Only one of the arm hold, the gripper hold and the jaw turn runs at a time, as on the server: starting one
   ends the other, and a turn is refused while the arm is held.
@@ -193,7 +192,7 @@ Why E-stop happens, and fewer of them.
 
 ## 0.3.0 (2026-11-10)
 
-First version driven by hand against Isaac Sim (SO-ARM101, `thomas-s4`).
+First version driven by hand against Isaac Sim (SO-ARM101).
 
 - Gripper moves only while held. vol− closes; a left-edge Open handle opens (P4, P6, S3a, S3m). S5 and S5a
   have Hold: close and Hold: open buttons. The one-shot toggle blocked the simulated arm for about 30 s.
