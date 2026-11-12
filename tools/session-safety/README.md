@@ -18,6 +18,10 @@ After changing the checker or a guarded code path, also prove the check can stil
 
 It breaks a throwaway copy of `TeleopCore`, never the repo's files. Every line must say `CAUGHT`.
 
+Last mutation run: 2026-11-13, on commit `fad5169`. 47 variants, 47 `CAUGHT`, none `MISSED`: 39 changes to
+`TeleopCore`, of which 37 must make a property fail and 2 harmless ones must leave it passing; 1 change to
+`ui-map.tsv`; 7 changes to the screens' source that `drift.py` must report.
+
 ## Read the result
 
 Each property prints one status:
@@ -109,7 +113,7 @@ Comparing whole stacks would make the state space unbounded, because `navigate` 
 
 ## Keep it in step
 
-Sync commit: `4d86bab`
+Sync commit: `fad5169`
 
 `check.sh` prints `REVIEW` for each covered file changed since that commit. Read the change, confirm that the checker, `ui-map.tsv` and the two stack arguments still describe the code, run `mutants.py`, and only then move the sync commit above to the commit you confirmed.
 
