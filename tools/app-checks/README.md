@@ -1,8 +1,8 @@
 # App checks
 
 Helper scripts for checking the app outside `xcodebuild test`: they run the core tests and fetch a CI run's
-artifacts into one evidence folder outside the repository, and compare the UI tests' screenshots with the Mockup v2
-frames in Figma. The feature notes in `features/` say how to check three behaviours a person relies on, and which
+artifacts into one evidence folder outside the repository, and compare screenshots with the Mockup v2 frames in
+Figma. The feature notes in `features/` say how to check three behaviours a person relies on, and which
 tests cover them. The test suites themselves, and what each layer can and cannot catch, are in `docs/TESTING.md`.
 
 ## Set up
@@ -24,7 +24,7 @@ keeps one check's evidence together. Builds go to `$SCRATCH` (default `/tmp/tele
 | `doctor.sh [local\|ci]` | Read-only. Prints `OK` or `FAIL` for the core package, `project.yml`, Pillow and numpy, and then `swift` (local) or `gh` sign-in, the repository and `.github/workflows/ios.yml` on the default branch (ci). | 1 if any line failed |
 | `run-core-tests.sh` | `swift test` in `Packages/TeleopCore`; the log and a one-line result go to `core/`. | 0 pass, 1 fail, 2 no `swift` (a skip, not a pass) |
 | `fetch-ci.sh [run-id]` | Waits for a run of the `ios` workflow (default: the newest on the current branch) and downloads its artifacts (`xcodebuild-log`, `screenshots`, `xcresult`) into `ci/artifacts/`, with `ci/run.json`. | the run's result |
-| `figma-compare.py --figma DIR --shots DIR --out DIR [--only S1,P5] [--threshold 0.10]` | Pairs each frame `<SCREEN_ID>.png` with the screenshot whose name holds that screen id (`06-S1-connect.png`), and writes `<SCREEN_ID>-side-by-side.png` (Figma, iPhone simulator, difference), `report.json` and `report.md`. | 0 all pages under the threshold, 1 otherwise, 2 nothing paired |
+| `figma-compare.py --figma DIR --shots DIR --out DIR [--only S1,P5] [--threshold 0.10]` | Pairs each frame `<SCREEN_ID>.png` with the screenshot whose name holds that screen id (`S6-settings.png`), and writes `<SCREEN_ID>-side-by-side.png` (Figma, iPhone simulator, difference), `report.json` and `report.md`. | 0 all pages under the threshold, 1 otherwise, 2 nothing paired |
 | `frames.tsv` | Screen id, Figma node, frame name and route raw value (for `-startRoute`) of each Mockup v2 frame. | |
 | `export-figma.md` | How to export the frames from Figma without changing the file. | |
 | `check-english.sh [base-ref] [pr-number]` | Looks for Chinese, Japanese or Korean characters in commit messages since `base-ref`, in tracked files, in file names and in a pull request's title and body; results go to `english/`. | 1 if any were found |
@@ -38,7 +38,11 @@ keeps one check's evidence together. Builds go to `$SCRATCH` (default `/tmp/tele
 - The compare score is the share of pixels whose largest colour difference is over 32 after the screenshot is
   scaled to 402 x 874. The status bar's time and battery always differ, so a score says where to look; the
   side-by-side image says what differs. `MISSING` means there is no screenshot for that screen yet, not that it
-  passed. The frames are Mockup v2; where the app has moved on from it, a difference is expected.
+  passed. The frames are Mockup v2; where the app has moved on from it, a difference is expected. The routes of P5,
+  P6, P7 and S4 open the operating screen, so those four frames always differ.
+- The UI tests name their screenshots by what they show (`ready-en-874.png`, `settings-lower-rows.png`), not by
+  screen id, so `figma-compare.py` pairs none of them as they are and exits 2. Copy the screenshots to compare into
+  a folder of their own under names that hold the screen id (`S6-settings.png`), and pass that folder as `--shots`.
 - `check-english.sh` uses `grep -P`, which the `grep` that ships with macOS does not have: there every search prints
   a usage message and reports `OK`, so run it where GNU grep is installed. It then lists every file with such
   characters.
