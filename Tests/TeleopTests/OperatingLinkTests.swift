@@ -30,6 +30,8 @@ final class OperatingLinkTests: XCTestCase {
     private var clock = 10_000
     private var model: AppModel!
     private var rotation = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
+    /// False while ARKit's tracking is limited: frames come with no camera pose.
+    private var tracking = true
     private var savedMode: String?
 
     override func setUp() {
@@ -43,11 +45,12 @@ final class OperatingLinkTests: XCTestCase {
         super.tearDown()
     }
 
-    private var camera: simd_float4x4 { simd_float4x4(rotation) * TestPose.portrait }
+    private var camera: simd_float4x4? { tracking ? simd_float4x4(rotation) * TestPose.portrait : nil }
 
     private func bringUp(_ mode: ControlMode, state: [String: Any] = [:]) {
         opened = 0
         clock = 10_000
+        tracking = true
         model = AppModel(
             start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(),
             pose: { [unowned self] in camera }, liveLink: true,
@@ -171,6 +174,61 @@ final class OperatingLinkTests: XCTestCase {
         }
         step(15)
         XCTAssertEqual(lastRoll() ?? .nan, 10, accuracy: 0.2, "only the turn after the start went out")
+        model.keyEvent(.lower, down: false)
+    }
+
+    /// A wrist start held back past the 800 ms wait goes out without the final ack. Its first update, in the same tick,
+    /// is already measured from the hold's start and bounded: the turn made while waiting is dropped, and with the
+    /// wrist reported still and no fresh state the command does not move away from it.
+    func testAWristStartHeldBackPastTheWaitGoesOutBoundedAndReanchored() {
+        bringUp(.keyTurns, state: ["wrist_roll_deg": 90.0, "wrist_flex_deg": 40.0])
+        step()
+        model.keyEvent(.upper, down: true)
+        step(2)
+        model.keyEvent(.upper, down: false)
+        step(6)
+        model.keyEvent(.lower, down: true)
+        XCTAssertFalse(transport.types.contains("orient_start"), "held back until the arm hold has finished")
+        for degrees in stride(from: Float(2), through: 20, by: 2) {
+            turn(to: degrees)
+            step()
+        }
+        // No final ack comes: the start goes out on its own after 800 ms.
+        while !transport.types.contains("orient_start") { step() }
+        let start = transport.sent.lastIndex { $0["type"] as? String == "orient_start" }!
+        let rolls = transport.sent[start...].filter { $0["type"] as? String == "orient_update" }.map { message -> Double in
+            let q = (message["payload"] as! [String: Any])["q_rel"] as! [Double]
+            return -2 * asin(q[1]) * 180 / .pi
+        }
+        XCTAssertFalse(rolls.isEmpty)
+        XCTAssertEqual(rolls.first ?? .nan, 0, accuracy: 1e-6, "the first update after the start: \(rolls)")
+        step(5)
+        XCTAssertEqual(lastRoll() ?? .nan, 0, accuracy: 1e-6, "no fresh state: the command stays with the still wrist")
+        model.keyEvent(.lower, down: false)
+    }
+
+    /// Limited tracking (frames with no camera pose) ends a wrist hold, as it ends a translation hold: the phone's
+    /// rotation is no longer known, so the wrist must not keep its last target as if it were.
+    func testLimitedTrackingEndsAWristHold() {
+        bringUp(.keyTurns, state: ["wrist_roll_deg": 90.0, "wrist_flex_deg": 40.0])
+        step()
+        model.keyEvent(.lower, down: true)
+        XCTAssertTrue(model.session.state.wristMoving)
+        for degrees in stride(from: Float(2), through: 10, by: 2) {
+            turn(to: degrees)
+            step()
+        }
+        tracking = false
+        step(3)
+        XCTAssertFalse(model.session.state.wristMoving, "the wrist hold ended")
+        XCTAssertEqual(transport.types.filter { $0 == "orient_stop" }.count, 1)
+        XCTAssertTrue(model.cueLog.contains { $0.event == .letGo(.tracking) }, "and says why")
+        let sent = transport.sent.count
+        step(10)
+        XCTAssertFalse(transport.types.dropFirst(sent).contains("orient_update"))
+        tracking = true
+        step(3)
+        XCTAssertFalse(model.session.state.wristMoving, "the key held across stays dead")
         model.keyEvent(.lower, down: false)
     }
 
@@ -398,6 +456,26 @@ final class OperatingLinkTests: XCTestCase {
         touch(1, .began, x: 200, y: bottom)
         touch(1, .ended, x: 200, y: bottom)
         XCTAssertTrue(model.cueLog.contains { $0.event == .refused(.notStopped) })
+        XCTAssertEqual(model.operating.state, .linkLost)
+    }
+
+    /// J7: while that STOP waits for the next welcome the robot is not stopped, so a press says "No link.", as the
+    /// screen does, never "Stopped.".
+    func testWhileAStopWaitsForTheLinkAPressSaysNoLink() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        transport.onClose?()
+        step()
+        let bottom = model.operating.layout!.bottomBand.y + 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        XCTAssertTrue(model.session.state.emergencyStop, "the stop stays latched until it is sent")
+        step(10)
+        model.keyEvent(.upper, down: true)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.noLink))
+        model.keyEvent(.upper, down: false)
         XCTAssertEqual(model.operating.state, .linkLost)
     }
 

@@ -69,10 +69,9 @@ final class AppModelTests: XCTestCase {
 
     func testBlockedGripperIsRefusedWithThreeTicksAndTheReason() {
         let spy = SpyHaptics(), speech = SpySpeech()
-        let model = AppModel(start: .s5, haptics: spy, speech: speech)
+        let model = AppModel(start: .p4, haptics: spy, speech: speech)
         model.session.state.markConnected()
         model.session.state.commandsBlocked = true
-        model.send(.openFallback)
         model.send(.gripperStart(.closed))
         XCTAssertEqual(spy.felt, [.play(.no)])
         XCTAssertEqual(speech.spoken, ["Slow link."])
@@ -81,7 +80,7 @@ final class AppModelTests: XCTestCase {
     func testTheDemoHoldIsLiveAtOnce() {
         let spy = SpyHaptics()
         var clock = 1000
-        let model = AppModel(start: .s5, haptics: spy, liveLink: false, nowMs: { clock })
+        let model = AppModel(start: .p4, haptics: spy, liveLink: false, nowMs: { clock })
         model.send(.holdArmStart)
         XCTAssertEqual(spy.felt, [.play(.go)])
         model.send(.holdArmEnd)
@@ -129,6 +128,24 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.cueLog.last?.event, .limit(.alreadyGripping))
     }
 
+    /// Practice runs the reset itself when the top band is held: from the stop state it releases the stop and resets
+    /// the scene, which opens the jaws, as it does outside the stop.
+    func testAPracticeResetFromTheStopStateOpensTheJaws() {
+        let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
+        model.send(.gripperStart(.closed))
+        model.send(.gripperEnd)
+        XCTAssertEqual(model.session.state.gripper, .closed)
+        model.send(.stop)
+        model.runReset()
+        XCTAssertFalse(model.session.state.emergencyStop)
+        XCTAssertEqual(model.session.state.gripper, .open)
+
+        model.send(.gripperStart(.closed))
+        model.send(.gripperEnd)
+        model.runReset()
+        XCTAssertEqual(model.session.state.gripper, .open, "and outside the stop")
+    }
+
     func testTheStopStateOffersReleaseOnTheDemo() {
         let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
         XCTAssertEqual(model.stopExits.exits, [.resetScene, .releaseKeepScene])
@@ -137,8 +154,8 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(model.gripping)
     }
 
-    func testHoldAreaStartsAndStopsArm() {
-        let model = AppModel(start: .s5, haptics: SpyHaptics(), liveLink: false)
+    func testAnArmHoldStartsAndStopsTheArm() {
+        let model = AppModel(start: .p4, haptics: SpyHaptics(), liveLink: false)
         model.session.state.markConnected()
         model.send(.holdArmStart)
         XCTAssertTrue(model.session.state.armMoving)
@@ -177,6 +194,17 @@ final class AppModelTests: XCTestCase {
     func testTheUnitTestHostDoesNotOpenTheSavedServer() {
         XCTAssertFalse(AppModel.opensSavedServerAtLaunch(), "this process is the unit-test host")
         XCTAssertTrue(AppModel.opensSavedServerAtLaunch(environment: [:]))
+    }
+
+    /// The UI tests' `-quietCues YES` and the unit-test host play nothing on the device; an app launched by a person
+    /// plays its cues.
+    func testCuesPlayOnTheDeviceOnlyOutsideTheTests() {
+        let defaults = UserDefaults(suiteName: "AppModelTests.quietCues")!
+        defer { defaults.removePersistentDomain(forName: "AppModelTests.quietCues") }
+        XCTAssertTrue(AppModel.playsCuesOnTheDevice(defaults, environment: [:]))
+        XCTAssertFalse(AppModel.playsCuesOnTheDevice(defaults), "this process is the unit-test host")
+        defaults.set(true, forKey: AppModel.quietCuesKey)
+        XCTAssertFalse(AppModel.playsCuesOnTheDevice(defaults, environment: [:]))
     }
 
     func testReachingStandbyEndsTheFirstRun() {

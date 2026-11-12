@@ -19,7 +19,7 @@ final class ManualCheckTests: XCTestCase {
 
     private func openS2WithCameraUnanswered() {
         app.resetAuthorizationStatus(for: .camera)
-        app.launchArguments = ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "s2_permissions"]
+        app.launchArguments = XCUIApplication.quiet + ["-appLanguage", "en", "-liveLink", "NO", "-startRoute", "s2_permissions"]
         app.launch()
         expect("permissions.continue")
     }

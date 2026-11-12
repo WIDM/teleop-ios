@@ -10,13 +10,13 @@ public enum BackStackRules {
         case .t2: return .t1
         case .t3: return .t2
         case .s1: return .p5
-        case .s4, .s5, .s6: return .p4
+        case .s4, .s6: return .p4
         case .s2, .p4: return nil
         }
     }
 
     /// Screens that drive the robot. Losing a live link here returns to S1.
-    public static let controlRoutes: Set<Route> = [.p4, .p6, .s5]
+    public static let controlRoutes: Set<Route> = [.p4, .p6]
 
     public static func handlesBack(_ route: Route) -> Bool {
         previous(of: route) != nil
@@ -28,13 +28,12 @@ public enum BackStackRules {
         .t1: [.t2, .p4, .p5, .s6, .s4],
         .t2: [.t3, .p4, .p5, .s4],
         .t3: [.p4, .p5, .s4],
-        .p4: [.p5, .s5, .s6, .s4, .s1],
+        .p4: [.p5, .s6, .s4, .s1],
         .p5: [.p4, .p6, .p7, .s1, .s6, .s4],
         .p6: [.p5, .p4, .s6, .s4, .s1],
         .p7: [.p5, .p4, .s6, .s4],
         .s1: [.p5, .s4],
         .s4: [.p4, .p5],
-        .s5: [.p5, .s6, .s4, .s1],
         .s6: [.p4, .t1, .s4],
     ]
 

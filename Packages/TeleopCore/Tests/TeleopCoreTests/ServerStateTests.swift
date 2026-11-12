@@ -6,7 +6,7 @@ final class ServerStateTests: XCTestCase {
         ServerState(payload: try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any])
     }
 
-    func testAPatchedServersFieldsAreRead() {
+    func testEveryStateFieldTheAppUsesIsRead() {
         let state = parse("""
         {"estop": false, "gripper": "close", "ik": "gripper_contact", "ee_pos": [0.02, -0.14, 0.16],
          "task_success": false, "episode": 3, "rec": "capturing", "rec_saved": 12, "rec_discarded": 2,

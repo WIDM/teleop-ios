@@ -18,17 +18,6 @@ final class LiveLinkController {
     static let resyncAfterMs = 1500
     /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
     static let resyncTimeoutMs = 1500
-    /// How fast the jaw turn asks the wrist to roll, and how far one press asks for. The server's target is the
-    /// joint angle when the hold began plus the roll asked for, so one press is an exact step. Two full presses make
-    /// the quarter turn a grasp needs. The server's own clamp is 60 degrees per hold.
-    static let turnDegreesPerSecond = 30.0
-    static let turnStepDegrees = 45.0
-    /// The same for the wrist pitch, in smaller steps: a tilt is a fine correction of the jaws' height.
-    /// The server's clamp is 35 degrees per hold.
-    static let tiltDegreesPerSecond = 15.0
-    static let tiltStepDegrees = 10.0
-    /// How the listening connection names itself in the server's log.
-    static let observerName = "teleop-ios/1.0.0 observer"
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
@@ -37,13 +26,8 @@ final class LiveLinkController {
 
     var onAction: ((TeleopAction) -> Void)?
     var onLog: ((String) -> Void)?
-    /// What the arm is being asked to do during a hold, as the operator sees it: metres right, forward and up.
-    /// Nil when the hold ends.
-    var onOffset: ((SIMD3<Float>?) -> Void)?
     /// True while the command is being held back so the arm can catch up.
     var onCatchingUp: ((Bool) -> Void)?
-    /// Where the cube or the goal is from the gripper; nil when the server has not said.
-    var onGuidance: ((Guidance?) -> Void)?
     /// Why the server E-stopped, just before the `stop` action is reported.
     var onServerStop: ((String) -> Void)?
     /// What the operator should feel or hear about the engaged hold and the scene reset.
@@ -57,6 +41,8 @@ final class LiveLinkController {
     /// A wrist hold's `orient_start` has just gone on the wire, perhaps after waiting behind a finishing hold.
     var onWristStartSent: (() -> Void)?
 
+    /// How the control connection names itself in the server's log; the listening one adds " observer".
+    let clientName: String
     private let makeTransport: (URL) -> LinkTransport
     private let makeObserverTransport: (URL) -> LinkTransport
     private let pose: () -> simd_float4x4?
@@ -99,11 +85,7 @@ final class LiveLinkController {
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
     private var resync: (sinceMs: Int, stopped: Bool)?
-    /// A resync found the arm had not moved while being asked to: it is at the edge of its range.
-    private var atEdge = false
     private var lastRefusal: (reason: String, atMs: Int)?
-    /// The wrist move being held: which way, and when the press began (the ramp runs from there).
-    private var turn: (direction: TurnDirection, startedMs: Int)?
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
     private var wristTarget: WristTarget?
@@ -115,21 +97,22 @@ final class LiveLinkController {
     private var buttonTarget: (() -> SIMD3<Double>?)?
     /// During a translation hold: where the reported arm point is being sent, robot base frame.
     private(set) var commandedArm: SIMD3<Float>?
-    /// The wrist was tilted since the scene was reset or the link came up. The guide's pinch point was measured
-    /// at the start pitch, so it stops meaning anything after a tilt.
-    private(set) var wristTilted = false
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
 
-    /// - Parameter makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    /// - Parameters:
+    ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    ///   - clientName: the app's name and version from its bundle; tests pass a fixed one.
     init(
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits
+        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits,
+        clientName: String = LiveLinkController.clientName()
     ) {
+        self.clientName = clientName
         self.makeTransport = makeTransport
         self.makeObserverTransport = makeObserverTransport ?? makeTransport
         self.pose = pose
@@ -150,9 +133,18 @@ final class LiveLinkController {
     var resetPending: Bool { link?.resetPending == true }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
     var armPosition: SIMD3<Float>? { Self.vector(link?.lastEndEffector) }
-    /// Task object and goal from the server's newest state, robot base frame.
-    var cubePosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
+    /// Task object and goal from the server's newest state, in the world frame (`RobotProfile.inBase` moves them into
+    /// the robot base frame).
+    var objectPosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
     var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
+
+    /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.
+    static func clientName(bundle: Bundle = .main) -> String {
+        let info = bundle.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "teleop-ios/\(version) (\(build))"
+    }
 
     /// "host", "host:port" or a full ws:// URL. Nil when it cannot be a server address.
     static func url(from address: String) -> URL? {
@@ -187,7 +179,7 @@ final class LiveLinkController {
             self.drop("socket closed")
         }
         transport.open()
-        link.hello()
+        link.hello(name: clientName)
         onLog?("link: connecting \(url.absoluteString)")
         let timer = Timer(timeInterval: 1.0 / Double(TeleopLink.poseRateHz), repeats: true) { [weak self] _ in
             self?.tick()
@@ -221,16 +213,12 @@ final class LiveLinkController {
         lastRefusal = nil
         armAtSegmentStart = nil
         resync = nil
-        atEdge = false
-        turn = nil
         wristTarget = nil
         buttonTarget = nil
         commandedArm = nil
         newestStateAtMs = nil
         newestState = nil
         leadBound = WristLeadBound()
-        wristTilted = false
-        onGuidance?(nil)
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -248,7 +236,6 @@ final class LiveLinkController {
         (holdRight, holdForward) = Self.operatorAxes(start)
         armProgress = .zero
         resync = nil
-        atEdge = false
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
         return true
@@ -267,7 +254,6 @@ final class LiveLinkController {
         holdParams = params
         armProgress = .zero
         resync = nil
-        atEdge = false
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
         return true
@@ -289,7 +275,6 @@ final class LiveLinkController {
         armAtSegmentStart = nil
         commandedArm = nil
         resync = nil
-        onOffset?(nil)
         onCatchingUp?(false)
     }
 
@@ -307,8 +292,6 @@ final class LiveLinkController {
             // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
             let moved = now - before
             armProgress += SIMD3(moved.x, moved.y, -moved.z)
-            // Asked for the full limit for a second and a half and went nowhere: the server is clamping it.
-            atEdge = simd_length(moved) < 0.005
         }
         resync = nil
         restarting = true
@@ -333,7 +316,6 @@ final class LiveLinkController {
         link?.estop()
         if observerUp { observer?.estop() }
         monitor.released()
-        turn = nil
         endWristTarget()
         holdEnded()
         return reached
@@ -347,12 +329,7 @@ final class LiveLinkController {
     /// Asks for a scene reset. False when the link cannot send one now (not ready, or a control still active).
     @discardableResult
     func resetScene() -> Bool {
-        guard link?.resetScene() == true else { return false }
-        guard wristTilted else { return true }
-        // The scene reset puts the wrist back at its start pitch.
-        wristTilted = false
-        if let arm = armPosition { publishGuidance(arm: arm) }
-        return true
+        link?.resetScene() == true
     }
 
     /// The scene was reset (an `ok scene_reset`, a new episode or a new server run): no wrist lead is left.
@@ -374,25 +351,6 @@ final class LiveLinkController {
         monitor.released(.gripper(.open))
     }
 
-    /// The wrist moves toward `direction` while its control is held, by at most `turnStepDegrees` (roll) or
-    /// `tiltStepDegrees` (pitch) from where it was when the press began. False when the move could not start.
-    func startTurn(_ direction: TurnDirection) -> Bool {
-        guard let link, link.orientStart() else { return false }
-        syncStart()
-        turn = (direction, nowMs())
-        if direction.isTilt, !wristTilted {
-            wristTilted = true
-            if let arm = armPosition { publishGuidance(arm: arm) }
-        }
-        return true
-    }
-
-    func stopTurn() {
-        link?.orientStop()
-        monitor.released(.wrist)
-        turn = nil
-    }
-
     /// A wrist hold whose angle comes from `setWristTarget`. False when the move could not start.
     func startWristHold() -> Bool {
         guard let link, link.orientStart() else { return false }
@@ -405,10 +363,6 @@ final class LiveLinkController {
     func setWristTarget(_ target: WristTarget) {
         guard wristTarget != nil else { return }
         wristTarget = target
-        if target.axis == .tilt, target.degrees != 0, !wristTilted {
-            wristTilted = true
-            if let arm = armPosition { publishGuidance(arm: arm) }
-        }
     }
 
     func stopWristHold() {
@@ -430,24 +384,20 @@ final class LiveLinkController {
 
     private func tickWrist(_ link: TeleopLink) {
         guard let target = wristTarget, link.turnActive else { return }
+        // The target is the phone's rotation; with no tracked pose that is no longer known, so the hold ends, as a
+        // translation hold does.
+        guard pose() != nil else {
+            onLog?("link: tracking lost, wrist hold ended")
+            emit(monitor.endedByApp(.tracking))
+            endWristTarget()
+            onAction?(.wristEnd)
+            return
+        }
         let age = newestStateAtMs.map { nowMs() - $0 }
         let sent = leadBound.bounded(target, measured: measuredWrist, ageMs: age)
         switch sent.axis {
         case .tilt?: link.orientUpdate(pitchDegrees: sent.degrees)
         case .turn?, nil: link.orientUpdate(rollDegrees: sent.axis == nil ? 0 : sent.degrees)
-        }
-    }
-
-    private func tickTurn(_ link: TeleopLink) {
-        guard let run = turn, link.turnActive else { return }
-        let elapsed = Double(nowMs() - run.startedMs) / 1000
-        switch run.direction {
-        case .positive, .negative:
-            let angle = min(Self.turnDegreesPerSecond * elapsed, Self.turnStepDegrees)
-            link.orientUpdate(rollDegrees: run.direction == .positive ? angle : -angle)
-        case .tiltDown, .tiltUp:
-            let angle = min(Self.tiltDegreesPerSecond * elapsed, Self.tiltStepDegrees)
-            link.orientUpdate(pitchDegrees: run.direction == .tiltDown ? angle : -angle)
         }
     }
 
@@ -465,6 +415,9 @@ final class LiveLinkController {
             return
         }
         link.service()
+        // A start held back past its wait may have just gone out: the lead bound and the input rules learn of it
+        // before this tick's wrist update is worked out.
+        syncStart()
         // Twice a second: the echo is the only thing the server sends during a hold, so it is also the heartbeat.
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
@@ -476,7 +429,6 @@ final class LiveLinkController {
             onAction?(.holdArmEnd)
             return
         }
-        tickTurn(link)
         tickWrist(link)
         syncStart()
         emit(monitor.tick(at: nowMs()))
@@ -494,11 +446,7 @@ final class LiveLinkController {
             commandedArm = target
             monitor.commanded(SIMD3(Double(target.x), Double(target.y), Double(target.z)))
         }
-        // serverOffset negates all three, so this is right, forward, up again.
-        onOffset?(-(armProgress + delta))
         onCatchingUp?(catchingUp)
-        // No arm position arrives during a hold, so guide from where the arm is being sent.
-        if let start = armAtSegmentStart { publishGuidance(arm: start + SIMD3(delta.x, delta.y, -delta.z)) }
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
         if catchingUp, now - segmentStartedMs >= Self.resyncAfterMs { beginResync() }
     }
@@ -551,9 +499,7 @@ final class LiveLinkController {
         switch event {
         case .up(let estop, let gripper):
             onLog?("link: up")
-            wristTilted = false
             onAction?(.linkUp(gripper: gripper))
-            if let arm = armPosition { publishGuidance(arm: arm) }
             if estop {
                 onServerStop?("on_connect")
                 onAction?(.stop)
@@ -562,7 +508,6 @@ final class LiveLinkController {
             if resync != nil { resync?.stopped = true }
         case .state(let estop, _):
             if let resync, resync.stopped, !estop { finishResync() }
-            if !translating, let arm = armPosition { publishGuidance(arm: arm) }
             if !estop {
                 resetSentAtMs = nil
             } else if let sent = resetSentAtMs, nowMs() - sent < 2000 {
@@ -588,15 +533,10 @@ final class LiveLinkController {
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
-            onLog?("link: jaw turn refused: \(reason)")
+            onLog?("link: wrist hold refused: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
-            turn = nil
-            if wristTarget != nil {
-                endWristTarget()
-                onAction?(.wristEnd)
-            } else {
-                onAction?(.turnEnd)
-            }
+            endWristTarget()
+            onAction?(.wristEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
             // A success is not the cause of a later emergency stop.
@@ -681,7 +621,7 @@ final class LiveLinkController {
             self.observerDropped("socket closed")
         }
         transport.open()
-        observer.hello(name: Self.observerName)
+        observer.hello(name: clientName + " observer")
     }
 
     private func handleObserver(_ text: String) {
@@ -743,16 +683,6 @@ final class LiveLinkController {
             right: Double(simd_dot(world, right)), forward: Double(simd_dot(world, forward)), up: Double(world.y)
         )
         return SIMD3(Float(offset.x), Float(offset.y), Float(offset.z))
-    }
-
-    private func publishGuidance(arm: SIMD3<Float>) {
-        guard let link, let cube = Self.vector(link.lastObject), let goal = Self.vector(link.lastGoal) else {
-            onGuidance?(nil)
-            return
-        }
-        var guidance = Guidance.make(arm: arm, cube: cube, goal: goal, gripper: link.lastGripper, wristTilted: wristTilted)
-        guidance.atEdge = atEdge && translating
-        onGuidance?(guidance)
     }
 
     private static func vector(_ values: [Double]?) -> SIMD3<Float>? {

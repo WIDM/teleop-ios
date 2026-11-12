@@ -17,13 +17,9 @@ public enum TeleopAction: Equatable, Sendable {
     case openSettings
     case settingsDone
     case replayTutorial
-    case openFallback
     /// The gripper control is pressed: travel toward open or closed until `gripperEnd`.
     case gripperStart(GripperState)
     case gripperEnd
-    /// A wrist control is pressed: the wrist rolls or pitches toward `direction` until `turnEnd`.
-    case turnStart(TurnDirection)
-    case turnEnd
     /// A wrist hold whose angle follows the phone's rotation (or another source of targets) is engaged, until
     /// `wristEnd`.
     case wristStart
@@ -121,7 +117,6 @@ public struct TeleopSession: Equatable, Sendable {
             state.emergencyStop = true
             state.armMoving = false
             state.stopGripper()
-            state.stopTurn()
             state.stopWrist()
             go(.s4)
         case .releaseStop:
@@ -138,8 +133,6 @@ public struct TeleopSession: Equatable, Sendable {
         case .replayTutorial:
             state.tutorialDone = false
             go(.t1)
-        case .openFallback:
-            go(.s5)
         case .gripperStart(let target):
             guard acceptsControl else { return }
             // H8: the arm is moving, so the gripper cannot move.
@@ -151,26 +144,12 @@ public struct TeleopSession: Equatable, Sendable {
             if state.gripperMoving != target {
                 pendingHaptics.append(.play(target == .closed ? .gripperClosed : .gripperOpened))
             }
-            // The server runs one held control at a time: the gripper takes over from a jaw turn.
-            state.stopTurn()
+            // The server runs one held control at a time: the gripper takes over from a wrist hold.
             state.stopWrist()
             state.moveGripper(toward: target)
         case .gripperEnd:
             // Release always stops, even if the session got blocked while held.
             state.stopGripper()
-        case .turnStart(let direction):
-            guard acceptsControl else { return }
-            // The arm is moving, so the jaws cannot turn.
-            guard canControl, !state.armMoving else {
-                pendingHaptics.append(.play(.commandBlocked))
-                return
-            }
-            state.stopGripper()
-            state.stopWrist()
-            state.turnJaws(toward: direction)
-        case .turnEnd:
-            // Release always stops, even if the session got blocked while held.
-            state.stopTurn()
         case .wristStart:
             guard acceptsControl else { return }
             // The arm is moving, so the wrist cannot turn.
@@ -179,7 +158,6 @@ public struct TeleopSession: Equatable, Sendable {
                 return
             }
             state.stopGripper()
-            state.stopTurn()
             state.wristMoving = true
         case .wristEnd:
             // Release always stops, even if the session got blocked while held.
@@ -190,9 +168,8 @@ public struct TeleopSession: Equatable, Sendable {
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
-            // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
+            // The server runs one held control at a time: the arm takes over from the gripper and the wrist.
             state.stopGripper()
-            state.stopTurn()
             state.stopWrist()
             state.armMoving = true
         case .holdArmEnd:
@@ -253,7 +230,6 @@ public struct TeleopSession: Equatable, Sendable {
                 state.commandsBlocked = true
                 state.armMoving = false
                 state.stopGripper()
-                state.stopTurn()
                 state.stopWrist()
                 if route == .p4 { go(.p6) }
             } else if !slow {

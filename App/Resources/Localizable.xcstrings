@@ -321,70 +321,6 @@
         }
       }
     },
-    "connection.change_server": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change server"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更換伺服器"
-          }
-        }
-      }
-    },
-    "connection.latency_high": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms, high"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms，偏高"
-          }
-        }
-      }
-    },
-    "connection.latency_none": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not measured"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未量測"
-          }
-        }
-      }
-    },
-    "connection.latency_normal": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms, normal"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ms，正常"
-          }
-        }
-      }
-    },
     "connection.server_address": {
       "localizations": {
         "en": {
@@ -685,54 +621,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "從後面看"
-          }
-        }
-      }
-    },
-    "guide.gap_above": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ cm above"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高 %@ 公分"
-          }
-        }
-      }
-    },
-    "guide.gap_below": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ cm below"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "低 %@ 公分"
-          }
-        }
-      }
-    },
-    "guide.gap_level": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "level"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等高"
           }
         }
       }
@@ -1713,6 +1601,22 @@
         }
       }
     },
+    "settings.practice_blocked_unsent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not while a STOP is waiting to reach the robot. Connect, then release the stop or reset."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "急停還沒送到機器人時不能切換。請先連線，再解除急停或重置。"
+          }
+        }
+      }
+    },
     "settings.practice_no_server": {
       "localizations": {
         "en": {
@@ -1885,6 +1789,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始練習"
+          }
+        }
+      }
+    },
+    "settings.stopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. Tap Done, then hold the top edge to reset."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。點「完成」，再按住螢幕頂端重置。"
           }
         }
       }
@@ -2269,22 +2189,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "機器人自己急停（%@）。"
-          }
-        }
-      }
-    },
-    "stop.label": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "STOP"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止"
           }
         }
       }

@@ -9,8 +9,9 @@ import TeleopCore
 ///
 /// Main queue only. Time is the uptime clock, which `UITouch.timestamp` and `ARFrame.timestamp` use too.
 final class OperatingController {
-    /// Screens where the operator drives the robot. Leaving them ends every hold (I-11).
-    static let operatingRoutes: Set<Route> = BackStackRules.controlRoutes
+    /// Every route the operating screen draws, where the operator drives the robot. Leaving them (Settings, Connect,
+    /// the tutorial) ends every hold (I-11); moving between them keeps it.
+    static let operatingRoutes: Set<Route> = RootView.operatingRoutes
 
     private unowned let model: AppModel
     let now: () -> TimeInterval

@@ -12,17 +12,16 @@ final class HeldControlsTests: XCTestCase {
         var session = session()
         XCTAssertFalse(session.state.isHolding(.holdArmStart))
         XCTAssertFalse(session.state.isHolding(.gripperStart(.open)))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.positive)))
+        XCTAssertFalse(session.state.isHolding(.wristStart))
 
-        session.perform(.turnStart(.positive))
-        XCTAssertTrue(session.state.isHolding(.turnStart(.positive)))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.negative)))
+        session.perform(.wristStart)
+        XCTAssertTrue(session.state.isHolding(.wristStart))
         XCTAssertFalse(session.state.isHolding(.gripperStart(.open)))
 
         session.perform(.gripperStart(.open))
         XCTAssertTrue(session.state.isHolding(.gripperStart(.open)))
         XCTAssertFalse(session.state.isHolding(.gripperStart(.closed)))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.positive)))
+        XCTAssertFalse(session.state.isHolding(.wristStart))
 
         session.perform(.holdArmStart)
         XCTAssertTrue(session.state.isHolding(.holdArmStart))
@@ -36,23 +35,12 @@ final class HeldControlsTests: XCTestCase {
         XCTAssertFalse(session.state.isHolding(.wristStart))
     }
 
-    func testATurnTakenOverByTheOtherDirectionIsNotHeldByTheFirstControl() {
+    func testAGripperTakenOverByTheOtherDirectionIsNotHeldByTheFirstControl() {
         var session = session()
-        session.perform(.turnStart(.positive))
-        session.perform(.turnStart(.negative))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.positive)))
-        XCTAssertTrue(session.state.isHolding(.turnStart(.negative)))
-    }
-
-    func testATiltIsHeldOnlyByItsOwnDirection() {
-        var session = session()
-        session.perform(.turnStart(.tiltDown))
-        XCTAssertTrue(session.state.isHolding(.turnStart(.tiltDown)))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.tiltUp)))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.positive)))
-        session.perform(.turnStart(.tiltUp))
-        XCTAssertFalse(session.state.isHolding(.turnStart(.tiltDown)))
-        XCTAssertTrue(session.state.isHolding(.turnStart(.tiltUp)))
+        session.perform(.gripperStart(.open))
+        session.perform(.gripperStart(.closed))
+        XCTAssertFalse(session.state.isHolding(.gripperStart(.open)))
+        XCTAssertTrue(session.state.isHolding(.gripperStart(.closed)))
     }
 
     func testActionsThatAreNotStartsAreNeverHeld() {

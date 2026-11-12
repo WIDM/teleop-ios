@@ -29,7 +29,7 @@ private final class Wire {
             },
             now: { [unowned self] in Int((time * 1000).rounded()) }
         )
-        link.hello()
+        link.hello(name: "test")
         run(0.5)
     }
 

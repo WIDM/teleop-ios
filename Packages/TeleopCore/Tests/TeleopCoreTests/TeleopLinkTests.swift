@@ -26,7 +26,7 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     private func bringUp(estop: Bool = false) {
-        link.hello()
+        link.hello(name: "test")
         _ = server("welcome")
         _ = server("state", ["estop": estop, "gripper": "closed"])
     }
@@ -46,7 +46,7 @@ final class TeleopLinkTests: XCTestCase {
     private let params = PoseParams(gain: 1, smoothing: 0.3)
 
     func testHelloThenWelcomeAndStateMakesTheLinkReady() {
-        link.hello()
+        link.hello(name: "test")
         XCTAssertEqual(sent[0]["v"] as? Int, 1)
         XCTAssertEqual((sent[0]["payload"] as? [String: String])?["client"], "phone")
         XCTAssertNil(server("welcome"))
@@ -57,7 +57,7 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     func testBothServerSpellingsOfAClosedGripperAreRead() {
-        link.hello()
+        link.hello(name: "test")
         _ = server("welcome")
         XCTAssertEqual(server("state", ["estop": false, "gripper": "close"]), .up(estop: false, gripper: .closed))
         XCTAssertEqual(server("state", ["estop": false, "gripper": "closed"]), .state(estop: false, gripper: .closed))
@@ -637,6 +637,23 @@ final class TeleopLinkTests: XCTestCase {
         link.orientUpdate(rollDegrees: 10)
         XCTAssertEqual(types.suffix(2), ["orient_start", "orient_update"])
         XCTAssertEqual(types.filter { $0 == "orient_start" }.count, 2)
+    }
+
+    /// The owner's tick services the link before it sends updates, so it can learn of a start that went out on its own
+    /// (`lastStart`) before working out the first update for it.
+    func testServiceSendsAHeldBackStartOnceTheWaitIsOver() {
+        bringUp()
+        link.orientStart()
+        link.orientStop()
+        link.orientStart()
+        clock += TeleopLink.finishWaitMs - 1
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["orient_start", "orient_stop"])
+        clock += 1
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["orient_stop", "orient_start"])
+        XCTAssertEqual(link.lastStart?.kind, .wrist)
+        XCTAssertEqual(link.lastStart?.seq, sent.last?["seq"] as? Int)
     }
 
     func testTheWaitIsTimedFromTheStopAndAHeldBackGripperStartIsReleasedByKeepalive() {

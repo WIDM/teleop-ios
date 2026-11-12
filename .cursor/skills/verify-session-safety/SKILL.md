@@ -1,6 +1,6 @@
 ---
 name: verify-session-safety
-description: Exhaustively check the teleop safety promises in TeleopSession (E-stop latch, when the arm may move, gripper gating, S4 visibility, E-stop buzz) by running the real TeleopCore code through every reachable state. Use whenever a change touches TeleopSession, FakeTeleopState, the navigator, a screen's model.send calls, or arm-hold handling, and before claiming such a change is safe.
+description: Exhaustively check the teleop safety promises in TeleopSession (E-stop latch, when the arm may move, gripper and wrist gating, the stop always shown, E-stop buzz) by running the real TeleopCore code through every reachable state. Use whenever a change touches TeleopSession, FakeTeleopState, the navigator, a screen's model.send calls, or hold handling in OperatingController, and before claiming such a change is safe.
 ---
 
 # verify-session-safety
@@ -35,7 +35,7 @@ Each property prints one status:
 Two groups of properties:
 
 - **S properties, every action in every state.** The session rules on their own. They guard paths that do not go through today's screens, such as volume keys and a real link.
-- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus what `RootView` sends from any route: `holdArmEnd` while the arm is moving; and the end action of whatever is held (the release of that input). Leaving the operating screens (`BackStackRules.controlRoutes`: P4, P6, S5) ends an arm hold, a gripper hold and a wrist hold, as `OperatingController` does for the keys, the touches and the pad; moving between them keeps those holds. A jaw turn, which only an on-screen handle runs, ends on any route change, as `HeldControlModifier.onDisappear` does. `ArmHoldModifier` and `HeldControlModifier` also end the handles' arm and gripper holds on any route change, but the checker cannot tell who started a hold, so it models only the narrower rule. A U failure is reachable by a user tapping today.
+- **U properties, shipped screens only.** Only the actions each screen can send, from `ui-map.tsv`, plus, from any route, the end action of whatever is held: the release of that input, or the hold ending because the app left the active state (`AppModel.activeChanged`) or the camera stopped. Leaving the operating screen (its routes, `operatingScreen` in `main.swift`: P4, P5, P6, P7, S4) ends an arm hold, a gripper hold and a wrist hold, as `OperatingController` does for the keys, the touches and the pad; moving between them keeps those holds. `drift.py` holds `operatingScreen` to `RootView.operatingRoutes`, which `OperatingController.operatingRoutes` must be. A U failure is reachable by a user tapping today.
 
 ## Real bug or checker error
 
@@ -59,15 +59,14 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | S6 | The arm is moving only while connected and not latency-blocked. | Motion reported or commanded over a lost or slow link. |
 | S10, U7 | The gripper starts moving only on `gripperStart`, and is moving only while connected, not E-stopped, not latency-blocked and the arm is not moving. | The gripper squeezes or drops something when the operator was told it cannot move. |
 | S11 | `gripperEnd` always leaves the gripper still. | Releasing the control does not stop the gripper. |
-| S12, U8 | At most one of the arm hold, the gripper hold, the jaw turn and the wrist hold is active. | The server runs one held control at a time; the phone would show two working while one is. |
-| S13, U8 | A jaw turn or a wrist hold (`wristMoving`) is active only while connected and not E-stopped. | The jaws keep turning after STOP or over a lost link. |
-| S14 | `turnEnd` always leaves the jaws still. | Releasing the control does not stop the jaws. |
+| S12, U8 | At most one of the arm hold, the gripper hold and the wrist hold is active. | The server runs one held control at a time; the phone would show two working while one is. |
+| S13, U8 | A wrist hold (`wristMoving`) is active only while connected and not E-stopped. | The wrist keeps turning after STOP or over a lost link. |
 | S15 | `wristEnd` always ends the wrist hold. | Releasing the input does not stop the wrist. |
 | S16 | A wrist hold starts only on `wristStart` while connected, not E-stopped, not latency-blocked and the arm not moving. | The wrist turns when the operator was told it cannot. |
 | S7 | `stop` from any state ends E-stopped on S4 with the arm stopped. | STOP fails in some state. |
 | S8, U6 | The E-stop long buzz never starts while already playing. | `HapticsController.play` overwrites `loopPlayer` without stopping it, so an older buzz may survive release. |
 | S9 | The long buzz plays exactly while E-stop is latched. | The haptic signal disagrees with the safety state. |
-| U1 | While E-stop is latched, the user is only on S4 or P5, P7, S1, which lead back to it. | S4 is hidden and input is silently ignored. |
+| U1 | While E-stop is latched, every screen the user can be on shows that it is stopped (the operating screen's routes P4, P5, P6, P7, S4, and Settings, S6, with its STOPPED band), or is a connection screen that leads straight back to one that does (S1: one of its own actions other than STOP opens such a screen, checked in every stopped state). `drift.py` holds the list to `RootView.operatingRoutes` and to Settings' `settings.stopped` band. One exception is on purpose (J7): a STOP pressed with no link up has reached no robot, so the robot is not stopped. Until it goes out after the next welcome, no screen shows STOPPED: the operating screen says Not connected or Link lost, Settings shows no band, Connect and Settings say the STOP is waiting when they refuse practice, and every press is answered with "No link." The checker does not model it (see "Left out"). | The stop is hidden and input is silently ignored. |
 | U2 | S4 shows only while E-stop is latched. | The app claims an E-stop that is not active. |
 | U3 | A latched E-stop can always be released. | The operator is stuck. |
 | U4 | The arm is moving only while connected and not latency-blocked. | Same as S6, reachable by tapping. |
@@ -75,11 +74,11 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 
 U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable; `verify-teleop-ios` covers that.
 
-`drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4 and p6 (`StandbyScreen`), p5 and p7 (`ConnectionDetailsScreen`), t1 to t3 (`TutorialScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
+`drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4, p5, p6, p7 and s4 (`OperatingScreen`, whose rows are the same), t1 to t3 (`TutorialScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
 
 ## Scope and assumptions
 
-Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from every way the app opens: a fresh install on S2 and every later launch on P4, each on the demo or on a real server, as the Settings switch last saved it (`launches` in `main.swift`).
+Verified: every reachable combination of the `FakeTeleopState` fields in `StateKey`, current route, `connectionOrigin` and whether the long buzz is playing, from every way the app opens: a fresh install on S2 and every later launch on P4, each on a real server or in practice (`launches` in `main.swift`). Practice starts and ends only from Connect and Settings (`toggleLiveLink`). On shipped screens every launch is tried with a server that records and one that does not: with a recorder, `AppModel` refuses Release, keep scene while stopped on the real server (§6.5), so `shippedActions` does not offer `releaseStop` there and U3 must find the way out through the reset (`resetScene`, then `sceneResetDone`).
 
 Bounds:
 
@@ -88,10 +87,11 @@ Bounds:
 Left out:
 
 - Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
-- SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `OperatingController` and `HeldControlModifier`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
-- Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`, used by `HeldControlModifier`; the input rules send a stop only for the hold they started). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
+- SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `OperatingController`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
+- What the screens draw. U1 counts the operating screen's routes and Settings as showing a latched stop. They show it from `AppModel.operating`, which says not connected or link lost instead when STOP reached no server (`stopOwed` in `AppModel`, J7: the robot is not stopped), and Settings draws its band only for the stopped state. The session's latch is the same either way, so the checker cannot tell the two apart; U1 states the exception, `AppModel.robotStopped` makes every press say "No link." then, and `OperatingLinkTests` and `LiveLinkTests` cover it.
+- Which release ends which hold. A release ends a hold only while the control it belongs to still owns it (`FakeTeleopState.isHolding`; the input rules send a stop only for the hold they started). The checker offers the end actions in every state where something is held, which covers every release that does end a hold; a release that no longer owns the hold does nothing, and nothing here models that.
 - The wire itself: sockets, timers, message contents and the server's 750 ms watchdog. The checker covers what the session does when the link reports `linkUp`, `linkLost`, `linkLatency`, a server E-stop (`stop`), a refused hold (`holdArmEnd`, `wristEnd`) or a confirmed scene reset (`sceneResetDone`) from any route on a live link. `sceneResetDone` is offered in every state, more often than a server can send it; S1 checks that the session lets only the answer to a reset asked for in the stop state release it. That the app sends `pose_stop` or `estop` whenever the session stops the arm is covered by `LiveLinkTests`, not here.
-- Launch arguments for UI tests (`-startRoute`, `-startConnected`, `-startBlocked`, `-startConnectionLost`, `-firstRunDone`).
+- Launch arguments for UI tests (`-startRoute`, `-startConnected`, `-startBlocked`, `-startConnectionLost`, `-firstRunDone`, `-operatingFixture`).
 
 A pass covers the session rules under these limits, not the robot.
 
@@ -119,12 +119,12 @@ Sync commit: `4d86bab`
 ## Coverage
 
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopSession.swift`: `perform`, `acceptsControl`, `canControl`, `go`.
-- `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop and gripper state.
+- `Packages/TeleopCore/Sources/TeleopCore/FakeTeleopState.swift`: connection, latency, E-stop, the reset that may release it, gripper and wrist state.
 - `Packages/TeleopCore/Sources/TeleopCore/TeleopNavigator.swift`: `navigate`, `back`.
-- `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`.
-- `App/Sources/Components/Buttons.swift`: `ArmHoldModifier`, `HeldControlModifier` (gripper and jaw turn) and the views that carry it (`GripperHoldButton`, `GripperOpenHandle`, `JawTurnHandle`, `LeftHandles`).
-- `App/Sources/VolumeKeys`: `VolumeKeyModifier` hands the keys' raw events to the model and sends no actions itself; the screens that attach it (P4 and P6) are credited with what the keys can do (`KEY_ACTIONS` in `drift.py`). `App/Sources/Pose` only reads the camera pose and sends no actions.
-- `App/Sources/Operating/OperatingController.swift`: the input rules' and the pad's commands (`allowed_outside` in `drift.py`). It ends every hold, with its stop, when the operating screens go away, which `perform` in `main.swift` models for the arm, the gripper and the wrist. STOP, the reset and the gear come only from touches on the bands; no shipped screen feeds touches yet, so no ui-map row lists them.
+- `Packages/TeleopCore/Sources/TeleopCore/BackStackRules.swift`: `previous`, `controlRoutes`.
+- `App/Sources/Operating/OperatingController.swift`: the input rules' and the pad's commands (`allowed_outside` in `drift.py`), STOP, the gear (`openSettings`) and the top band's reset (through `AppModel.runReset`) included. It ends every hold, with its stop, when the operating screen's routes go away, which `perform` in `main.swift` models, and when the app leaves the active state or the camera stops, which the end actions offered while a control is held cover.
+- `App/Sources/Operating/Views/OperatingScreen.swift`: draws every operating route (`RootView.operatingRoutes`) from `model.operating`, the stopped state included. Its touch surface and pad reach `OperatingController`; Release, keep scene and the not-connected word send their own actions (`OWN_ACTIONS` in `drift.py`).
+- `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`; `RootView.operatingRoutes` and Settings' STOPPED band, which U1 counts on (`showsTheStop` in `main.swift`, held to the source by `drift.py`).
+- `App/Sources/VolumeKeys`: `VolumeKeyModifier` hands the keys' raw events to the model and sends no actions itself; the operating screen, which attaches it, is credited with what the keys can do (`KEY_ACTIONS` in `drift.py`). `App/Sources/Pose` only reads the camera pose and sends no actions.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.
-- `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`.

@@ -2,10 +2,11 @@ import Foundation
 
 /// Every robot, task and protocol number the server model uses, in one place.
 ///
-/// Unless a line says otherwise, a value is the S4 simulator server's own constant as it runs on the lab
-/// machine (2026-11-11, with the local changes for state fields, capture start, reset keeping stops and
-/// the watchdog keeping targets), or a value measured from recordings of it. Lengths are metres, angles degrees,
-/// positions in the robot base frame unless the name ends in `World`.
+/// Unless a line says otherwise, a value is the S4 simulator server's own constant (2026-11-11) or a value measured
+/// from recordings of it. The model behaves as the app expects a server to: `state` carries the recorder and the
+/// measured wrist and jaw angles, a take starts with a held command, and a held control keeps the targets it was
+/// given when it starts, ends or is ended by the watchdog. Lengths are metres, angles degrees, positions in the robot
+/// base frame unless the name ends in `World`.
 public struct ServerModelConfig: Equatable, Sendable {
     // MARK: Pace
 
@@ -59,7 +60,7 @@ public struct ServerModelConfig: Equatable, Sendable {
     public var graspToleranceAcross = 0.006
     public var graspToleranceHeight = 0.008
     /// The wrist and jaws after a reset, as measured. Roll 90 is jaws side by side, the grasp the tool offset is for;
-    /// the published server starts at roll 0, jaws front to back.
+    /// a scene that starts at roll 0 has them front to back.
     public var wristFlexStart = 40.24
     public var wristRollStart = 90.0
     public var jawStart = 0.0

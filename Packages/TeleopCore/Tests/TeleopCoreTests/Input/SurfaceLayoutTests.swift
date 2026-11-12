@@ -33,8 +33,25 @@ final class SurfaceLayoutTests: XCTestCase {
         XCTAssertEqual(small.topBand.height, 20 + 64 * scale, accuracy: 1e-9)
         XCTAssertEqual(small.bottomBand.height, 72 * scale, accuracy: 1e-9)
         XCTAssertEqual(small.gap.height, 16 * scale, accuracy: 1e-9)
-        XCTAssertEqual(small.gear.width, 56 * scale, accuracy: 1e-9)
+        XCTAssertEqual(small.gear.width, 44, accuracy: 1e-9, "56 pt scaled would be 42.7 pt, under the minimum")
         XCTAssertEqual(small.controlSurface.maxY, small.gap.y, accuracy: 1e-9)
+    }
+
+    /// The gear is a touch target: at least 44 pt on a side at every screen height, inside the top band and below
+    /// the status bar.
+    func testTheGearIsAtLeast44PointsAtEveryHeight() {
+        for height in stride(from: 480.0, through: 1000, by: 1) {
+            for safeTop in [0.0, 20, 47, 62] {
+                let layout = SurfaceLayout(width: 375, height: height, safeTop: safeTop, safeBottom: 34)
+                XCTAssertGreaterThanOrEqual(layout.gear.width, 44, "height \(height)")
+                XCTAssertGreaterThanOrEqual(layout.gear.height, 44, "height \(height)")
+                XCTAssertGreaterThanOrEqual(layout.gear.y, safeTop, "height \(height): under the status bar")
+                XCTAssertLessThanOrEqual(layout.gear.maxY, layout.topBand.maxY + 1e-9, "height \(height): outside the band")
+                XCTAssertEqual(layout.zone(x: layout.gear.x + 22, y: layout.gear.y + 22), .gear)
+            }
+        }
+        XCTAssertEqual(SurfaceLayout(width: 375, height: 667, safeTop: 20, safeBottom: 0).gear.width, 44, accuracy: 1e-9)
+        XCTAssertEqual(layout.gear.width, 56, "the reference device keeps the specified size")
     }
 
     func testSideEdgesAndHalves() {

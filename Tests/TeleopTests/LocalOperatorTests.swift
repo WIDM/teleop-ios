@@ -38,6 +38,20 @@ final class LocalOperatorTests: XCTestCase {
     private func turnAndTiltAndBringBack(_ mode: ControlMode) throws {
         try start(mode)
         let roll0 = roll, flex0 = flex
+        // The screen's state during the holds: measured angles, since this server reports them.
+        var turned = 0.0, tilted = 0.0, estimated = false
+        hand.watch = { [unowned self] in
+            switch model.operating.state {
+            case .turning(let degrees, _, let guess):
+                turned = max(turned, degrees)
+                estimated = estimated || guess
+            case .tilting(let degrees, _, let guess):
+                tilted = max(tilted, degrees)
+                estimated = estimated || guess
+            default: break
+            }
+        }
+        defer { hand.watch = nil }
         hand.wrist(.turn, by: 20, hold: 3)
         XCTAssertEqual(roll, roll0 + 20, accuracy: 1.5, "\(mode): turning the phone 20 degrees turns the wrist")
         XCTAssertEqual(flex, flex0, accuracy: 0.5, "\(mode): a turn does not tilt")
@@ -50,6 +64,9 @@ final class LocalOperatorTests: XCTestCase {
         XCTAssertEqual(flex, flex0, accuracy: 1.5, "\(mode): and back")
         XCTAssertFalse(serverStopped)
         XCTAssertFalse(model.session.state.wristMoving, "every wrist hold ended with its input")
+        XCTAssertGreaterThan(turned, 10, "\(mode): the screen shows the turn")
+        XCTAssertGreaterThan(tilted, 5, "\(mode): the screen shows the tilt")
+        XCTAssertFalse(estimated, "\(mode): the server reports wrist angles, so nothing is an estimate")
     }
 
     func testTurnAndTiltTheWristByRotatingThePhoneSchemeA() throws {
@@ -94,6 +111,11 @@ final class LocalOperatorTests: XCTestCase {
         hand.pump(1)
         XCTAssertEqual(model.stopExits.exits, [.resetScene], "with a recorder, release is not offered")
         XCTAssertTrue(model.session.state.emergencyStop)
+        model.send(.releaseStop)
+        hand.pump(1)
+        XCTAssertTrue(model.session.state.emergencyStop, "and refused whatever sends it")
+        XCTAssertTrue(serverStopped, "nothing released the server's stop")
+        XCTAssertTrue(heard(.refused(.deadInput)))
 
         let band = hand.topBand
         let touch = hand.touchDown(x: band.x, y: band.y)
@@ -151,6 +173,23 @@ final class LocalOperatorTests: XCTestCase {
         hand.release(.upper)
     }
 
+    /// Connecting from Connect lands on P5, which the same operating screen draws, so Settings ends a hold there too.
+    func testOpeningSettingsEndsAHoldWhereConnectLands() throws {
+        try start(.screenTurns)
+        model.send(.changeServer)
+        model.send(.s1Back)
+        XCTAssertEqual(model.session.route, .p5)
+        XCTAssertTrue(model.session.state.connected)
+        hand.pump(0.5)
+        hand.press(.upper)
+        XCTAssertTrue(model.session.state.armMoving)
+        model.send(.openSettings)
+        XCTAssertEqual(model.session.route, .s6)
+        XCTAssertFalse(model.session.state.armMoving, "Settings ends the hold")
+        XCTAssertNil(model.controller.engagedHold)
+        hand.release(.upper)
+    }
+
     func testLeavingTheForegroundEndsAHoldAndTheKeyHeldAcrossStaysDead() throws {
         try start(.screenTurns)
         hand.press(.upper)
@@ -163,11 +202,26 @@ final class LocalOperatorTests: XCTestCase {
         hand.press(.upper)
         XCTAssertFalse(model.session.state.armMoving, "a key held across leaving stays dead")
         XCTAssertTrue(heard(.refused(.deadInput)))
+        XCTAssertEqual(model.operating.state, .refused(.deadInput), "the refusal reaches the screen")
         hand.release(.upper)
         hand.pump(0.3)
         hand.press(.upper)
         XCTAssertTrue(model.session.state.armMoving, "a fresh press works")
         hand.release(.upper)
         XCTAssertFalse(model.session.state.armMoving)
+    }
+
+    /// ARKit stopping the camera, as `PoseTracker` reports it, ends the hold and the screen says so.
+    func testTheCameraStoppingEndsAHoldAndReachesTheScreen() throws {
+        try start(.screenTurns)
+        hand.press(.upper)
+        XCTAssertTrue(model.session.state.armMoving)
+        PoseTracker.shared.onInterruption?(true)
+        XCTAssertFalse(model.session.state.armMoving, "the camera stopping ends the hold")
+        XCTAssertEqual(model.operating.state, .trackingLost)
+        hand.release(.upper)
+        PoseTracker.shared.onInterruption?(false)
+        hand.pump(0.3)
+        XCTAssertEqual(model.operating.state, .ready)
     }
 }

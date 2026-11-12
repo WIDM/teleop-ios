@@ -45,7 +45,7 @@ for name in sorted(stored - key_fields - excluded):
 # The volume keys reach the input rules (OperatingController): vol+ moves the arm; vol- closes the jaws (scheme A) or
 # holds the wrist (scheme B).
 KEY_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd"}
-ROOT_VIEW_ACTIONS = {"holdArmEnd"}
+ROOT_VIEW_ACTIONS = set()
 # The operating screen feeds every touch to the input rules (OperatingController) and the pad's buttons to its rules,
 # so it can cause whatever those send; the top band's reset reaches the session through AppModel.runReset.
 TOUCH_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings", "resetScene"}
@@ -63,8 +63,8 @@ def sends(text):
     # AppModel.connect() sends connect on the fake link; on a live link the server answers with linkUp or linkLost.
     if "model.connect()" in text:
         found.add("connect")
-    # Practice on and off: AppModel.liveLink flips the flag, then sends switchLink.
-    if "$model.liveLink" in text or "model.startPractice()" in text or "model.leavePractice()" in text:
+    # Practice on and off: AppModel.startPractice and leavePractice flip the flag, then send switchLink.
+    if "model.startPractice()" in text or "model.leavePractice()" in text:
         found.add("toggleLiveLink")
     # LiveLinkController reports what the server did.
     found |= set(re.findall(r"onAction\?\(\.(\w+)", text))
@@ -94,14 +94,13 @@ for path in APP.rglob("*.swift"):
         outside_structs[str(path.relative_to(APP))] = leftover
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
-    # connect: the fake link's S1 Connect. holdArmEnd, turnEnd, wristEnd: a hold or turn the link could not start.
+    # connect: the fake link's S1 Connect. holdArmEnd, wristEnd: a hold the link could not start.
     # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
     # sceneResetDone: the top band's reset (the practice link confirms it at once).
-    "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "turnEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
-    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "turnEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
-    # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS). stop, openSettings and the
-    # reset come only from touches on the bands, which no shipped screen feeds yet; a screen that installs the touch
-    # surface adds them to its ui-map row.
+    "AppModel.swift": {"connect", "holdArmStart", "holdArmEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone"},
+    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
+    # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS); touches on the bands (STOP,
+    # the gear) and on the control surface from the operating screen's touch surface (TOUCH_ACTIONS).
     "Operating/OperatingController.swift": {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings"},
 }
 for path, names in sorted(outside_structs.items()):
@@ -113,6 +112,35 @@ for path in sorted(set(allowed_outside) - set(outside_structs)):
     problems.append(f"{path} no longer sends actions; remove it from allowed_outside")
 
 root_view = (APP / "Screens/RootView.swift").read_text()
+
+# U1: the checker counts these routes as showing a latched stop. The operating screen's routes must be exactly
+# RootView.operatingRoutes, and Settings must draw its STOPPED band.
+def route_set(pattern, text):
+    found = re.search(pattern, text)
+    return set(re.findall(r"\.(\w+)", found.group(1))) if found else None
+
+
+shows_stop = route_set(r"let showsTheStop: Set<Route> = \[([^\]]*)\]", main)
+operating_routes = route_set(r"static let operatingRoutes: Set<Route> = \[([^\]]*)\]", root_view)
+if shows_stop is None or operating_routes is None:
+    problems.append("cannot read showsTheStop in main.swift or operatingRoutes in RootView.swift")
+elif shows_stop - {"s6"} != operating_routes:
+    problems.append(f"showsTheStop in main.swift, less s6, differs from RootView.operatingRoutes {sorted(operating_routes)}")
+# Leaving the operating screen ends every hold (perform in main.swift models it): the checker's routes and the
+# controller's must both be the screen's.
+operating_screen = route_set(r"let operatingScreen: Set<Route> = \[([^\]]*)\]", main)
+if operating_screen is None or operating_screen != operating_routes:
+    problems.append(f"operatingScreen in main.swift differs from RootView.operatingRoutes {sorted(operating_routes or [])}")
+controller_source = (APP / "Operating/OperatingController.swift").read_text()
+if "static let operatingRoutes: Set<Route> = RootView.operatingRoutes" not in controller_source:
+    problems.append("OperatingController.operatingRoutes is not RootView.operatingRoutes, which operatingScreen models")
+settings_source = next(
+    (m.group(0) for p in APP.rglob("*.swift") for m in STRUCT.finditer(p.read_text()) if m.group(1) == "SettingsScreen"), ""
+)
+# The band must exist and be drawn whenever the operating screen shows the stop.
+draws_band = re.search(r"if case \.stopped = model\.operating\.state \{ stoppedBand \}", settings_source)
+if "s6" in (shows_stop or set()) and not (draws_band and 'accessibilityIdentifier("settings.stopped")' in settings_source):
+    problems.append("SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6")
 # One case may name several routes ("case .p4, .p5: OperatingScreen(").
 screen_of_route = {
     route: screen
@@ -132,10 +160,7 @@ for line in (SKILL / "ui-map.tsv").read_text().splitlines():
             f"{route}: ui-map says {screen}, RootView shows {screen_of_route.get(route)}"
         )
     # tutorialNext1 -> tutorialNext, gripperStartClosed -> gripperStart: the table names one case per payload.
-    names = {
-        re.sub(r"^(gripperStart)(Closed|Open)$|^(turnStart)(Positive|Negative|TiltDown|TiltUp)$", lambda m: m.group(1) or m.group(3), re.sub(r"\d+$", "", a))
-        for a in actions.split(",")
-    }
+    names = {re.sub(r"^(gripperStart)(Closed|Open)$", r"\1", re.sub(r"\d+$", "", a)) for a in actions.split(",")}
     for name in sorted(names - struct_sends.get(screen, set())):
         problems.append(f"{route}: ui-map lists {name}, but {screen} does not send it")
     listed_by_struct.setdefault(screen, set()).update(names)

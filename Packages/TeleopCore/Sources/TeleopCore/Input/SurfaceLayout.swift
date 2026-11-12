@@ -26,7 +26,8 @@ public struct SurfaceLayout: Equatable, Sendable {
     public let height: Double
     /// Top of the screen to `safeTop + topBandExtraPt`.
     public let topBand: Rect
-    /// The gear area at the top band's left end, below the status bar; it never starts the reset countdown.
+    /// The gear area at the top band's left end, below the status bar; it never starts the reset countdown. Never
+    /// smaller than `gearMinPt` on a side.
     public let gear: Rect
     public let controlSurface: Rect
     /// Keeps a resting thumb off STOP; touches here do nothing.
@@ -48,10 +49,11 @@ public struct SurfaceLayout: Equatable, Sendable {
         self.pointsPerMm = pointsPerMm ?? constants.referencePointsPerMm
         edgeExclusionPt = constants.edgeExclusionPt
         sideDeadPt = constants.sideDeadPt
-        let topHeight = safeTop + constants.topBandExtraPt * scale
+        // The gear scales too, but never below its minimum, and the band always has room for it.
+        let gearSide = max(constants.gearPt * scale, constants.gearMinPt)
+        let topHeight = safeTop + max(constants.topBandExtraPt * scale, gearSide)
         let bottomHeight = constants.bottomBandPt * scale + safeBottom
         let gapHeight = constants.gapPt * scale
-        let gearSide = constants.gearPt * scale
         topBand = Rect(x: 0, y: 0, width: width, height: topHeight)
         gear = Rect(x: 0, y: safeTop + (topHeight - safeTop - gearSide) / 2, width: gearSide, height: gearSide)
         bottomBand = Rect(x: 0, y: height - bottomHeight, width: width, height: bottomHeight)

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Checks every string table in App/Resources. Exits 1 on any problem.
 
-For each table: every key has an English and a Traditional Chinese value; the two carry the same format specifiers;
-Chinese values use full-width punctuation, no dashes, and never the English words STOP or Reset (the bilingual
-band label is the one exception); no key the code asks for is missing and no key is unused.
+For each table: every key has an English and a Traditional Chinese value; the two carry the same format specifiers in
+the same order (numbered ones in any order); Chinese values use full-width punctuation, no dashes, and never the
+English words STOP or Reset (the bilingual band label is the one exception); no key the code asks for is missing and no
+key is unused.
 
 Where the keys come from:
 - Localizable: string literals in App/Sources that look like keys. A key that only a unit test in Tests/TeleopTests
@@ -14,11 +15,13 @@ Where the keys come from:
 """
 
 import json
+import os
 import pathlib
 import re
 import sys
 
-root = pathlib.Path(__file__).resolve().parent.parent
+# CHECK_STRINGS_ROOT lets scripts/test_check_strings.py point the check at a small test tree.
+root = pathlib.Path(os.environ.get("CHECK_STRINGS_ROOT", pathlib.Path(__file__).resolve().parent.parent))
 resources = root / "App/Resources"
 problems = []
 
@@ -54,10 +57,17 @@ def values(name):
     return table
 
 
+def specifiers(text):
+    """In order: the arguments fill them in order. Numbered ones (%1$@) say which argument each takes, so any order.
+    A literal percent (%%) takes no argument."""
+    found = [f for f in SPECIFIER.findall(text) if f != "%%"]
+    return sorted(found) if any("$" in f for f in found) else found
+
+
 def check_values(name, table):
     for key, found in table.items():
         en, zh = found.get("en") or "", found.get("zh-Hant") or ""
-        if sorted(SPECIFIER.findall(en)) != sorted(SPECIFIER.findall(zh)):
+        if specifiers(en) != specifiers(zh):
             problems.append(f"{name}: {key} format specifiers differ: {en!r} / {zh!r}")
         bare = SPECIFIER.sub("", zh)
         if key not in BILINGUAL and re.search(r"\b(STOP|Reset)\b", bare):
@@ -82,15 +92,13 @@ localizable = values("Localizable")
 check_values("Localizable", localizable)
 prefixes = {key.split(".")[0] for key in localizable}
 in_buttons = set(re.findall(r'"([a-z_0-9.]+)",\s*tableName:\s*"Buttons"', app))
-in_app = {k for k in literal.findall(app) if k.split(".")[0] in prefixes} - in_buttons
-ids = set(re.findall(r'accessibilityIdentifier\("([^"]+)"\)', app))
+# An accessibility identifier names an element for the tests; it is never shown, so it is no use of a key even when
+# it is spelled like one.
+shown = re.sub(r'accessibilityIdentifier\("[^"]*"\)', "", app)
+in_app = {k for k in literal.findall(shown) if k.split(".")[0] in prefixes} - in_buttons
 in_tests = {k for k in literal.findall(tests) if k in localizable}
 test_only = sorted(in_tests - in_app)
-check_use(
-    "Localizable",
-    localizable,
-    (in_app - (ids - set(localizable))) | in_tests,
-)
+check_use("Localizable", localizable, in_app | in_tests)
 
 # Buttons.
 buttons = values("Buttons")

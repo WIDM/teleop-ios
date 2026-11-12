@@ -93,7 +93,8 @@ final class ObserverTests: XCTestCase {
                 let made = RecordingTransport(url: url, name: "observer") { self?.record($0, $1, $2) }
                 self?.observers.append(made)
                 return made
-            }
+            },
+            clientName: "teleop-ios/2.3.4 (56)"
         )
         model.session.state.serverAddress = server.address
         models.append(model)
@@ -154,7 +155,7 @@ final class ObserverTests: XCTestCase {
                                     "the listening connection gets one every 200 ms")
         let hello = log.first { $0.connection == "observer" && $0.outgoing }
         XCTAssertEqual(hello?.type, "hello")
-        XCTAssertEqual(hello?.payload["name"] as? String, "teleop-ios/1.0.0 observer")
+        XCTAssertEqual(hello?.payload["name"] as? String, "teleop-ios/2.3.4 (56) observer")
         XCTAssertEqual(log.filter { $0.connection == "observer" && $0.outgoing }.count, 1, "it only listens")
     }
 

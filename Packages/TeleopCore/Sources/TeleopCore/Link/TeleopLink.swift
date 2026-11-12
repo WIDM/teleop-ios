@@ -13,7 +13,7 @@ public enum LinkEvent: Equatable, Sendable {
     case holdStopped
     /// The server refused or ended the gripper jog that is running now.
     case gripperRefused(reason: String)
-    /// The server refused or ended the jaw turn that is running now.
+    /// The server refused or ended the wrist hold (`orient_start`) that is running now.
     case turnRefused(reason: String)
     case latency(ms: Int)
     /// The server reset the scene (`ok scene_reset`).
@@ -90,7 +90,8 @@ public final class TeleopLink {
 
     /// Arm tip position from the newest `state`, in metres. The server sends none during a hold.
     public private(set) var lastEndEffector: [Double]?
-    /// Task object and goal positions from the newest `state`, in metres in the robot base frame.
+    /// Task object and goal positions from the newest `state`, in metres in the world frame (the arm is reported in the
+    /// robot base frame).
     public private(set) var lastObject: [Double]?
     public private(set) var lastGoal: [Double]?
     /// Gripper as the newest `state` named it.
@@ -125,7 +126,7 @@ public final class TeleopLink {
     }
 
     /// - Parameter name: how the server's log names this connection.
-    public func hello(name: String = "thomas-app") {
+    public func hello(name: String) {
         emit("hello", ["client": "phone", "name": name])
     }
 
@@ -201,8 +202,10 @@ public final class TeleopLink {
         return true
     }
 
-    /// Sends what is due by time: a reset that has waited long enough. The owner calls it on every tick.
+    /// Sends what is due by time: a held-back start or a reset that has waited long enough. The owner calls it on
+    /// every tick, before the tick's updates, so it can learn of a start that went out before it sends one.
     public func service() {
+        releaseHeldStart(force: false)
         sendDueReset()
     }
 

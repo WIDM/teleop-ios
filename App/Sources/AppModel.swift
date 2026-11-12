@@ -17,27 +17,16 @@ final class AppModel {
     @ObservationIgnored private var pendingRefusal: Refusal?
     /// The last STOP reached a connection that was up.
     @ObservationIgnored private var stopReached = true
-    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`.
-    @ObservationIgnored private var stopOwed = false
+    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`. Observed, for
+    /// `practiceBlockedReason`.
+    private var stopOwed = false
     /// A hold was engaged when the link was last lost, so a stopped server found on reconnect is the link's doing.
     @ObservationIgnored private var holdEngagedAtLoss = false
     /// The built-in demo's hold count, for its GO.
     @ObservationIgnored private var demoHold = 0
-    /// Real server instead of the practice demo. Changing it drops the current link and starts the other, so no
-    /// session spans both. Not kept across launches: every launch is on the real server.
-    var liveLink: Bool {
-        get { session.state.liveLink }
-        set {
-            guard newValue != session.state.liveLink, !session.state.emergencyStop else { return }
-            link.closeQuietly()
-            session.state.liveLink = newValue
-            if newValue, session.state.serverAddress.isEmpty,
-               let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
-                session.state.serverAddress = saved
-            }
-            send(.switchLink)
-        }
-    }
+    /// Real server instead of the practice demo. Not kept across launches: every launch is on the real server.
+    /// Only `startPractice` and `leavePractice` change it.
+    var liveLink: Bool { session.state.liveLink }
     /// UI tests only: `-liveLink NO` launches in practice. It was once a saved setting; a saved value is ignored.
     static let liveLinkKey = "liveLink"
     static let serverAddressKey = "serverAddress"
@@ -52,12 +41,6 @@ final class AppModel {
             language.save()
         }
     }
-    /// Live link only, during an arm hold: metres right, forward and up that the arm is being asked to move.
-    private(set) var holdOffset: SIMD3<Float>?
-    /// How the phone is held, as of the last `refreshPosture`.
-    private(set) var posture: PhonePosture = .unknown
-    /// Live link only: where the cube or the goal is from the gripper.
-    private(set) var guidance: Guidance?
     /// True while the command is held back so the arm can catch up with the phone.
     private(set) var catchingUp = false
     /// Why E-stop is latched, for S4. Nil when not latched.
@@ -71,9 +54,9 @@ final class AppModel {
     private(set) var recorder: RecorderDisplay = .unknown
     /// The exits the emergency-stop state may offer.
     private(set) var stopExits = StopExits.offered(recorder: nil, practice: true)
-    /// A close ended in contact and nothing has opened since, no scene reset and no new server run. While true a
-    /// second close is refused (`raise(.limit(.alreadyGripping))`).
-    private(set) var gripping = false
+    /// On a real server: a close ended in contact and nothing has opened since, no scene reset and no new server run.
+    /// While true a second close is refused (`raise(.limit(.alreadyGripping))`). Practice has no jaws to grip with.
+    var gripping: Bool { session.state.liveLink && link.gripping }
     /// Everything the operating screen draws.
     private(set) var operating: OperatingDisplay
     /// UI tests only: `-operatingFixture <name>` shows that display, and nothing overwrites it.
@@ -143,11 +126,13 @@ final class AppModel {
     }
 
     /// - Parameters:
-    ///   - sounds, speech: nil plays them on the device, except in the unit-test host, which stays silent.
+    ///   - haptics, sounds, speech: nil plays them on the device, except in the unit-test host and under the UI tests'
+    ///     `-quietCues YES`, which stay silent.
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
+    ///   - clientName: how the app names itself to the server; the bundle's version and build unless a test passes one.
     init(
         start: Route = .s2,
-        haptics: HapticsPlaying = HapticsController(),
+        haptics: HapticsPlaying? = nil,
         sounds: SoundPlaying? = nil,
         speech: SpeechPlaying? = nil,
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
@@ -155,7 +140,8 @@ final class AppModel {
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+        inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        clientName: String = LiveLinkController.clientName()
     ) {
         var state = FakeTeleopState()
         state.liveLink = liveLink
@@ -179,36 +165,33 @@ final class AppModel {
             stopExits: StopExits.offered(recorder: nil, practice: !liveLink), linkUp: false, latencyMs: nil,
             address: state.serverAddress, arm: nil, practice: !liveLink, taskAid: taskAid
         )
-        let audible = Self.opensSavedServerAtLaunch()
+        let audible = Self.playsCuesOnTheDevice()
         cues = CuePlayer(
-            haptics: haptics, sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
+            haptics: haptics ?? (audible ? HapticsController() : NoHaptics()),
+            sounds: sounds ?? (audible ? SoundPlayer() : NoSounds()),
             speech: speech ?? (audible ? SpeechPlayer() : NoSpeech()), nowMs: nowMs
         )
         self.pose = pose
         self.nowMs = nowMs
-        link = LiveLinkController(makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs)
+        link = LiveLinkController(
+            makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
+            clientName: clientName
+        )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         cues.currentHold = { [weak self] in self?.currentHold }
         cues.onLog = { [weak self] in self?.log("~ \($0)") }
         link.onFeedback = { [weak self] in self?.raise($0) }
         link.onState = { [weak self] in self?.stateArrived($0) }
         link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
-        link.onGripping = { [weak self] in
-            self?.gripping = $0
-            self?.refreshOperating()
-        }
+        link.onGripping = { [weak self] _ in self?.refreshOperating() }
         link.onAction = { [weak self] in self?.fromServer($0) }
         link.onLog = { [weak self] in self?.log($0) }
-        link.onOffset = { [weak self] in self?.holdOffset = $0 }
         link.onCatchingUp = { [weak self] in
             // Set only on a change: this runs 30 times a second and every write redraws the readout.
             if self?.catchingUp != $0 {
                 self?.catchingUp = $0
                 self?.refreshOperating()
             }
-        }
-        link.onGuidance = { [weak self] in
-            if self?.guidance != $0 { self?.guidance = $0 }
         }
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
         link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
@@ -226,13 +209,6 @@ final class AppModel {
         if UserDefaults.standard.bool(forKey: "startConnectionLost") {
             session.state.markDisconnected()
             session.state.connectionLost = true
-        }
-        // UI tests and screenshots only: `-demoGuidance YES` shows the task map without a server.
-        if UserDefaults.standard.bool(forKey: "demoGuidance") {
-            guidance = Guidance.make(
-                arm: SIMD3(0.021, -0.141, 0.160), cube: SIMD3(0.005, -0.200, 0.1025),
-                goal: SIMD3(0.075, -0.200, 0.1035), gripper: .open
-            )
         }
         // A setting from before practice stopped being one.
         UserDefaults.standard.removeObject(forKey: Self.liveLinkKey)
@@ -297,14 +273,30 @@ final class AppModel {
     /// Practice without a robot: the built-in demo. Never the default and never kept across launches; no message
     /// reaches any server while it runs. Refused while the robot is in emergency stop.
     func startPractice() {
-        guard session.state.liveLink else { return }
-        liveLink = false
+        switchLink(live: false)
     }
 
-    /// Back to the real server at the saved address.
+    /// Back to the real server at the saved address. Refused while the robot is in emergency stop.
     func leavePractice() {
-        guard !session.state.liveLink else { return }
-        liveLink = true
+        switchLink(live: true)
+    }
+
+    /// What Connect and Settings say while practice is refused for the latched stop. A STOP pressed with no link up
+    /// has reached no robot yet (J7): the robot is not stopped then, and the way out starts with connecting.
+    var practiceBlockedReason: LocalizedStringKey {
+        stopOwed ? "settings.practice_blocked_unsent" : "settings.practice_blocked"
+    }
+
+    /// Drops the current link and starts the other, so no session spans both.
+    private func switchLink(live: Bool) {
+        guard live != session.state.liveLink, !session.state.emergencyStop else { return }
+        link.closeQuietly()
+        session.state.liveLink = live
+        if live, session.state.serverAddress.isEmpty,
+           let saved = UserDefaults.standard.string(forKey: Self.serverAddressKey) {
+            session.state.serverAddress = saved
+        }
+        send(.switchLink)
     }
 
     // MARK: Raw inputs from the device
@@ -320,7 +312,8 @@ final class AppModel {
         controller.attitude(PhoneAttitude.portrait(cameraTransform: camera), at: time)
     }
 
-    /// The scene phase became active or left it. Every hold ends on leaving; inputs held across it stay dead.
+    /// The app became active or left the active state (a call, the home screen, Control Center). Every hold ends, with
+    /// its stop, on leaving; inputs held across it stay dead; the link's old latency probes are dropped.
     func activeChanged(_ active: Bool) {
         controller.activeChanged(active)
         link.foregroundChanged()
@@ -334,7 +327,7 @@ final class AppModel {
         let settingsOpen = session.route == .s6
         let notReady = s.liveLink && (link.resetPending || serverState?.simBusy == true)
         var refusal: InputRefusal?
-        if s.emergencyStop {
+        if robotStopped(s) {
             refusal = .stopped
         } else if !s.connected {
             refusal = .noLink
@@ -360,7 +353,7 @@ final class AppModel {
         return InputFacts(
             refusal: refusal,
             trackingRefusal: controller.isCameraStopped || camera == nil ? .notTracking : nil,
-            translationRefusal: PhonePosture.of(camera, previous: posture) == .tilted ? .posture : nil,
+            translationRefusal: PhonePosture.of(camera) == .tilted ? .posture : nil,
             resetRefusal: resetRefusal,
             gripping: profile.recloseLoosensGrip && gripping,
             wrist: WristReadings(
@@ -389,6 +382,9 @@ final class AppModel {
         guard s.liveLink else {
             send(.resetScene)
             perform(.sceneResetDone, fromServer: false)
+            // In the stop state the first only asked for the reset and the confirmation released the stop; the reset
+            // itself, which opens the jaws, runs now.
+            if s.emergencyStop { send(.resetScene) }
             controller.sceneReset()
             raise(.ready)
             return
@@ -411,6 +407,13 @@ final class AppModel {
             raise(.refused(.letGoFirst))
             return
         }
+        // §6.5: with a recorder, estop_reset would leave it off, so the release is not offered at all and the reset is
+        // the way out of the stop. The screen shows no release then; this keeps the rule whatever sends it.
+        if action == .releaseStop, session.state.emergencyStop, !stopExits.exits.contains(.releaseKeepScene) {
+            log("→ \(action) refused: the recorder needs a reset")
+            raise(.refused(.deadInput))
+            return
+        }
         perform(action, fromServer: false)
     }
 
@@ -429,22 +432,22 @@ final class AppModel {
     /// The cues decided so far, newest last.
     var cueLog: [CueLogEntry] { cues.log }
 
-    /// RootView calls this on every scene phase change; `activeChanged` is the input side of it.
-    func foregroundChanged() { link.foregroundChanged() }
-
-    /// Reads how the phone is held, from the same pose the arm follows. Called a few times a second on
-    /// control screens. A change between held right and not is felt: one short buzz for right, two for not.
-    func refreshPosture() {
-        let now = PhonePosture.of(pose(), previous: posture)
-        guard now != posture else { return }
-        posture = now
-    }
-
     /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
-    /// screen. Called at launch and when the Settings switch turns the real server on.
+    /// screen. Called at launch and when practice ends.
     func trySavedServer() {
         guard session.state.liveLink, !session.state.connected, !link.isOpen else { return }
         _ = link.connect(to: session.state.serverAddress)
+    }
+
+    /// UI tests only: `-quietCues YES` plays no sound, speech or haptics, which the simulator would put through the
+    /// computer's speakers. The cue log still records every cue.
+    static let quietCuesKey = "quietCues"
+
+    /// Haptics, sounds and speech play on the device: not in the unit-test host, and not under `-quietCues YES`.
+    static func playsCuesOnTheDevice(
+        _ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        opensSavedServerAtLaunch(environment: environment) && !defaults.bool(forKey: quietCuesKey)
     }
 
     /// False when the app is only the host process of the unit tests. That launch reads whatever Real server
@@ -595,6 +598,12 @@ final class AppModel {
         return Self.engaged(session.state) ? demoHold : nil
     }
 
+    /// The stop is latched and, as far as the app knows, the robot is stopped. A STOP pressed with no link up has
+    /// reached no robot yet (J7), so while no link is up a refused press says "No link.", as the screen does.
+    private func robotStopped(_ state: FakeTeleopState) -> Bool {
+        state.emergencyStop && !(stopOwed && !state.connected)
+    }
+
     private static func engaged(_ state: FakeTeleopState) -> Bool {
         heldControl(state) != nil
     }
@@ -603,7 +612,7 @@ final class AppModel {
     private static func heldControl(_ state: FakeTeleopState) -> ControlKind? {
         if state.armMoving { return .pose }
         if let target = state.gripperMoving { return .gripper(target) }
-        return state.jawTurning != nil || state.wristMoving ? .wrist : nil
+        return state.wristMoving ? .wrist : nil
     }
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
@@ -616,7 +625,6 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
         }
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
-        if !session.state.armMoving { holdOffset = nil }
         if !before.emergencyStop, session.state.emergencyStop {
             stopCause = fromServer ? (pendingServerCause ?? .server("unknown")) : .button
         } else if !session.state.emergencyStop {
@@ -635,7 +643,7 @@ final class AppModel {
         pendingRefusal = nil
         if commands.isEmpty, Self.isPress(action), !Self.engaged(before), !Self.engaged(session.state) {
             // The session ignores a press while stopped or with no link; the operator still hears why.
-            if before.emergencyStop {
+            if robotStopped(before) {
                 raise(.refused(.emergencyStop))
             } else if !before.connected {
                 raise(.refused(.noLink))
@@ -684,7 +692,7 @@ final class AppModel {
 
     private static func isPress(_ action: TeleopAction) -> Bool {
         switch action {
-        case .holdArmStart, .gripperStart, .turnStart, .wristStart: return true
+        case .holdArmStart, .gripperStart, .wristStart: return true
         default: return false
         }
     }
@@ -707,7 +715,7 @@ final class AppModel {
             }
         } else if !before.armMoving, after.armMoving {
             let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
-            let held = PhonePosture.of(pose(), previous: posture)
+            let held = PhonePosture.of(pose())
             if held == .tilted || !link.startHold(params) {
                 log("link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))")
                 if held == .tilted {
@@ -719,18 +727,6 @@ final class AppModel {
                 }
                 session.perform(.holdArmEnd)
                 session.pendingCue(.commandBlocked)
-            }
-        }
-        if before.jawTurning != after.jawTurning {
-            if let direction = after.jawTurning {
-                if !link.startTurn(direction) {
-                    log("link: jaw turn not started (no link or a reset)")
-                    pendingRefusal = link.resetPending ? .notReady : .noLink
-                    session.perform(.turnEnd)
-                    session.pendingCue(.commandBlocked)
-                }
-            } else {
-                link.stopTurn()
             }
         }
         if before.wristMoving != after.wristMoving {

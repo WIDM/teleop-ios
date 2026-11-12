@@ -1,11 +1,15 @@
 import XCTest
 
 extension XCUIApplication {
+    /// Every UI test launch: the app plays no sound, speech or haptics (the simulator would put them through the
+    /// computer's speakers), and still records every cue.
+    static let quiet = ["-quietCues", "YES"]
+
     /// Practice (the built-in demo, no server), English, scheme A, right hand, unless the caller says otherwise. The
     /// mode, the hand and the task aid are saved settings, so every launch pins them.
     static func teleop(_ extra: [String] = [], language: String = "en") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = quiet + [
             "-appLanguage", language, "-liveLink", "NO", "-controlMode", "screenTurns", "-hand", "right",
             "-taskAid", "YES", "-firstRunDone", "YES",
         ] + extra

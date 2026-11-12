@@ -6,7 +6,7 @@ final class PracticeTests: XCTestCase {
     /// On the real server at an address where nothing answers (the discard port), so the app stays unconnected.
     private func launchOnTheRealServer() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = XCUIApplication.quiet + [
             "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect",
             "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
         ]
@@ -55,13 +55,16 @@ final class PracticeTests: XCTestCase {
         XCTAssertTrue(app.element("settings.disconnect").exists)
     }
 
-    /// While the robot is stopped the link cannot change, so practice is offered greyed out with the reason, and
+    /// While the stop is latched the link cannot change, so practice is offered greyed out with the reason, and
     /// tapping it never opens the real server.
     func testPracticeIsRefusedWhileStoppedAndSaysWhy() {
         let app = launchOnTheRealServer()
         expect(app, "stop")
         app.element("stop").tap()
-        expectLabel(app.element("operating.state"), "STOPPED")
+        // No server answers, so the STOP reached no robot: the screen says Not connected, never STOPPED (J7), and
+        // the stop stays latched in the app until it is sent or released. The reason says so too.
+        let reason = "Not while a STOP is waiting to reach the robot. Connect, then release the stop or reset."
+        expectLabel(app.element("operating.state"), "Not connected")
         app.element("operating.gear").tap()
         expect(app, "settings.done")
         app.swipeUp()
@@ -69,6 +72,7 @@ final class PracticeTests: XCTestCase {
         expect(app, "settings.start_practice")
         XCTAssertFalse(app.element("settings.start_practice").isEnabled)
         XCTAssertTrue(app.element("settings.practice_stopped").exists, "the reason")
+        XCTAssertEqual(app.element("settings.practice_stopped").label, reason)
         app.element("settings.start_practice").tap()
         XCTAssertFalse(app.element("practice.mark").exists)
         app.element("settings.disconnect").tap()
@@ -76,6 +80,7 @@ final class PracticeTests: XCTestCase {
         expect(app, "connect.practice")
         XCTAssertFalse(app.element("connect.practice").isEnabled)
         XCTAssertTrue(app.element("connect.practice_stopped").exists, "the reason")
+        XCTAssertEqual(app.element("connect.practice_stopped").label, reason)
         attachScreenshot("practice-refused-while-stopped")
         app.element("connect.practice").tap()
         XCTAssertTrue(app.element("connect.practice").waitForExistence(timeout: 2), "still on Connect")
@@ -88,7 +93,7 @@ final class PracticeTests: XCTestCase {
         app.element("connect.practice").tap()
         XCTAssertTrue(app.element("practice.mark").waitForExistence(timeout: 5))
         app.terminate()
-        app.launchArguments = [
+        app.launchArguments = XCUIApplication.quiet + [
             "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby",
             "-controlMode", "screenTurns", "-hand", "right", "-firstRunDone", "YES",
         ]

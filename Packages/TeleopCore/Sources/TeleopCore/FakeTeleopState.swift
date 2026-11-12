@@ -1,14 +1,5 @@
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
-/// Which way the wrist moves under a held wrist control. `positive` and `negative` roll it, turning the jaws about
-/// the forearm axis (positive is the direction the server's wrist roll increases). `tiltDown` and `tiltUp` pitch it,
-/// pointing the jaws more toward the table or away from it.
-public enum TurnDirection: Sendable {
-    case positive, negative, tiltDown, tiltUp
-
-    public var isTilt: Bool { self == .tiltDown || self == .tiltUp }
-}
-
 /// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
     public var connected = false
@@ -26,12 +17,10 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var developerMode = false
     public var sensitivity = 1.0
     public private(set) var smoothing = 0.3
-    /// True while the arm hold (vol+ or the on-screen hold area) is pressed.
+    /// True while the arm hold (a key, a touch or a pad button) is held.
     public var armMoving = false
     /// Direction the gripper is travelling while its control is held; nil when still.
     public var gripperMoving: GripperState?
-    /// Which way the wrist is moving while a wrist control is held (roll or pitch); nil when still.
-    public var jawTurning: TurnDirection?
     /// True while a wrist hold that takes its angle from the phone's rotation is engaged.
     public var wristMoving = false
     public var serverInputError = false
@@ -42,14 +31,9 @@ public struct FakeTeleopState: Equatable, Sendable {
 
     public init() {}
 
-    public static let amberLatencyMs = 150
     /// Round trip at or above this blocks commands.
     public static let blockLatencyMs = 400
     public static let smoothingRange = 0.0...1.0
-
-    public var latencyIsAmber: Bool {
-        commandsBlocked || (latencyMs ?? 0) >= Self.amberLatencyMs
-    }
 
     public mutating func markConnected() {
         connected = true
@@ -64,7 +48,6 @@ public struct FakeTeleopState: Equatable, Sendable {
         connected = false
         armMoving = false
         gripperMoving = nil
-        jawTurning = nil
         wristMoving = false
     }
 
@@ -77,7 +60,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func leaveSession() {
         armMoving = false
         gripperMoving = nil
-        jawTurning = nil
         wristMoving = false
         connected = false
         connectionLost = false
@@ -88,7 +70,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func resetScene() {
         armMoving = false
         gripperMoving = nil
-        jawTurning = nil
         wristMoving = false
         gripper = .open
         clearLatency()
@@ -105,10 +86,6 @@ public struct FakeTeleopState: Equatable, Sendable {
     }
 
     public mutating func stopGripper() { gripperMoving = nil }
-
-    public mutating func turnJaws(toward direction: TurnDirection) { jawTurning = direction }
-
-    public mutating func stopTurn() { jawTurning = nil }
 
     public mutating func stopWrist() { wristMoving = false }
 }

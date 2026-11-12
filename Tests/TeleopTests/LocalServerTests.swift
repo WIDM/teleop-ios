@@ -81,7 +81,7 @@ final class LocalServerTests: XCTestCase {
         XCTAssertFalse(model.session.state.emergencyStop, "the server's E-stop came back after release")
         XCTAssertTrue(model.session.state.connected)
 
-        model.liveLink = false
+        model.startPractice()
         XCTAssertFalse(model.link.isOpen)
     }
 

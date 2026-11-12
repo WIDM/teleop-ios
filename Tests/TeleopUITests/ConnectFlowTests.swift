@@ -65,7 +65,7 @@ final class ConnectFlowTests: XCTestCase {
     /// Nothing answers at the discard port: Connect says so and still offers practice.
     func testConnectShowsWhyItFailedAndOffersPractice() {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = XCUIApplication.quiet + [
             "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "s1_connect", "-firstRunDone", "YES",
         ]
         app.launch()
@@ -80,7 +80,7 @@ final class ConnectFlowTests: XCTestCase {
     /// A later launch whose saved server does not answer lands on Not connected; tapping the word opens Connect (§7.2).
     func testTheNotConnectedWordOpensConnect() {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = XCUIApplication.quiet + [
             "-appLanguage", "en", "-serverAddress", "127.0.0.1:9", "-startRoute", "p4_standby", "-firstRunDone", "YES",
             "-controlMode", "screenTurns",
         ]

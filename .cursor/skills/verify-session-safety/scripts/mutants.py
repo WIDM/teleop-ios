@@ -25,9 +25,8 @@ HOLD_GUARDS = """guard acceptsControl else { return }
                 pendingHaptics.append(.play(.commandBlocked))
                 return
             }
-            // The server runs one held control at a time: the arm takes over from the gripper and a jaw turn.
+            // The server runs one held control at a time: the arm takes over from the gripper and the wrist.
             state.stopGripper()
-            state.stopTurn()
             state.stopWrist()
             state.armMoving = true"""
 
@@ -83,7 +82,7 @@ VARIANTS = [
         ["FAIL S6"],
     ),
     (
-        # Harmless: U1 allows S1 while latched, because S1 leads back to S4.
+        # Harmless: U1 allows S1 while latched, because S1's Back opens P5, which shows the stop.
         "lost link opens S1 even while E-stopped",
         [("if !state.emergencyStop, BackStackRules.controlRoutes.contains(route) { go(.s1) }", "go(.s1)")],
         ["PASS U1", "PASS U3"],
@@ -115,63 +114,38 @@ VARIANTS = [
     ),
     (
         "stop leaves the gripper moving",
-        [("state.armMoving = false\n            state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.armMoving = false\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)")],
+        [("state.armMoving = false\n            state.stopGripper()\n            state.stopWrist()\n            go(.s4)", "state.armMoving = false\n            state.stopWrist()\n            go(.s4)")],
         ["FAIL S10"],
     ),
     (
         "arm hold leaves the gripper moving",
-        [("            state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true")],
+        [("            state.stopGripper()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopWrist()\n            state.armMoving = true")],
         ["FAIL S10", "FAIL U7"],
     ),
     (
         "lost link leaves the gripper moving",
-        [("        armMoving = false\n        gripperMoving = nil\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        armMoving = false\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
+        [("        armMoving = false\n        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        armMoving = false\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S10"],
     ),
     (
-        "gripper hold leaves the jaws turning",
-        [("            state.stopTurn()\n            state.stopWrist()\n            state.moveGripper(toward: target)", "            state.stopWrist()\n            state.moveGripper(toward: target)")],
+        "gripper hold leaves the wrist hold engaged",
+        [("            state.stopWrist()\n            state.moveGripper(toward: target)", "            state.moveGripper(toward: target)")],
         ["FAIL S12", "FAIL U8"],
     ),
     (
-        "jaw turn leaves the gripper moving",
-        [("            state.stopGripper()\n            state.stopWrist()\n            state.turnJaws(toward: direction)", "            state.stopWrist()\n            state.turnJaws(toward: direction)")],
+        "wrist hold leaves the gripper moving",
+        [("            state.stopGripper()\n            state.wristMoving = true", "            state.wristMoving = true")],
         ["FAIL S12", "FAIL U8"],
     ),
     (
-        "arm hold leaves the jaws turning",
-        [("            state.stopTurn()\n            state.stopWrist()\n            state.armMoving = true", "            state.stopWrist()\n            state.armMoving = true")],
-        ["FAIL S12", "FAIL U8"],
+        "wrist hold ignores the arm hold",
+        [("// The arm is moving, so the wrist cannot turn.\n            guard canControl, !state.armMoving else {", "// The arm is moving, so the wrist cannot turn.\n            guard canControl else {")],
+        ["FAIL S12", "FAIL S16", "FAIL U8"],
     ),
     (
-        "jaw turn ignores the arm hold",
-        [("// The arm is moving, so the jaws cannot turn.\n            guard canControl, !state.armMoving else {", "// The arm is moving, so the jaws cannot turn.\n            guard canControl else {")],
-        ["FAIL S12", "FAIL U8"],
-    ),
-    (
-        "jaw turn has no guards",
-        [
-            (
-                "case .turnStart(let direction):\n            guard acceptsControl else { return }\n            // The arm is moving, so the jaws cannot turn.\n            guard canControl, !state.armMoving else {\n                pendingHaptics.append(.play(.commandBlocked))\n                return\n            }\n",
-                "case .turnStart(let direction):\n",
-            )
-        ],
+        "lost link leaves the wrist hold engaged",
+        [("        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        gripperMoving = nil\n    }\n\n    public mutating func clearLatency")],
         ["FAIL S13"],
-    ),
-    (
-        "stop leaves the jaws turning",
-        [("state.stopGripper()\n            state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.stopGripper()\n            state.stopWrist()\n            go(.s4)")],
-        ["FAIL S13"],
-    ),
-    (
-        "lost link leaves the jaws turning",
-        [("        gripperMoving = nil\n        jawTurning = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency", "        gripperMoving = nil\n        wristMoving = false\n    }\n\n    public mutating func clearLatency")],
-        ["FAIL S13"],
-    ),
-    (
-        "jaw turn end does nothing",
-        [("// Release always stops, even if the session got blocked while held.\n            state.stopTurn()", "break")],
-        ["FAIL S14"],
     ),
     (
         "wrist end does nothing",
@@ -190,7 +164,7 @@ VARIANTS = [
     ),
     (
         "stop leaves the wrist hold engaged",
-        [("state.stopTurn()\n            state.stopWrist()\n            go(.s4)", "state.stopTurn()\n            go(.s4)")],
+        [("state.stopGripper()\n            state.stopWrist()\n            go(.s4)", "state.stopGripper()\n            go(.s4)")],
         ["FAIL S13"],
     ),
     (
@@ -209,14 +183,32 @@ VARIANTS = [
         ["FAIL S1"],
     ),
     (
+        # With a recorder the app refuses Release, keep scene, so the confirmed reset is the only way out of the stop.
+        "a confirmed reset never releases the stop",
+        [("guard state.emergencyStop, state.resetClearsStop else { return }", "if true { return }")],
+        ["FAIL U3"],
+    ),
+    (
         "confirmed reset leaves the buzz playing",
         [("            // The long buzz ends. \"Ready.\" comes from the server's new episode, not from here.\n            pendingHaptics.append(.cancel)\n", "")],
         ["FAIL S9"],
     ),
     (
-        "confirmed reset stays where it is",
-        [("            // must not lead back to it.\n            go(.p4)", "            // must not lead back to it.\n            if route == .s4 { go(.p4) }")],
+        # The connection screens are drawn by the operating screen and have no Close back to S4, so a reset that only
+        # stayed where it was would show nothing wrong; one that opens S4 must be caught.
+        "confirmed reset opens S4",
+        [("            // must not lead back to it.\n            go(.p4)", "            // must not lead back to it.\n            go(.s4)")],
         ["FAIL U2"],
+    ),
+    (
+        "Settings Done opens the tutorial while stopped",
+        [("        case .settingsDone:\n            go(.p4)", "        case .settingsDone:\n            go(state.emergencyStop ? .t1 : .p4)")],
+        ["FAIL U1"],
+    ),
+    (
+        "S1's Back stays on S1 while stopped",
+        [("        case .s1Back:\n            go(.p5)", "        case .s1Back:\n            go(state.emergencyStop ? .s1 : .p5)")],
+        ["FAIL U1"],
     ),
     (
         "hold end does nothing",
@@ -289,24 +281,50 @@ VARIANTS = [
         ["FAIL S8", "FAIL U6"],
     ),
 ]
-MAP_VARIANTS = [("S5 loses STOP in the map", "s5", ",stop", ["FAIL U5"])]
-FALLBACK_STRUCT = "struct FallbackControlScreen: View {"
+MAP_VARIANTS = [("Settings loses STOP in the map", "s6", ",stop", ["FAIL U5"])]
+SETTINGS_STRUCT = "struct SettingsScreen: View {"
 SOURCE_VARIANTS = [
     (
-        "S5 loses STOP in the source",
-        "Screens/FallbackScreen.swift",
-        FALLBACK_STRUCT,
-        "StopButton { model.send(.stop) }",
-        "StopButton {}",
-        "DRIFT s5: ui-map lists stop, but FallbackControlScreen does not send it",
+        "Settings loses STOP in the source",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "StopBand { model.send(.stop) }",
+        "StopBand {}",
+        "DRIFT s6: ui-map lists stop, but SettingsScreen does not send it",
     ),
     (
-        "S4 gains a new control",
-        "Screens/EStopScreen.swift",
-        "struct EStopScreen: View {",
-        "model.send(.releaseStop)",
-        "model.send(.releaseStop); model.send(.openSettings)",
-        "DRIFT EStopScreen sends openSettings, but no ui-map row for it lists it",
+        "Settings stops showing the stop",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        '.accessibilityIdentifier("settings.stopped")',
+        '.accessibilityIdentifier("settings.band")',
+        "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
+    ),
+    (
+        "Settings stops drawing its STOPPED band",
+        "Screens/SettingsScreen.swift",
+        SETTINGS_STRUCT,
+        "            if case .stopped = model.operating.state { stoppedBand }\n",
+        "",
+        "DRIFT SettingsScreen no longer shows the stop (settings.stopped), but showsTheStop counts s6",
+    ),
+    (
+        "Leaving fewer routes ends a hold",
+        "Operating/OperatingController.swift",
+        "final class OperatingController {",
+        "static let operatingRoutes: Set<Route> = RootView.operatingRoutes",
+        "static let operatingRoutes: Set<Route> = BackStackRules.controlRoutes",
+        "DRIFT OperatingController.operatingRoutes is not RootView.operatingRoutes, which operatingScreen models",
+    ),
+    (
+        "The operating screen gains a new control",
+        "Operating/Views/OperatingScreen.swift",
+        "private struct OperatingControls: View {",
+        "ReleaseButton(scale: scale) { model.send(.releaseStop) }",
+        "ReleaseButton(scale: scale) { model.send(.releaseStop); model.send(.openKeyboard) }",
+        "DRIFT OperatingControls sends ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', 'holdArmStart', "
+        "'openKeyboard', 'releaseStop'], expected ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', "
+        "'holdArmStart', 'releaseStop']",
     ),
 ]
 
