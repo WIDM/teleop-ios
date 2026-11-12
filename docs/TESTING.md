@@ -157,8 +157,8 @@ carries the task object to the goal, lowers it and lets go, each with the chosen
 
 The same script runs in two places:
 
-- `LocalPickAndPlaceTests`, in every default run, once per control mode, against `LocalTeleopServer` stepping
-  60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
+- `LocalPickAndPlaceTests`, in every default run, once per control mode against a model that reports `tool_pos`
+  and once against one that does not, against `LocalTeleopServer` stepping 60 times a second, with the script's waits shortened to match (`pace: 0.3`). The script fails if the arm cannot
   reach the grasp point, the jaws do not close on the object, the object is not lifted, it does not end in the goal,
   or the phone shows an emergency stop at the end. The test then checks that the server's episode count is 1 (the
   scene reset once, after the success) and that the server's last `state` has no emergency stop. It does not check
@@ -183,7 +183,8 @@ Sim's nominal rate, faster than the lab machine manages; the protocol timers (th
 
 Strictly: every ack (seq, status, reason, in the same order), whether a `state` came with each ack and that
 state's `estop` and `ik`, every error and echo, no other `state` while the client keeps sending at least every
-200 ms, the same `state` keys and JSON types, and the final `estop`, `ik`, `episode`, `gripper`, `step`,
+200 ms, the same `state` keys and JSON types (the recordings have no `tool_pos`, so the replay turns the model's
+`reportsToolPoint` off), and the final `estop`, `ik`, `episode`, `gripper`, `step`,
 `task_success` and recorder fields. Loosely, with the reason in the test's header: the number of states in a
 silence, ack times, final positions and angles. Two stalls of the real server's event loop are exempt from the
 timing rules (`Exclusion.all`). In s11 the real jaws came down on the cube and stopped a move; the replay puts an

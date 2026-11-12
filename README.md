@@ -47,6 +47,7 @@ on purpose (`docs/TESTING.md`).
 | `Packages/TeleopCore/` | the pure logic (session, link, input rules, feedback), a model of the server, and its socket host |
 | `Tests/` | app tests, the scripted operator, UI tests |
 | `scripts/` | the string and button checks, and tools for the live server |
+| `tools/` | the session safety checker (`tools/session-safety`) and the app check scripts (`tools/app-checks`), each with a README |
 | `docs/ARCHITECTURE.md` | how the app is put together |
 | `docs/PROTOCOL.md` | every message between the app and the server |
 | `docs/TESTING.md` | the test layers and how to run each |

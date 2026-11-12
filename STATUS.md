@@ -11,7 +11,8 @@ What the app does, what is known not to work, and what version 1 leaves out. How
 - The link: two connections, holds, final acks, resets, the emergency stop and its two ways out, and a STOP pressed
   with no link. The server model it is tested against is checked against 18 recordings of the real server.
 - The guide, in the phone modes on a real server: the arm from above and from behind, and the target and goal
-  when the server reports them.
+  when the server reports them. The jaw marker is the server's `tool_pos` when it sends one, otherwise an estimate
+  drawn as a hollow ring where it may be off. The phone plays the on-target haptic once per approach.
 - The recorder: the REC line, Settings → Recording, and the spoken news of each take.
 - A vibration, a sound or a spoken phrase for every feedback event (`CueTable`); every string in English and
   Traditional Chinese.
@@ -40,4 +41,5 @@ phone.
 
 - Voice commands.
 - Wrist buttons in buttons mode.
-- Distribution through TestFlight, which is not set up yet (`docs/RELEASING.md` says what it needs).
+- Distribution through TestFlight is not set up yet. The repository has what an upload needs; the steps only the
+  Apple account holder can take are in `docs/RELEASING.md`.

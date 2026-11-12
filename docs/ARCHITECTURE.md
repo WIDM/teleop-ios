@@ -145,12 +145,17 @@ What it shows comes from two pure functions in `OperatingRules`:
   `OperatingWords` turns the state into the word, its details and its colour, in the app's language.
 - `arm(_:commanded:gripping:profile:)` builds an `ArmReading` from the newest server state and the robot profile:
   where the jaws pinch, where the arm is being sent during a move, how far the jaws are open, the wrist angles,
-  and the target and goal when the server reports them. Practice has no reading.
+  and the target and goal when the server reports them. Practice has no reading. The pinch point comes from
+  `RobotProfile.pinchPoint`: the server's `tool_pos` when the state carries it, otherwise the reported arm point
+  plus `toolOffset`, marked approximate where the profile's accuracy rule allows more than half the on-target
+  window of error.
 
 The **guide** is that reading as a picture: the workspace from above and from behind on one left-right axis, and a
 few read-outs under it. `GuidePicture` works out every place and read-out as plain numbers and `GuideView` draws
 them. It is shown in the phone modes while Settings → Task aid is on and a reading exists. The target, the goal,
-"On target" and "Holding" appear only when the server reports task objects.
+"On target" and "Holding" appear only when the server reports task objects. An approximate pinch point is drawn
+as a hollow ring with no centre dot, an orange line says "Jaw position is approximate", and the guide never says
+"On target" then.
 
 `OperatingFixtures` holds a named `OperatingDisplay` for every state; `-operatingFixture <name>` shows one and
 nothing overwrites it, so UI tests can photograph each state.
@@ -263,7 +268,10 @@ Four parts raise `FeedbackEvent`s, all through `AppModel.raise`:
   restarted.
 - `OperatingController`, for input decisions: a dead press, a refusal and its reason, a wrist limit.
 - `AppModel` itself: an emergency stop (from the session's own haptic request), a lost link, a press the session
-  ignored, and a practice hold going live at once.
+  ignored, a practice hold going live at once, and the on-target haptic, which `OnTargetCue` decides from what the
+  guide shows: once as "On target" turns on with the jaws open, never while the marker is approximate, the stop is
+  latched, the task aid is off or no real server is connected, and armed again after the pinch point leaves a
+  window 1.5 times as large, a scene reset, a new target or a close that did not lift the target.
 
 `CuePlayer` asks `CueScheduler` what to play. The scheduler looks the event up in `CueTable` and resolves
 collisions: one haptic channel with a fixed priority, one voice with levels, sounds at once. `CuePlayer` gives the
@@ -311,9 +319,8 @@ Update it before a change counts as safe. The checker's tables are in
   commit in its `README.md`, which lists the full steps.
 
 `drift.py`, run by `check.sh`, fails when one of the first three is forgotten. For the fourth, `check.sh` prints a
-`REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure. The sync
-commit is older than much of the app, so a clean checkout prints many of them; look at the ones for files your own
-change touched.
+`REVIEW` line for each covered file that differs from the sync commit. That is a reminder, not a failure: it
+stays until someone has read the change and moved the sync commit.
 
 ## Where robot and task numbers live
 
@@ -321,7 +328,8 @@ change touched.
 
 | Field | What it is |
 |---|---|
-| `toolOffset` | from the point the server reports for the arm to where the jaws pinch, in the robot base frame |
+| `toolOffset` | from the point the server reports for the arm to where the jaws pinch, in the robot base frame; used when a state has no `tool_pos` |
+| `estimateBound` | how far a pinch point estimated with `toolOffset` may be off, per centimetre the arm has moved from where the offset was measured and per degree of wrist; past half the on-target window the estimate is approximate |
 | `baseInWorld` | where the robot base sits in the world frame (the server reports objects in the world frame) |
 | `graspTolerance` | how close the pinch point must be to the target's centre to count as on target |
 | `targetSize`, `goalSize` | the task object's and the goal area's size across, for drawing them true to size |
