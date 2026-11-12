@@ -56,7 +56,7 @@ sound, speech, the socket) sit behind small protocols (`HapticsPlaying`, `SoundP
 
 `FakeTeleopState` is the session's real state, despite its name. With `liveLink` set, the connection, the latency
 and the emergency stop follow the server. With it off, the app runs **practice**: a built-in demo with no server,
-where every press succeeds at once and no message is sent.
+where a press the session accepts goes live at once and no message is sent.
 
 ### The app target
 
@@ -232,9 +232,9 @@ or practice).
 
 Every `state` from either connection goes to `FeedbackMonitor` and then to `AppModel` (a state that left the server
 earlier than one already handled is dropped). `AppModel` keeps it as `serverState`, for the guide and the operating
-state, and hands it to `RecorderNarrator`. The link counts as lost when the socket closes, when no `welcome` comes within 5 s, when the
-control connection hears nothing for 2 s, or, while the listening connection is up, when neither hears anything
-for 1.2 s.
+state, and hands it to `RecorderNarrator`. The link counts as lost when the socket closes, when no `welcome` comes
+within 5 s, when the control connection hears nothing for 2 s, or, while the listening connection is up, when
+neither hears anything for 1.2 s.
 
 ## From an event to something felt or heard
 
@@ -257,9 +257,10 @@ cue is still recorded in `AppModel.cueLog`.
 ## Practice
 
 Practice (Connect → "Practice without a robot", or Settings → Practice) runs the session with `liveLink` off:
-nothing is sent to any server, every press succeeds at once, there is no guide, and the operating screen, Connect,
-Settings and the tutorial show purple stripes and PRACTICE 練習. It is never saved: every launch is on the real server. `AppModel.startPractice` and `leavePractice`
-are the only ways in and out, and both are refused while the emergency stop is latched.
+nothing is sent to any server, a press the session accepts goes live at once, there is no guide, and the operating
+screen, Connect, Settings and the tutorial show purple stripes and PRACTICE 練習. It is never saved: every launch is
+on the real server. `AppModel.startPractice` and `leavePractice` are the only ways in and out, and both are refused
+while the emergency stop is latched.
 
 ## The safety checker
 

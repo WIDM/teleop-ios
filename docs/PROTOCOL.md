@@ -157,8 +157,8 @@ smoothing 0.
 during a vol+ hold, or, in buttons mode, a target that moves from the press in the button's direction at 1 cm/s
 (Fine) or 4 cm/s (Coarse) for as long as the button is held (`ButtonRamp`). It is an absolute target within the
 hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The server turns
-`[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x, forward as −y and up
-as −z (`OperatorFrame.linkOffset`).
+`[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x, forward as −y
+and up as −z (`OperatorFrame.linkOffset`).
 
 The server requires `frame`, `rate_hz` (exactly 30), `gain` (0.1 to 2), `deadband_deg` (0 to 15) and `smoothing`
 (0 to 0.95), and then ignores the last three in translation mode. `frame` is a fixed name, not a choice: `pose_start`
@@ -347,10 +347,10 @@ which the phone offers, from the newest recorder fields:
 
 ## The scene reset
 
-`reset_scene` puts the robot back in its start pose and the task object back on the table. The answer comes only when the
-reset has finished, about 1.7 s later on the lab server; meanwhile `state.ik` is `resetting`. Afterwards `episode`
-has gone up by one, `gripper` says `closed`, `task_success` is `false`, and a recording server is ready for a new
-take.
+`reset_scene` puts the robot back in its start pose and the task object back on the table. The answer comes only
+when the reset has finished, about 1.7 s later on the lab server; meanwhile `state.ik` is `resetting`. Afterwards
+`episode` has gone up by one, `gripper` says `closed`, `task_success` is `false`, and a recording server is ready
+for a new take.
 
 ```json
 {"v": 1, "type": "reset_scene", "ts": 1794378712724, "seq": 145, "payload": {}}
@@ -369,8 +369,8 @@ How the app sends it (`AppModel.runReset`, `TeleopLink.resetScene`):
   success is being shown), is told to the operator: the scene was not reset.
 - Every start is refused on the phone from the moment the reset is asked for until the answer comes (at most 10 s).
 
-The server also resets by itself: after a success has been shown, and when the task object falls off the table while no
-command runs. During those resets, and while a success is shown, starts are refused `sim_not_ready`.
+The server also resets by itself: after a success has been shown, and when the task object falls off the table
+while no command runs. During those resets, and while a success is shown, starts are refused `sim_not_ready`.
 
 ## The second, listening connection
 
@@ -380,10 +380,11 @@ control connection hears only the echoes of its own probes: not where the arm is
 
 So after the control connection's `welcome`, the app opens a second connection to the same address. It says
 `hello` (named like the control connection, followed by ` observer`) and then sends nothing but `estop` on a STOP,
-so the server sends it a `state` every 200 ms, holds included. It owns no hold, so its closing can never stop the robot. Its states go through the same path as
-the control connection's; a state that left the server earlier than one already handled is dropped
-(`LiveLinkController.stateArrived`). This is what lets the phone tell the operator, during the hold, that the arm is
-blocked, that the jaws closed on something, or that the arm reached the edge of its box.
+so the server sends it a `state` every 200 ms, holds included. It owns no hold, so its closing can never stop the
+robot. Its states go through the same path as the control connection's; a state that left the server earlier than
+one already handled is dropped (`LiveLinkController.stateArrived`). This is what lets the phone tell the operator,
+during the hold, that the arm is blocked, that the jaws closed on something, or that the arm reached the edge of
+its box.
 
 If it drops, the app opens it again 2 s later without telling the operator. The link counts as lost when the
 control connection has heard nothing for 2 s or, while the listening connection is up, when neither has heard
