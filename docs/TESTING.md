@@ -258,8 +258,10 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 
 The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
 older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
-differently, so a file that passes here can be reported there. The strict check that counts is a step of the release
-procedure (`docs/RELEASING.md`), run with the current Xcode.
+differently, so a file that passes here can be reported there. `.swift-format` names only the settings that differ
+from swift format's defaults (four-space indents, 120 columns, no indent inside `#if`, every rewriting rule off), so
+that the older version can read it too. The strict check that counts is a step of the release procedure
+(`docs/RELEASING.md`), run with the current Xcode.
 
 CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
 whenever a change touches the session, its state, the screens' actions or the hold handling.
