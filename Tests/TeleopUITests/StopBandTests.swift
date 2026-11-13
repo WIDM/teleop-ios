@@ -217,13 +217,14 @@ final class StopBandTests: XCTestCase {
                 forDuration: 0.02, thenDragTo: point(app, end), withVelocity: .fast,
                 thenHoldForDuration: 0)
         }
-        let changed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label != %@", "Ready"), object: app.element("operating.state"))
-        changed.isInverted = true
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [changed], timeout: 1), .completed,
-            "\(String(describing: p ?? start)): the state reads \(app.element("operating.state").label)", file: file,
-            line: line)
+        // Read the word itself for a second: a predicate expectation looks only about once a second.
+        let state = app.element("operating.state")
+        let deadline = Date().addingTimeInterval(1)
+        repeat {
+            let now = state.label
+            XCTAssertEqual(now, "Ready", "\(String(describing: p ?? start)): the state changed", file: file, line: line)
+            if now != "Ready" { break }
+        } while Date() < deadline
         XCTAssertEqual(app.element("test.haptics").label, cues, "no cue", file: file, line: line)
     }
 
