@@ -171,6 +171,54 @@ final class TouchFilterTests: XCTestCase {
         XCTAssertEqual(band.wait(2), [.fireReset])
     }
 
+    /// The rule is "this wide or wider": 91 pt is a palm and a hair less is not, at touch-down and inside the window.
+    func testThePalmRadiusIsInclusive() {
+        let limit = InputConstants.appendixA.palmRadiusPt
+        XCTAssertEqual(limit, 91)
+
+        var at = Rig(.screenTurns)
+        at.touchDown(1, at: Rig.gear, radius: limit)
+        XCTAssertEqual(at.lift(1, after: 0.2), [])
+        var under = Rig(.screenTurns)
+        under.touchDown(1, at: Rig.gear, radius: limit - 0.01)
+        XCTAssertEqual(under.lift(1, after: 0.2), [.openSettings])
+
+        var grown = Rig(.screenTurns)
+        grown.touchDown(1, at: Rig.middle, radius: 61)
+        grown.move(1, to: Rig.middle, radius: limit, after: 0.05)
+        grown.wait(0.1)
+        XCTAssertEqual(grown.slide(1, mm: 10, degrees: 90), [])
+        var almost = Rig(.screenTurns)
+        almost.touchDown(1, at: Rig.middle, radius: 61)
+        almost.move(1, to: Rig.middle, radius: limit - 0.01, after: 0.05)
+        almost.wait(0.1)
+        XCTAssertEqual(almost.slide(1, mm: 10, degrees: 90), [.startGripper(.open)])
+    }
+
+    /// The sample that lifts a contact is judged like the ones before it.
+    func testAContactThatIsAPalmWhenItLiftsInsideTheWindowIsIgnored() {
+        var gear = Rig(.screenTurns)
+        gear.touchDown(1, at: Rig.gear, radius: 61)
+        XCTAssertEqual(gear.lift(1, radius: 97, after: 0.08), [], "a palm brushing the gear opens nothing")
+
+        var thumb = Rig(.screenTurns)
+        thumb.touchDown(1, at: Rig.gear, radius: 61)
+        XCTAssertEqual(thumb.lift(1, radius: 85, after: 0.08), [.openSettings])
+
+        // Past the window the radius changes nothing, as for a move.
+        var late = Rig(.screenTurns)
+        late.touchDown(1, at: Rig.gear, radius: 61)
+        XCTAssertEqual(late.lift(1, radius: 97, after: 0.2), [.openSettings])
+
+        // A top band touch that owes "Let go first." stays silent when it turns out to be a palm.
+        var owing = Rig(.screenTurns)
+        owing.press(.upper)
+        owing.touchDown(1, at: Rig.topBand, radius: 61, after: 0.3)
+        XCTAssertEqual(owing.lift(1, radius: 97, after: 0.05), [])
+        owing.touchDown(2, at: Rig.topBand, radius: 61, after: 0.3)
+        XCTAssertEqual(owing.lift(2, after: 0.05), [.cue(.refused(.letGoFirst))])
+    }
+
     /// The narrowest palm measured on the same phone: 61 pt at touch-down, 97 pt inside the window.
     func testThePalmMeasuredOnAPhoneIsStillIgnored() {
         for scheme in [InputScheme.screenTurns, .keyTurns] {

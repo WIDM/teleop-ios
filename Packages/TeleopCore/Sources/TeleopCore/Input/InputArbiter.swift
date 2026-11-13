@@ -289,10 +289,11 @@ public struct InputArbiter: Sendable {
             touchBegan(sample)
         case .moved:
             touchMoved(sample)
-        case .ended:
-            touchEnded(sample.id, cancelled: false)
-        case .cancelled:
-            touchEnded(sample.id, cancelled: true)
+        case .ended, .cancelled:
+            // The sample that lifts a contact counts like any other: a palm by it, still inside its window, was a palm
+            // all along, so it neither opens Settings nor plays the NO it owed.
+            _ = ignoredAsPalm(sample)
+            touchEnded(sample.id, cancelled: sample.phase == .cancelled)
         }
     }
 
@@ -349,26 +350,28 @@ public struct InputArbiter: Sendable {
         }
     }
 
-    private mutating func touchMoved(_ s: TouchSample) {
-        guard let role = touches[s.id] else { return }
-        let palm = s.majorRadius >= constants.palmRadiusPt
+    /// Marks a contact that is a palm by this sample, and still inside its palm window, as ignored. True when it did.
+    private mutating func ignoredAsPalm(_ s: TouchSample) -> Bool {
+        guard s.majorRadius >= constants.palmRadiusPt, let role = touches[s.id] else { return false }
         switch role {
         case .ignored, .stop:
-            return
+            return false
         case .band(let band):
             // A band whose window timer already fired at this instant is past its window.
-            if palm, band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) {
-                touches[s.id] = .ignored
-            }
-        case .surface(var touch):
-            if palm, !touch.windowEnded {
-                touches[s.id] = .ignored
-                return
-            }
-            touch.at = SIMD2(s.x, s.y)
-            touches[s.id] = .surface(touch)
-            if touch.windowEnded { judge(s.id) }
+            guard band.phase != .counting, band.phase != .live, insidePalmWindow(band.downAt) else { return false }
+        case .surface(let touch):
+            guard !touch.windowEnded else { return false }
         }
+        touches[s.id] = .ignored
+        return true
+    }
+
+    private mutating func touchMoved(_ s: TouchSample) {
+        if ignoredAsPalm(s) { return }
+        guard case .surface(var touch)? = touches[s.id] else { return }
+        touch.at = SIMD2(s.x, s.y)
+        touches[s.id] = .surface(touch)
+        if touch.windowEnded { judge(s.id) }
     }
 
     private mutating func touchEnded(_ id: Int, cancelled: Bool) {

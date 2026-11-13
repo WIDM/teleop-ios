@@ -26,10 +26,13 @@ final class InputArbiterPropertyTests: XCTestCase {
         XCTAssertGreaterThan(totals.gripperTouchStarts, 200)
         XCTAssertGreaterThan(totals.countdowns, 50)
         XCTAssertGreaterThan(totals.refusals, 100)
+        XCTAssertGreaterThan(totals.palmSamples, 1000)
     }
 
     struct Totals {
         var starts = 0, wristStarts = 0, gripperTouchStarts = 0, deadInputs = 0, countdowns = 0, refusals = 0
+        /// Touch samples as wide as a palm.
+        var palmSamples = 0
     }
 
     private func run(_ scenario: Scenario, totals: inout Totals) -> String? {
@@ -42,6 +45,9 @@ final class InputArbiterPropertyTests: XCTestCase {
 
         for step in scenario.timeline {
             let downBefore = down
+            if case .touch(let s) = step.event, s.majorRadius >= arbiter.constants.palmRadiusPt {
+                totals.palmSamples += 1
+            }
             switch step.event {
             case .keyDown(let key): down.insert(.key(key))
             case .keyUp(let key): down.remove(.key(key))
@@ -194,7 +200,7 @@ struct Scenario {
             let point = randomPoint(&rng)
             let down = rng.uniform(0, 0.1)
             let up = down + rng.uniform(0, long ? 2.5 : 0.5)
-            var radius = rng.chance(0.1) ? rng.uniform(32, 60) : rng.uniform(4, 20)
+            var radius = rng.chance(0.1) ? rng.uniform(91, 130) : rng.uniform(4, 85)
             add(down, .touch(TouchSample(id: id, phase: .began, x: point.x, y: point.y, majorRadius: radius)))
             var at = point
             var t = down
@@ -208,7 +214,7 @@ struct Scenario {
                     t += interval
                     guard t < up else { break }
                     at += step
-                    if rng.chance(0.03) { radius = rng.uniform(30, 45) }
+                    if rng.chance(0.03) { radius = rng.uniform(85, 130) }
                     add(t, .touch(TouchSample(id: id, phase: .moved, x: at.x, y: at.y, majorRadius: radius)))
                 }
             }
