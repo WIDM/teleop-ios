@@ -39,10 +39,9 @@ final class StopBandTests: XCTestCase {
         )
         XCTAssertEqual(app.state, .runningForeground, "the first swipe from the bottom edge stays in the app")
 
-        // The band's lowest row stops, and at touch-down: the finger then slides off the band before it lifts.
-        press(
-            app, at: CGPoint(x: screen.midX, y: band.bottom - 3), for: 0.6, thenDragTo: CGPoint(x: screen.midX, y: 400))
-        expectLabel(app.element("operating.state"), "STOPPED", timeout: 2)
+        // The band's lowest row stops while the finger is still on it; sliding off the band afterwards changes nothing.
+        expectStoppedWhileHolding(
+            app, at: CGPoint(x: screen.midX, y: band.bottom - 3), thenDragTo: CGPoint(x: screen.midX, y: 400))
     }
 
     /// The short screen the UI tests draw has no bottom safe area: the band runs to its bottom edge and stops there.
@@ -51,8 +50,7 @@ final class StopBandTests: XCTestCase {
         let band = stopBandRows(app)
         XCTAssertEqual(band.top, 667 - 72 * 667 / 874, accuracy: 0.5)
         XCTAssertEqual(band.bottom, 667, accuracy: 0.5)
-        press(app, at: CGPoint(x: 187, y: 665))
-        expectLabel(app.element("operating.state"), "STOPPED", timeout: 2)
+        expectStoppedWhileHolding(app, at: CGPoint(x: 187, y: 665))
     }
 
     /// The same short screen with a 34 pt safe area under it: the band is scaled, the strip is not, and the drawing
@@ -66,8 +64,7 @@ final class StopBandTests: XCTestCase {
         attachScreenshot("stop-band-operating-667-safe-area")
         assertNothingComesOf(app, press: CGPoint(x: 187, y: band.bottom + 2))
         assertNothingComesOf(app, swipeFrom: CGPoint(x: 187, y: 660), to: CGPoint(x: 187, y: 300))
-        press(app, at: CGPoint(x: 187, y: band.bottom - 2))
-        expectLabel(app.element("operating.state"), "STOPPED", timeout: 2)
+        expectStoppedWhileHolding(app, at: CGPoint(x: 187, y: band.bottom - 2))
     }
 
     // MARK: The other screens
@@ -116,8 +113,7 @@ final class StopBandTests: XCTestCase {
                 app.element("operating.state").waitForExistence(timeout: 1), "\(screen.name): the strip stopped")
             XCTAssertTrue(app.element(screen.marker).exists, "\(screen.name): still showing")
 
-            press(app, at: CGPoint(x: window.midX, y: band.maxY - 3))
-            expectLabel(app.element("operating.state"), "STOPPED", timeout: 2)
+            expectStoppedWhileHolding(app, at: CGPoint(x: window.midX, y: band.maxY - 3), screen.name)
             app.terminate()
         }
     }
@@ -142,8 +138,7 @@ final class StopBandTests: XCTestCase {
             let band = app.element("stop").frame
             XCTAssertEqual(band.height, 72, accuracy: 0.5, screen.name)
             XCTAssertEqual(band.maxY, 667, accuracy: 0.5, screen.name)
-            press(app, at: CGPoint(x: 187, y: 665))
-            expectLabel(app.element("operating.state"), "STOPPED", timeout: 2)
+            expectStoppedWhileHolding(app, at: CGPoint(x: 187, y: 665), screen.name)
             app.terminate()
         }
     }
@@ -158,8 +153,56 @@ final class StopBandTests: XCTestCase {
         point(app, p).press(forDuration: duration)
     }
 
-    private func press(_ app: XCUIApplication, at p: CGPoint, for duration: TimeInterval, thenDragTo end: CGPoint) {
-        point(app, p).press(forDuration: duration, thenDragTo: point(app, end))
+    /// Holds a finger on `p` for 5 s (then slides it to `end`, if given) and fails unless the app stopped while the
+    /// finger was still down, so a STOP that waited for the lift fails. A press holds up the test until the finger
+    /// lifts, and the test may only look from that same thread, so the moment comes from the developer log in
+    /// Settings, which notes each action to the second.
+    private func expectStoppedWhileHolding(
+        _ app: XCUIApplication, at p: CGPoint, thenDragTo end: CGPoint? = nil, _ what: String = "",
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        if let end {
+            point(app, p).press(forDuration: 5, thenDragTo: point(app, end))
+        } else {
+            point(app, p).press(forDuration: 5)
+        }
+        let lifted = Self.secondOfDay(Date())
+        expectLabel(app.element("operating.state"), "STOPPED", timeout: 2, file: file, line: line)
+        guard let stopped = lastStopInTheLog(app, file: file, line: line) else { return }
+        // A STOP at touch-down is logged about 5 s before the lift, one at the lift 0 or 1 s before it.
+        var early = (lifted - stopped + 86_400) % 86_400
+        if early > 43_200 { early -= 86_400 }
+        XCTAssertTrue(
+            (3...30).contains(early), "\(what) \(p): the STOP came \(early) s before the lift", file: file, line: line)
+    }
+
+    private static func secondOfDay(_ date: Date) -> Int {
+        let time = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+        return (time.hour ?? 0) * 3600 + (time.minute ?? 0) * 60 + (time.second ?? 0)
+    }
+
+    /// Opens Settings from the operating screen, shows the developer log (five taps on the version) and returns the
+    /// second of the day of its last STOP.
+    private func lastStopInTheLog(_ app: XCUIApplication, file: StaticString, line: UInt) -> Int? {
+        app.element("operating.gear").tap()
+        expect(app, "settings.done", file: file, line: line)
+        let version = app.element("settings.version")
+        for _ in 0..<6 where !(version.exists && version.isHittable) { app.swipeUp() }
+        for _ in 0..<5 { version.tap() }
+        let log = app.element("settings.log")
+        for _ in 0..<4 where !(log.exists && log.isHittable) { app.swipeUp() }
+        let text = log.label
+        guard let mark = text.range(of: "→ stop", options: .backwards) else {
+            XCTFail("no STOP in the developer log: \(text)", file: file, line: line)
+            return nil
+        }
+        let clock = text[..<mark.lowerBound].trimmingCharacters(in: .whitespaces).suffix(8)
+        let parts = clock.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 3 else {
+            XCTFail("no time before the STOP in the developer log: \(text)", file: file, line: line)
+            return nil
+        }
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
     }
 
     /// The operating screen stays Ready and plays no cue.
