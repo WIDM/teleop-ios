@@ -114,7 +114,7 @@ Comparing whole stacks would make the state space unbounded, because `navigate` 
 
 ## Keep it in step
 
-Sync commit: `e594f0d`
+Sync commit: `63a7793`
 
 `check.sh` prints `REVIEW` for each covered file changed since that commit. Read the change, confirm that the checker, `ui-map.tsv` and the two stack arguments still describe the code, run `mutants.py`, and only then move the sync commit above to the commit you confirmed.
 

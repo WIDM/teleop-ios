@@ -232,7 +232,8 @@ The other holds take the same path. A wrist hold sends `.wristStart`, then each 
 
 STOP sends `.stop`: the session latches the emergency stop and ends every hold, and `driveLink` sends `estop` on
 every connection that is up, even when the stop is already latched. `AppModel.pressedStop` holds where the STOP
-that latched the stop stands until it is released: sent, confirmed or owed. It is confirmed by a `state` saying
+that latched the stop stands until it is released: sent, confirmed or owed. A STOP pressed again while a reset asked
+for from the stop is on its way starts over as sent: the reset may have cleared the server's stop. It is confirmed by a `state` saying
 stopped that the server wrote after reading its `estop` (`LiveLinkController.estopConfirmed`, from the `seq` the
 server puts on every state). It is owed when no connection was up at the press, or when the link goes before it is
 confirmed. An owed STOP has reached no robot: the operator hears "No link. Not stopped." (after "Link lost."), the
