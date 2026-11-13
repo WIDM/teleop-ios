@@ -34,8 +34,9 @@ phone.
 - A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
   address all read "Could not connect to that address."; the operating screen says only "Not connected".
 - Practice shows no guide: the practice link has no arm to report.
-- A whole press, move and release that falls inside one stall of the network plays the start's tick, moves
-  nothing, and ends without a word: a start gets no acknowledgement of its own.
+- A whole press, move and release that falls inside one stall of the network plays the start's tick, moves the arm
+  a few millimetres at most (the held messages reach the server together), and ends without a word: a start gets
+  no acknowledgement of its own.
 - For a moment after a stall the screen can say Slow link, because the probes sent during the stall come back
   late, and a press in that moment is refused with "Slow link.".
 - A server that has gone silent is noticed after 3 s, but only after tens of seconds while the app's own main
