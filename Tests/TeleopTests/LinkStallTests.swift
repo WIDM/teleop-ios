@@ -521,7 +521,7 @@ final class LinkStallTests: XCTestCase {
 
     /// STOP, confirmed by the server's state, and then a lost link: nothing is owed and the screen keeps saying
     /// STOPPED. Connecting again to the same, still stopped server sends `estop` again, and nothing a person can notice
-    /// changes: no alarm, no refusal, the same screen.
+    /// changes: no alarm, no refusal, the same screen, and Release, keep scene still works right after.
     func testAConfirmedStopStaysStoppedThroughALostLinkAndIsSentAgainUnnoticed() throws {
         try start(.screenTurns)
         tapStop()
@@ -544,6 +544,15 @@ final class LinkStallTests: XCTestCase {
         XCTAssertEqual(shown, [.stopped(cause: .button)], "the same screen throughout")
         XCTAssertTrue(model.debugLog.contains { $0.contains("the stop is latched, so estop is sent again") })
         XCTAssertTrue(serverStopped)
+
+        // The estop sent again does not get in the way of leaving the stop: Release, keep scene, held its second.
+        _ = hand.wait(1, until: { false })
+        XCTAssertTrue(OperatingWords.offersRelease(model.operating), "Release, keep scene is offered")
+        model.send(.releaseStop)
+        XCTAssertTrue(hand.wait(2, until: { !serverStopped }), "the server did not take the release")
+        _ = hand.wait(2.5, until: { false })
+        XCTAssertFalse(model.session.state.emergencyStop, "the stop latched again")
+        XCTAssertEqual(model.operating.state, .ready)
     }
 
     /// The same, but the server restarted while the link was down and its new run is not stopped: the welcome's

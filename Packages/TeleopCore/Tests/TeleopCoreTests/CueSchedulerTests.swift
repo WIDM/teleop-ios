@@ -152,6 +152,20 @@ final class CueSchedulerTests: XCTestCase {
         XCTAssertEqual(speech(scheduler.speechFinished(id: lost[0].id, at: 3500)).map(\.keys), [[.notStopped]])
     }
 
+    /// A "No link. Not stopped." still waiting when the phone announces an emergency stop, as when the owed STOP goes out
+    /// at a quick reconnect, is no longer said: it would follow the alarm's words and contradict them. Other news waits.
+    func testAnEmergencyStopDropsAWaitingNotStoppedButNoOtherNews() {
+        let lost = speech(scheduler.raise(.linkLost(holdEngaged: false), at: 0, currentHold: nil))
+        _ = scheduler.raise(.refused(.notStopped), at: 10, currentHold: nil)
+        _ = scheduler.raise(.takeDiscarded, at: 20, currentHold: nil)
+        let alarm = speech(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 300, currentHold: nil))
+        XCTAssertEqual(alarm.map(\.interrupt), [true])
+        XCTAssertTrue(scheduler.speechFinished(id: lost[0].id, at: 310).isEmpty)
+        let next = speech(scheduler.speechFinished(id: alarm[0].id, at: 4000))
+        XCTAssertEqual(next.map(\.keys), [[.takeDiscarded]])
+        XCTAssertTrue(scheduler.speechFinished(id: next[0].id, at: 5000).isEmpty, "nothing else waits")
+    }
+
     func testADeadInputIsFeltButNotSpoken() {
         let outputs = scheduler.raise(.refused(.deadInput), at: 0, currentHold: nil)
         XCTAssertEqual(outputs, [.haptic(.no)])

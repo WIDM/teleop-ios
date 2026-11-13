@@ -759,8 +759,9 @@ final class AppModel {
         // have cleared the server's stop. A server-side E-stop is not echoed, but our own hold still has to end.
         if action == .stop, !fromServer {
             let reached = link.estop()
-            // The press that latches the stop starts a pressed STOP; one pressed while it is latched changes nothing.
-            if !before.emergencyStop { pressedStop = reached ? .sent : .owed }
+            // The press that latches the stop starts a pressed STOP. One pressed while it is latched changes nothing,
+            // unless a reset asked for from the stop may have cleared the server's stop: then it waits to be confirmed.
+            if !before.emergencyStop || before.resetClearsStop { pressedStop = reached ? .sent : .owed }
         }
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
