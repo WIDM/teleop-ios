@@ -1332,6 +1332,27 @@ final class LiveLinkTests: XCTestCase {
         }
     }
 
+    /// Meanwhile the robot is not stopped either, so a refused press says "No link.", as the screen says Connecting:
+    /// never "Stopped.". Once the welcome has sent the `estop`, a press says "Stopped." again.
+    func testAPressWhileAStopIsOwedAndConnectReplacesTheLinkSaysNoLink() {
+        bringUp()
+        model.connect()
+        model.send(.stop)
+        XCTAssertTrue(model.session.state.connected)
+        XCTAssertEqual(model.inputFacts().refusal, .noLink)
+        speech.spoken = []
+        model.send(.holdArmStart)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.noLink))
+        XCTAssertEqual(speech.spoken, ["No link."])
+        XCTAssertEqual(model.operating.state, .connecting(address: "100.64.0.1:8765"))
+        transport.server("welcome")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertEqual(model.inputFacts().refusal, .stopped)
+        model.send(.holdArmStart)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.emergencyStop))
+    }
+
     /// Only a state the server wrote after reading this STOP's `estop` confirms it: one numbered before it does not,
     /// though it says stopped, nor one from before a release when STOP is pressed again within the two seconds after
     /// the release.

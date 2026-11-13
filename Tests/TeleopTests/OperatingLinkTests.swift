@@ -516,6 +516,28 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.operating.state, .linkLost)
     }
 
+    /// The same while Connect replaces a link that is up: the session still reads connected, but a STOP touched before
+    /// the new welcome has reached no robot, so a press says "No link." and the screen says Connecting.
+    func testWhileAStopWaitsForAReplacedLinkAPressSaysNoLink() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        model.connect()
+        step()
+        let bottom = model.operating.layout!.bottomBand.y + 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        XCTAssertTrue(model.session.state.emergencyStop)
+        XCTAssertTrue(model.session.state.connected, "Connect is replacing the link")
+        XCTAssertTrue(model.cueLog.contains { $0.event == .refused(.notStopped) })
+        step(10)
+        model.keyEvent(.upper, down: true)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.noLink))
+        model.keyEvent(.upper, down: false)
+        XCTAssertEqual(model.operating.state, .connecting(address: "100.64.0.1:8765"))
+    }
+
     func testTheModeCannotChangeWhileAHoldIsEngaged() {
         bringUp(.screenTurns)
         step()
