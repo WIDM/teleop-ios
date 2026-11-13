@@ -412,7 +412,8 @@ private struct PhoneSurface: View {
     }
 }
 
-/// Scheme B: a faint band down the middle, and which half opens and which closes, at the lower corners.
+/// Scheme B: a faint band down the middle, and which half opens and which closes, at mid height in the outer margin
+/// of each half, beside the guide. Not at the lower corners: a word there invites the thumb right beside STOP.
 private struct SchemeBHints: View {
     let display: OperatingDisplay
     let layout: SurfaceLayout
@@ -422,7 +423,7 @@ private struct SchemeBHints: View {
     var body: some View {
         let cs = layout.controlSurface
         let nearIsRight = display.hand == .right
-        ZStack(alignment: .bottom) {
+        ZStack {
             Color.white.opacity(0.10)
                 .frame(width: layout.sideDeadPt * 2)
                 .frame(maxHeight: .infinity)
@@ -436,8 +437,7 @@ private struct SchemeBHints: View {
                     nearIsRight ? "hint.close" : "hint.open",
                     id: nearIsRight ? "operating.hint_close" : "operating.hint_open")
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10 * scale)
+            .padding(.horizontal, 16)
         }
         .frame(width: cs.width, height: cs.height)
     }
