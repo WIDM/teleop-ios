@@ -407,6 +407,16 @@ final class LinkStallTests: XCTestCase {
         return control
     }
 
+    /// A new run of the server, not stopped, at a new address: the operator's Connect reaches it.
+    private func restartTheServer() throws {
+        server.stop()
+        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60)
+        config.session = "00000000-0000-4000-8000-000000000002"
+        server = LocalTeleopServer(config: config)
+        try server.start()
+        model.session.state.serverAddress = server.address
+    }
+
     /// The first message on the new connection after its hello is `estop`, and the server is stopped within 2 s.
     private func checkTheStopWentOutFirst(
         on control: Int, _ what: String, file: StaticString = #filePath, line: UInt = #line
@@ -507,5 +517,163 @@ final class LinkStallTests: XCTestCase {
 
     func testAStopPressedDuringAHoldInAStallThatLosesTheLinkIsOwedAndGoesOutFirstAfterTheWelcome() throws {
         try stopInAStallThatLosesTheLink(holding: true)
+    }
+
+    /// STOP, confirmed by the server's state, and then a lost link: nothing is owed and the screen keeps saying
+    /// STOPPED. Connecting again to the same, still stopped server sends `estop` again, and nothing a person can notice
+    /// changes: no alarm, no refusal, the same screen.
+    func testAConfirmedStopStaysStoppedThroughALostLinkAndIsSentAgainUnnoticed() throws {
+        try start(.screenTurns)
+        tapStop()
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "STOP did not reach the server")
+        hand.pump(1)
+        let index = model.cueLog.count
+        path.stall()
+        guard waitForTheLinkToGo("confirmed") else { return }
+        let lost = cues(from: index)
+        XCTAssertEqual(lost.map(\.event), [.linkLost(holdEngaged: false)], "only the lost link is told")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button), "the robot is stopped, as the server said")
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+
+        let reconnected = model.cueLog.count
+        shown = [model.operating.state]
+        let control = connectAgain("confirmed")
+        checkTheStopWentOutFirst(on: control, "confirmed")
+        hand.pump(1)
+        XCTAssertEqual(cues(from: reconnected).map(\.event), [], "nothing a person can notice")
+        XCTAssertEqual(shown, [.stopped(cause: .button)], "the same screen throughout")
+        XCTAssertTrue(model.debugLog.contains { $0.contains("the stop is latched, so estop is sent again") })
+        XCTAssertTrue(serverStopped)
+    }
+
+    /// The same, but the server restarted while the link was down and its new run is not stopped: the welcome's
+    /// `estop` stops it, with no second alarm.
+    func testAConfirmedStopReachesARestartedServerWithoutASecondAlarm() throws {
+        try start(.screenTurns)
+        tapStop()
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "STOP did not reach the server")
+        hand.pump(1)
+        path.stall()
+        guard waitForTheLinkToGo("restarted") else { return }
+        try restartTheServer()
+        XCTAssertFalse(serverStopped, "the new run starts unstopped")
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain("restarted")
+        checkTheStopWentOutFirst(on: control, "restarted")
+        hand.pump(1)
+        let after = cues(from: reconnected)
+        XCTAssertFalse(after.contains(where: Self.isAlarm), "a second alarm: \(after.map(\.event))")
+        XCTAssertFalse(after.contains(where: Self.isRefusal), "\(after.map(\.event))")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertTrue(serverStopped)
+    }
+
+    /// A stop that came from the server (another client's `estop`), then a lost link and a restarted server: the
+    /// welcome's `estop` stops the new run too, with no second alarm.
+    func testAStopFromTheServerReachesARestartedServerWithoutASecondAlarm() throws {
+        try start(.screenTurns)
+        server.inspect { sim in
+            let other = sim.open()
+            _ = sim.receive(
+                #"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"another client"}}"#,
+                from: other, at: sim.time)
+            _ = sim.receive(#"{"v":1,"type":"estop","ts":0,"seq":2,"payload":{}}"#, from: other, at: sim.time)
+        }
+        XCTAssertTrue(hand.wait(2, until: { model.session.state.emergencyStop }), "the phone did not latch the stop")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .other))
+        XCTAssertFalse(path.sent[1]?.contains("estop") ?? true, "the phone does not echo the server's stop")
+        hand.pump(1)
+        path.stall()
+        guard waitForTheLinkToGo("server's stop") else { return }
+        XCTAssertEqual(model.operating.state, .stopped(cause: .other))
+        try restartTheServer()
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain("server's stop")
+        checkTheStopWentOutFirst(on: control, "server's stop")
+        hand.pump(1)
+        let after = cues(from: reconnected)
+        XCTAssertFalse(after.contains(where: Self.isAlarm), "a second alarm: \(after.map(\.event))")
+        XCTAssertFalse(after.contains(where: Self.isRefusal), "\(after.map(\.event))")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .other))
+        XCTAssertTrue(serverStopped)
+    }
+
+    /// A STOP owed after a lost link and then released (what Release, keep scene sends) before connecting again is no
+    /// longer wanted: nothing is owed and no `estop` goes out after the welcome.
+    func testAnOwedStopReleasedBeforeConnectingAgainIsNotSent() throws {
+        try start(.screenTurns)
+        path.stall()
+        _ = hand.wait(0.5, until: { false })
+        tapStop()
+        guard waitForTheLinkToGo("released") else { return }
+        XCTAssertEqual(model.operating.state, .linkLost)
+        model.send(.releaseStop)
+        XCTAssertFalse(model.session.state.emergencyStop)
+
+        let control = connectAgain("released")
+        // Past the second the screen shows the refusal heard at the lost link.
+        _ = hand.wait(1.5, until: { false })
+        XCTAssertFalse(path.sent[control]?.contains("estop") ?? true, "an estop went out: \(path.sent[control] ?? [])")
+        XCTAssertFalse(serverStopped)
+        XCTAssertEqual(model.operating.state, .ready)
+    }
+
+    /// The server took the `estop`, but the path stalled before its answer came back, and the link was lost: the
+    /// phone cannot know, so the STOP is owed and the operator told, and after connecting again `estop` goes out once
+    /// more, the server stays stopped, and the alarm and STOPPED are true.
+    func testAStopTheServerTookButNeverConfirmedIsOwedAndSentAgain() throws {
+        try start(.screenTurns)
+        let index = model.cueLog.count
+        let band = hand.bottomBand
+        let touch = hand.touchDown(x: band.x, y: band.y)
+        // The estop has left; everything after it, the server's answer included, waits in the path.
+        path.stall()
+        hand.touchUp(touch, x: band.x, y: band.y)
+        XCTAssertTrue(hand.wait(1, until: { serverStopped }), "the server did not take the estop")
+        guard waitForTheLinkToGo("unconfirmed") else { return }
+        checkTheStopIsOwed(since: index, "unconfirmed")
+        XCTAssertTrue(serverStopped)
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain("unconfirmed")
+        checkTheStopWentOutFirst(on: control, "unconfirmed")
+        hand.pump(1)
+        XCTAssertEqual(
+            cues(from: reconnected).filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)])
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertTrue(serverStopped)
+    }
+
+    /// Released and pressed again inside the two seconds after `estop_reset`, while states the server sent before the
+    /// release (saying stopped) are still on their way: they reach the phone after the second press but do not confirm
+    /// it, so when the link is lost before the server's answer comes, that STOP is owed.
+    func testAStateFromBeforeAReleaseDoesNotConfirmTheNextStop() throws {
+        try start(.screenTurns)
+        tapStop()
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "STOP did not reach the server")
+        hand.pump(1)
+        XCTAssertTrue(OperatingWords.offersRelease(model.operating), "Release, keep scene is offered")
+        path.stall()
+        // States saying stopped pile up in the path.
+        _ = hand.wait(0.5, until: { false })
+        model.send(.releaseStop)
+        XCTAssertFalse(model.session.state.emergencyStop)
+        _ = hand.wait(0.2, until: { false })
+        let index = model.cueLog.count
+        tapStop()
+        XCTAssertTrue(model.session.state.emergencyStop)
+        // For an instant the path lets everything held through: the old states reach the phone, the release and the
+        // STOP leave for the server. It stalls again before the server's answers can come back.
+        path.resume()
+        path.stall()
+        guard waitForTheLinkToGo("pressed again") else { return }
+        checkTheStopIsOwed(since: index, "pressed again")
+
+        let control = connectAgain("pressed again")
+        checkTheStopWentOutFirst(on: control, "pressed again")
+        hand.pump(1)
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
     }
 }
