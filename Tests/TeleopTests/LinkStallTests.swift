@@ -941,13 +941,16 @@ final class LinkStallTests: XCTestCase {
     }
 
     /// The new connection comes up: its welcome sends `estop` first, with the alarm, and the screen goes from
-    /// Connecting to STOPPED.
+    /// Connecting to STOPPED. (The `estop` of the press went out behind the hello too.)
     func testAStopOwedWhileConnectReplacesTheLinkShowsConnectingUntilTheNewConnectionWelcomes() throws {
         let (control, index, timeline) = try stopWhileConnectReplacesTheLink()
         _ = hand.wait(1.5, until: { false })
         path.resume()
         XCTAssertTrue(hand.wait(2, until: { model.link.isUp }), "the new connection did not come up")
-        checkTheStopWentOutFirst(on: control, "replaced")
+        XCTAssertEqual(
+            Array((path.sent[control] ?? []).prefix(3)), ["hello", "estop", "estop"],
+            "behind the hello, then first after the welcome")
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "the server is not stopped 2 s after the welcome")
         hand.pump(1)
         print("REPLACED welcomes: \(Self.timeline(timeline()))")
         XCTAssertEqual(
