@@ -137,6 +137,21 @@ final class CueSchedulerTests: XCTestCase {
         XCTAssertEqual(speech(scheduler.raise(.refused(.noLink), at: 3000, currentHold: nil)).map(\.keys), [[.noLink]])
     }
 
+    /// A STOP that has reached no robot is said after "Link lost.", never dropped under it, nor under the alarm's own
+    /// words (J7).
+    func testNotStoppedWaitsForTheVoiceAndIsNeverDropped() {
+        let alarm = speech(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 0, currentHold: nil))
+        let lost = speech(scheduler.raise(.linkLost(holdEngaged: false), at: 2700, currentHold: nil))
+        XCTAssertEqual(lost.map(\.keys), [[.linkLost]])
+        XCTAssertTrue(scheduler.speechFinished(id: alarm[0].id, at: 2710).isEmpty, "the alarm's words were cut off")
+        let refused = scheduler.raise(.refused(.notStopped), at: 2720, currentHold: nil)
+        XCTAssertEqual(haptics(refused), [.no], "the alarm's rattle has ended")
+        XCTAssertTrue(speech(refused).isEmpty, "not over Link lost.")
+        XCTAssertEqual(scheduler.log.last?.speech, [.notStopped])
+        XCTAssertEqual(scheduler.log.last?.dropped, false)
+        XCTAssertEqual(speech(scheduler.speechFinished(id: lost[0].id, at: 3500)).map(\.keys), [[.notStopped]])
+    }
+
     func testADeadInputIsFeltButNotSpoken() {
         let outputs = scheduler.raise(.refused(.deadInput), at: 0, currentHold: nil)
         XCTAssertEqual(outputs, [.haptic(.no)])

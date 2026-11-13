@@ -15,11 +15,12 @@ final class AppModel {
     @ObservationIgnored private var narrator = RecorderNarrator()
     /// Why the press the session just refused was refused, when the app decided it.
     @ObservationIgnored private var pendingRefusal: Refusal?
-    /// The last STOP reached a connection that was up.
-    @ObservationIgnored private var stopReached = true
-    /// STOP was pressed with no connection up: `estop` goes out first after the next `welcome`. Observed, for
-    /// `practiceBlockedReason`.
-    private var stopOwed = false
+    /// Where a STOP pressed here stands, from the press that latched the stop until the stop is released (J7). Nil
+    /// when no stop is latched, or when the server latched it. Observed, for `practiceBlockedReason`.
+    private var pressedStop: PressedStop?
+    /// The pressed STOP reached no server: `estop` goes out first after the next `welcome`, and until then the robot
+    /// is not stopped.
+    private var stopOwed: Bool { pressedStop == .owed }
     /// A hold was engaged when the link was last lost, so a stopped server found on reconnect is the link's doing.
     @ObservationIgnored private var holdEngagedAtLoss = false
     /// The built-in demo's hold count, for its GO.
@@ -289,8 +290,8 @@ final class AppModel {
         switchLink(live: true)
     }
 
-    /// What Connect and Settings say while practice is refused for the latched stop. A STOP pressed with no link up
-    /// has reached no robot yet (J7): the robot is not stopped then, and the way out starts with connecting.
+    /// What Connect and Settings say while practice is refused for the latched stop. An owed STOP has reached no robot
+    /// yet (J7): the robot is not stopped then, and the way out starts with connecting.
     var practiceBlockedReason: LocalizedStringKey {
         stopOwed ? "settings.practice_blocked_unsent" : "settings.practice_blocked"
     }
@@ -496,6 +497,8 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
+        // Only a state the server wrote after reading this STOP's `estop` confirms it, never one from before the press.
+        if pressedStop == .sent, link.estopConfirmed { pressedStop = .confirmed }
         // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until then the
         // guide still shows the arm from before the reset, and so may a state the server sent while still resetting.
         if onTargetRearmOwed, state.activity != .resetting {
@@ -520,7 +523,9 @@ final class AppModel {
         refreshRecorder()
     }
 
-    /// The control connection's welcome. A STOP pressed while no connection was up goes out first.
+    /// The control connection's welcome. With the stop latched, `estop` goes out first, whatever latched it: the server
+    /// may have restarted and forgotten it, and one still stopped loses nothing by hearing it again. Only a STOP that
+    /// reached no server before is announced, with the alarm.
     private func welcomed(session run: String?) {
         narrator.welcomed(session: run)
         // A new server run starts from its own reset pose. A server that names no run cannot tell a reconnect from a
@@ -531,10 +536,16 @@ final class AppModel {
             sceneWasReset()
             onTargetRearmOwed = true
         }
-        guard stopOwed else { return }
-        stopOwed = false
-        narrator.emergencyStopLearned()
+        guard session.state.emergencyStop else { return }
         link.estop()
+        let owed = stopOwed
+        // This server has not confirmed a STOP pressed here yet.
+        if pressedStop != nil { pressedStop = .sent }
+        guard owed else {
+            log("link: the stop is latched, so estop is sent again")
+            return
+        }
+        narrator.emergencyStopLearned()
         log("link: the STOP pressed while the link was down is sent now")
         raise(.emergencyStop(.button, takeDiscarded: narrator.stopDiscardsTake))
         refreshOperating()
@@ -634,8 +645,8 @@ final class AppModel {
         return Self.engaged(session.state) ? demoHold : nil
     }
 
-    /// The stop is latched and, as far as the app knows, the robot is stopped. A STOP pressed with no link up has
-    /// reached no robot yet (J7), so while no link is up a refused press says "No link.", as the screen does.
+    /// The stop is latched and, as far as the app knows, the robot is stopped. An owed STOP has reached no robot yet
+    /// (J7), so while no link is up a refused press says "No link.", as the screen does.
     private func robotStopped(_ state: FakeTeleopState) -> Bool {
         state.emergencyStop && !(stopOwed && !state.connected)
     }
@@ -652,7 +663,6 @@ final class AppModel {
     }
 
     private func perform(_ action: TeleopAction, fromServer: Bool) {
-        stopReached = true
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
@@ -663,6 +673,14 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
         }
         if session.state.liveLink { driveLink(action, before: before, fromServer: fromServer) }
+        if !session.state.emergencyStop {
+            pressedStop = nil
+        } else if pressedStop == .sent, !session.state.connected, !link.isOpen {
+            // The connection went before the server confirmed the STOP: it is owed, as if pressed with no link, and the
+            // operator, who heard the alarm, hears that it has reached no robot.
+            pressedStop = .owed
+            raise(.refused(.notStopped))
+        }
         if !before.emergencyStop, session.state.emergencyStop {
             stopCause = fromServer ? (pendingServerCause ?? .server("unknown")) : .button
         } else if !session.state.emergencyStop {
@@ -700,8 +718,7 @@ final class AppModel {
     private func feedback(for command: HapticCommand, before: FakeTeleopState) {
         switch command {
         case .play(.emergencyLoop):
-            guard !session.state.liveLink || stopReached else {
-                stopOwed = true
+            guard !stopOwed else {
                 raise(.refused(.notStopped))
                 return
             }
@@ -740,7 +757,11 @@ final class AppModel {
         let after = session.state
         // E-stop goes out first, on every STOP (I-3): with the stop already latched, a reset asked for from it may
         // have cleared the server's stop. A server-side E-stop is not echoed, but our own hold still has to end.
-        if action == .stop, !fromServer { stopReached = link.estop() }
+        if action == .stop, !fromServer {
+            let reached = link.estop()
+            // The press that latches the stop starts a pressed STOP; one pressed while it is latched changes nothing.
+            if !before.emergencyStop { pressedStop = reached ? .sent : .owed }
+        }
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
@@ -792,9 +813,6 @@ final class AppModel {
         switch action {
         case .resetScene where before.connected && !before.emergencyStop:
             link.resetScene()
-        case .releaseStop:
-            // Released before the link came back: the STOP owed to the server is no longer wanted.
-            stopOwed = false
         case .disconnect:
             link.closeQuietly()
             holdEngagedAtLoss = false
@@ -849,6 +867,18 @@ final class AppModel {
         if let route = defaults.string(forKey: "startRoute").flatMap(Route.init(rawValue:)) { return route }
         return defaults.bool(forKey: firstRunDoneKey) ? .p4 : .s2
     }
+}
+
+/// A STOP pressed on the phone is, from the press that latched the stop until the stop is released, exactly one of
+/// these: never dropped without the operator being told.
+enum PressedStop {
+    /// `estop` went out on a connection that was up, and no `state` the server wrote after reading it has said stopped.
+    case sent
+    /// A `state` the server wrote after reading that `estop` said stopped (`LiveLinkController.estopConfirmed`).
+    case confirmed
+    /// It has reached no server: pressed with no connection up, or the connection went while it was only sent. The
+    /// robot is not stopped; `estop` goes out first after the next `welcome`, with the alarm (J7).
+    case owed
 }
 
 /// What latched E-stop, shown on S4 so a stop the operator did not ask for is not a mystery.

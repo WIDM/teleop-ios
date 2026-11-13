@@ -20,14 +20,15 @@ final class OperatingRulesTests: XCTestCase {
         var connecting = OperatingFacts()
         connecting.connecting = true
         connecting.address = "100.64.0.7:8765"
-        // STOP with no connection up latches the session, but no estop reached a server (§2.8, J7).
+        // STOP with no connection up latches the session, but no estop reached a server (§2.8, J7). A STOP whose
+        // estop went out is owed the same way when the link goes before the server confirms it.
         var owedLost = lost
         owedLost.emergencyStop = true
         owedLost.stopOwed = true
         owedLost.stopCause = .button
         var owedNever = owedLost
         owedNever.connectionLost = false
-        // A STOP that reached the server, and the link lost after it: the robot is stopped.
+        // A STOP the server confirmed, or a stop the server latched, and the link lost after it: the robot is stopped.
         var stoppedThenLost = lost
         stoppedThenLost.emergencyStop = true
         stoppedThenLost.stopCause = .button

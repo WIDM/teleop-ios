@@ -14,7 +14,10 @@ final class StallingPath {
     private var held: [() -> Void] = []
     /// When each connection last handed the app a message, by the order the connections were opened.
     private(set) var lastDelivered: [Int: Date] = [:]
-    private var opened = 0
+    /// The type of every message the app sent on each connection, in order, held back or not.
+    private(set) var sent: [Int: [String]] = [:]
+    /// How many connections the app has opened; the next one gets the next number.
+    private(set) var opened = 0
 
     func stall() { stalled = true }
 
@@ -36,6 +39,11 @@ final class StallingPath {
     }
 
     fileprivate func delivered(on index: Int) { lastDelivered[index] = Date() }
+
+    fileprivate func sending(_ text: String, on index: Int) {
+        let message = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
+        sent[index, default: []].append(message?["type"] as? String ?? "?")
+    }
 }
 
 /// One of the app's sockets through a `StallingPath`: a real WebSocket to the local server underneath.
@@ -61,14 +69,18 @@ private final class PathTransport: LinkTransport {
     }
 
     func open() { socket.open() }
-    func send(_ text: String) { path.pass { [weak self] in self?.socket.send(text) } }
+    func send(_ text: String) {
+        path.sending(text, on: index)
+        path.pass { [weak self] in self?.socket.send(text) }
+    }
     func close() { socket.close() }
 }
 
 /// A stall of the network path, against the server model on a local socket with its real 750 ms watchdog. A stall
 /// shorter than the link's limit costs the operator the hold the server's watchdog ends ("Link hiccup."), never the
 /// session; a longer one is a lost link at 3 s. STOP pressed during a short stall reaches the server when the path
-/// comes back.
+/// comes back. A STOP the server has not confirmed when the link is lost is owed: the operator is told it reached no
+/// robot, and it goes out first after the next welcome. Whatever latched the stop, a welcome sends `estop` first.
 final class LinkStallTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var path: StallingPath!
@@ -357,5 +369,143 @@ final class LinkStallTests: XCTestCase {
             after.filter { if case .emergencyStop = $0 { return true } else { return false } }.count, 1, "\(after)")
         XCTAssertFalse(after.contains { if case .linkLost = $0 { return true } else { return false } }, "\(after)")
         print("STALL stop: cues \(after), the screen showed \(shownNames)")
+    }
+
+    // MARK: STOP and a lost link
+
+    private static func isLinkLost(_ entry: CueLogEntry) -> Bool {
+        if case .linkLost = entry.event { return true } else { return false }
+    }
+
+    private static func isAlarm(_ entry: CueLogEntry) -> Bool {
+        if case .emergencyStop = entry.event { return true } else { return false }
+    }
+
+    private static func isRefusal(_ entry: CueLogEntry) -> Bool {
+        if case .refused = entry.event { return true } else { return false }
+    }
+
+    /// STOP on the bottom band, as a thumb taps it.
+    private func tapStop() { hand.tap(x: hand.bottomBand.x, y: hand.bottomBand.y) }
+
+    /// Waits for the stalled path to lose the link, then lets it come back. True when the link was lost.
+    private func waitForTheLinkToGo(_ what: String, file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        let lost = hand.wait(4.5, until: { !model.session.state.connected })
+        path.resume()
+        XCTAssertTrue(lost, "\(what): the stall did not lose the link", file: file, line: line)
+        return lost
+    }
+
+    /// The operator connects again (Settings, Server, Connect) and the link comes up. Returns the number of the new
+    /// control connection, to read what the app sent on it.
+    private func connectAgain(_ what: String, file: StaticString = #filePath, line: UInt = #line) -> Int {
+        let control = path.opened + 1
+        model.connect()
+        XCTAssertTrue(
+            hand.wait(5, until: { model.session.state.connected }), "\(what): could not connect again", file: file,
+            line: line)
+        return control
+    }
+
+    /// The first message on the new connection after its hello is `estop`, and the server is stopped within 2 s.
+    private func checkTheStopWentOutFirst(
+        on control: Int, _ what: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            Array((path.sent[control] ?? []).prefix(2)), ["hello", "estop"], "\(what): what went out first",
+            file: file, line: line)
+        XCTAssertTrue(
+            hand.wait(2, until: { serverStopped }), "\(what): the server is not stopped 2 s after the welcome",
+            file: file,
+            line: line)
+    }
+
+    /// The STOP is owed and the operator is told without the screen: the link-lost sound and "Link lost.", then three
+    /// ticks and "No link. Not stopped.", neither dropped. The screen shows the lost link, not STOPPED, in both
+    /// languages, practice is refused because a STOP is waiting to reach the robot, and a press says "No link.".
+    private func checkTheStopIsOwed(
+        since index: Int, _ what: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let after = cues(from: index)
+        let lost = after.firstIndex(where: Self.isLinkLost)
+        let told = after.firstIndex { $0.event == .refused(.notStopped) }
+        XCTAssertNotNil(lost, "\(what): no link-lost cue in \(after.map(\.event))", file: file, line: line)
+        XCTAssertNotNil(
+            told, "\(what): not told the STOP reached no robot: \(after.map(\.event))", file: file, line: line)
+        if let lost, let told {
+            XCTAssertLessThan(lost, told, "\(what): \(after.map(\.event))", file: file, line: line)
+            XCTAssertEqual(
+                after[lost].event, .linkLost(holdEngaged: false), "\(what): the STOP ended every hold", file: file,
+                line: line)
+            XCTAssertEqual(after[lost].sound, .linkLost, "\(what)", file: file, line: line)
+            XCTAssertEqual(after[lost].speech, [.linkLost], "\(what)", file: file, line: line)
+            XCTAssertEqual(after[told].haptic, .no, "\(what)", file: file, line: line)
+            XCTAssertEqual(after[told].speech, [.notStopped], "\(what)", file: file, line: line)
+            XCTAssertFalse(after[told].dropped, "\(what): the refusal was dropped", file: file, line: line)
+        }
+        XCTAssertEqual(model.operating.state, .linkLost, "\(what): the screen", file: file, line: line)
+        XCTAssertEqual(
+            model.practiceBlockedReason, "settings.practice_blocked_unsent", "\(what)", file: file, line: line)
+        let language = L10n.language
+        defer { L10n.language = language }
+        var spoken: [String] = []
+        for each in [AppLanguage.en, .zhHant] {
+            L10n.language = each
+            let look = OperatingWords.look(model.operating)
+            XCTAssertEqual(look.word, L10n.string("state.link_lost"), "\(what) (\(each))", file: file, line: line)
+            XCTAssertEqual(
+                look.details, [L10n.string("detail.connect_in_settings")], "\(what) (\(each))", file: file, line: line)
+            XCTAssertNotEqual(look.word, "state.link_lost", "\(what): no words in \(each)", file: file, line: line)
+            spoken.append(SpeechText.string(CueTable.phrases(for: .refused(.notStopped)), language: each))
+        }
+        XCTAssertEqual(spoken.first, "No link. Not stopped.", "\(what)", file: file, line: line)
+        XCTAssertNotEqual(spoken.last, spoken.first, "\(what): the same words in Chinese", file: file, line: line)
+        hand.press(.upper)
+        XCTAssertEqual(
+            model.cueLog.last?.event, .refused(.noLink), "\(what): a press while owed", file: file, line: line)
+        hand.release(.upper)
+    }
+
+    /// STOP tapped 0.5 s into a stall that becomes a lost link: the estop never reached the server. It is owed, the
+    /// operator is told, and after connecting again `estop` goes out first, with the alarm, and the screen says STOPPED.
+    private func stopInAStallThatLosesTheLink(holding: Bool) throws {
+        let what = holding ? "STOP during a hold" : "STOP"
+        try start(.screenTurns)
+        if holding {
+            hand.press(.upper)
+            hand.move(to: SIMD3(0, 0, -0.01), in: 0.5)
+            XCTAssertTrue(hand.wait(1, until: { heldLive(1) }), "the hold did not go live")
+        }
+        let index = model.cueLog.count
+        path.stall()
+        _ = hand.wait(0.5, until: { false })
+        tapStop()
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button), "the phone latches at once")
+        XCTAssertEqual(cues(from: index).filter(Self.isAlarm).count, 1, "and sounds the alarm once")
+        guard waitForTheLinkToGo(what) else { return }
+        if holding { hand.release(.upper) }
+        checkTheStopIsOwed(since: index, what)
+        _ = hand.wait(1, until: { false })
+        XCTAssertFalse(serverStopped, "\(what): nothing reached the server")
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain(what)
+        checkTheStopWentOutFirst(on: control, what)
+        hand.pump(1)
+        let after = cues(from: reconnected)
+        XCTAssertEqual(
+            after.filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)], "\(what)")
+        XCTAssertFalse(after.contains(where: Self.isRefusal), "\(what): \(after.map(\.event))")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(what): the screen after the welcome")
+        XCTAssertTrue(serverStopped, "\(what): the server stays stopped")
+        print("STALL owed \(what): cues \(cues(from: index).map(\.event)), the screen showed \(shownNames)")
+    }
+
+    func testAStopPressedInAStallThatLosesTheLinkIsOwedAndGoesOutFirstAfterTheWelcome() throws {
+        try stopInAStallThatLosesTheLink(holding: false)
+    }
+
+    func testAStopPressedDuringAHoldInAStallThatLosesTheLinkIsOwedAndGoesOutFirstAfterTheWelcome() throws {
+        try stopInAStallThatLosesTheLink(holding: true)
     }
 }

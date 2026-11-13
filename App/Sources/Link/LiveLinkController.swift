@@ -136,6 +136,9 @@ final class LiveLinkController {
     var isUp: Bool { link?.ready == true }
     /// The listening connection is up and receiving state.
     var observerUp: Bool { observer?.ready == true }
+    /// On either connection, a `state` saying stopped has come that the server wrote after it read that connection's
+    /// newest `estop` (`TeleopLink.estopConfirmed`): a state sent before the `estop` arrived never counts.
+    var estopConfirmed: Bool { link?.estopConfirmed == true || observer?.estopConfirmed == true }
     /// The operator's hold the feedback belongs to, if one is engaged.
     var engagedHold: Int? { monitor.engagedHold }
     /// A close ended in contact and nothing has opened since, no scene reset and no new server run.

@@ -106,7 +106,9 @@ public enum CueTable {
         CueRow(.holdLive, .go),
 
         CueRow(.refused(.noLink), .no, say: [.noLink], .p4),
-        CueRow(.refused(.notStopped), .no, say: [.notStopped], .p4),
+        // Queued, never dropped: it is the only word that a STOP has reached no robot, and it often comes while
+        // "Link lost." or the alarm's own words still play.
+        CueRow(.refused(.notStopped), .no, say: [.notStopped], .p2),
         CueRow(.refused(.emergencyStop), .no, say: [.stopped], .p4),
         CueRow(.refused(.notReady), .no, say: [.wait], .p4),
         CueRow(.refused(.busy), .no, say: [.wait], .p4),
