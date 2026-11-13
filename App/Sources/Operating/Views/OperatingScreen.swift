@@ -122,6 +122,8 @@ private struct ZoneFills: View {
             colour.place(layout.controlSurface)
             TeleopColors.band.place(layout.gap)
             TeleopColors.emergency.place(layout.bottomBand)
+            // The system's strip under the band, like the gap: only where a touch stops is red.
+            TeleopColors.band.place(layout.bottomSafeArea)
             if practice {
                 PracticeStripes()
                     .place(SurfaceLayout.Rect(x: 0, y: 0, width: layout.width, height: layout.gap.y))
@@ -202,14 +204,7 @@ private struct OperatingDrawing: View {
                 PhoneSurface(display: display, layout: layout, look: look, scale: scale, profile: profile)
                     .place(layout.controlSurface)
             }
-            // The label sits in the band's part above the home indicator.
-            let constants = InputConstants.appendixA
-            BottomBandLabel(scale: scale)
-                .place(
-                    SurfaceLayout.Rect(
-                        x: 0, y: layout.bottomBand.y, width: layout.width,
-                        height: constants.bottomBandPt * layout.height / constants.referenceHeightPt
-                    ))
+            BottomBandLabel(scale: scale).place(layout.bottomBand)
         }
     }
 
