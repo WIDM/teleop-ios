@@ -609,8 +609,9 @@ final class LinkStallTests: XCTestCase {
         XCTAssertTrue(serverStopped)
     }
 
-    /// A STOP owed after a lost link and then released (what Release, keep scene sends) before connecting again is no
-    /// longer wanted: nothing is owed and no `estop` goes out after the welcome.
+    /// A STOP owed after a lost link and then released before connecting again is no longer wanted: nothing is owed and
+    /// no `estop` goes out after the welcome. No screen offers Release, keep scene while the STOP is owed (the screen
+    /// shows the lost link), so this sends what that button sends; it holds the rule for any way a release comes.
     func testAnOwedStopReleasedBeforeConnectingAgainIsNotSent() throws {
         try start(.screenTurns)
         path.stall()
