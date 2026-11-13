@@ -882,13 +882,14 @@ final class AppModel {
 /// A STOP pressed on the phone is, from the press that latched the stop until the stop is released, exactly one of
 /// these: never dropped without the operator being told.
 enum PressedStop {
-    /// `estop` went out on a connection that was up, and no `state` the server wrote after reading it has said stopped,
-    /// or a reset has been asked for from the stop since one did.
+    /// `estop` went out on a connection the server had welcomed, or on the listening connection while it was up, and
+    /// no `state` the server wrote after reading it has said stopped, or a reset has been asked for from the stop since
+    /// one did.
     case sent
     /// A `state` the server wrote after reading that `estop` said stopped (`LiveLinkController.estopConfirmed`).
     case confirmed
-    /// It has reached no server: pressed with no connection up, or the connection went while it was only sent. The
-    /// robot is not stopped; `estop` goes out first after the next `welcome`, with the alarm (J7).
+    /// It has reached no server: pressed before any connection was welcomed, or the connection went while it was only
+    /// sent. The robot is not stopped; `estop` goes out first after the next `welcome`, with the alarm (J7).
     case owed
 }
 

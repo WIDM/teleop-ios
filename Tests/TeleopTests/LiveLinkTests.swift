@@ -1031,6 +1031,51 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 1, "the server's own stop is not told twice")
     }
 
+    /// Before the welcome the server may still refuse the hello, so a STOP pressed with the socket open and the hello
+    /// sent has reached no server: three ticks and "No link. Not stopped.", and the screen says Connecting. The `estop`
+    /// behind the hello goes out anyway, and at the welcome it goes out again, with the alarm.
+    func testAStopBeforeTheWelcomeIsOwedAndGoesOutAgainAtTheWelcome() {
+        makeModel(at: .p4)
+        model.connect()
+        model.send(.stop)
+        XCTAssertEqual(transport.types, ["hello", "estop"])
+        XCTAssertEqual(felt.felt, [.play(.no)])
+        XCTAssertEqual(speech.spoken, ["No link. Not stopped."])
+        XCTAssertEqual(model.operating.state, .connecting(address: "100.64.0.1:8765"))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        speech.finish()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello", "estop", "estop"])
+        XCTAssertEqual(felt.felt, [.play(.no), .play(.alarm)])
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+    }
+
+    /// After the welcome the server reads what the app sends, though its first state has not come: a STOP then has
+    /// reached it. The alarm, STOPPED at once, and only a state the server wrote after reading that `estop` confirms
+    /// it: the first state, written with the welcome, does not, and without the server's answer a lost link leaves the
+    /// STOP owed.
+    func testAStopAfterTheWelcomeBeforeTheFirstStateHasReachedTheServer() {
+        for answered in [false, true] {
+            makeModel(at: .p4)
+            model.connect()
+            transport.server("welcome", seq: 1)
+            model.send(.stop)
+            XCTAssertEqual(transport.types, ["hello", "estop"], "\(answered)")
+            XCTAssertEqual(felt.felt, [.play(.alarm)], "\(answered)")
+            XCTAssertFalse(model.cueLog.contains { $0.event == .refused(.notStopped) }, "\(answered)")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(answered)")
+            XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked", "\(answered)")
+            transport.server("state", seq: 1, ["estop": false, "gripper": "closed"])
+            XCTAssertTrue(model.session.state.connected, "\(answered)")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(answered)")
+            if answered { serverTookTheStop() }
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, answered ? .stopped(cause: .button) : .linkLost, "\(answered)")
+            XCTAssertEqual(model.cueLog.contains { $0.event == .refused(.notStopped) }, !answered, "\(answered)")
+        }
+    }
+
     /// Practice stays refused while the stop is latched (§7.4), and Connect and Settings say why. Before the STOP
     /// reaches a robot the robot is not stopped (J7), so the reason says the STOP is waiting; once the welcome has
     /// sent it, the robot is stopped.

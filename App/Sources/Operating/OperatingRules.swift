@@ -10,8 +10,8 @@ struct OperatingFacts {
     var connectionLost = false
     var address = ""
     var emergencyStop = false
-    /// A STOP pressed here has reached no server yet: pressed with no connection up, or the link went before the server
-    /// confirmed it. Its estop goes out after the next welcome.
+    /// A STOP pressed here has reached no server yet: pressed before a connection was welcomed, or the link went before
+    /// the server confirmed it. Its estop goes out after the next welcome.
     var stopOwed = false
     var stopCause: EmergencyCause?
     /// ARKit stopped the camera, so the volume keys change the volume and the phone's movement does nothing.

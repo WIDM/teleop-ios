@@ -327,10 +327,12 @@ final class LiveLinkController {
     }
 
     /// Sends `estop` on the control connection and, when it is up, on the listening one too (the server takes it
-    /// from either). False when neither was up: nothing reached the robot.
+    /// from either). True when it reached a server: the control connection has had its `welcome`, so the server reads
+    /// what follows on it, or the listening connection is up. False before the `welcome` (the server may still refuse
+    /// the `hello`): the `estop` goes out again at the `welcome`.
     @discardableResult
     func estop() -> Bool {
-        let reached = link?.ready == true || observerUp
+        let reached = link?.welcomed == true || observerUp
         link?.estop()
         if observerUp { observer?.estop() }
         monitor.released()

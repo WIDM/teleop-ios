@@ -20,6 +20,9 @@ final class StallingPath {
     private(set) var opened = 0
     /// The path stalls by itself right after the app sends a message of this type.
     private var stallAfter: String?
+    /// True while only what the server sends is held back (`holdTheServer(after:)`).
+    private(set) var serverHeld = false
+    private var holdServerAfter: String?
 
     func stall() { stalled = true }
 
@@ -27,9 +30,15 @@ final class StallingPath {
     /// its answer waits.
     func stall(after type: String) { stallAfter = type }
 
+    /// Right after the app is handed the server's next message of `type`, on any connection, everything the server
+    /// sends waits until `resume`, while what the app sends still goes through: the server reads it and answers, and
+    /// the answers wait, as behind one lost packet of the server's.
+    func holdTheServer(after type: String) { holdServerAfter = type }
+
     /// The path comes back: everything held back goes through, in order.
     func resume() {
         stalled = false
+        serverHeld = false
         let due = held
         held = []
         for deliver in due { deliver() }
@@ -40,21 +49,35 @@ final class StallingPath {
         return PathTransport(url: url, path: self, index: opened)
     }
 
-    fileprivate func pass(_ deliver: @escaping () -> Void) {
-        if stalled { held.append(deliver) } else { deliver() }
+    fileprivate func pass(_ deliver: @escaping () -> Void, fromServer: Bool = false) {
+        if stalled || (fromServer && serverHeld) { held.append(deliver) } else { deliver() }
     }
 
     fileprivate func delivered(on index: Int) { lastDelivered[index] = Date() }
 
     fileprivate func send(_ text: String, on index: Int, _ deliver: @escaping () -> Void) {
-        let message = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
-        let type = message?["type"] as? String ?? "?"
+        let type = Self.type(of: text)
         sent[index, default: []].append(type)
         pass(deliver)
         if type == stallAfter {
             stallAfter = nil
             stalled = true
         }
+    }
+
+    fileprivate func receive(_ text: String, _ deliver: @escaping () -> Void) {
+        pass(
+            { [weak self] in
+                deliver()
+                guard let self, let type = self.holdServerAfter, Self.type(of: text) == type else { return }
+                self.holdServerAfter = nil
+                self.serverHeld = true
+            }, fromServer: true)
+    }
+
+    private static func type(of text: String) -> String {
+        let message = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
+        return message?["type"] as? String ?? "?"
     }
 }
 
@@ -71,13 +94,13 @@ private final class PathTransport: LinkTransport {
         self.path = path
         self.index = index
         socket.onText = { [weak self] text in
-            self?.path.pass { [weak self] in
+            self?.path.receive(text) { [weak self] in
                 guard let self else { return }
                 self.path.delivered(on: index)
                 self.onText?(text)
             }
         }
-        socket.onClose = { [weak self] in self?.path.pass { self?.onClose?() } }
+        socket.onClose = { [weak self] in self?.path.pass({ self?.onClose?() }, fromServer: true) }
     }
 
     func open() { socket.open() }
@@ -115,7 +138,8 @@ final class LinkStallTests: XCTestCase {
         path = nil
     }
 
-    private func start(_ mode: ControlMode) throws {
+    /// The server and the path, and the hand with the app not yet connected.
+    private func makeTheHand(_ mode: ControlMode) throws {
         server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60))
         try server.start()
         path = StallingPath()
@@ -124,6 +148,10 @@ final class LinkStallTests: XCTestCase {
             makeTransport: { [unowned self] in
                 path.transport($0)
             })
+    }
+
+    private func start(_ mode: ControlMode) throws {
+        try makeTheHand(mode)
         XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
         // The 3 s with nothing on either connection counts only with the listening connection up.
         XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection did not come up")
@@ -728,5 +756,136 @@ final class LinkStallTests: XCTestCase {
         checkTheStopWentOutFirst(on: control, "pressed again")
         hand.pump(1)
         XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+    }
+
+    // MARK: STOP between the welcome and the first state
+
+    /// Connects from the operating screen while everything the server sends waits from right after its welcome: the
+    /// control connection is welcomed and has had no state, and the listening connection is not up. What the app sends
+    /// still reaches the server.
+    private func connectWithTheFirstStateHeldBack() throws {
+        try makeTheHand(.screenTurns)
+        model.send(.closeConnection)
+        path.holdTheServer(after: "welcome")
+        model.connect()
+        XCTAssertTrue(hand.wait(4, until: { path.serverHeld }), "no welcome from the local server")
+        // The listening connection's hello reaches the server; its welcome waits too.
+        _ = hand.wait(0.3, until: { false })
+        XCTAssertFalse(model.link.isUp, "the first state came")
+        XCTAssertFalse(model.link.observerUp, "the listening connection is up")
+        XCTAssertFalse(model.session.state.connected)
+        shown = [model.operating.state]
+        hand.watch = { [unowned self] in
+            if shown.last != model.operating.state { shown.append(model.operating.state) }
+        }
+    }
+
+    /// STOP pressed after the welcome and before the first state: the `estop` went out on a welcomed connection and the
+    /// server reads it, so the phone sounds the alarm and shows STOPPED at once. A state the server wrote after reading
+    /// it confirms it, Release, keep scene is offered, and the release leaves both the phone and the server unlatched.
+    func testAStopPressedAfterTheWelcomeAndBeforeTheFirstStateSoundsTheAlarmAndIsConfirmed() throws {
+        try connectWithTheFirstStateHeldBack()
+        let index = model.cueLog.count
+        tapStop()
+        let heard = cues(from: index)
+        XCTAssertEqual(
+            heard.filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)],
+            "the alarm: \(heard.map(\.event))")
+        XCTAssertFalse(heard.contains(where: Self.isRefusal), "no refusal: \(heard.map(\.event))")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button), "STOPPED at once")
+        XCTAssertTrue(hand.wait(1, until: { serverStopped }), "the server did not read the estop")
+        XCTAssertFalse(model.link.estopConfirmed, "nothing has confirmed it yet")
+
+        path.resume()
+        XCTAssertTrue(hand.wait(2, until: { model.session.state.connected }), "the first state did not come")
+        hand.pump(1)
+        print("WINDOW stop: cues \(cues(from: index).map(\.event)), the screen showed \(shownNames)")
+        XCTAssertTrue(model.link.estopConfirmed, "the server's answer to the estop confirms it")
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+        XCTAssertEqual(shown, [.connecting(address: server.address), .stopped(cause: .button)])
+        let after = cues(from: index)
+        XCTAssertEqual(after.filter(Self.isAlarm).count, 1, "the server's own stop is not told twice")
+        XCTAssertFalse(after.contains(where: Self.isRefusal), "\(after.map(\.event))")
+        XCTAssertTrue(OperatingWords.offersRelease(model.operating), "Release, keep scene is offered")
+        XCTAssertTrue(serverStopped)
+
+        model.send(.releaseStop)
+        XCTAssertTrue(hand.wait(2, until: { !serverStopped }), "the server did not take the release")
+        _ = hand.wait(2.5, until: { false })
+        XCTAssertFalse(model.session.state.emergencyStop, "the stop latched again")
+        XCTAssertFalse(serverStopped)
+        XCTAssertEqual(model.operating.state, .ready)
+    }
+
+    /// The same press, and the connection goes before any state comes: the app gives up on a connection with no first
+    /// state after 5 s. The STOP was only sent, so it becomes owed and the operator hears that it reached no robot (no
+    /// link was ever up, so no "Link lost."). Connecting again sends `estop` first, with the alarm.
+    func testAStopPressedAfterTheWelcomeIsOwedWhenTheConnectionGoesBeforeAnyState() throws {
+        try connectWithTheFirstStateHeldBack()
+        let index = model.cueLog.count
+        tapStop()
+        XCTAssertEqual(cues(from: index).filter(Self.isAlarm).count, 1, "the alarm at the press")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertTrue(hand.wait(1, until: { serverStopped }), "the server did not read the estop")
+        XCTAssertTrue(hand.wait(6, until: { !model.link.isOpen }), "a connection with no first state was kept")
+        path.resume()
+        let after = cues(from: index)
+        let told = after.filter { $0.event == .refused(.notStopped) }
+        XCTAssertEqual(told.count, 1, "told once that it reached no robot: \(after.map(\.event))")
+        XCTAssertEqual(told.first?.haptic, .no)
+        XCTAssertEqual(told.first?.speech, [.notStopped])
+        XCTAssertEqual(told.first?.dropped, false)
+        XCTAssertFalse(after.contains(where: Self.isLinkLost), "\(after.map(\.event))")
+        XCTAssertEqual(model.operating.state, .notConnected(reason: nil), "not STOPPED")
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain("lost before any state")
+        checkTheStopWentOutFirst(on: control, "lost before any state")
+        hand.pump(1)
+        let again = cues(from: reconnected)
+        XCTAssertEqual(again.filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)])
+        XCTAssertFalse(again.contains(where: Self.isRefusal), "\(again.map(\.event))")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertTrue(serverStopped)
+        print("WINDOW lost: cues \(cues(from: index).map(\.event)), the screen showed \(shownNames)")
+    }
+
+    /// STOP pressed before the welcome, with the socket open and the hello sent: the server may still refuse the hello,
+    /// so the STOP counts as reaching no robot. It is owed: three ticks and "No link. Not stopped.", and the screen says
+    /// Connecting. At the welcome `estop` goes out again, with the alarm, and the server is stopped.
+    func testAStopPressedBeforeTheWelcomeIsOwedAndGoesOutAtTheWelcome() throws {
+        try makeTheHand(.screenTurns)
+        model.send(.closeConnection)
+        path.stall()
+        model.connect()
+        _ = hand.wait(0.3, until: { false })
+        XCTAssertEqual(path.sent[1] ?? [], ["hello"])
+        shown = [model.operating.state]
+        hand.watch = { [unowned self] in
+            if shown.last != model.operating.state { shown.append(model.operating.state) }
+        }
+        let index = model.cueLog.count
+        tapStop()
+        let heard = cues(from: index)
+        XCTAssertEqual(heard.map(\.event), [.refused(.notStopped)])
+        XCTAssertEqual(heard.first?.haptic, .no)
+        XCTAssertEqual(heard.first?.speech, [.notStopped])
+        XCTAssertEqual(model.operating.state, .connecting(address: server.address))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+
+        path.resume()
+        XCTAssertTrue(hand.wait(3, until: { model.session.state.connected }), "could not connect")
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "the server is not stopped")
+        hand.pump(1)
+        let after = cues(from: index)
+        print("WINDOW before the welcome: cues \(after.map(\.event)), the screen showed \(shownNames)")
+        XCTAssertEqual(after.filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)])
+        XCTAssertEqual(after.filter(Self.isRefusal).count, 1, "\(after.map(\.event))")
+        XCTAssertEqual(path.sent[1]?.filter { $0 == "estop" }.count, 2, "at the press and at the welcome")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+        XCTAssertEqual(shown, [.connecting(address: server.address), .stopped(cause: .button)])
+        XCTAssertTrue(serverStopped)
     }
 }
