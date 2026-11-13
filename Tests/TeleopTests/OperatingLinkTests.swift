@@ -374,6 +374,41 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.operating.speed, .fine)
     }
 
+    /// A swipe home begins in the bottom safe area and goes up the glass. Through the app, with the screen's own
+    /// insets, it sends nothing in any mode and leaves the hold in progress alone; a press on the band's lowest row,
+    /// just above the safe area, sends estop at touch-down.
+    func testASwipeHomeSendsNothingAndTheBandJustAboveItStops() {
+        for mode in [ControlMode.screenTurns, .keyTurns, .buttons] {
+            bringUp(mode, state: ["ee_pos": [0.02, -0.14, 0.16]])
+            model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+            step()
+            XCTAssertEqual(model.operating.layout?.bottomSafeArea.y, 840)
+            if mode == .buttons { model.buttonDown(.up) } else { model.keyEvent(.upper, down: true) }
+            XCTAssertTrue(model.session.state.armMoving, "\(mode)")
+            let refusals = model.cueLog.filter { if case .refused = $0.event { return true } else { return false } }
+            touch(1, .began, x: 211, y: 858)
+            for y in stride(from: 840.0, through: 640, by: -40) {
+                step()
+                touch(1, .moved, x: 211, y: y)
+            }
+            touch(1, .ended, x: 211, y: 640)
+            step()
+            XCTAssertFalse(transport.types.contains("estop"), "\(mode)")
+            XCTAssertFalse(model.session.state.emergencyStop, "\(mode)")
+            XCTAssertTrue(model.session.state.armMoving, "\(mode): the hold runs on")
+            XCTAssertEqual(
+                model.cueLog.filter { if case .refused = $0.event { return true } else { return false } }.count,
+                refusals.count, "\(mode): no NO")
+
+            touch(2, .began, x: 211, y: 839.5)
+            XCTAssertEqual(transport.types.last, "estop", "\(mode)")
+            XCTAssertTrue(model.session.state.emergencyStop, "\(mode)")
+            XCTAssertFalse(model.session.state.armMoving, "\(mode)")
+            touch(2, .ended, x: 211, y: 839.5)
+            if mode == .buttons { model.buttonUp(.up) } else { model.keyEvent(.upper, down: false) }
+        }
+    }
+
     /// The top band held 2 s while stopped sends reset_scene, never estop_reset, and the server's ok releases the stop.
     func testTheServersResetReleasesTheStop() {
         bringUp(.screenTurns)
