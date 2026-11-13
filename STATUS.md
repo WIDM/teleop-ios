@@ -25,6 +25,12 @@ The tests cannot press the volume keys, move a real phone, touch the glass with 
 cues. Those, and everything against the real server in Isaac Sim (the `Live` test plan), need a person with a
 phone.
 
+Measured with a person's hand on an iPhone 17: the phone reports how wide a touch is in steps of about 12 pt. In its
+first 100 ms a thumb pad pressed, held or slid on the glass was at most 85 pt wide, a tap 24 to 61 pt, and the base
+of the hand pressed on the glass 97 pt or more. The rule that ignores a palm (`InputConstants.palmRadiusPt`, 91 pt)
+sits between them. Not yet checked on a phone: other hands, the 12 pt edge rule, and how often a press near the
+lower corners lands on the STOP band.
+
 ## Known not to work
 
 - The app does not reconnect by itself after a lost link: the operating screen shows "Link lost" with "Connect again
@@ -33,6 +39,8 @@ phone.
 - A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
   address all read "Could not connect to that address."; the operating screen says only "Not connected".
 - Practice shows no guide: the practice link has no arm to report.
+- A touch 91 pt wide or wider when it lands or in its first 100 ms, about 30 mm across, is taken for a palm and
+  ignored without a sound: a thumb laid flat on the glass can be that wide.
 - Nothing ends the holds when the phone overheats.
 - Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
   the value the profile keeps until a check on the live robot sets it.

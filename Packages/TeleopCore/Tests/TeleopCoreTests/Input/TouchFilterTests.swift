@@ -8,7 +8,7 @@ final class TouchFilterTests: XCTestCase {
     func testAPalmAtTouchDownIsIgnoredInTheControlSurface() {
         for scheme in [InputScheme.screenTurns, .keyTurns] {
             var rig = Rig(scheme)
-            XCTAssertEqual(rig.touchDown(1, at: Rig.rightHalf, radius: 32), [])
+            XCTAssertEqual(rig.touchDown(1, at: Rig.rightHalf, radius: 91), [])
             XCTAssertNil(rig.phase(.touch(1)))
             XCTAssertEqual(rig.wait(0.5), [])
             XCTAssertEqual(rig.slide(1, mm: 20, degrees: 90), [])
@@ -20,16 +20,16 @@ final class TouchFilterTests: XCTestCase {
     func testAPalmGrowingInsideTheWindowIsCaughtBeforeAFastCommit() {
         var rig = Rig(.screenTurns)
         rig.touchDown(1, at: Rig.middle, radius: 12)
-        // 12 mm up in 60 ms, then the contact grows past 32 pt at 80 ms: never opens, never cues.
+        // 12 mm up in 60 ms, then the contact grows past 91 pt at 80 ms: never opens, never cues.
         rig.slide(1, mm: 12, degrees: 90, dt: 0.005)
-        XCTAssertEqual(rig.move(1, to: Rig.middle + SIMD2(0, -12 * Rig.pointsPerMm), radius: 35, after: 0.02), [])
+        XCTAssertEqual(rig.move(1, to: Rig.middle + SIMD2(0, -12 * Rig.pointsPerMm), radius: 97, after: 0.02), [])
         XCTAssertEqual(rig.wait(0.5), [])
         XCTAssertNil(rig.phase(.touch(1)))
         XCTAssertEqual(rig.rotate(turn: 20), [])
 
         var b = Rig(.keyTurns)
-        b.touchDown(1, at: Rig.rightHalf, radius: 20)
-        XCTAssertEqual(b.move(1, to: Rig.rightHalf, radius: 33, after: 0.09), [])
+        b.touchDown(1, at: Rig.rightHalf, radius: 61)
+        XCTAssertEqual(b.move(1, to: Rig.rightHalf, radius: 97, after: 0.09), [])
         XCTAssertEqual(b.wait(1), [], "no dwell completes for a palm")
     }
 
@@ -38,12 +38,12 @@ final class TouchFilterTests: XCTestCase {
         rig.touchDown(1, at: Rig.middle)
         rig.wait(0.1)
         XCTAssertEqual(rig.slide(1, mm: 10, degrees: 90), [.startGripper(.open)])
-        XCTAssertEqual(rig.move(1, to: Rig.middle, radius: 40, after: 0.1), [])
+        XCTAssertEqual(rig.move(1, to: Rig.middle, radius: 109, after: 0.1), [])
         XCTAssertEqual(rig.lift(1), [.stopGripper])
 
         var b = Rig(.keyTurns)
         b.touchDown(1, at: Rig.leftHalf)
-        b.move(1, to: Rig.leftHalf, radius: 40, after: 0.12)
+        b.move(1, to: Rig.leftHalf, radius: 109, after: 0.12)
         XCTAssertEqual(b.wait(0.03), [.startGripper(.open)])
     }
 
@@ -115,7 +115,7 @@ final class TouchFilterTests: XCTestCase {
     func testAPalmInTheBottomBandStillStopsTheRobot() {
         var rig = Rig(.screenTurns)
         rig.touchDown(1, at: Rig.middle)
-        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand, radius: 60), [.emergencyStop])
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand, radius: 121), [.emergencyStop])
         XCTAssertEqual(rig.touchDown(3, at: SIMD2(4, 800), radius: 10), [.emergencyStop], "edges count there too")
     }
 
@@ -124,17 +124,64 @@ final class TouchFilterTests: XCTestCase {
         // A finger wrapped round the edge.
         rig.touchDown(1, at: SIMD2(6, 100))
         // The heel of the hand, large at touch-down.
-        rig.touchDown(2, at: SIMD2(300, 100), radius: 45)
+        rig.touchDown(2, at: SIMD2(300, 100), radius: 97)
         // A contact that grows into a palm inside the window.
-        rig.touchDown(3, at: SIMD2(200, 110), radius: 15)
-        rig.move(3, to: SIMD2(200, 110), radius: 34, after: 0.05)
+        rig.touchDown(3, at: SIMD2(200, 110), radius: 61)
+        rig.move(3, to: SIMD2(200, 110), radius: 97, after: 0.05)
         XCTAssertEqual(rig.wait(3), [])
         XCTAssertFalse(rig.arbiter.isHoldingAnInput)
     }
 
     func testAPalmOnTheGearDoesNotOpenSettings() {
         var rig = Rig(.screenTurns)
-        rig.touchDown(1, at: Rig.gear, radius: 40)
+        rig.touchDown(1, at: Rig.gear, radius: 97)
         XCTAssertEqual(rig.lift(1, after: 0.2), [])
+    }
+
+    /// The widest contacts a thumb made on a phone: 61 pt at touch-down growing to 85 pt inside the window, and
+    /// wider still afterwards. Every one of them acts.
+    func testAThumbPadAsWideAsOneMeasuredOnAPhoneIsNotAPalm() {
+        var a = Rig(.screenTurns)
+        a.touchDown(1, at: Rig.middle, radius: 61)
+        a.move(1, to: Rig.middle, radius: 85, after: 0.04)
+        a.wait(0.07)
+        XCTAssertEqual(a.slide(1, mm: 10, degrees: 90), [.startGripper(.open)])
+        XCTAssertEqual(a.move(1, to: Rig.middle + SIMD2(0, -10 * Rig.pointsPerMm), radius: 109, after: 0.1), [])
+        XCTAssertEqual(a.lift(1), [.stopGripper])
+
+        var turn = Rig(.screenTurns)
+        turn.touchDown(1, at: Rig.middle, radius: 49)
+        turn.move(1, to: Rig.middle, radius: 73, after: 0.05)
+        turn.wait(0.1)
+        XCTAssertEqual(turn.rotate(turn: 20).withoutUpdates, [.startWrist])
+
+        var b = Rig(.keyTurns)
+        b.touchDown(1, at: Rig.rightHalf, radius: 49)
+        b.move(1, to: Rig.rightHalf, radius: 73, after: 0.05)
+        XCTAssertEqual(b.wait(0.15), [.startGripper(.closed)])
+
+        var gear = Rig(.screenTurns)
+        gear.touchDown(1, at: Rig.gear, radius: 49)
+        XCTAssertEqual(gear.lift(1, after: 0.1), [.openSettings])
+
+        var band = Rig(.screenTurns)
+        band.touchDown(1, at: Rig.topBand, radius: 49)
+        band.move(1, to: Rig.topBand, radius: 61, after: 0.05)
+        XCTAssertEqual(band.wait(0.2), [.resetCountdownStarted])
+        XCTAssertEqual(band.wait(2), [.fireReset])
+    }
+
+    /// The narrowest palm measured on the same phone: 61 pt at touch-down, 97 pt inside the window.
+    func testThePalmMeasuredOnAPhoneIsStillIgnored() {
+        for scheme in [InputScheme.screenTurns, .keyTurns] {
+            var rig = Rig(scheme)
+            rig.touchDown(1, at: Rig.leftHalf, radius: 61)
+            XCTAssertEqual(rig.move(1, to: Rig.leftHalf, radius: 97, after: 0.05), [])
+            XCTAssertEqual(rig.wait(1), [])
+            XCTAssertEqual(rig.rotate(turn: 20), [])
+            XCTAssertEqual(rig.slide(1, mm: 20, degrees: 90), [])
+            XCTAssertEqual(rig.lift(1), [])
+            XCTAssertFalse(rig.arbiter.isHoldingAnInput)
+        }
     }
 }

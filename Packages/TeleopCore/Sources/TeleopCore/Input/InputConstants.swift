@@ -23,6 +23,10 @@ public struct InputConstants: Equatable, Sendable {
     public var limitRearmDeg: Double
 
     // Touches (§2.2, A-4, A-5, B-3)
+    /// A contact this wide at touch-down, or growing this wide inside `palmWindowMs`, is a palm and is ignored.
+    /// Measured on an iPhone 17, which reports the radius in steps of about 12 pt: a thumb pad pressed, held or slid
+    /// was at most 85 pt wide inside the window (most were 36 to 61), a tap 24 to 61, and the base of the hand
+    /// pressed on the glass 97 pt or more. 91 pt is a contact about 30 mm across.
     public var palmRadiusPt: Double
     public var palmWindowMs: Double
     public var edgeExclusionPt: Double
@@ -60,7 +64,7 @@ public struct InputConstants: Equatable, Sendable {
         axisLockDeg: Double = 5, axisLockRatio: Double = 0.6,
         rollSign: Double = 1, tiltSign: Double = 1,
         angleSmoothing: Double = 0.2, limitRearmDeg: Double = 5,
-        palmRadiusPt: Double = 32, palmWindowMs: Double = 100, edgeExclusionPt: Double = 12,
+        palmRadiusPt: Double = 91, palmWindowMs: Double = 100, edgeExclusionPt: Double = 12,
         openSlideMm: Double = 10, sideDeadPt: Double = 24,
         gripDwellMs: Double = 150, openWhileGrippingMs: Double = 500,
         bottomBandPt: Double = 72, gapPt: Double = 16, topBandExtraPt: Double = 64, gearPt: Double = 56,

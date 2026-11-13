@@ -82,7 +82,7 @@ final class SameInstantTests: XCTestCase {
         rig.touchDown(1, at: Rig.middle)
         rig.slide(1, mm: 11, degrees: 90, dt: 0.005)
         let top = Rig.middle + SIMD2(0, -11 * Rig.pointsPerMm)
-        XCTAssertEqual(rig.move(1, to: top, radius: 40, after: 0.045), [])
+        XCTAssertEqual(rig.move(1, to: top, radius: 97, after: 0.045), [])
         XCTAssertEqual(rig.wait(0.5), [])
         XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
     }
@@ -90,7 +90,7 @@ final class SameInstantTests: XCTestCase {
     func testAPalmSampleAtTheEndOfTheTopBandPalmWindowIsStillAPalm() {
         var rig = Rig(.screenTurns)
         rig.touchDown(1, at: Rig.topBand)
-        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40, after: 0.1), [])
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 97, after: 0.1), [])
         XCTAssertEqual(rig.wait(3), [])
         XCTAssertNil(rig.phase(.touch(1)), "ignored as a palm")
     }
@@ -99,7 +99,7 @@ final class SameInstantTests: XCTestCase {
         var rig = Rig(.screenTurns)
         rig.touchDown(1, at: Rig.topBand)
         XCTAssertEqual(rig.wait(0.1), [.resetCountdownStarted])
-        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 40), [])
+        XCTAssertEqual(rig.move(1, to: Rig.topBand, radius: 97), [])
         XCTAssertEqual(rig.phase(.touch(1)), .countingDown)
         XCTAssertEqual(rig.wait(1.9), [.fireReset])
     }
