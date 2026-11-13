@@ -218,8 +218,9 @@ works. A longer stall is a lost link 3 s after the control connection's last mes
 short stall reaches the server when the path comes back. A STOP the server has not confirmed when a longer stall
 loses the link is owed: the operator hears "No link. Not stopped." after "Link lost.", the screen shows the lost
 link, and after connecting again `estop` goes out first and the server is stopped. The same tests cover a confirmed
-stop, a stop from the server, a restarted server, an owed STOP released before connecting, and a state from before
-a release that must not confirm the STOP pressed right after it.
+stop, a stop from the server, a restarted server, an owed STOP released before connecting, a state from before a
+release that must not confirm the STOP pressed right after it, and a reset from the stop that the server carried out
+but whose answer the lost link kept back.
 
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,

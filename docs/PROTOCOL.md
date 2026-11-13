@@ -327,16 +327,20 @@ A STOP pressed on the phone counts as confirmed only when a `state` saying `esto
 carried its `estop`, with a `seq` at least that `estop`'s own. The server numbers each `state` with the newest `seq`
 it has read on that connection (a command's final ack and the `state` after it carry that command's own, smaller
 `seq`), so a state written before the `estop` arrived cannot confirm it, however late it arrives. Until then the
-STOP is only sent. If neither connection is up when STOP is pressed, or the link is lost before the STOP is
-confirmed, nothing is known to have reached the robot: the phone says "No link. Not stopped." (after "Link lost."
+STOP is only sent. A `reset_scene` sent from the stop clears the server's stop as soon as the server reads it, even
+when it then refuses the reset, so it makes a confirmed STOP only sent again, and nothing confirms it after that; the
+reset's `ok` releases the stop. If neither connection is up when STOP is pressed, or the link is lost before the STOP
+is confirmed, nothing is known to have reached the robot: the phone says "No link. Not stopped." (after "Link lost."
 when the link has just gone), shows the link's state instead of STOPPED, and sends `estop` first thing after the
 next `welcome`, with the alarm. A STOP released before that is no longer sent.
 
-Whenever the stop is latched at a `welcome`, whatever latched it, `estop` goes out first on that connection: a
-server restarted meanwhile has forgotten the stop. A server that is still stopped answers it with `ok estop_engaged`
-and stays as it was; the take the first stop discarded is gone already. The only other effect: until the simulation
-has held the arm for one more step, it refuses `estop_reset` with `estop_not_frozen`, as after any stop. That
-`estop` comes with no alarm and no refusal when the stop was confirmed or came from the server.
+Whenever the stop is latched at the control connection's `welcome`, whatever latched it, `estop` goes out first on
+that connection: a server restarted meanwhile has forgotten the stop. The listening connection opens only after that,
+and only while the control connection is up, so it sends no `estop` at its own `welcome`. A server that is still
+stopped answers it with `ok estop_engaged` and stays as it was; the take the first stop discarded is gone already.
+The only other effect: until the simulation has held the arm for one more step, it refuses `estop_reset` with
+`estop_not_frozen`, as after any stop. That `estop` comes with no alarm and no refusal when the stop was confirmed or
+came from the server.
 
 The server engages the stop by itself too, and the app learns of it only from `state.estop`:
 

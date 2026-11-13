@@ -84,8 +84,9 @@ What a person using the app notices:
   hiccup."), and the next press works.
 - Fixed: a STOP pressed while the network stalled was never sent again when the stall then lost the link, and the
   phone showed STOPPED although the robot was not stopped. Until the server confirms a STOP, a lost link now says
-  "No link. Not stopped." after "Link lost.", and the STOP goes out first after connecting again. A latched stop
-  is sent again on every new connection, so a server that restarted is stopped too.
+  "No link. Not stopped." after "Link lost.", and the STOP goes out first after connecting again; the same when
+  the link goes before a reset asked for from the stop is answered. A latched stop is sent again on every new
+  connection, so a server that restarted is stopped too.
 - **Link lost** on the operating screen now says "Connect again in Settings": the app does not reconnect by itself.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the

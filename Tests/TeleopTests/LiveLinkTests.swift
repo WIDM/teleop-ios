@@ -1209,6 +1209,31 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
     }
 
+    /// The server clears its stop as soon as it reads a reset asked for from the stop, even one it refuses, so a
+    /// confirmed STOP counts as only sent again: a state saying stopped that the server wrote before it read the reset
+    /// confirms nothing, nor does anything after a refusal. Lost with the link before the reset's answer releases the
+    /// stop, the STOP is owed and the operator told.
+    func testAResetFromTheStopLeavesAConfirmedStopOwedIfTheLinkGoesFirst() {
+        for refused in [false, true] {
+            bringUp()
+            model.send(.stop)
+            serverTookTheStop()
+            model.runReset()
+            XCTAssertEqual(transport.types.last, "reset_scene", "\(refused)")
+            transport.server("state", seq: lastSeq(of: "estop"), ["estop": true, "gripper": "closed"])
+            if refused {
+                let reset = lastSeq(of: "reset_scene")
+                transport.server("ack", seq: reset, ["seq": reset, "status": "rejected", "reason": "sim_not_ready"])
+                transport.server("state", seq: reset, ["estop": false, "gripper": "closed"])
+            }
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(refused)")
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, .linkLost, "\(refused)")
+            XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped), "\(refused)")
+            XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent", "\(refused)")
+        }
+    }
+
     /// Connect in Settings while a STOP is not yet confirmed replaces the connection it went out on: the STOP goes out
     /// first on the new one, without a second alarm, and if the new one never comes up it is owed and told.
     func testAStopNotYetConfirmedGoesOutFirstOnAConnectionThatReplacesTheLink() {

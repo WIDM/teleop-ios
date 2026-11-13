@@ -498,7 +498,9 @@ final class AppModel {
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
         // Only a state the server wrote after reading this STOP's `estop` confirms it, never one from before the press.
-        if pressedStop == .sent, link.estopConfirmed { pressedStop = .confirmed }
+        // Once a reset has been asked for from the stop, which clears the server's stop even when refused, none does:
+        // only a new STOP can be confirmed again.
+        if pressedStop == .sent, link.estopConfirmed, !session.state.resetClearsStop { pressedStop = .confirmed }
         // The on-target cue is armed again on a state from after a reset, never on the reset's answer: until then the
         // guide still shows the arm from before the reset, and so may a state the server sent while still resetting.
         if onTargetRearmOwed, state.activity != .resetting {
@@ -767,6 +769,9 @@ final class AppModel {
                 if before.emergencyStop, !reached { raise(.refused(.notStopped)) }
             }
         }
+        // The server clears its stop as soon as it reads a reset asked for from the stop, even one it then refuses: a
+        // confirmed STOP counts as only sent again, and is owed if the link goes before the reset releases the stop.
+        if action == .resetScene, after.resetClearsStop, pressedStop == .confirmed { pressedStop = .sent }
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
@@ -877,7 +882,8 @@ final class AppModel {
 /// A STOP pressed on the phone is, from the press that latched the stop until the stop is released, exactly one of
 /// these: never dropped without the operator being told.
 enum PressedStop {
-    /// `estop` went out on a connection that was up, and no `state` the server wrote after reading it has said stopped.
+    /// `estop` went out on a connection that was up, and no `state` the server wrote after reading it has said stopped,
+    /// or a reset has been asked for from the stop since one did.
     case sent
     /// A `state` the server wrote after reading that `estop` said stopped (`LiveLinkController.estopConfirmed`).
     case confirmed

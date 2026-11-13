@@ -18,8 +18,14 @@ final class StallingPath {
     private(set) var sent: [Int: [String]] = [:]
     /// How many connections the app has opened; the next one gets the next number.
     private(set) var opened = 0
+    /// The path stalls by itself right after the app sends a message of this type.
+    private var stallAfter: String?
 
     func stall() { stalled = true }
+
+    /// Stalls the path right after the app's next message of `type`, which still goes through: the server gets it, and
+    /// its answer waits.
+    func stall(after type: String) { stallAfter = type }
 
     /// The path comes back: everything held back goes through, in order.
     func resume() {
@@ -40,9 +46,15 @@ final class StallingPath {
 
     fileprivate func delivered(on index: Int) { lastDelivered[index] = Date() }
 
-    fileprivate func sending(_ text: String, on index: Int) {
+    fileprivate func send(_ text: String, on index: Int, _ deliver: @escaping () -> Void) {
         let message = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
-        sent[index, default: []].append(message?["type"] as? String ?? "?")
+        let type = message?["type"] as? String ?? "?"
+        sent[index, default: []].append(type)
+        pass(deliver)
+        if type == stallAfter {
+            stallAfter = nil
+            stalled = true
+        }
     }
 }
 
@@ -70,8 +82,7 @@ private final class PathTransport: LinkTransport {
 
     func open() { socket.open() }
     func send(_ text: String) {
-        path.sending(text, on: index)
-        path.pass { [weak self] in self?.socket.send(text) }
+        path.send(text, on: index) { [weak self] in self?.socket.send(text) }
     }
     func close() { socket.close() }
 }
@@ -654,6 +665,38 @@ final class LinkStallTests: XCTestCase {
             cues(from: reconnected).filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)])
         XCTAssertEqual(model.operating.state, .stopped(cause: .button))
         XCTAssertTrue(serverStopped)
+    }
+
+    /// STOP, confirmed, then the top band held for the reset from the stop: the server carries it out, which clears
+    /// its stop, but the path stalls before its answer comes back and the link is lost. The phone cannot know whether
+    /// the reset arrived, so the STOP is owed and the operator told, as for a STOP never confirmed; after connecting
+    /// again `estop` goes out first, with the alarm, the server is stopped again and the screen says STOPPED.
+    func testAResetFromTheStopLostWithTheLinkLeavesTheStopOwed() throws {
+        try start(.screenTurns)
+        tapStop()
+        XCTAssertTrue(hand.wait(2, until: { serverStopped }), "STOP did not reach the server")
+        hand.pump(1)
+        let index = model.cueLog.count
+        path.stall(after: "reset_scene")
+        let band = hand.topBand
+        let touch = hand.touchDown(x: band.x, y: band.y)
+        XCTAssertTrue(hand.wait(3, until: { path.stalled }), "the reset did not go out")
+        hand.touchUp(touch, x: band.x, y: band.y)
+        XCTAssertTrue(hand.wait(1, until: { !serverStopped }), "the server did not take the reset")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button), "the phone waits for the reset's answer")
+        guard waitForTheLinkToGo("reset") else { return }
+        checkTheStopIsOwed(since: index, "reset")
+        XCTAssertFalse(serverStopped, "the reset cleared the server's stop")
+
+        let reconnected = model.cueLog.count
+        let control = connectAgain("reset")
+        checkTheStopWentOutFirst(on: control, "reset")
+        hand.pump(1)
+        XCTAssertEqual(
+            cues(from: reconnected).filter(Self.isAlarm).map(\.event), [.emergencyStop(.button, takeDiscarded: false)])
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        XCTAssertTrue(serverStopped)
+        print("STALL reset: cues \(cues(from: index).map(\.event)), the screen showed \(shownNames)")
     }
 
     /// Released and pressed again inside the two seconds after `estop_reset`, while states the server sent before the
