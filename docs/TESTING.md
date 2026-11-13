@@ -215,7 +215,11 @@ directions and then deliver them together, as an ordinary wireless network was m
 1.8 s stall during an arm, gripper or wrist hold must cost that hold and nothing else: the link stays up, the
 server's watchdog ends the hold, the phone plays LETGO with "Link hiccup." and no refusal, and the next hold
 works. A longer stall is a lost link 3 s after the control connection's last message, and STOP pressed during a
-short stall reaches the server when the path comes back.
+short stall reaches the server when the path comes back. A STOP the server has not confirmed when a longer stall
+loses the link is owed: the operator hears "No link. Not stopped." after "Link lost.", the screen shows the lost
+link, and after connecting again `estop` goes out first and the server is stopped. The same tests cover a confirmed
+stop, a stop from the server, a restarted server, an owed STOP released before connecting, and a state from before
+a release that must not confirm the STOP pressed right after it.
 
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,

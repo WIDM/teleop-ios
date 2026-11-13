@@ -9,7 +9,8 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   rules. A scripted pick-and-place in each mode, through raw inputs only, passes against the server model in every
   default run.
 - The link: two connections, holds, final acks, resets, the emergency stop and its two ways out, and a STOP pressed
-  with no link. The server model it is tested against is checked against 18 recordings of the real server.
+  with no link or lost with the link before the server confirmed it. The server model it is tested against is
+  checked against 18 recordings of the real server.
 - The guide, in the phone modes on a real server: the arm from above and from behind, and the target and goal
   when the server reports them. The jaw marker is the server's `tool_pos` when it sends one, otherwise an estimate
   drawn as a hollow ring where it may be off. The phone plays the on-target haptic once per approach.
@@ -33,6 +34,12 @@ phone.
 - A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
   address all read "Could not connect to that address."; the operating screen says only "Not connected".
 - Practice shows no guide: the practice link has no arm to report.
+- A whole press, move and release that falls inside one stall of the network plays the start's tick, moves
+  nothing, and ends without a word: a start gets no acknowledgement of its own.
+- For a moment after a stall the screen can say Slow link, because the probes sent during the stall come back
+  late, and a press in that moment is refused with "Slow link.".
+- A server that has gone silent is noticed after 3 s, but only after tens of seconds while the app's own main
+  thread stalls on every tick: each late tick counts as the app not running, not as silence.
 - Nothing ends the holds when the phone overheats.
 - Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
   the value the profile keeps until a check on the live robot sets it.

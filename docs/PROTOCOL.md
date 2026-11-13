@@ -76,7 +76,8 @@ placeholders.
 
 In a server message, `seq` is the client message it answers, or the newest one it has seen. For an `ack` the app
 reads the acknowledged number from `payload.seq`. A `test` echo is the probe's own text sent back, so there the app
-reads the top-level `seq` to find which probe came back. In every other server message it ignores `seq`.
+reads the top-level `seq` to find which probe came back. In a `state` it reads `seq` to tell whether the server wrote
+that state after it read the app's `estop` (see the emergency stop). In every other server message it ignores `seq`.
 
 ## Starting a conversation
 
@@ -123,7 +124,7 @@ no commands. If the link is not ready within 5 seconds, the app drops the socket
 | `orient_start` | a wrist hold (turn or tilt) begins | see below | a final ack when the hold ends |
 | `orient_update` | 30 times a second during a wrist hold | the rotation asked for | none |
 | `orient_stop` | the wrist hold ends | `{}` | an ack at once |
-| `estop` | every STOP, also when the stop is already latched; on both connections when both are up | `{}` | an ack at once |
+| `estop` | every STOP, also when the stop is already latched; on both connections when both are up; first on a new control connection whenever the stop is latched at its `welcome` | `{}` | an ack at once |
 | `estop_reset` | Release, keep scene is held for 1 s | `{}` | an ack at once |
 | `reset_scene` | Reset: the top band is held for 2 s | `{}` | an ack when the reset has finished |
 
@@ -227,7 +228,7 @@ dropped. Releasing leaves the wrist where it got to. Each update is also the hol
 | Message | What the app does with it |
 |---|---|
 | `welcome` | marks the connection welcomed, keeps `session`, opens the listening connection (below) |
-| `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; on the control connection, `estop: true` latches the emergency stop on the phone |
+| `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; on the control connection, `estop: true` latches the emergency stop on the phone; on either connection, `estop: true` in a state written after the server read the app's `estop` confirms a STOP pressed on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
 | `error` | ignored. The server sends it for a malformed message (below). |
@@ -321,8 +322,21 @@ ignores updates. The arm holds its last commanded position.
 
 The app sends `estop` on both connections when both are up (the server takes it from either), and on every STOP,
 even when the stop is already latched: a reset asked for from the stop may have cleared the server's stop meanwhile.
-If neither connection is up, nothing reached the robot: the phone says "No link. Not stopped.", shows the link's
-state instead of STOPPED, and sends `estop` first thing after the next `welcome`.
+
+A STOP pressed on the phone counts as confirmed only when a `state` saying `estop: true` arrives on a connection that
+carried its `estop`, with a `seq` at least that `estop`'s own. The server numbers each `state` with the newest `seq`
+it has read on that connection (a command's final ack and the `state` after it carry that command's own, smaller
+`seq`), so a state written before the `estop` arrived cannot confirm it, however late it arrives. Until then the
+STOP is only sent. If neither connection is up when STOP is pressed, or the link is lost before the STOP is
+confirmed, nothing is known to have reached the robot: the phone says "No link. Not stopped." (after "Link lost."
+when the link has just gone), shows the link's state instead of STOPPED, and sends `estop` first thing after the
+next `welcome`, with the alarm. A STOP released before that is no longer sent.
+
+Whenever the stop is latched at a `welcome`, whatever latched it, `estop` goes out first on that connection: a
+server restarted meanwhile has forgotten the stop. A server that is still stopped answers it with `ok estop_engaged`
+and stays as it was; the take the first stop discarded is gone already. The only other effect: until the simulation
+has held the arm for one more step, it refuses `estop_reset` with `estop_not_frozen`, as after any stop. That
+`estop` comes with no alarm and no refusal when the stop was confirmed or came from the server.
 
 The server engages the stop by itself too, and the app learns of it only from `state.estop`:
 
@@ -422,7 +436,7 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `gripper` | the label of the last gripper command, not a measurement: `closed` after start or reset, `open` or `close` after a command | the phone's gripper state; the app reads `closed` and `close` the same |
 | `step` | `coarse` or `fine`, the step size of jog and move commands | not used |
 | `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; during `resetting` and `task_success` the screen says Wait and every start is refused |
-| `estop` | the emergency stop is latched | on the control connection, latches the stop on the phone |
+| `estop` | the emergency stop is latched | on the control connection, latches the stop on the phone; confirms a STOP pressed on the phone (see the emergency stop) |
 | `object_pos`, `goal_pos` | the task object's centre and the goal's centre, **world** frame, metres | the guide's target and goal, moved into the base frame (`RobotProfile.baseInWorld`) |
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator; the screen says Wait (Saving) meanwhile |
 | `episode` | counts scene resets of this server run | a change means the scene started over: the jaws hold nothing, and the wrist's tilt limit counts from the new start |
