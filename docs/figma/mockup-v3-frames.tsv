@@ -1,0 +1,49 @@
+# code	name	iphone_node	android_node	chinese_node
+O1	Not connected	314:2	314:27	314:52
+O2	Connecting	314:77	314:102	314:127
+O3	Ready	314:152	314:202	314:252
+O3a	Ready · no task objects	314:302	314:346	314:390
+O3b	Ready · reset held	314:434	314:484	314:534
+O3c	Ready · outside the work area	316:17	316:59	316:101
+O3d	Ready · jaw position approximate	316:143	316:192	316:241
+O4	Moving · recording	316:290	316:344	316:398
+O4a	Moving · catching up	316:452	316:501	316:550
+O4b	Moving · no arm data	316:599	316:624	316:649
+O4c	Moving · jaw position approximate	317:32	317:79	317:126
+O5	Turning · key turns	317:173	317:223	317:273
+O6	Tilting · estimated	317:323	317:372	317:421
+O7	Opening · on target	317:470	317:521	317:572
+O8	Closing · gripped · key turns	317:623	317:679	317:735
+O9	Wait · saving	318:47	318:98	318:149
+O10	Camera stopped	318:200	318:251	318:302
+O11	Refused	318:353	318:398	318:443
+O12	Slow link	318:488	318:539	318:590
+O13	Stopped · reset only	318:641	318:691	318:741
+O13a	Stopped · release offered	319:62	319:115	319:168
+O14	Link lost	319:221	319:272	319:323
+O15	Saved	319:374	319:424	319:474
+O16	Practice · ready	319:524	319:586	319:650
+O16a	Practice · stopped	319:712	319:776	319:842
+O17	Buttons · ready	320:89	320:154	320:219
+O17a	Buttons · moving	320:284	320:349	320:414
+O17b	Buttons · stopped · left hand	320:479	320:548	320:617
+O17c	Buttons · practice	320:686	320:788	320:892
+S2	Permissions	321:107	321:125	-
+T1	Tutorial 1 of 3	321:143	321:159	-
+T2	Tutorial 2 of 3	321:175	321:190	-
+T3	Tutorial 3 of 3	321:205	321:228	-
+T1a	Tutorial 1 of 3 · key turns	321:251	321:267	-
+T2a	Tutorial 2 of 3 · key turns	321:283	321:298	-
+T3a	Tutorial 3 of 3 · key turns	321:313	321:336	-
+T1b	Tutorial 1 of 3 · buttons	321:359	321:375	-
+T2b	Tutorial 2 of 3 · buttons	321:391	321:405	-
+T3b	Tutorial 3 of 3 · buttons	321:419	321:441	-
+S1	Connect · failed	322:165	322:184	-
+S1a	Connect · connection lost	322:203	322:222	-
+S1b	Connect · practice	322:241	322:278	-
+S1c	Connect · STOP not sent	322:315	322:335	-
+S1d	Connect · before an attempt	322:355	322:373	-
+S6	Settings · practice	322:391	322:485	-
+S6a	Settings · practice, lower rows	322:579	322:650	-
+S6b	Settings · connected, lower rows	322:721	322:789	-
+S6c	Settings · robot stopped	322:857	322:928	-

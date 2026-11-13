@@ -8,6 +8,12 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+What a maintainer needs to know:
+
+- `docs/parity.md` says where the app's screens at 1.0.0 are drawn in the Figma file (the pages Mockup v3 and
+  Mockup v3 · reference) and how those frames differ from the app; `docs/figma/mockup-v3-frames.tsv` lists the
+  frames with their nodes.
+
 ## 1.0.0 (2026-11-13)
 
 One operating screen, held rather than looked at, takes the place of every control screen, and everything the
