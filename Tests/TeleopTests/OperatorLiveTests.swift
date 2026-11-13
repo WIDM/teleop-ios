@@ -7,13 +7,14 @@ import XCTest
 ///
 ///     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -testPlan Live
 ///
-/// It needs the simulator's scene at its reset pose with nobody else driving it, and no recording session (a
-/// success there pauses for the save).
+/// It needs the simulator's scene at its reset pose with nobody else driving it. It may run in a recording session,
+/// where each success saves a take; it has not been tried in one yet.
 ///
 /// A run passes only on what the server reported (`ScriptedOperator.pickAndPlace`), and fails at the step where a
 /// working link went down, with the app's last log lines. Each run prints one `PICK RUN` line: the scheme, the
-/// episode before and after, whether a success was seen, how many holds the server ended and whether the link was
-/// lost. Check it against the server's own log of successes; `docs/TESTING.md` says how to count runs.
+/// episode before and after, whether a success was seen, how many holds the server ended, whether the link was lost,
+/// and the recorder as the phone holds it (state, session, saved count). Check it against the server's own log of
+/// successes and, in a recording session, against the session's file; `docs/TESTING.md` says how to count runs.
 final class OperatorLiveTests: XCTestCase {
     private var hand: ScriptedOperator!
 

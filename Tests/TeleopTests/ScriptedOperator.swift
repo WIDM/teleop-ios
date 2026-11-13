@@ -405,7 +405,8 @@ final class ScriptedOperator {
     /// `task_success`, or a `state` arriving after the last wait with the object resting inside the goal and the jaws
     /// reported open. A new episode alone is no success. A lost link, an emergency stop or states that stopped coming
     /// fail the run at that step, as do the grasp point not reached, the jaws not closing on the object and the object
-    /// not lifted or not carried. Every run prints one `PICK RUN` line to check against the server's own log.
+    /// not lifted or not carried. Every run prints one `PICK RUN` line to check against the server's own log and, in a
+    /// recording session, against the session's file.
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
         let profile = model.profile
@@ -421,10 +422,10 @@ final class ScriptedOperator {
                 String(
                     format:
                         "PICK RUN (%@): episode %@ -> %@, success seen %@, holds ended by the server %d, link lost %@, "
-                        + "object in goal %@, %.0f s: %@",
+                        + "object in goal %@, %.0f s, recorder %@: %@",
                     mode.rawValue, Self.text(episodeBefore), Self.text(newestEpisode), successSeen ? "YES" : "no",
                     holdsEndedByServer, linkLostDuring.map { "YES, during \($0)" } ?? "no", inGoal ? "YES" : "no",
-                    Date().timeIntervalSince(started), verdict))
+                    Date().timeIntervalSince(started), recorderHeld, verdict))
         }
         guard going() else { return }
         guard let objectStart = model.link.objectPosition, let goal = model.link.goalPosition,
@@ -492,6 +493,9 @@ final class ScriptedOperator {
         pump(4)
         // Judged on a state that arrives after the wait, not on whatever state the app kept last, and only once the
         // control connection has echoed a probe sent after the wait: a link that went down in the wait is caught.
+        // A recording server shows the success while it saves the take, in its simulation loop; states and echoes come
+        // from its socket side. A silence that outlasts this 5 s wait is a lost link at 3 s first, so a save needs no
+        // longer wait.
         guard freshState(arrivedAfter: Date()), let end = model.serverState else { return }
         if let at = end.object {
             inGoal =
@@ -529,6 +533,20 @@ final class ScriptedOperator {
     }
 
     private static func text(_ episode: Int?) -> String { episode.map(String.init) ?? "not counted" }
+
+    /// What the app's own model holds for the recorder now, as the operating screen's REC line is built from it: the
+    /// recorder's state and the saved count (`operating.recorder`), with the recording session's name, which the model
+    /// keeps only in its newest state. "none" when the server records nothing, "not reported" when it does not say.
+    private var recorderHeld: String {
+        let recorder = model.operating.recorder
+        switch recorder.mode {
+        case .unknown: return "not reported"
+        case .notRecording: return "none"
+        case .armed, .capturing, .waiting, .off:
+            let session = model.serverState?.recorder?.session ?? "unnamed"
+            return "\(recorder.mode) (session \(session), \(recorder.saved ?? 0) saved)"
+        }
+    }
 
     /// Lets go of everything, closes the link and puts back the saved mode.
     func finish() {
