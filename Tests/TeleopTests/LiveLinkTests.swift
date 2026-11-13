@@ -1178,6 +1178,23 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
     }
 
+    /// The same, while Connect has replaced the connection and the new one has not said welcome: that STOP reached no
+    /// server, so it is owed and told at once, and goes out first after the welcome, with the alarm.
+    func testAStopPressedDuringAResetWhileTheLinkIsReplacedIsOwedAndTold() {
+        bringUp()
+        model.send(.stop)
+        serverTookTheStop()
+        model.runReset()
+        model.connect()
+        model.send(.stop)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        transport.server("welcome")
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(model.cueLog.last?.event, .emergencyStop(.button, takeDiscarded: false))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+    }
+
     /// Connect in Settings while a STOP is not yet confirmed replaces the connection it went out on: the STOP goes out
     /// first on the new one, without a second alarm, and if the new one never comes up it is owed and told.
     func testAStopNotYetConfirmedGoesOutFirstOnAConnectionThatReplacesTheLink() {

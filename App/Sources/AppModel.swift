@@ -760,8 +760,12 @@ final class AppModel {
         if action == .stop, !fromServer {
             let reached = link.estop()
             // The press that latches the stop starts a pressed STOP. One pressed while it is latched changes nothing,
-            // unless a reset asked for from the stop may have cleared the server's stop: then it waits to be confirmed.
-            if !before.emergencyStop || before.resetClearsStop { pressedStop = reached ? .sent : .owed }
+            // unless a reset asked for from the stop may have cleared the server's stop: then it waits to be confirmed,
+            // and as it plays no alarm of its own, the operator hears here if it reached no server.
+            if !before.emergencyStop || before.resetClearsStop {
+                pressedStop = reached ? .sent : .owed
+                if before.emergencyStop, !reached { raise(.refused(.notStopped)) }
+            }
         }
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
