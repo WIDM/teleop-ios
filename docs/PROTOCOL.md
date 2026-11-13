@@ -107,7 +107,8 @@ The server answers with `welcome`, then a first `state` (described below):
 across a reconnect (the scene then starts over). It ignores `config`.
 
 The link is usable once `welcome` and a first `state` have arrived (`TeleopLink.ready`). Until then the app sends
-no commands. If the link is not ready within 5 seconds, the app drops the socket and reports the link lost.
+no commands but `estop` on a STOP and `estop_reset` when the operator releases the stop (see "The emergency stop").
+If the link is not ready within 5 seconds, the app drops the socket and reports the link lost.
 
 ## What the app sends
 
@@ -329,10 +330,13 @@ it has read on that connection (a command's final ack and the `state` after it c
 `seq`), so a state written before the `estop` arrived cannot confirm it, however late it arrives. Until then the
 STOP is only sent. A `reset_scene` sent from the stop clears the server's stop as soon as the server reads it, even
 when it then refuses the reset, so it makes a confirmed STOP only sent again, and nothing confirms it after that; the
-reset's `ok` releases the stop. If neither connection is up when STOP is pressed, or the link is lost before the STOP
-is confirmed, nothing is known to have reached the robot: the phone says "No link. Not stopped." (after "Link lost."
-when the link has just gone), shows the link's state instead of STOPPED, and sends `estop` first thing after the
-next `welcome`, with the alarm. A STOP released before that is no longer sent.
+reset's `ok` releases the stop. A STOP pressed after the control connection's `welcome` counts as sent even before
+the first `state`: the server reads what follows the `welcome`. If STOP is pressed before that `welcome` with the
+listening connection not up (the server may still refuse the `hello`; the `estop` goes out behind it anyway), or the
+link is lost before the STOP is confirmed, nothing is known to have reached the robot: the phone says "No link. Not
+stopped." (after "Link lost." when the link has just gone), shows the link's state instead of STOPPED (also while
+Connect replaces a link that is up), and sends `estop` first thing after the next `welcome`, with the alarm. A STOP
+released before that is no longer sent.
 
 Whenever the stop is latched at the control connection's `welcome`, whatever latched it, `estop` goes out first on
 that connection: a server restarted meanwhile has forgotten the stop. The listening connection opens only after that,

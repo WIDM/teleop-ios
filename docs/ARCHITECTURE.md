@@ -145,7 +145,8 @@ What it shows comes from two pure functions in `OperatingRules`:
 - `state(_:)` picks one `OperatingState` from the `OperatingFacts` that `AppModel` gathers, highest first: stopped;
   not connected, connecting or link lost; camera stopped; a take just saved (2 s); the hold engaged now (moving,
   turning, tilting, opening, closing); a refusal just heard (1 s); the server resetting or saving; slow link; ready.
-  A STOP that has reached no server is not shown as stopped (see "From a press to a message").
+  A STOP that has reached no server is not shown as stopped, nor as anything below the link's row: the link's state
+  shows, also while Connect replaces a link that is up (see "From a press to a message").
   `OperatingWords` turns the state into the word, its details and its colour, in the app's language.
 - `arm(_:commanded:gripping:profile:)` builds an `ArmReading` from the newest server state and the robot profile:
   where the jaws pinch, where the arm is being sent during a move, how far the jaws are open, the wrist angles,
@@ -242,8 +243,9 @@ that latched the stop stands until it is released: sent, confirmed or owed. It i
 stopped that the server wrote after reading its `estop` (`LiveLinkController.estopConfirmed`, from the `seq` the
 server puts on every state). A reset asked for from the stop clears the server's stop as soon as the server reads
 it, even one it refuses, so it puts a confirmed STOP back to sent, and nothing confirms it again; a STOP pressed again
-starts over as sent and waits for its own confirmation. It is owed when no connection was up at the press, or when
-the link goes before it is confirmed. An owed STOP has reached no robot: the operator hears "No link. Not stopped." (after "Link lost."), the
+starts over as sent and waits for its own confirmation. It is owed when, at the press, the control connection had not
+had its `welcome` and the listening connection was not up (after the `welcome` the server reads it, though the first
+`state` has not come), or when the link goes before it is confirmed. An owed STOP has reached no robot: the operator hears "No link. Not stopped." (after "Link lost."), the
 screen shows the link's state instead of STOPPED, and `estop` goes out first after the next `welcome`, with the
 alarm. Whenever the stop is latched at a `welcome`, `estop` goes out first, also for a confirmed stop or one the
 server latched, then without a word: the server may have restarted.

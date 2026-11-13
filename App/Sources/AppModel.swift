@@ -339,7 +339,7 @@ final class AppModel {
         var refusal: InputRefusal?
         if robotStopped(s) {
             refusal = .stopped
-        } else if !s.connected {
+        } else if !s.connected || stopOwed {
             refusal = .noLink
         } else if settingsOpen {
             refusal = .settingsOpen
@@ -648,9 +648,10 @@ final class AppModel {
     }
 
     /// The stop is latched and, as far as the app knows, the robot is stopped. An owed STOP has reached no robot yet
-    /// (J7), so while no link is up a refused press says "No link.", as the screen does.
+    /// (J7), so a refused press then says "No link." and the screen shows the link's state, also while Connect
+    /// replaces a link that is up and the session still reads connected.
     private func robotStopped(_ state: FakeTeleopState) -> Bool {
-        state.emergencyStop && !(stopOwed && !state.connected)
+        state.emergencyStop && !stopOwed
     }
 
     private static func engaged(_ state: FakeTeleopState) -> Bool {
@@ -703,7 +704,7 @@ final class AppModel {
             // The session ignores a press while stopped or with no link; the operator still hears why.
             if robotStopped(before) {
                 raise(.refused(.emergencyStop))
-            } else if !before.connected {
+            } else if !before.connected || stopOwed {
                 raise(.refused(.noLink))
             }
         }
@@ -882,13 +883,14 @@ final class AppModel {
 /// A STOP pressed on the phone is, from the press that latched the stop until the stop is released, exactly one of
 /// these: never dropped without the operator being told.
 enum PressedStop {
-    /// `estop` went out on a connection that was up, and no `state` the server wrote after reading it has said stopped,
-    /// or a reset has been asked for from the stop since one did.
+    /// `estop` went out on a connection the server had welcomed, or on the listening connection while it was up, and
+    /// no `state` the server wrote after reading it has said stopped, or a reset has been asked for from the stop since
+    /// one did.
     case sent
     /// A `state` the server wrote after reading that `estop` said stopped (`LiveLinkController.estopConfirmed`).
     case confirmed
-    /// It has reached no server: pressed with no connection up, or the connection went while it was only sent. The
-    /// robot is not stopped; `estop` goes out first after the next `welcome`, with the alarm (J7).
+    /// It has reached no server: pressed before any connection was welcomed, or the connection went while it was only
+    /// sent. The robot is not stopped; `estop` goes out first after the next `welcome`, with the alarm (J7).
     case owed
 }
 

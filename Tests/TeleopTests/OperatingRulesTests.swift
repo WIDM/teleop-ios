@@ -32,9 +32,23 @@ final class OperatingRulesTests: XCTestCase {
         var stoppedThenLost = lost
         stoppedThenLost.emergencyStop = true
         stoppedThenLost.stopCause = .button
+        // Connect replaces a link that is up, so the session still reads connected, and STOP reached no server before
+        // the new welcome: the screen says what it says with no link up, never ready or the refusal just heard.
+        let owedReplacing = connected {
+            $0.connecting = true
+            $0.address = "100.64.0.7:8765"
+            $0.emergencyStop = true
+            $0.stopOwed = true
+            $0.stopCause = .button
+            $0.lastRefusal = (.notStopped, 9_900)
+        }
         let rows: [(String, OperatingFacts, OperatingState)] = [
             ("STOP that reached no server, link lost", owedLost, .linkLost),
             ("STOP that reached no server, never connected", owedNever, .notConnected(reason: nil)),
+            (
+                "STOP that reached no server while Connect replaces the link", owedReplacing,
+                .connecting(address: "100.64.0.7:8765")
+            ),
             ("stopped, then the link lost", stoppedThenLost, .stopped(cause: .button)),
             ("not connected", OperatingFacts(), .notConnected(reason: nil)),
             ("connecting", connecting, .connecting(address: "100.64.0.7:8765")),
