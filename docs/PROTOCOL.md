@@ -393,8 +393,11 @@ during the hold, that the arm is blocked, that the jaws closed on something, or 
 its box.
 
 If it drops, the app opens it again 2 s later without telling the operator. The link counts as lost when the
-control connection has heard nothing for 2 s or, while the listening connection is up, when neither has heard
-anything for 1.2 s.
+control connection has heard nothing for 3 s or, while the listening connection is up, when neither has heard
+anything for 3 s. During a hold the control connection hears only the echoes of the app's `test` probes, twice a
+second, so a stall of the network path of between 2.5 and 3 s can end the link. A shorter stall ends at most the
+hold in progress: the server's watchdog finishes it 0.75 s after the last update it received, so a stall under
+0.75 s costs nothing.
 
 ## The `state` message
 

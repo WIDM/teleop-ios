@@ -54,8 +54,10 @@ public final class TeleopLink {
     public static let protocolVersion = 1
     public static let poseRateHz = 30
     /// This long without any message means the link is dead. The server is quiet during a hold
-    /// (it only broadcasts state when idle), so the owner must keep probing at least twice in this time.
-    public static let staleAfterMs = 2000
+    /// (it only broadcasts state when idle), so the owner must keep probing at least twice in this time. An ordinary
+    /// wireless network was measured holding every message back for up to 1.8 s and then delivering them together;
+    /// 3 s rides that out, and the server's own watchdog ends a hold whose updates stopped after 0.75 s.
+    public static let staleAfterMs = 3000
     /// The server finishes a stopped control a moment after it acks the stop, and refuses every start until then.
     /// A start waits this long for that final ack, then goes out anyway and the server answers for itself.
     /// A scene reset waits the same way.

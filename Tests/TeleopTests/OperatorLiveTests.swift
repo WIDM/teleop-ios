@@ -9,6 +9,11 @@ import XCTest
 ///
 /// It needs the simulator's scene at its reset pose with nobody else driving it, and no recording session (a
 /// success there pauses for the save).
+///
+/// A run passes only on what the server reported (`ScriptedOperator.pickAndPlace`), and fails at the step where a
+/// working link went down, with the app's last log lines. Each run prints one `PICK RUN` line: the scheme, the
+/// episode before and after, whether a success was seen, how many holds the server ended and whether the link was
+/// lost. Check it against the server's own log of successes; `docs/TESTING.md` says how to count runs.
 final class OperatorLiveTests: XCTestCase {
     private var hand: ScriptedOperator!
 
@@ -19,6 +24,7 @@ final class OperatorLiveTests: XCTestCase {
         hand = ScriptedOperator(address: "127.0.0.1:8765", mode: mode, smoothing: 0.3)
         guard hand.connect(within: 4) else { throw XCTSkip("no server on 127.0.0.1:8765") }
         let model = hand.model!
+        hand.step = "the reset before the run"
         // The reset as a hand makes it: hold the top band 2 s. In the stop state the reset also releases the stop.
         let band = hand.topBand
         let touch = hand.touchDown(x: band.x, y: band.y)

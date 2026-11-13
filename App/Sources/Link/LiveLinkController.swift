@@ -23,8 +23,11 @@ final class LiveLinkController {
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
-    /// (I-7). The control connection alone still counts as lost after `TeleopLink.staleAfterMs`.
-    static let quietLinkMs = 1200
+    /// (I-7). The control connection alone counts as lost after `TeleopLink.staleAfterMs`, the same 3 s today, so the
+    /// listening connection no longer makes a silent server known sooner. An ordinary wireless network was measured
+    /// holding every message back for up to 1.8 s and then delivering them together; 3 s rides that out, and the
+    /// server's own watchdog ends a hold whose updates stopped after 0.75 s.
+    static let quietLinkMs = 3000
     /// A tick this long after the one before means the app's main thread did not run in between (a long frame, an
     /// accessibility snapshot). What arrived meanwhile still waits behind the tick, so the stall does not count as
     /// silence and no probe's round trip across it counts. The server's watchdog still ends a hold whose updates
@@ -552,11 +555,12 @@ final class LiveLinkController {
             onLog?("link: \(type) rejected: \(reason)")
             if type == "estop_reset" { resetSentAtMs = nil }
         case .gripperRefused(let reason):
-            onLog?("link: gripper refused: \(reason)")
+            // A refused start and a live hold the watchdog ended both come back as a rejected final answer.
+            onLog?("link: gripper hold ended by server: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
-            onLog?("link: wrist hold refused: \(reason)")
+            onLog?("link: wrist hold ended by server: \(reason)")
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             endWristTarget()
             onAction?(.wristEnd)
@@ -676,7 +680,7 @@ final class LiveLinkController {
             if observer.isStale {
                 observerDropped("server went quiet")
             } else if !observer.ready, nowMs() - observerOpenedAtMs > Int(Self.connectTimeout * 1000) {
-                observerDropped("no welcome")
+                observerDropped("no welcome or first state from server")
             }
         }
         if observerTransport == nil, let retry = observerRetryAtMs, nowMs() >= retry, link?.ready == true {

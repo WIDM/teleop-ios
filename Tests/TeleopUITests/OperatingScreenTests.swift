@@ -337,9 +337,10 @@ final class OperatingScreenTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recording, if any, stays off until a reset."].exists)
     }
 
+    /// Nothing reconnects by itself, so the screen says where the way back is.
     func testLinkLost() {
         let app = render("link_lost")
-        XCTAssertTrue(app.staticTexts["Reconnecting…"].exists)
+        XCTAssertTrue(app.staticTexts["Connect again in Settings"].exists)
         XCTAssertTrue(exists(app, "guide"), "the last known arm stays shown")
     }
 
