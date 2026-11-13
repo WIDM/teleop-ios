@@ -73,8 +73,9 @@ final class InputRulesTests: XCTestCase {
         rig.press(.upper)
         XCTAssertEqual(rig.touchDown(1, at: Rig.bottomBand, after: 0.2), [.emergencyStop])
         // A second finger and a palm stop too: no filter applies there.
-        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand + SIMD2(100, 0), radius: 50), [.emergencyStop])
-        XCTAssertEqual(rig.touchDown(3, at: SIMD2(2, 860)), [.emergencyStop])
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand + SIMD2(100, 0), radius: 130), [.emergencyStop])
+        // So does a touch at the side edge, low on the band, just above the bottom safe area.
+        XCTAssertEqual(rig.touchDown(3, at: SIMD2(2, 838)), [.emergencyStop])
         XCTAssertEqual(rig.lift(1), [])
         XCTAssertEqual(rig.release(.upper), [.stopTranslation])
     }
