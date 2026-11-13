@@ -127,8 +127,9 @@ What a maintainer needs to know:
   a second close loosens the grip; `ServerModelProfileTests` holds the server model to the same numbers.
 - The session safety checker covers the new routes and state. Its promise that every screen shows a latched stop
   (U1) names the one exception: a STOP that reached no server.
-- `AppModel.pressedStop` holds a pressed STOP as sent, confirmed or owed; only a `state` the server numbered at or
-  after the `estop`'s `seq` confirms it (`TeleopLink.estopConfirmed`). "No link. Not stopped." is queued, not
+- `AppModel.pressedStop` holds a pressed STOP as sent (its `estop` went out after the control connection's
+  `welcome`, or on the listening connection while it was up), confirmed or owed; only a `state` the server numbered
+  at or after the `estop`'s `seq` confirms it (`TeleopLink.estopConfirmed`). "No link. Not stopped." is queued, not
   dropped, while another phrase plays. The safety checker's drift script now watches every path a coverage line
   names.
 - The guide's pinch point comes from `RobotProfile.pinchPoint`: the server's `tool_pos` when a state carries it,

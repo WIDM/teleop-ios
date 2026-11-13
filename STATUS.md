@@ -9,7 +9,7 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   rules. A scripted pick-and-place in each mode, through raw inputs only, passes against the server model in every
   default run.
 - The link: two connections, holds, final acks, resets, the emergency stop and its two ways out, and a STOP pressed
-  with no link or lost with the link before the server confirmed it. The server model it is tested against is
+  before the server's welcome or lost with the link before the server confirmed it. The server model it is tested against is
   checked against 18 recordings of the real server.
 - The guide, in the phone modes on a real server: the arm from above and from behind, and the target and goal
   when the server reports them. The jaw marker is the server's `tool_pos` when it sends one, otherwise an estimate

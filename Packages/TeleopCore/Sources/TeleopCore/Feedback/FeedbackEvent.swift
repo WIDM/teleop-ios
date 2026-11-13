@@ -1,7 +1,8 @@
 /// Why a press did nothing (interaction specification E2, I-5).
 public enum Refusal: String, CaseIterable, Sendable {
     case noLink
-    /// STOP with no connection up: nothing reached the robot.
+    /// A STOP that reached no server: pressed before a connection was welcomed, or lost with the link before the server
+    /// confirmed it.
     case notStopped
     case emergencyStop
     /// The server refused the start because the success is shown or the scene is resetting.
