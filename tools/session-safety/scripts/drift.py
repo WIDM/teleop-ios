@@ -193,14 +193,24 @@ for name, names in sorted(struct_sends.items()):
     if names and name not in listed_by_struct and name not in allowed:
         problems.append(f"{name} sends {sorted(names)} but is not in ui-map.tsv")
 
+readme = (TOOL / "README.md").read_text()
+sync = re.search(r"Sync commit: `([0-9a-f]+)`", readme).group(1)
+# Every path on each line of the coverage list, not only the first ("- `a`, `b`: ..." covers both). A path has a
+# slash; the functions, tables and scripts the lines also name do not.
+coverage = readme.split("## Coverage", 1)[1].split("\n## ", 1)[0]
+covered = [
+    path
+    for line in coverage.splitlines()
+    if line.startswith("- ")
+    for path in re.findall(r"`([^`]*/[^`]*)`", line)
+]
+for path in covered:
+    if not (ROOT / path).exists():
+        problems.append(f"README.md covers {path}, which does not exist")
+
 for problem in problems:
     print(f"DRIFT {problem}")
 
-readme = (TOOL / "README.md").read_text()
-sync = re.search(r"Sync commit: `([0-9a-f]+)`", readme).group(1)
-covered = re.findall(
-    r"^- `([^`]+)`", readme.split("## Coverage", 1)[1].split("\n## ", 1)[0], re.M
-)
 changed = subprocess.run(
     ["git", "-C", str(ROOT), "diff", "--name-only", sync, "--", *covered],
     capture_output=True,

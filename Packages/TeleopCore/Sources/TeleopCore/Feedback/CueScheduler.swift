@@ -55,6 +55,13 @@ public struct CueScheduler {
         let row = CueTable.row(for: event.key)
         var outputs: [CueOutput] = []
         var dropped = false
+        // An emergency stop the phone announces makes a "No link. Not stopped." still waiting for the voice untrue. One
+        // dropped here was never said, so the next one is no repeat.
+        if case .emergencyStop = event {
+            let waiting = queued.count
+            queued.removeAll { $0.contains { $0.key == .notStopped } }
+            if queued.count < waiting { refusalSpoken[.notStopped] = nil }
+        }
         if let haptic = row.haptic {
             let (played, lost) = startHaptic(haptic, for: event, at: now, currentHold: currentHold)
             outputs += played

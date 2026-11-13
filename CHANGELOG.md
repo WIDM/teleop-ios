@@ -82,6 +82,11 @@ What a person using the app notices:
   3 seconds in which the server answers nothing, so a stall of up to about 2.5 s no longer ends the session. One
   longer than 0.75 s costs the hold in progress (the server's own watchdog ends it, and the phone says "Link
   hiccup."), and the next press works.
+- Fixed: a STOP pressed while the network stalled was never sent again when the stall then lost the link, and the
+  phone showed STOPPED although the robot was not stopped. Until the server confirms a STOP, a lost link now says
+  "No link. Not stopped." after "Link lost.", and the STOP goes out first after connecting again; the same when
+  the link goes before a reset asked for from the stop is answered. A latched stop is sent again on every new
+  connection, so a server that restarted is stopped too.
 - **Link lost** on the operating screen now says "Connect again in Settings": the app does not reconnect by itself.
 - Gone, because they only pretended: the mode choice and cloud mode, base mode, the Record, Save and Discard
   screens, the "Recent" servers, the errors screen, the connection details sheet with its fixed heartbeat line, the
@@ -123,6 +128,10 @@ What a maintainer needs to know:
   a second close loosens the grip; `ServerModelProfileTests` holds the server model to the same numbers.
 - The session safety checker covers the new routes and state. Its promise that every screen shows a latched stop
   (U1) names the one exception: a STOP that reached no server.
+- `AppModel.pressedStop` holds a pressed STOP as sent, confirmed or owed; only a `state` the server numbered at or
+  after the `estop`'s `seq` confirms it (`TeleopLink.estopConfirmed`). "No link. Not stopped." is queued, not
+  dropped, while another phrase plays. The safety checker's drift script now watches every path a coverage line
+  names.
 - The guide's pinch point comes from `RobotProfile.pinchPoint`: the server's `tool_pos` when a state carries it,
   else the gripper link origin plus `toolOffset`, approximate where `estimateBound` allows more than 3 mm of error.
   The server model reports `tool_pos` unless `ServerModelConfig.reportsToolPoint` is off, and the pick-and-place

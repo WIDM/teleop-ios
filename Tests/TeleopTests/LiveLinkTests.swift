@@ -1074,6 +1074,8 @@ final class LiveLinkTests: XCTestCase {
         }
     }
 
+    /// A released STOP is forgotten: it is not sent after the next welcome, and a stop the server reports then is the
+    /// server's own, with its alarm, not the refusal of a STOP that reached no robot.
     func testAStopReleasedBeforeTheLinkCameBackIsNotSentLater() {
         makeModel(at: .p4)
         model.send(.stop)
@@ -1081,6 +1083,272 @@ final class LiveLinkTests: XCTestCase {
         model.connect()
         transport.server("welcome")
         XCTAssertEqual(transport.types, ["hello"])
+        checkAStopFoundAtTheFirstStateIsTheServers()
+
+        // The same for a STOP owed because the link went before the server confirmed it.
+        bringUp()
+        model.send(.stop)
+        transport.onClose?()
+        model.send(.releaseStop)
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello"])
+        checkAStopFoundAtTheFirstStateIsTheServers()
+    }
+
+    private func checkAStopFoundAtTheFirstStateIsTheServers(file: StaticString = #filePath, line: UInt = #line) {
+        let cues = model.cueLog.count
+        transport.server("state", ["estop": true, "gripper": "closed"])
+        XCTAssertEqual(
+            model.cueLog.dropFirst(cues).map(\.event), [.emergencyStop(.onConnect, takeDiscarded: false)], file: file,
+            line: line)
+        XCTAssertEqual(model.operating.state, .stopped(cause: .onConnect), file: file, line: line)
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked", file: file, line: line)
+    }
+
+    // MARK: A STOP until the server confirms it
+
+    /// The server's answer to the newest `estop` on the control connection: its ack, then a `state` numbered with it,
+    /// as the server numbers every state with the newest seq it has read.
+    private func serverTookTheStop() {
+        let estop = lastSeq(of: "estop")
+        transport.server("ack", seq: estop, ["seq": estop, "status": "ok", "reason": "estop_engaged"])
+        transport.server("state", seq: estop, ["estop": true, "gripper": "closed"])
+    }
+
+    /// J7: a STOP that went out but that the server never confirmed is owed when the link goes, as if it had been
+    /// pressed with no link. The operator, who heard the alarm, hears the link-lost sound and "Link lost.", then feels
+    /// three ticks and hears "No link. Not stopped.", queued behind it and never dropped; the screen shows the lost
+    /// link. The next welcome sends `estop` first, with the alarm.
+    func testAStopTheServerNeverConfirmedIsOwedWhenTheLinkGoes() {
+        bringUp()
+        speech.holds = true
+        model.send(.stop)
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        clock += 2_700
+        transport.onClose?()
+        XCTAssertEqual(sounds.played, [.linkLost])
+        XCTAssertEqual(felt.felt, [.play(.alarm), .play(.no)])
+        XCTAssertEqual(speech.spoken, ["Emergency stop. You pressed stop. Hold the top edge to reset.", "Link lost."])
+        speech.finish()
+        XCTAssertEqual(speech.spoken.last, "No link. Not stopped.")
+        XCTAssertEqual(model.operating.state, .linkLost)
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        speech.finish()
+        speech.holds = false
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello", "estop"])
+        XCTAssertEqual(felt.felt.filter { $0 == .play(.alarm) }.count, 2)
+        XCTAssertEqual(speech.spoken.last, "Emergency stop. You pressed stop. Hold the top edge to reset.")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+    }
+
+    /// Once a `state` the server wrote after reading the `estop` has said stopped, a lost link leaves the STOP as it
+    /// is: the screen keeps saying STOPPED and nothing is refused. The next welcome still sends `estop` first, the
+    /// server may have restarted, but without a second alarm, and that server's own answer confirms the STOP again:
+    /// until it does, another lost link leaves it owed.
+    func testAStopTheServerConfirmedIsNotOwedWhenTheLinkGoes() {
+        for answered in [true, false] {
+            bringUp()
+            model.send(.stop)
+            serverTookTheStop()
+            clock += 2_700
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(answered)")
+            XCTAssertEqual(felt.felt, [.play(.alarm)], "\(answered)")
+            XCTAssertFalse(model.cueLog.contains { $0.event == .refused(.notStopped) }, "\(answered)")
+            XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked", "\(answered)")
+            model.connect()
+            transport.server("welcome")
+            XCTAssertEqual(transport.types, ["hello", "estop"], "\(answered)")
+            // The answer to hello, written before the estop: it says stopped but confirms nothing.
+            transport.server("state", seq: 1, ["estop": true, "gripper": "closed"])
+            XCTAssertEqual(felt.felt, [.play(.alarm)], "no second alarm (\(answered))")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(answered)")
+            if answered { serverTookTheStop() }
+            clock += 2_700
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, answered ? .stopped(cause: .button) : .linkLost, "\(answered)")
+            XCTAssertEqual(model.cueLog.contains { $0.event == .refused(.notStopped) }, !answered, "\(answered)")
+        }
+    }
+
+    /// A STOP pressed again while a reset asked for from the stop is on its way waits for its own confirmation: the
+    /// reset may already have cleared the server's stop. Lost with the link before that, it is owed.
+    func testAStopPressedDuringAResetFromTheStopIsOwedIfTheLinkGoesFirst() {
+        bringUp()
+        model.send(.stop)
+        serverTookTheStop()
+        model.runReset()
+        let reset = lastSeq(of: "reset_scene")
+        transport.server("state", seq: reset, ["estop": false, "ik": "resetting", "gripper": "closed"])
+        model.send(.stop)
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+        transport.onClose?()
+        XCTAssertEqual(model.operating.state, .linkLost)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+    }
+
+    /// The same, while Connect has replaced the connection and the new one has not said welcome: that STOP reached no
+    /// server, so it is owed and told at once, and goes out first after the welcome, with the alarm.
+    func testAStopPressedDuringAResetWhileTheLinkIsReplacedIsOwedAndTold() {
+        bringUp()
+        model.send(.stop)
+        serverTookTheStop()
+        model.runReset()
+        model.connect()
+        model.send(.stop)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        transport.server("welcome")
+        XCTAssertEqual(transport.types.last, "estop")
+        XCTAssertEqual(model.cueLog.last?.event, .emergencyStop(.button, takeDiscarded: false))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+    }
+
+    /// The server clears its stop as soon as it reads a reset asked for from the stop, even one it refuses, so a
+    /// confirmed STOP counts as only sent again: a state saying stopped that the server wrote before it read the reset
+    /// confirms nothing, nor does anything after a refusal. Lost with the link before the reset's answer releases the
+    /// stop, the STOP is owed and the operator told.
+    func testAResetFromTheStopLeavesAConfirmedStopOwedIfTheLinkGoesFirst() {
+        for refused in [false, true] {
+            bringUp()
+            model.send(.stop)
+            serverTookTheStop()
+            model.runReset()
+            XCTAssertEqual(transport.types.last, "reset_scene", "\(refused)")
+            transport.server("state", seq: lastSeq(of: "estop"), ["estop": true, "gripper": "closed"])
+            if refused {
+                let reset = lastSeq(of: "reset_scene")
+                transport.server("ack", seq: reset, ["seq": reset, "status": "rejected", "reason": "sim_not_ready"])
+                transport.server("state", seq: reset, ["estop": false, "gripper": "closed"])
+            }
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(refused)")
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, .linkLost, "\(refused)")
+            XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped), "\(refused)")
+            XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent", "\(refused)")
+        }
+    }
+
+    /// Connect in Settings while a STOP is not yet confirmed replaces the connection it went out on: the STOP goes out
+    /// first on the new one, without a second alarm, and if the new one never comes up it is owed and told.
+    func testAStopNotYetConfirmedGoesOutFirstOnAConnectionThatReplacesTheLink() {
+        for comesUp in [true, false] {
+            bringUp()
+            model.send(.stop)
+            model.connect()
+            XCTAssertEqual(transports.count, 2, "\(comesUp)")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(comesUp)")
+            if comesUp {
+                transport.server("welcome")
+                XCTAssertEqual(transport.types, ["hello", "estop"])
+                serverTookTheStop()
+                XCTAssertEqual(felt.felt, [.play(.alarm)])
+                XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+            } else {
+                clock += 5_001
+                model.link.tick()
+                XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+                XCTAssertEqual(model.operating.state, .linkLost)
+            }
+        }
+    }
+
+    /// Only a state the server wrote after reading this STOP's `estop` confirms it: one numbered before it does not,
+    /// though it says stopped, nor one from before a release when STOP is pressed again within the two seconds after
+    /// the release.
+    func testAStateFromBeforeTheStopDoesNotConfirmIt() {
+        bringUp()
+        model.send(.stop)
+        transport.server("state", seq: lastSeq(of: "estop") - 1, ["estop": true, "gripper": "closed"])
+        transport.onClose?()
+        XCTAssertEqual(model.operating.state, .linkLost)
+
+        bringUp()
+        model.send(.stop)
+        serverTookTheStop()
+        let first = lastSeq(of: "estop")
+        model.send(.releaseStop)
+        XCTAssertEqual(transport.types.last, "estop_reset")
+        clock += 500
+        model.send(.stop)
+        transport.server("state", seq: first, ["estop": true, "gripper": "closed"])
+        transport.onClose?()
+        XCTAssertEqual(model.operating.state, .linkLost, "the second STOP is owed")
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+    }
+
+    /// The listening connection's state confirms a STOP too: it got the `estop` as well.
+    func testAStateOnTheListeningConnectionConfirmsAStop() {
+        bringUp()
+        bringUpObserver()
+        model.send(.stop)
+        let estop = observer.sent.last { $0["type"] as? String == "estop" }!["seq"] as! Int
+        observer.server("state", seq: estop, ["estop": true, "gripper": "closed"])
+        transport.onClose?()
+        XCTAssertEqual(model.operating.state, .stopped(cause: .button))
+    }
+
+    /// A stop the server latched is sent back first after the next welcome, in case the server restarted, without the
+    /// alarm or a refusal: the operator was told already. It never becomes a pressed STOP: a connection that fails
+    /// before answering leaves it as it was, not owed.
+    func testAStopFromTheServerGoesOutFirstAfterTheNextWelcomeWithoutAWord() {
+        for answered in [true, false] {
+            bringUp()
+            transport.server("state", ["estop": true, "gripper": "closed"])
+            XCTAssertEqual(felt.felt, [.play(.alarm)], "\(answered)")
+            XCTAssertFalse(transport.types.contains("estop"), "\(answered)")
+            transport.onClose?()
+            XCTAssertEqual(model.operating.state, .stopped(cause: .other), "\(answered)")
+            let cues = model.cueLog.count
+            model.connect()
+            transport.server("welcome")
+            XCTAssertEqual(transport.types, ["hello", "estop"], "\(answered)")
+            if answered {
+                transport.server("state", ["estop": false, "gripper": "closed"])
+            } else {
+                clock += 5_001
+                model.link.tick()
+                XCTAssertFalse(model.link.isOpen, "the connection failed")
+            }
+            XCTAssertEqual(felt.felt, [.play(.alarm)], "\(answered)")
+            XCTAssertFalse(
+                model.cueLog.dropFirst(cues).contains {
+                    if case .refused = $0.event { return true } else { return false }
+                }, "\(answered)")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .other), "\(answered)")
+            XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked", "\(answered)")
+        }
+    }
+
+    /// The operator's own Disconnect before the server confirmed the STOP leaves it owed, as a lost link does.
+    func testADisconnectBeforeTheServerConfirmedTheStopLeavesItOwed() {
+        bringUp()
+        model.send(.stop)
+        model.send(.disconnect)
+        XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped))
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+    }
+
+    /// A STOP owed and sent at a welcome waits for that server's confirmation: if the connection fails first, it is
+    /// owed again and the operator told again.
+    func testAnOwedStopSentAtAWelcomeIsOwedAgainWhenThatConnectionFails() {
+        makeModel(at: .p4)
+        model.send(.stop)
+        model.connect()
+        transport.server("welcome")
+        XCTAssertEqual(transport.types, ["hello", "estop"])
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+        clock += 5_001
+        model.link.tick()
+        XCTAssertFalse(model.link.isOpen)
+        XCTAssertEqual(model.cueLog.filter { $0.event == .refused(.notStopped) }.count, 2)
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        XCTAssertEqual(model.operating.state, .notConnected(reason: nil))
     }
 
     func testADroppedListeningConnectionIsReopenedEvery2sWithoutAWord() {

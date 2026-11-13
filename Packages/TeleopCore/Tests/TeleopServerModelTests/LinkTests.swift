@@ -188,4 +188,26 @@ final class LinkTests: XCTestCase {
         XCTAssertTrue(wire.link.holdActive)
         XCTAssertEqual(wire.model.state["ik"], "pose_tracking")
     }
+
+    /// The model's own numbering is what confirms an estop: its answer confirms it, and a `state` it wrote before it
+    /// read the estop, still on its way, does not, even when it says stopped.
+    func testOnlyAStateTheModelWroteAfterReadingTheEstopConfirmsIt() throws {
+        let wire = Wire()
+        wire.link.poseStart(params)
+        wire.run(0.3) { wire.link.poseUpdate(positionMeters: [0, 0, 0]) }
+        wire.link.estop()
+        XCTAssertFalse(wire.link.estopConfirmed)
+        wire.run(0.3)
+        XCTAssertTrue(wire.link.estopConfirmed, "the state after the ack of the estop")
+        let stopped = try XCTUnwrap(wire.fromServer.last { $0.type == "state" && $0.payload["estop"] == true })
+        wire.link.estopReset()
+        wire.run(0.3)
+        XCTAssertEqual(wire.model.state["estop"], false)
+        wire.link.estop()
+        XCTAssertNotNil(wire.link.receive(stopped.text), "a state from before the release arrives late")
+        XCTAssertFalse(wire.link.estopConfirmed, "and does not confirm the new estop")
+        wire.run(0.3)
+        XCTAssertTrue(wire.link.estopConfirmed)
+        XCTAssertEqual(wire.model.state["estop"], true)
+    }
 }

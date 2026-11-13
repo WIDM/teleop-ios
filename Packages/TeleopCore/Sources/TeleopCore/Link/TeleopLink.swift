@@ -108,6 +108,12 @@ public final class TeleopLink {
     public private(set) var lastStart: SentStart?
     /// A scene reset asked for and not yet answered: waiting for a stop's final ack, waiting to retry, or in flight.
     private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool)?
+    /// The seq of the newest `estop` sent on this connection.
+    private var estopSeq: Int?
+    /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
+    /// numbers each `state` with the newest seq it has read on the connection (or, after a final ack, with that
+    /// command's own seq), so one it sent before the `estop` reached it carries a smaller number.
+    public private(set) var estopConfirmed = false
     /// True after `welcome` and a first `state`.
     public private(set) var ready = false
     /// True between an accepted `poseStart` and the stop that ends it.
@@ -179,7 +185,8 @@ public final class TeleopLink {
         stopping = nil
         heldBack = nil
         reset = nil
-        emit("estop", [:])
+        estopConfirmed = false
+        estopSeq = emit("estop", [:])
     }
 
     public func estopReset() { emit("estop_reset", [:]) }
@@ -353,6 +360,8 @@ public final class TeleopLink {
         sentTypes = [:]
         lastHeardAt = nil
         lastStart = nil
+        estopSeq = nil
+        estopConfirmed = false
     }
 
     public func receive(_ text: String) -> LinkEvent? {
@@ -378,6 +387,9 @@ public final class TeleopLink {
             lastStateAtMs = now()
             lastStateServerMs = message["ts"] as? Int
             if let gripper = parsed.gripper { lastGripper = gripper }
+            if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
+                estopConfirmed = true
+            }
             let estop = parsed.estop
             let gripper = parsed.gripper
             if !ready {

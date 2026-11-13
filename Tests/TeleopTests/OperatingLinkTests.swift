@@ -474,6 +474,28 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertEqual(model.operating.state, .linkLost)
     }
 
+    /// J7: a STOP touched with the link up goes out at once, but if the socket closes before a `state` the server wrote
+    /// after reading that `estop` says stopped, it is owed like one touched with no link: "No link. Not stopped." and
+    /// the lost link on the screen. Once such a state has come, the screen keeps saying STOPPED.
+    func testAStopTheServerHasNotConfirmedIsOwedWhenTheSocketCloses() {
+        for confirmed in [false, true] {
+            bringUp(.screenTurns)
+            model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+            step()
+            let bottom = model.operating.layout!.bottomBand.y + 20
+            touch(1, .began, x: 200, y: bottom)
+            touch(1, .ended, x: 200, y: bottom)
+            XCTAssertEqual(transport.types.last, "estop", "\(confirmed)")
+            XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(confirmed)")
+            if confirmed { transport.server("state", seq: seq(of: "estop"), ["estop": true]) }
+            step(10)
+            transport.onClose?()
+            step()
+            XCTAssertEqual(model.operating.state, confirmed ? .stopped(cause: .button) : .linkLost, "\(confirmed)")
+            XCTAssertEqual(model.cueLog.contains { $0.event == .refused(.notStopped) }, !confirmed, "\(confirmed)")
+        }
+    }
+
     /// J7: while that STOP waits for the next welcome the robot is not stopped, so a press says "No link.", as the
     /// screen does, never "Stopped.".
     func testWhileAStopWaitsForTheLinkAPressSaysNoLink() {

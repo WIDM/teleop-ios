@@ -137,6 +137,47 @@ final class CueSchedulerTests: XCTestCase {
         XCTAssertEqual(speech(scheduler.raise(.refused(.noLink), at: 3000, currentHold: nil)).map(\.keys), [[.noLink]])
     }
 
+    /// A STOP that has reached no robot is said after "Link lost.", never dropped under it, nor under the alarm's own
+    /// words (J7).
+    func testNotStoppedWaitsForTheVoiceAndIsNeverDropped() {
+        let alarm = speech(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 0, currentHold: nil))
+        let lost = speech(scheduler.raise(.linkLost(holdEngaged: false), at: 2700, currentHold: nil))
+        XCTAssertEqual(lost.map(\.keys), [[.linkLost]])
+        XCTAssertTrue(scheduler.speechFinished(id: alarm[0].id, at: 2710).isEmpty, "the alarm's words were cut off")
+        let refused = scheduler.raise(.refused(.notStopped), at: 2720, currentHold: nil)
+        XCTAssertEqual(haptics(refused), [.no], "the alarm's rattle has ended")
+        XCTAssertTrue(speech(refused).isEmpty, "not over Link lost.")
+        XCTAssertEqual(scheduler.log.last?.speech, [.notStopped])
+        XCTAssertEqual(scheduler.log.last?.dropped, false)
+        XCTAssertEqual(speech(scheduler.speechFinished(id: lost[0].id, at: 3500)).map(\.keys), [[.notStopped]])
+    }
+
+    /// A "No link. Not stopped." still waiting when the phone announces an emergency stop, as when the owed STOP goes out
+    /// at a quick reconnect, is no longer said: it would follow the alarm's words and contradict them. Other news waits.
+    func testAnEmergencyStopDropsAWaitingNotStoppedButNoOtherNews() {
+        let lost = speech(scheduler.raise(.linkLost(holdEngaged: false), at: 0, currentHold: nil))
+        _ = scheduler.raise(.refused(.notStopped), at: 10, currentHold: nil)
+        _ = scheduler.raise(.takeDiscarded, at: 20, currentHold: nil)
+        let alarm = speech(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 300, currentHold: nil))
+        XCTAssertEqual(alarm.map(\.interrupt), [true])
+        XCTAssertTrue(scheduler.speechFinished(id: lost[0].id, at: 310).isEmpty)
+        let next = speech(scheduler.speechFinished(id: alarm[0].id, at: 4000))
+        XCTAssertEqual(next.map(\.keys), [[.takeDiscarded]])
+        XCTAssertTrue(scheduler.speechFinished(id: next[0].id, at: 5000).isEmpty, "nothing else waits")
+    }
+
+    /// The dropped "No link. Not stopped." was never said: one raised soon after, as when the connection that took the
+    /// owed STOP fails right after its welcome, is said after the alarm's words, not kept quiet as a repeat.
+    func testANotStoppedDroppedByTheAlarmDoesNotSilenceTheNextOne() {
+        let lost = speech(scheduler.raise(.linkLost(holdEngaged: false), at: 0, currentHold: nil))
+        _ = scheduler.raise(.refused(.notStopped), at: 10, currentHold: nil)
+        let alarm = speech(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 1500, currentHold: nil))
+        XCTAssertTrue(scheduler.speechFinished(id: lost[0].id, at: 1510).isEmpty, "the first one was dropped")
+        _ = scheduler.raise(.refused(.notStopped), at: 2500, currentHold: nil)
+        XCTAssertEqual(scheduler.log.last?.speech, [.notStopped])
+        XCTAssertEqual(speech(scheduler.speechFinished(id: alarm[0].id, at: 4000)).map(\.keys), [[.notStopped]])
+    }
+
     func testADeadInputIsFeltButNotSpoken() {
         let outputs = scheduler.raise(.refused(.deadInput), at: 0, currentHold: nil)
         XCTAssertEqual(outputs, [.haptic(.no)])

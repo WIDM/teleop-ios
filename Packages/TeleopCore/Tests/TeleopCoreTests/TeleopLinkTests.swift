@@ -126,6 +126,33 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertFalse(link.holdActive)
     }
 
+    /// Only a `state` the server wrote after reading the `estop` confirms it: the server numbers each state with the
+    /// newest seq it has read on the connection, or with a command's own seq after that command's final ack.
+    func testOnlyAStateNumberedFromTheEstopOnConfirmsIt() {
+        bringUp()
+        let start = seq(ofLast: "hello")
+        XCTAssertFalse(link.estopConfirmed, "no estop sent")
+        _ = server("state", seq: start, ["estop": true])
+        XCTAssertFalse(link.estopConfirmed, "a stop nobody here asked for")
+        link.estop()
+        let estop = seq(ofLast: "estop")
+        _ = server("state", seq: estop - 1, ["estop": true])
+        XCTAssertFalse(link.estopConfirmed, "sent before the estop reached the server")
+        _ = server("state", seq: estop, ["estop": false])
+        XCTAssertFalse(link.estopConfirmed, "the server says it is not stopped")
+        _ = server("state", seq: estop, ["estop": true])
+        XCTAssertTrue(link.estopConfirmed)
+        link.estopReset()
+        link.estop()
+        XCTAssertFalse(link.estopConfirmed, "each estop waits for its own confirmation")
+        _ = server("state", seq: estop, ["estop": true])
+        XCTAssertFalse(link.estopConfirmed, "a state from before the release")
+        _ = server("state", seq: seq(ofLast: "estop") + 1, ["estop": true])
+        XCTAssertTrue(link.estopConfirmed, "any later state counts")
+        link.transportClosed()
+        XCTAssertFalse(link.estopConfirmed, "a closed connection confirms nothing")
+    }
+
     /// The operator lets go first: a reset while the arm is held is refused and sends nothing.
     func testResetSceneIsRefusedWhileTheArmIsHeld() {
         bringUp()

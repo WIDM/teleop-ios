@@ -131,9 +131,10 @@ The live tests move the arm in Isaac Sim on a machine other people use, so three
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
 3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below).
 
-Run them only when Isaac Sim is free and you mean to move its arm. They need the scene at its reset pose with
-nobody else driving it; `OperatorLiveTests` also needs the server running without a recording session. Each test
-first resets the scene the way holding the top band does, which also releases an emergency stop left latched.
+Run them only when Isaac Sim is free and you mean to move its arm. They need the scene at its reset pose with nobody
+else driving it. `OperatorLiveTests` may run in a recording session, where each success saves a take; it has not
+been tried in one yet. Each test first resets the scene the way holding the top band does, which also releases an
+emergency stop left latched.
 Start the path to the server first, each in its own terminal:
 
     pip install websockets                 # once: dev_relay.py and trace_scenarios.py need it
@@ -194,21 +195,32 @@ The same script runs in two places:
 
 Every run prints one line, for example:
 
-    PICK RUN (screenTurns): episode 0 -> 1, success seen YES, holds ended by the server 0, link lost no, object in goal no, 24 s: PASS
+    PICK RUN (screenTurns): episode 0 -> 1, success seen YES, holds ended by the server 0, link lost no, object in goal no, 24 s, recorder none: PASS
 
-It names the scheme, the server's episode before and after the run, whether a `state` said `task_success` after
-the jaws let go, how many holds the server ended while they were held (its watchdog, or a late refusal), whether
-the link was lost and during which step, and whether the `state` that arrived after the last wait had the object
-resting in the goal with the jaws open. It ends in PASS only when the run passed by the script's rule, FAIL
-otherwise, or SKIP when the server reports no task. `testALinkCutAfterTheLiftFailsTheRun` cuts the network path while the object is carried and
-expects the run to fail for that reason.
+It names the scheme, the server's episode before and after the run, whether a `state` said `task_success` after the
+jaws let go, how many holds the server ended while they were held (its watchdog, or a late refusal), whether the
+link was lost and during which step, and whether the `state` that arrived after the last wait had the object resting
+in the goal with the jaws open. Last comes what the app's own model holds for the recorder at that moment, as the
+operating screen's REC line is built from it: its state, the recording session's name and the saved count, for
+example `recorder armed (session s-0101, 4 saved)`; `none` when the server records nothing, `not reported` when it
+does not say. In a recording session, check the saved count against the session's file. A success there is shown
+while the take is saved, but the server's states and the echoes of the app's probes come from its socket side, so
+the run's last wait (5 s) needs no extra time: a silence that long is a lost link at 3 s first. It ends in PASS only
+when the run passed by the script's rule, FAIL otherwise, or SKIP when the server reports no task.
+`testALinkCutAfterTheLiftFailsTheRun` cuts the network path while the object is carried and expects the run to fail
+for that reason.
 
 `LinkStallTests` puts a network path under both of the app's sockets that can hold every message back in both
 directions and then deliver them together, as an ordinary wireless network was measured doing for up to 1.8 s. A
 1.8 s stall during an arm, gripper or wrist hold must cost that hold and nothing else: the link stays up, the
 server's watchdog ends the hold, the phone plays LETGO with "Link hiccup." and no refusal, and the next hold
 works. A longer stall is a lost link 3 s after the control connection's last message, and STOP pressed during a
-short stall reaches the server when the path comes back.
+short stall reaches the server when the path comes back. A STOP the server has not confirmed when a longer stall
+loses the link is owed: the operator hears "No link. Not stopped." after "Link lost.", the screen shows the lost
+link, and after connecting again `estop` goes out first and the server is stopped. The same tests cover a confirmed
+stop, a stop from the server, a restarted server, an owed STOP released before connecting, a state from before a
+release that must not confirm the STOP pressed right after it, and a reset from the stop that the server carried out
+but whose answer the lost link kept back.
 
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,

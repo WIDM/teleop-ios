@@ -231,9 +231,16 @@ The other holds take the same path. A wrist hold sends `.wristStart`, then each 
 `AppModel.startButtonTranslation`, and the link streams `ButtonArbiter`'s ramp instead of the phone's movement.
 
 STOP sends `.stop`: the session latches the emergency stop and ends every hold, and `driveLink` sends `estop` on
-every connection that is up, even when the stop is already latched. With no connection up, nothing reaches the
-robot: the operator hears "No link. Not stopped.", the screen shows the link's state instead of STOPPED, and
-`estop` goes out first after the next `welcome`.
+every connection that is up, even when the stop is already latched. `AppModel.pressedStop` holds where the STOP
+that latched the stop stands until it is released: sent, confirmed or owed. It is confirmed by a `state` saying
+stopped that the server wrote after reading its `estop` (`LiveLinkController.estopConfirmed`, from the `seq` the
+server puts on every state). A reset asked for from the stop clears the server's stop as soon as the server reads
+it, even one it refuses, so it puts a confirmed STOP back to sent, and nothing confirms it again; a STOP pressed again
+starts over as sent and waits for its own confirmation. It is owed when no connection was up at the press, or when
+the link goes before it is confirmed. An owed STOP has reached no robot: the operator hears "No link. Not stopped." (after "Link lost."), the
+screen shows the link's state instead of STOPPED, and `estop` goes out first after the next `welcome`, with the
+alarm. Whenever the stop is latched at a `welcome`, `estop` goes out first, also for a confirmed stop or one the
+server latched, then without a word: the server may have restarted.
 
 The top band held 2 s calls `AppModel.runReset`. In the stop state it sends `reset_scene`, and the server's
 confirmation releases the stop, unless STOP was pressed again since. **Release, keep scene** releases the stop and
