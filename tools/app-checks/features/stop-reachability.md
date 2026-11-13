@@ -8,9 +8,12 @@ STOP can always be reached, a stop is always shown while it is latched, and ther
   the tutorial pages pin a STOP band to their bottom (`stop`). On every screen the band ends where the bottom safe
   area begins: a touch in the strip under it, where the system's swipe home begins, does not stop.
 - STOP sends `estop` on both connections and the long buzz starts. The operating screen turns red and says
-  STOPPED, with the cause; Settings shows a STOPPED band above everything. A STOP pressed with no link up has
-  reached no robot: the screen then says Not connected, every press is answered "No link.", and the STOP goes out
-  after the next welcome unless it was released first.
+  STOPPED, with the cause; Settings shows a STOPPED band above everything. A STOP that has reached no server is
+  owed: one pressed before the server's welcome, or one the server had not confirmed when the link was lost. The
+  screen then shows the link's state (Not connected, Connecting or Link lost), the app says "No link. Not
+  stopped.", every press is answered "No link.", and `estop` goes out first after the next welcome, with the
+  alarm, unless the stop was released first. While the stop is latched, `estop` goes out first at every welcome
+  of the control connection.
 - Two ways out. Holding the top edge for 2 s resets the scene, which also releases the stop once the server confirms
   the reset. **Release, keep scene** (`stop.release`, a one-second hold) releases the stop and leaves the scene as
   it is; it is not offered when the server reports a recorder, which only a reset arms again.
@@ -26,7 +29,9 @@ STOP can always be reached, a stop is always shown while it is latched, and ther
 - Core: `HomeSwipeTests` (the swipes home of a person's phone log do nothing; a press on the band stops at
   touch-down).
 - App: `LiveLinkTests` (`testStopSendsEstopAndNothingMovesAfter`, `testStopGoesOutOnBothConnections`,
-  `testStopWithNoLinkIsNotPretendedAndIsSentAfterTheNextWelcome`), `ObserverTests.testStopReachesTheServerOnBothConnections`,
+  `testStopWithNoLinkIsNotPretendedAndIsSentAfterTheNextWelcome`), `LinkStallTests` (a STOP lost with the link
+  before the server confirmed it is owed and goes out first after the next welcome; one pressed after the welcome
+  has reached the server), `ObserverTests.testStopReachesTheServerOnBothConnections`,
   `LocalOperatorTests` (STOP during a hold and both ways out against the local server), `OperatingLinkTests`
   (the reset that releases the stop).
 - By hand, on a phone: the long buzz itself.

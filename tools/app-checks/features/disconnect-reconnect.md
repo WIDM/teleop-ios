@@ -18,8 +18,9 @@ when the link drops by itself.
   a hold the control connection hears only the probe echoes, twice a second); one longer than 0.75 s ends the hold
   in progress, by the server's watchdog, with "Link hiccup.". From standby (`p4_standby`) or the slow-link state (`p6_high_latency`) the app
   opens Connect with the lost-connection line (`connect.connection_lost`); elsewhere the operating screen says Link
-  lost with "Connect again in Settings", and the operator connects again from Settings, Server. With the stop latched the app stays on the stopped
-  screen: the stop is never hidden.
+  lost with "Connect again in Settings", and the operator connects again from Settings, Server. With the stop latched the app stays where it is:
+  the operating screen says STOPPED, or Link lost when the server had not confirmed the STOP (it is then owed: the
+  app says "No link. Not stopped." and sends `estop` first after the next welcome).
 
 ## How to check it
 
