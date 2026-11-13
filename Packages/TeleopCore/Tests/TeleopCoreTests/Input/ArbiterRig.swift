@@ -94,10 +94,12 @@ struct ArbiterRig {
         return commands
     }
 
+    /// Lifts the touch. Its last sample has the radius the touch had, or `radius` when one is given.
     @discardableResult
-    mutating func lift(_ id: Int, after dt: TimeInterval = 0) -> [InputCommand] {
+    mutating func lift(_ id: Int, radius: Double? = nil, after dt: TimeInterval = 0) -> [InputCommand] {
         let p = points.removeValue(forKey: id) ?? .zero
-        return send(sample(id, .ended, p, radius: radii.removeValue(forKey: id) ?? 8), after: dt)
+        let last = radii.removeValue(forKey: id) ?? 8
+        return send(sample(id, .ended, p, radius: radius ?? last), after: dt)
     }
 
     /// Sets the phone to this turn and tilt from rest in one sample.

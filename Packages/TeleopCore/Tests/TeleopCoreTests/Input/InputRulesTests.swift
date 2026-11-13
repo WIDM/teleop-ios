@@ -480,7 +480,7 @@ final class InputRulesTests: XCTestCase {
         XCTAssertFalse(rig.arbiter.isHoldingAnInput)
         rig.touchDown(1, at: Rig.bottomBand)
         rig.touchDown(2, at: Rig.gap)
-        rig.touchDown(3, at: Rig.middle, radius: 40)
+        rig.touchDown(3, at: Rig.middle, radius: 97)
         XCTAssertFalse(rig.arbiter.isHoldingAnInput, "STOP, the gap and a palm are not holding an input")
         rig.touchDown(4, at: Rig.middle)
         XCTAssertTrue(rig.arbiter.isHoldingAnInput)

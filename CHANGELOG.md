@@ -94,7 +94,8 @@ What a maintainer needs to know:
 - The input rules are in `TeleopCore`: `InputArbiter` (schemes A and B), `ButtonArbiter`, `SurfaceLayout`,
   `RotationMapper` and `InputConstants`. `OperatingController` is the one place where keys, touches, the phone's
   attitude and the pad become commands. `OperatingRules` works out the screen's state and the arm reading, and
-  `GuidePicture` the guide, as pure functions.
+  `GuidePicture` the guide, as pure functions. The width at which a touch counts as a palm
+  (`InputConstants.palmRadiusPt`, 91 pt) was measured on a phone; `STATUS.md` has the numbers.
 - Feedback: `FeedbackMonitor`, `CueTable` and `CueScheduler` decide every cue; `RecorderNarrator` speaks for the
   recorder; `StopExits` chooses the ways out of a stop; `WristLeadBound` bounds wrist commands. The players for
   haptics, sounds and speech decide nothing.
