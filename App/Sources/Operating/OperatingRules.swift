@@ -48,10 +48,11 @@ enum OperatingRules {
 
     /// The rows of §7.2 that version 1 has, highest first: the stop, the link, the camera, a take just saved, the
     /// engaged hold, a refusal just heard, the server not ready, a slow link, ready. A STOP that reached no server is
-    /// not shown as stopped: the robot is not (§2.8, J7).
+    /// not shown as stopped: the robot is not (§2.8, J7). Until it goes out the screen shows the link as it does with no
+    /// link up, also while Connect replaces a link that is up: never ready, a hold, a wait or a refusal.
     static func state(_ f: OperatingFacts) -> OperatingState {
         if f.emergencyStop, !f.stopOwed { return .stopped(cause: f.stopCause) }
-        if !f.connected {
+        if !f.connected || f.stopOwed {
             if f.connecting { return .connecting(address: f.address) }
             return f.connectionLost ? .linkLost : .notConnected(reason: nil)
         }

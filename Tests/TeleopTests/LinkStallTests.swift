@@ -888,4 +888,74 @@ final class LinkStallTests: XCTestCase {
         XCTAssertEqual(shown, [.connecting(address: server.address), .stopped(cause: .button)])
         XCTAssertTrue(serverStopped)
     }
+
+    // MARK: A STOP owed while Connect replaces a link that is up
+
+    /// Settings, Connect, with the link up: the old connections close quietly and the session reads connected until
+    /// the new one welcomes or fails. The path stalls, so the new hello waits. STOP on Settings' own band then reaches no
+    /// server: it is owed. Returns the number of the new control connection, where the cues stood before the STOP, and
+    /// the screens shown since, with the seconds since the STOP.
+    private func stopWhileConnectReplacesTheLink() throws -> (
+        control: Int, index: Int, timeline: () -> [(OperatingState, Double)]
+    ) {
+        try start(.screenTurns)
+        path.stall()
+        model.send(.openSettings)
+        let control = path.opened + 1
+        model.connect()
+        let index = model.cueLog.count
+        let pressed = Date()
+        var timeline: [(OperatingState, Double)] = [(model.operating.state, 0)]
+        model.send(.stop)
+        hand.watch = { [unowned self] in
+            if timeline.last?.0 != model.operating.state {
+                timeline.append((model.operating.state, Date().timeIntervalSince(pressed)))
+            }
+        }
+        hand.watch?()
+        let heard = cues(from: index)
+        XCTAssertEqual(heard.map(\.event), [.refused(.notStopped)], "it reached no server")
+        XCTAssertTrue(model.session.state.connected, "the session still reads connected")
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        return (control, index, { timeline })
+    }
+
+    private static func timeline(_ shown: [(OperatingState, Double)]) -> String {
+        shown.map { String(format: "%@ at %.2f s", String(describing: $0.0), $0.1) }.joined(separator: ", ")
+    }
+
+    /// The new connection never comes up, and the app gives up on it 5 s after Connect. Until then the screen says
+    /// Connecting, never Ready, a refusal or a hold; then the lost link, with "Link lost.".
+    func testAStopOwedWhileConnectReplacesTheLinkShowsConnectingUntilTheNewConnectionFails() throws {
+        let (_, index, timeline) = try stopWhileConnectReplacesTheLink()
+        XCTAssertTrue(hand.wait(6, until: { !model.session.state.connected }), "the new connection was kept")
+        path.resume()
+        hand.pump(1)
+        print("REPLACED fails: \(Self.timeline(timeline()))")
+        XCTAssertEqual(
+            timeline().map(\.0), [.ready, .connecting(address: server.address), .linkLost], Self.timeline(timeline()))
+        let after = cues(from: index)
+        XCTAssertEqual(after.map(\.event), [.refused(.notStopped), .linkLost(holdEngaged: false)])
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked_unsent")
+        XCTAssertFalse(serverStopped, "nothing reached the server")
+    }
+
+    /// The new connection comes up: its welcome sends `estop` first, with the alarm, and the screen goes from
+    /// Connecting to STOPPED.
+    func testAStopOwedWhileConnectReplacesTheLinkShowsConnectingUntilTheNewConnectionWelcomes() throws {
+        let (control, index, timeline) = try stopWhileConnectReplacesTheLink()
+        _ = hand.wait(1.5, until: { false })
+        path.resume()
+        XCTAssertTrue(hand.wait(2, until: { model.link.isUp }), "the new connection did not come up")
+        checkTheStopWentOutFirst(on: control, "replaced")
+        hand.pump(1)
+        print("REPLACED welcomes: \(Self.timeline(timeline()))")
+        XCTAssertEqual(
+            timeline().map(\.0), [.ready, .connecting(address: server.address), .stopped(cause: .button)],
+            Self.timeline(timeline()))
+        let after = cues(from: index)
+        XCTAssertEqual(after.map(\.event), [.refused(.notStopped), .emergencyStop(.button, takeDiscarded: false)])
+        XCTAssertEqual(model.practiceBlockedReason, "settings.practice_blocked")
+        XCTAssertTrue(serverStopped)
+    }
 }

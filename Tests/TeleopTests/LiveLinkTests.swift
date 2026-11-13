@@ -1303,6 +1303,35 @@ final class LiveLinkTests: XCTestCase {
         }
     }
 
+    /// Connect while the link is up replaces it, and the session reads connected until the new connection welcomes or
+    /// fails. A STOP pressed before that welcome is owed, and meanwhile the screen says Connecting, as with no link up:
+    /// never Ready, nor the refusal just heard. Once the welcome has sent the `estop` it says STOPPED; if the new
+    /// connection fails, the lost link.
+    func testAStopOwedWhileConnectReplacesTheLinkNeverReadsReady() {
+        for comesUp in [true, false] {
+            bringUp()
+            model.connect()
+            model.send(.stop)
+            XCTAssertTrue(model.session.state.connected, "\(comesUp)")
+            XCTAssertEqual(model.cueLog.last?.event, .refused(.notStopped), "\(comesUp)")
+            XCTAssertEqual(model.operating.state, .connecting(address: "100.64.0.1:8765"), "\(comesUp)")
+            clock += 1_500
+            model.controller.tick()
+            XCTAssertEqual(
+                model.operating.state, .connecting(address: "100.64.0.1:8765"),
+                "after the refusal's second (\(comesUp))")
+            if comesUp {
+                transport.server("welcome")
+                XCTAssertEqual(transport.types, ["hello", "estop", "estop"], "\(comesUp)")
+                XCTAssertEqual(model.operating.state, .stopped(cause: .button), "\(comesUp)")
+            } else {
+                clock += 3_600
+                model.link.tick()
+                XCTAssertEqual(model.operating.state, .linkLost, "\(comesUp)")
+            }
+        }
+    }
+
     /// Only a state the server wrote after reading this STOP's `estop` confirms it: one numbered before it does not,
     /// though it says stopped, nor one from before a release when STOP is pressed again within the two seconds after
     /// the release.
