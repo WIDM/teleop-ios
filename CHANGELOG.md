@@ -16,7 +16,9 @@ design mock-up only pretended to do is gone.
 What a person using the app notices:
 
 - **One operating screen.** Standby, the camera view and its handles, the high-latency screen, the fallback screens
-  and the stop screen are one screen. A red STOP band runs along the bottom and stops at touch-down. The top band
+  and the stop screen are one screen. A red STOP band runs along the bottom and stops at touch-down. It ends just
+  above the bottom edge: the strip under it, where the home indicator sits, belongs to the system's swipe home, and
+  a touch there, a swipe home included, does nothing. The top band
   holds the gear (Settings), the REC line, the link dot and the mode chip; holding it for 2 seconds resets the
   scene. The middle shows one word in a colour (Ready, Moving, Turning, Closing, Wait, Slow link, STOPPED,
   Link lost and others) with a line or two under it. The phone stays awake while it shows.
@@ -24,7 +26,8 @@ What a person using the app notices:
   - Screen turns (A): hold vol+ and the arm follows the phone; hold vol− to close the jaws; hold a thumb on the
     glass and turn the phone to turn or tilt the wrist; slide the thumb up and hold to open the jaws.
   - Key turns (B): hold vol+ and the arm follows the phone; hold vol− and turn the phone to turn or tilt the wrist;
-    hold the half of the screen under the thumb to close the jaws, the other half to open them.
+    hold the half of the screen under the thumb to close the jaws, the other half to open them. The words Open and
+    Close sit halfway up the screen, at the outer side of each half, away from STOP.
   - Buttons: hold Forward, Back, Left, Right, Up, Down, Open or Close; Fine and Coarse set the speed. The phone's
     movement is not used, and the volume keys change the volume.
 - **The wrist follows the phone** while its input is held: one axis per hold, up to 55 degrees of turn or 20 of
@@ -133,6 +136,9 @@ What a maintainer needs to know:
   steps only the Apple account holder can take.
 - The maintenance tools are in `tools/`: the session safety checker in `tools/session-safety` and the app check
   scripts in `tools/app-checks`, each with a README.
+- `SurfaceLayout.bottomSafeArea` is a zone of its own: the STOP band is `bottomBandPt` high and ends where the
+  bottom safe area begins, and the input rules ignore a touch that begins under it. `StopBand` on the other screens
+  ends there too, and its red no longer runs into the safe area.
 - CI builds with Xcode 16.4 again: it could not type-check two long expressions in time. The developer log's line
   for a link that never got ready says "no welcome or first state from server".
 - `.swift-format` holds the layout the Swift code is written in, and all of it is laid out so.

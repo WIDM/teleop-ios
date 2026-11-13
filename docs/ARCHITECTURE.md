@@ -126,9 +126,13 @@ The screen is split into zones by `SurfaceLayout`, from the screen size and safe
 - **Top band**: the gear (opens Settings) at its left end, the REC line (what the server's recorder is doing), the
   link dot, the mode chip, "Hold to reset", and a countdown bar while the band is held.
 - **Control surface**: one state word in a state colour, with detail lines. In the phone modes it also holds the
-  guide and the scheme's faint hints; in buttons mode, a state strip and the button pad.
+  guide and the scheme's faint hints (scheme B's Open and Close at mid height, beside the guide); in buttons mode,
+  a state strip and the button pad.
 - **Gap**: a strip above STOP where a touch does nothing, so a resting thumb does not stop the robot.
-- **Bottom band**: STOP 急停, in every state and every mode.
+- **Bottom band**: STOP 急停, in every state and every mode. It ends where the bottom safe area begins.
+- **Bottom safe area**: the strip under STOP where the home indicator sits and the system's swipe home begins.
+  It is drawn like the gap, and a touch that begins there does nothing, even when it slides up into the band. A
+  phone without a home indicator has none, and its band reaches the bottom of the glass.
 
 One `TouchSurfaceView` covers the whole screen, safe areas included, and everything drawn over it lets touches
 through. The input rules hit-test the same `SurfaceLayout` rectangles the screen draws, so a band cannot be drawn
@@ -161,7 +165,8 @@ as a hollow ring with no centre dot, an orange line says "Jaw position is approx
 nothing overwrites it, so UI tests can photograph each state.
 
 Connect, Settings, the tutorial and the permissions screen are ordinary SwiftUI screens. Each keeps `StopBand`, a
-red STOP band that acts on touch-down, along its bottom edge. Settings shows a red STOPPED band at the top while the
+red STOP band that acts on touch-down, at its bottom just above the bottom safe area; the red ends with the band.
+Settings shows a red STOPPED band at the top while the
 robot is stopped.
 
 ## The input rules
@@ -174,6 +179,7 @@ Settings → Control → Mode picks one of three control modes (`ControlMode`), 
 | vol− held | the jaws close | the wrist follows the phone's turn or tilt | changes the volume |
 | a thumb on the control surface | held while the phone turns: the wrist follows; slid up 10 mm and held: the jaws open | held on the half under the thumb: the jaws close; on the other half: they open; the centre band does nothing | the pad: Forward, Back, Left, Right, Up, Down, Open, Close, and a Fine / Coarse switch |
 | the bottom band | STOP, at touch-down | STOP, at touch-down | STOP, at touch-down |
+| a touch that begins in the bottom safe area, under the band | nothing | nothing | nothing |
 | the top band held 2 s | reset the scene | reset the scene | reset the scene |
 | a tap on the gear | Settings | Settings | Settings |
 
