@@ -107,7 +107,8 @@ The server answers with `welcome`, then a first `state` (described below):
 across a reconnect (the scene then starts over). It ignores `config`.
 
 The link is usable once `welcome` and a first `state` have arrived (`TeleopLink.ready`). Until then the app sends
-no commands but `estop` on a STOP (see "The emergency stop"). If the link is not ready within 5 seconds, the app drops the socket and reports the link lost.
+no commands but `estop` on a STOP and `estop_reset` when the operator releases the stop (see "The emergency stop").
+If the link is not ready within 5 seconds, the app drops the socket and reports the link lost.
 
 ## What the app sends
 
