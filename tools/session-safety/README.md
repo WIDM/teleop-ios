@@ -18,7 +18,7 @@ After changing the checker or a guarded code path, also prove the check can stil
 
 It breaks a throwaway copy of `TeleopCore`, never the repo's files. Every line must say `CAUGHT`.
 
-Last mutation run: 2026-11-13, on commit `605bf87`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
+Last mutation run: 2026-11-13, on commit `f820e37`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
 `TeleopCore`, of which 37 must make a property fail and 2 harmless ones must leave it passing; 1 change to
 `ui-map.tsv`; 8 changes to the screens' source that `drift.py` must report.
 
