@@ -29,8 +29,12 @@ phone.
 Measured with a person's hand on an iPhone 17: the phone reports how wide a touch is in steps of about 12 pt. In its
 first 100 ms a thumb pad pressed, held or slid on the glass was at most 85 pt wide, a tap 24 to 61 pt, and the base
 of the hand pressed on the glass 97 pt or more. The rule that ignores a palm everywhere but on the STOP band
-(`InputConstants.palmRadiusPt`, 91 pt) sits between them. Not yet checked on a phone: other hands, the 12 pt edge
-rule, and how often a press near the lower corners lands on the STOP band.
+(`InputConstants.palmRadiusPt`, 91 pt) sits between them. On the same phone every swipe home began in the lowest
+34 pt, under the home indicator. The STOP band ends above that strip and a touch that begins in the strip does
+nothing, so none of those swipes stops the robot. One press aimed at scheme B's lower left corner landed on the STOP
+band; scheme B's words sit halfway up the screen, away from the band. Not yet checked on a phone: other hands, the
+12 pt edge rule, a swipe home that begins above the home indicator, and how often a press on scheme B's halves lands
+on the STOP band with the words halfway up.
 
 ## Known not to work
 
@@ -43,6 +47,7 @@ rule, and how often a press near the lower corners lands on the STOP band.
 - A touch 91 pt wide or wider when it lands or in its first 100 ms, about 30 mm across, is taken for a palm and
   ignored without a sound: a thumb laid flat on the glass can be that wide. The STOP band is the exception: any
   touch there stops the robot.
+- A press on the strip below the STOP band, where the home indicator sits, does not stop the robot.
 - A whole press, move and release that falls inside one stall of the network plays the start's tick, moves the arm
   a few millimetres at most (the held messages reach the server together), and ends without a word: a start gets
   no acknowledgement of its own.

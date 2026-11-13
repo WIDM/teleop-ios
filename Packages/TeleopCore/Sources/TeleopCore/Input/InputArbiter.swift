@@ -41,7 +41,7 @@ public struct InputArbiter: Sendable {
     }
 
     private enum TouchRole: Equatable, Sendable {
-        /// Filtered out or in the gap: never acts, never cues.
+        /// Filtered out, in the gap or in the bottom safe area: never acts, never cues.
         case ignored
         /// Bottom band: acted on at touch-down.
         case stop
@@ -301,6 +301,9 @@ public struct InputArbiter: Sendable {
         let zone = layout.zone(x: s.x, y: s.y)
         let palm = s.majorRadius >= constants.palmRadiusPt
         switch zone {
+        case .bottomSafeArea:
+            // The system's swipe home begins here; it must not stop the robot, nor count as the thumb.
+            touches[s.id] = .ignored
         case .bottomBand:
             // No filter applies: a palm here stops the robot too (I-3).
             touches[s.id] = .stop

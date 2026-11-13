@@ -73,7 +73,7 @@ Never weaken a property, shrink the action list, or add to `known-findings.txt` 
 | U4 | The arm is moving only while connected and not latency-blocked. | Same as S6, reachable by tapping. |
 | U5 | Every teleop screen (all but S4) offers STOP. | No STOP on a teleop screen. |
 
-U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable; the UI tests cover that (`docs/TESTING.md`).
+U5 reads `ui-map.tsv`, and `drift.py` holds that table to each screen's own struct in the source. It does not check whether the button is visible or hittable, or where on the glass a touch reaches it; the UI tests cover that (`docs/TESTING.md`; `StopBandTests` for where each screen's band ends, and the input rules' `HomeSwipeTests` for a touch under it, which does nothing).
 
 `drift.py` compares by struct, so it cannot tell routes apart when one struct draws several: p4, p5, p6, p7 and s4 (`OperatingScreen`, whose rows are the same), t1 to t3 (`TutorialScreen`). A control that lives only in one branch of those structs is read by hand. Recheck those rows when those structs change.
 

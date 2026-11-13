@@ -2,7 +2,8 @@ import SwiftUI
 import TeleopCore
 
 /// The red STOP band pinned to the bottom of every screen that is not the operating screen (§2.8). It acts on
-/// touch-down, as the operating screen's band does: a stop must not wait for the finger to lift.
+/// touch-down, as the operating screen's band does: a stop must not wait for the finger to lift. It ends where the
+/// bottom safe area begins, red only where a touch stops; the strip under it belongs to the system's swipe home.
 struct StopBand: View {
     let action: () -> Void
     @State private var down = false
@@ -13,7 +14,8 @@ struct StopBand: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: TeleopMetrics.stopHeight)
-            .background(TeleopColors.emergency.ignoresSafeArea(edges: .bottom))
+            // A colour fills the safe area under a view by default; here only the band is red.
+            .background(TeleopColors.emergency, ignoresSafeAreaEdges: [])
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

@@ -5,7 +5,8 @@ STOP can always be reached, a stop is always shown while it is latched, and ther
 ## What the app does
 
 - The operating screen's bottom band is STOP 急停 (`operating.stop`). Settings, Connect, the permissions screen and
-  the tutorial pages pin a STOP band to their bottom edge (`stop`).
+  the tutorial pages pin a STOP band to their bottom (`stop`). On every screen the band ends where the bottom safe
+  area begins: a touch in the strip under it, where the system's swipe home begins, does not stop.
 - STOP sends `estop` on both connections and the long buzz starts. The operating screen turns red and says
   STOPPED, with the cause; Settings shows a STOPPED band above everything. A STOP pressed with no link up has
   reached no robot: the screen then says Not connected, every press is answered "No link.", and the STOP goes out
@@ -20,7 +21,10 @@ STOP can always be reached, a stop is always shown while it is latched, and ther
 - Safety checker: `tools/session-safety/scripts/check.sh` proves STOP from every state, the latch, the stop always
   shown (U1), a way out (U3) and STOP on every screen (U5) for the real session code.
 - UI: `OperatingTouchTests` (the band, Release, keep scene, Settings while stopped, the band on Settings),
+  `StopBandTests` (where the band ends on every screen, and a press or a swipe under it doing nothing),
   `SettingsTests.testTheTutorialIsNotOfferedWhileStopped`, `PracticeTests.testPracticeIsRefusedWhileStoppedAndSaysWhy`.
+- Core: `HomeSwipeTests` (the swipes home of a person's phone log do nothing; a press on the band stops at
+  touch-down).
 - App: `LiveLinkTests` (`testStopSendsEstopAndNothingMovesAfter`, `testStopGoesOutOnBothConnections`,
   `testStopWithNoLinkIsNotPretendedAndIsSentAfterTheNextWelcome`), `ObserverTests.testStopReachesTheServerOnBothConnections`,
   `LocalOperatorTests` (STOP during a hold and both ways out against the local server), `OperatingLinkTests`

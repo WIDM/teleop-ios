@@ -5,7 +5,9 @@ import XCTest
 /// C-I2: generated interleavings of keys and touches pressed within 0 to 100 ms of each other and released in every
 /// order, with the phone turning, under both platform deliveries of a second key. Whatever happens:
 /// never two engaged holds (the reset countdown counts), a dead input never wakes, every start has exactly one stop,
-/// and nothing starts with no input down.
+/// and nothing starts with no input down. And nothing ever comes of a touch that begins in the bottom safe area, even
+/// one that slides up into the band, the gap or the control surface: a twin arbiter that gets a tick in place of
+/// each of its samples answers every step the same way and holds the same inputs.
 final class InputArbiterPropertyTests: XCTestCase {
     static let cases = 12_000
 
@@ -27,16 +29,25 @@ final class InputArbiterPropertyTests: XCTestCase {
         XCTAssertGreaterThan(totals.countdowns, 50)
         XCTAssertGreaterThan(totals.refusals, 100)
         XCTAssertGreaterThan(totals.palmSamples, 1000)
+        XCTAssertGreaterThan(totals.safeAreaTouches, 400)
+        XCTAssertGreaterThan(totals.safeAreaTouchesLeavingIt, 100)
+        XCTAssertGreaterThan(totals.safeAreaTouchesDuringAHold, 50)
     }
 
     struct Totals {
         var starts = 0, wristStarts = 0, gripperTouchStarts = 0, deadInputs = 0, countdowns = 0, refusals = 0
         /// Touch samples as wide as a palm.
         var palmSamples = 0
+        /// Touches that began in the bottom safe area; of them, those that slid out of it, and those that began while
+        /// a hold was engaged.
+        var safeAreaTouches = 0, safeAreaTouchesLeavingIt = 0, safeAreaTouchesDuringAHold = 0
     }
 
     private func run(_ scenario: Scenario, totals: inout Totals) -> String? {
         var arbiter = InputArbiter(scheme: scenario.scheme, hand: scenario.hand, layout: ArbiterRig.layout)
+        var twin = arbiter
+        var safeAreaTouches = Set<Int>()
+        var leftTheSafeArea = Set<Int>()
         var open: HoldKind?
         var countdown = false
         var down = Set<HeldInput>()
@@ -55,7 +66,28 @@ final class InputArbiterPropertyTests: XCTestCase {
             case .touch(let s) where s.phase == .ended || s.phase == .cancelled: down.remove(.touch(s.id))
             default: break
             }
-            let commands = arbiter.handle(step.event, at: step.time, facts: scenario.facts(at: step.time))
+            var twinEvent = step.event
+            if case .touch(let s) = step.event {
+                let zone = ArbiterRig.layout.zone(x: s.x, y: s.y)
+                if s.phase == .began, zone == .bottomSafeArea {
+                    safeAreaTouches.insert(s.id)
+                    totals.safeAreaTouches += 1
+                    if open != nil { totals.safeAreaTouchesDuringAHold += 1 }
+                }
+                if safeAreaTouches.contains(s.id) {
+                    twinEvent = .tick
+                    if zone != .bottomSafeArea, leftTheSafeArea.insert(s.id).inserted {
+                        totals.safeAreaTouchesLeavingIt += 1
+                    }
+                }
+            }
+            let facts = scenario.facts(at: step.time)
+            let commands = arbiter.handle(step.event, at: step.time, facts: facts)
+            let twinCommands = twin.handle(twinEvent, at: step.time, facts: facts)
+            if commands != twinCommands {
+                return "\(step.event) at \(step.time) gave \(commands); without the strip's touches, \(twinCommands)"
+            }
+            if arbiter.held != twin.held { return "a touch from the bottom safe area is held at \(step.time)" }
             var startedHere: HoldKind?
             var stoppedAfterStart = false
             for command in commands {
@@ -258,8 +290,9 @@ struct Scenario {
         let y: Double
         switch roll {
         case ..<0.1: y = rng.uniform(0, layout.topBand.maxY - 0.01)
-        case ..<0.15: y = rng.uniform(layout.bottomBand.y, layout.height - 0.01)
+        case ..<0.15: y = rng.uniform(layout.bottomBand.y, layout.bottomBand.maxY - 0.01)
         case ..<0.18: y = rng.uniform(layout.gap.y, layout.gap.maxY - 0.01)
+        case ..<0.22: y = rng.uniform(layout.bottomSafeArea.y, layout.height - 0.01)
         default: y = rng.uniform(layout.controlSurface.y, layout.controlSurface.maxY - 0.01)
         }
         let x = roll < 0.04 ? rng.uniform(0, 56) : rng.uniform(0, layout.width)

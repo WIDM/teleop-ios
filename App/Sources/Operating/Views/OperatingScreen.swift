@@ -122,6 +122,8 @@ private struct ZoneFills: View {
             colour.place(layout.controlSurface)
             TeleopColors.band.place(layout.gap)
             TeleopColors.emergency.place(layout.bottomBand)
+            // The system's strip under the band, like the gap: only where a touch stops is red.
+            TeleopColors.band.place(layout.bottomSafeArea)
             if practice {
                 PracticeStripes()
                     .place(SurfaceLayout.Rect(x: 0, y: 0, width: layout.width, height: layout.gap.y))
@@ -202,14 +204,7 @@ private struct OperatingDrawing: View {
                 PhoneSurface(display: display, layout: layout, look: look, scale: scale, profile: profile)
                     .place(layout.controlSurface)
             }
-            // The label sits in the band's part above the home indicator.
-            let constants = InputConstants.appendixA
-            BottomBandLabel(scale: scale)
-                .place(
-                    SurfaceLayout.Rect(
-                        x: 0, y: layout.bottomBand.y, width: layout.width,
-                        height: constants.bottomBandPt * layout.height / constants.referenceHeightPt
-                    ))
+            BottomBandLabel(scale: scale).place(layout.bottomBand)
         }
     }
 
@@ -417,7 +412,8 @@ private struct PhoneSurface: View {
     }
 }
 
-/// Scheme B: a faint band down the middle, and which half opens and which closes, at the lower corners.
+/// Scheme B: a faint band down the middle, and which half opens and which closes, at mid height in the outer margin
+/// of each half, beside the guide. Not at the lower corners: a word there invites the thumb right beside STOP.
 private struct SchemeBHints: View {
     let display: OperatingDisplay
     let layout: SurfaceLayout
@@ -427,7 +423,7 @@ private struct SchemeBHints: View {
     var body: some View {
         let cs = layout.controlSurface
         let nearIsRight = display.hand == .right
-        ZStack(alignment: .bottom) {
+        ZStack {
             Color.white.opacity(0.10)
                 .frame(width: layout.sideDeadPt * 2)
                 .frame(maxHeight: .infinity)
@@ -441,8 +437,7 @@ private struct SchemeBHints: View {
                     nearIsRight ? "hint.close" : "hint.open",
                     id: nearIsRight ? "operating.hint_close" : "operating.hint_open")
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10 * scale)
+            .padding(.horizontal, 16)
         }
         .frame(width: cs.width, height: cs.height)
     }

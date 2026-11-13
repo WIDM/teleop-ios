@@ -2406,13 +2406,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bottom edge of the screen: emergency stop."
+            "value": "The red band at the bottom of the screen: emergency stop."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "螢幕底部：急停。"
+            "value": "螢幕底部的紅色橫條：急停。"
           }
         }
       }

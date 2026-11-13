@@ -82,6 +82,7 @@ final class LocalOperatorTests: XCTestCase {
     /// The bottom band stops the arm during a hold, and a press while stopped is refused.
     func testTheBottomBandStopsTheArmDuringAHold() throws {
         try start(.screenTurns)
+        XCTAssertEqual(hand.layout.zone(x: hand.bottomBand.x, y: hand.bottomBand.y), .bottomBand, "STOP, not the strip")
         hand.press(.upper)
         XCTAssertTrue(model.session.state.armMoving)
         hand.move(to: SIMD3(0.03, 0, 0), in: 0.3)

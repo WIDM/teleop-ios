@@ -23,6 +23,9 @@ enum OperatingFixtures {
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
         all["turning"] = display(
             .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
+        var turningLeft = all["turning"]!
+        turningLeft.hand = .left
+        all["turning_left"] = turningLeft
         // A server that measures no wrist angles: the estimated pinch point cannot rule out a tilt, so it is approximate.
         all["tilting_estimated"] = display(
             .tilting(degrees: 8, limit: 20, estimated: true), arm: approximate(task()), recorder: .unknown

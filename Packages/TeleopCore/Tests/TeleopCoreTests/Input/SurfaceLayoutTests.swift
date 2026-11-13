@@ -7,14 +7,20 @@ final class SurfaceLayoutTests: XCTestCase {
 
     func testZonesOnTheReferenceDevice() {
         XCTAssertEqual(layout.topBand, .init(x: 0, y: 0, width: 402, height: 126))
-        XCTAssertEqual(layout.bottomBand, .init(x: 0, y: 768, width: 402, height: 106))
+        XCTAssertEqual(layout.bottomSafeArea, .init(x: 0, y: 840, width: 402, height: 34))
+        XCTAssertEqual(layout.bottomBand, .init(x: 0, y: 768, width: 402, height: 72))
         XCTAssertEqual(layout.gap, .init(x: 0, y: 752, width: 402, height: 16))
         XCTAssertEqual(layout.controlSurface, .init(x: 0, y: 126, width: 402, height: 626))
         XCTAssertEqual(layout.gear, .init(x: 0, y: 66, width: 56, height: 56))
     }
 
     func testJudgingOrder() {
-        XCTAssertEqual(layout.zone(x: 200, y: 873), .bottomBand)
+        XCTAssertEqual(layout.zone(x: 200, y: 874), .bottomSafeArea)
+        XCTAssertEqual(layout.zone(x: 200, y: 873.9), .bottomSafeArea)
+        XCTAssertEqual(layout.zone(x: 0, y: 840), .bottomSafeArea)
+        XCTAssertEqual(layout.zone(x: 401.9, y: 840), .bottomSafeArea)
+        XCTAssertEqual(layout.zone(x: 200, y: 839.9), .bottomBand)
+        XCTAssertEqual(layout.zone(x: 0, y: 839.9), .bottomBand)
         XCTAssertEqual(layout.zone(x: 200, y: 768), .bottomBand)
         XCTAssertEqual(layout.zone(x: 200, y: 767.9), .gap)
         XCTAssertEqual(layout.zone(x: 200, y: 752), .gap)
@@ -35,6 +41,55 @@ final class SurfaceLayoutTests: XCTestCase {
         XCTAssertEqual(small.gap.height, 16 * scale, accuracy: 1e-9)
         XCTAssertEqual(small.gear.width, 44, accuracy: 1e-9, "56 pt scaled would be 42.7 pt, under the minimum")
         XCTAssertEqual(small.controlSurface.maxY, small.gap.y, accuracy: 1e-9)
+    }
+
+    /// The short screen the UI tests draw (an iPhone SE, 375 × 667 pt) has no bottom safe area: the band runs to the
+    /// bottom of the glass, as before.
+    func testZonesOnTheShortScreen() {
+        let small = SurfaceLayout(width: 375, height: 667, safeTop: 20, safeBottom: 0)
+        XCTAssertEqual(small.bottomSafeArea, .init(x: 0, y: 667, width: 375, height: 0))
+        XCTAssertEqual(small.bottomBand.y, 667 - 72 * 667.0 / 874, accuracy: 1e-9)
+        XCTAssertEqual(small.bottomBand.maxY, 667, accuracy: 1e-9)
+        XCTAssertEqual(small.gap.y, small.bottomBand.y - 16 * 667.0 / 874, accuracy: 1e-9)
+        XCTAssertEqual(small.zone(x: 200, y: 666.9), .bottomBand)
+        XCTAssertEqual(small.zone(x: 200, y: 667), .bottomBand, "the very edge, where nothing is under the band")
+    }
+
+    /// A short screen with a home indicator (an iPhone mini, 375 × 812 pt): the band scales with the height, the
+    /// safe area under it does not.
+    func testZonesOnAShortScreenWithAHomeIndicator() {
+        let mini = SurfaceLayout(width: 375, height: 812, safeTop: 50, safeBottom: 34)
+        let band = 72 * 812.0 / 874
+        XCTAssertEqual(mini.bottomSafeArea, .init(x: 0, y: 778, width: 375, height: 34))
+        XCTAssertEqual(mini.bottomBand.y, 778 - band, accuracy: 1e-9)
+        XCTAssertEqual(mini.bottomBand.height, band, accuracy: 1e-9)
+        XCTAssertEqual(mini.zone(x: 200, y: 777.9), .bottomBand)
+        XCTAssertEqual(mini.zone(x: 200, y: 778), .bottomSafeArea)
+    }
+
+    /// Only the safe area under the band changed: on every screen the band's top edge, the gap, the control surface
+    /// and the top band are where they were when the band reached the bottom of the glass, and with no bottom safe
+    /// area nothing moved at all.
+    func testTheBandsTopEdgeAndEverythingAboveStayPut() {
+        for (width, height, safeTop) in [(402.0, 874.0, 62.0), (375, 667, 20), (375, 812, 50), (440, 956, 62)] {
+            for safeBottom in [0.0, 21, 34] {
+                let layout = SurfaceLayout(width: width, height: height, safeTop: safeTop, safeBottom: safeBottom)
+                let scale = height / 874
+                let what = "\(width) × \(height), safe bottom \(safeBottom)"
+                // Where the band began when it was `bottomBandPt` scaled plus the safe area.
+                XCTAssertEqual(layout.bottomBand.y, height - (72 * scale + safeBottom), accuracy: 1e-9, what)
+                XCTAssertEqual(layout.bottomBand.maxY, layout.bottomSafeArea.y, accuracy: 1e-9, what)
+                XCTAssertEqual(layout.bottomSafeArea.maxY, height, accuracy: 1e-9, what)
+                XCTAssertEqual(layout.gap.maxY, layout.bottomBand.y, accuracy: 1e-9, what)
+                XCTAssertEqual(layout.controlSurface.maxY, layout.gap.y, accuracy: 1e-9, what)
+                if safeBottom == 0 {
+                    XCTAssertEqual(layout.zone(x: width / 2, y: height - 0.1), .bottomBand, what)
+                } else {
+                    XCTAssertEqual(layout.zone(x: width / 2, y: height - 0.1), .bottomSafeArea, what)
+                    XCTAssertEqual(layout.zone(x: width / 2, y: height - safeBottom - 0.1), .bottomBand, what)
+                }
+            }
+        }
     }
 
     /// The gear is a touch target: at least 44 pt on a side at every screen height, inside the top band and below
