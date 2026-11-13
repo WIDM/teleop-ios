@@ -16,12 +16,12 @@ design mock-up only pretended to do is gone.
 What a person using the app notices:
 
 - **One operating screen.** Standby, the camera view and its handles, the high-latency screen, the fallback screens
-  and the stop screen are one screen. A red STOP band runs along the bottom and stops at touch-down. It ends just
-  above the bottom edge: the strip under it, where the home indicator sits, belongs to the system's swipe home, and
-  a touch there, a swipe home included, does nothing. The top band
-  holds the gear (Settings), the REC line, the link dot and the mode chip; holding it for 2 seconds resets the
-  scene. The middle shows one word in a colour (Ready, Moving, Turning, Closing, Wait, Slow link, STOPPED,
-  Link lost and others) with a line or two under it. The phone stays awake while it shows.
+  and the stop screen are one screen. A red STOP band runs along the bottom and stops at touch-down. On a phone
+  with a home indicator it ends above the strip where the indicator sits: that strip belongs to the system's swipe
+  home, and a touch there, a swipe home included, does nothing. On a phone without one the band reaches the bottom
+  edge. The top band holds the gear (Settings), the REC line, the link dot and the mode chip; holding it for 2
+  seconds resets the scene. The middle shows one word in a colour (Ready, Moving, Turning, Closing, Wait, Slow
+  link, STOPPED, Link lost and others) with a line or two under it. The phone stays awake while it shows.
 - **Three control modes**, in Settings → Control → Mode, and Settings → Hand for the hand that holds the phone:
   - Screen turns (A): hold vol+ and the arm follows the phone; hold vol− to close the jaws; hold a thumb on the
     glass and turn the phone to turn or tilt the wrist; slide the thumb up and hold to open the jaws.

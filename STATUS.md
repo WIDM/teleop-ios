@@ -29,11 +29,11 @@ Measured with a person's hand on an iPhone 17: the phone reports how wide a touc
 first 100 ms a thumb pad pressed, held or slid on the glass was at most 85 pt wide, a tap 24 to 61 pt, and the base
 of the hand pressed on the glass 97 pt or more. The rule that ignores a palm everywhere but on the STOP band
 (`InputConstants.palmRadiusPt`, 91 pt) sits between them. On the same phone every swipe home began in the lowest
-34 pt, under the home indicator, and stopped the robot; the STOP band now ends above that strip, so none of those
-swipes would stop it. One press on scheme B's lower left corner landed on the STOP band; scheme B's words now sit
-halfway up the screen. Not yet checked on a phone: other hands, the 12 pt edge rule, a swipe home that begins above
-the home indicator, and how often a press on scheme B's halves still lands on the STOP band now that the words have
-moved.
+34 pt, under the home indicator. The STOP band ends above that strip and a touch that begins in the strip does
+nothing, so none of those swipes stops the robot. One press aimed at scheme B's lower left corner landed on the STOP
+band; scheme B's words sit halfway up the screen, away from the band. Not yet checked on a phone: other hands, the
+12 pt edge rule, a swipe home that begins above the home indicator, and how often a press on scheme B's halves lands
+on the STOP band with the words halfway up.
 
 ## Known not to work
 
