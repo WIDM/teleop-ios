@@ -122,6 +122,16 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.wait(2), [.resetCountdownStarted, .fireReset])
     }
 
+    func testAStopInTheTopBandsPalmWindowStopsItFromCountingDown() {
+        // Down on the top band, STOP 50 ms later, top finger kept down: it never starts a countdown.
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand, after: 0.05), [.emergencyStop])
+        rig.facts.refusal = .stopped
+        XCTAssertEqual(rig.wait(3), [])
+        XCTAssertEqual(rig.lift(1), [])
+    }
+
     func testLiftingBeforeTwoSecondsCancelsSilently() {
         var rig = Rig(.keyTurns)
         rig.touchDown(1, at: Rig.topBand)

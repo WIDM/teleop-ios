@@ -307,15 +307,18 @@ public struct InputArbiter: Sendable {
         case .bottomBand:
             // No filter applies: a palm here stops the robot too (I-3).
             touches[s.id] = .stop
-            // A reset counting down was asked for before this STOP: it must not fire after it and release the stop.
-            // Its top band finger stays dead until lifted; a new hold, begun after the STOP, may reset from it.
-            if case .countdown(let counting)? = engaged {
+            // A reset counting down, or a top band touch that would start one, began before this STOP: it must not
+            // fire after it and release the stop. Those fingers stay dead until lifted; a new hold, begun after the
+            // STOP, may reset from it.
+            if case .countdown? = engaged {
                 engaged = nil
-                if case .band(var band)? = touches[counting] {
-                    band.phase = .dead(owes: nil)
-                    touches[counting] = .band(band)
-                }
                 out.append(.resetCountdownCancelled)
+            }
+            for (id, role) in touches {
+                if case .band(var band) = role, !band.onGear, band.phase == .pending || band.phase == .counting {
+                    band.phase = .dead(owes: nil)
+                    touches[id] = .band(band)
+                }
             }
             out.append(.emergencyStop)
             if !facts.connectionUp { cue(.refused(.notStopped)) }
