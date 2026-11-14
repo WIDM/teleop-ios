@@ -216,7 +216,11 @@ final class OperatingController {
             let next = queue.removeFirst()
             switch next {
             case .events(let events, let time):
-                for command in arbiter.handle(events, at: time, facts: model.inputFacts()) { carry(command) }
+                var commands = arbiter.handle(events, at: time, facts: model.inputFacts())
+                // A countdown that ran out between ticks fires in the same step as a STOP pressed just after: the
+                // reset would go out ahead of the STOP and could clear it, so the STOP wins.
+                if commands.contains(.emergencyStop) { commands.removeAll { $0 == .fireReset } }
+                for command in commands { carry(command) }
             case .press(let button):
                 press(button)
             case .release(let button):

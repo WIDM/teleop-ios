@@ -713,6 +713,25 @@ final class OperatingLinkTests: XCTestCase {
         touch(2, .ended, x: 200, y: top)
     }
 
+    /// The countdown runs out between ticks and STOP is pressed before the next one: both come out of the same
+    /// step, and the reset does not go out ahead of the STOP.
+    func testAStopInTheStepTheCountdownRunsOutWins() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let top = layout.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(60)
+        clock += 30
+        touch(2, .began, x: 200, y: layout.bottomBand.y + 20)
+        step(5)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the reset went out with the STOP")
+        XCTAssertTrue(model.session.state.emergencyStop)
+        touch(2, .ended, x: 200, y: layout.bottomBand.y + 20)
+        touch(1, .ended, x: 200, y: top)
+    }
+
     /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.
     func testTheOkOfAResetAskedForBeforeTheStopReleasesNothing() {
         bringUp(.screenTurns)
