@@ -199,12 +199,18 @@ public final class TeleopLink {
 
     /// The owner saw the server begin a stop (another client's STOP, or the server's own safety stop), on either
     /// connection. A reset asked for before it must not clear it: one still waiting to go out is dropped, and a busy
-    /// answer to one in flight is a refusal, not a retry. Returns whether a waiting reset was dropped.
+    /// answer to one in flight is a refusal, not a retry. One already on its way may reach the server after the stop
+    /// and clear it, so an `estop` follows it on this socket, which the server reads after it: the server ends
+    /// stopped, and the reset's answer no longer counts. Returns whether a reset was dropped.
     @discardableResult
     public func noteStopSeen() -> Bool {
         stopEpoch += 1
-        guard let pending = reset, pending.seq == nil else { return false }
-        reset = nil
+        guard let pending = reset else { return false }
+        if pending.seq != nil {
+            estop()
+        } else {
+            reset = nil
+        }
         return true
     }
 

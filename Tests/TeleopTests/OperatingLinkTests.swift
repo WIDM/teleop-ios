@@ -732,6 +732,24 @@ final class OperatingLinkTests: XCTestCase {
         touch(1, .ended, x: 200, y: top)
     }
 
+    /// A stop from another client while this phone's reset is on its way: an estop follows the reset on the control
+    /// socket, so the server ends stopped even if the reset reaches it after that stop.
+    func testAServerStopWhileTheResetIsInFlightSendsAnEstopBehindIt() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(65)
+        touch(1, .ended, x: 200, y: top)
+        XCTAssertEqual(transport.types.last, "reset_scene")
+        let reset = seq(of: "reset_scene")
+        transport.server("state", ["estop": true])
+        XCTAssertEqual(transport.types.last, "estop")
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
+        XCTAssertTrue(model.session.state.emergencyStop)
+    }
+
     /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.
     func testTheOkOfAResetAskedForBeforeTheStopReleasesNothing() {
         bringUp(.screenTurns)

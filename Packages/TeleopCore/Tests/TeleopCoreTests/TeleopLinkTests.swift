@@ -240,18 +240,17 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
     }
 
-    /// A stop seen while the reset is in flight: its busy answer is a refusal, not a retry.
-    func testABusyAnswerAfterAStopSeenIsARefusal() {
+    /// A stop seen while the reset is in flight: its busy answer brings no retry.
+    func testABusyAnswerAfterAStopSeenBringsNoRetry() {
         bringUp(estop: true)
         link.resetScene()
         let first = lastSeq
         link.noteStopSeen()
-        XCTAssertEqual(
-            server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]),
-            .resetRefused(reason: "busy"))
+        _ = server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"])
         clock += TeleopLink.resetRetryMs
         link.service()
-        XCTAssertEqual(lastSeq, first)
+        XCTAssertEqual(types.filter { $0 == "reset_scene" }.count, 1)
+        XCTAssertEqual(types.last, "estop")
     }
 
     /// The link's own STOP counts too: it drops the waiting reset.
@@ -264,6 +263,19 @@ final class TeleopLinkTests: XCTestCase {
         clock += TeleopLink.resetRetryMs
         link.service()
         XCTAssertEqual(types.filter { $0 == "reset_scene" }.count, 1)
+    }
+
+    /// A stop seen while the reset is on its way may reach the server before it, and the reset would clear it: an
+    /// estop goes out behind the reset on the same socket, and the reset's ok no longer counts as done.
+    func testAStopSeenWhileTheResetIsInFlightSendsAnEstopBehindIt() {
+        bringUp()
+        link.resetScene()
+        let reset = lastSeq
+        XCTAssertTrue(link.noteStopSeen())
+        XCTAssertEqual(types.suffix(2), ["reset_scene", "estop"])
+        XCTAssertFalse(link.resetPending)
+        XCTAssertNotEqual(
+            server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"]), .resetDone)
     }
 
     func testAResetTheSimulatorCannotTakeIsReported() {
