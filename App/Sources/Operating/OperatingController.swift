@@ -21,6 +21,8 @@ final class OperatingController {
     private var hand: Hand
     /// When the reset countdown began, while it runs.
     private var countdownStartedAt: TimeInterval?
+    /// The model's `stopEpoch` when the countdown began.
+    private var countdownStopEpoch: Int?
     /// The engaged wrist hold's newest target, before the lead bound.
     private(set) var wristTarget = WristTarget.identity
     /// Buttons mode: touches that began in the control surface belong to the pad, not to the input rules.
@@ -258,11 +260,17 @@ final class OperatingController {
             wristTarget = .identity
             model.send(.wristEnd)
         case .emergencyStop: model.send(.stop)
-        case .resetCountdownStarted: countdownStartedAt = now()
-        case .resetCountdownCancelled: countdownStartedAt = nil
+        case .resetCountdownStarted:
+            countdownStartedAt = now()
+            countdownStopEpoch = model.stopEpoch
+        case .resetCountdownCancelled:
+            countdownStartedAt = nil
+            countdownStopEpoch = nil
         case .fireReset:
             countdownStartedAt = nil
-            model.runReset()
+            let epoch = countdownStopEpoch
+            countdownStopEpoch = nil
+            model.runReset(stopEpochAtStart: epoch)
         case .openSettings:
             // The input rules do not see the pad's holds: a gear tap during one is dead (§2.2).
             if buttons.engaged != nil {

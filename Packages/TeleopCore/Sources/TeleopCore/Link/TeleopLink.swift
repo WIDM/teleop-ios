@@ -107,8 +107,15 @@ public final class TeleopLink {
     /// The newest control start that went on the wire.
     public private(set) var lastStart: SentStart?
     /// A scene reset asked for and not yet answered: waiting for a stop's final ack, waiting to retry, or in flight.
-    /// `fromStop` says the server was stopped when it was asked for: such a reset is meant to clear the stop.
-    private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool, fromStop: Bool)?
+    /// `stopEpoch` is the link's `stopEpoch` when it was asked for: a stop seen after that is one the reset never
+    /// meant to clear, so the reset no longer goes out (the server clears its stop when it reads one).
+    private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool, stopEpoch: Int)?
+    /// Counts the stops this link has seen begin: an `estop` it sent, a state saying stopped after one that said
+    /// not stopped (or the first state), and a stop the owner saw on another connection. Repeated states of the
+    /// same stop do not count.
+    public private(set) var stopEpoch = 0
+    /// Whether the newest state said stopped; nil before the first.
+    private var lastStateStopped: Bool?
     /// The seq of the newest `estop` sent on this connection.
     private var estopSeq: Int?
     /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
@@ -186,11 +193,20 @@ public final class TeleopLink {
         stopping = nil
         heldBack = nil
         reset = nil
+        stopEpoch += 1
         estopConfirmed = false
         estopSeq = emit("estop", [:])
     }
 
     public func estopReset() { emit("estop_reset", [:]) }
+
+    /// The owner saw a stop begin on another connection (the listening one): it counts here too.
+    public func noteStopSeenElsewhere() { stopSeen() }
+
+    private func stopSeen() {
+        stopEpoch += 1
+        if let pending = reset, pending.seq == nil { reset = nil }
+    }
 
     /// True while a scene reset is waiting to go out or for its answer. Every start is refused meanwhile: a reset
     /// must never go out behind a start (a start held back for the same final ack would go first), and the server
@@ -209,7 +225,7 @@ public final class TeleopLink {
         guard ready, !holdActive, !gripperJogActive, !turnActive else { return false }
         // One reset at a time.
         if resetPending { return true }
-        reset = (now(), nil, nil, false, lastState?.estop == true)
+        reset = (now(), nil, nil, false, stopEpoch)
         sendDueReset()
         return true
     }
@@ -361,6 +377,7 @@ public final class TeleopLink {
         sentTypes = [:]
         lastHeardAt = nil
         lastStart = nil
+        lastStateStopped = nil
         estopSeq = nil
         estopConfirmed = false
     }
@@ -391,17 +408,10 @@ public final class TeleopLink {
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true
             }
-            // The server stopped (another client's STOP, or its own safety stop) while a reset asked for before it
-            // still waits to go out: it must not go out now, as the server clears its stop when it reads a reset.
-            // One asked for from the stop is exempt only from that stop: once a state says not stopped, a later stop
-            // is a new one.
-            if let pending = reset, pending.seq == nil {
-                if !parsed.estop {
-                    reset?.fromStop = false
-                } else if !pending.fromStop {
-                    reset = nil
-                }
-            }
+            // A stop beginning here (another client's STOP, or the server's own safety stop) drops a reset that still
+            // waits to go out: it was asked for before this stop and must not clear it.
+            if parsed.estop, lastStateStopped != true { stopSeen() }
+            lastStateStopped = parsed.estop
             let estop = parsed.estop
             let gripper = parsed.gripper
             if !ready {
@@ -430,8 +440,8 @@ public final class TeleopLink {
                     reset = nil
                     return .resetDone
                 }
-                if reason == "busy", !pending.retried {
-                    reset = (pending.sinceMs, nil, now() + Self.resetRetryMs, true, pending.fromStop)
+                if reason == "busy", !pending.retried, pending.stopEpoch == stopEpoch {
+                    reset = (pending.sinceMs, nil, now() + Self.resetRetryMs, true, pending.stopEpoch)
                     return nil
                 }
                 reset = nil

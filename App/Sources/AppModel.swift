@@ -203,6 +203,7 @@ final class AppModel {
             }
         }
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
+        link.onStopSeen = { [weak self] in self?.stopEpoch += 1 }
         link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
         controller = OperatingController(
             model: self, mode: mode, hand: hand, constants: profile.inputConstants, now: inputClock
@@ -385,9 +386,19 @@ final class AppModel {
         pendingButtonHold = false
     }
 
+    /// Counts every stop that began: each STOP press, and each stop the server began on either connection, also
+    /// while the stop is already latched here. A reset counted down from before a stop must not clear it.
+    private(set) var stopEpoch = 0
+
     /// The top band was held 2 s (§6.4): reset the scene. In the stop state the server's reset clears the stop
     /// once it confirms it (`sceneResetDone`), unless STOP is pressed again first; the practice link resets at once.
-    func runReset() {
+    /// `stopEpochAtStart` is `stopEpoch` when the countdown began: a stop since then makes this reset not go out.
+    func runReset(stopEpochAtStart: Int? = nil) {
+        if let start = stopEpochAtStart, start != stopEpoch {
+            log("→ reset dropped: a stop began during its countdown")
+            raise(.notReset)
+            return
+        }
         let s = session.state
         guard s.liveLink else {
             send(.resetScene)
@@ -411,6 +422,7 @@ final class AppModel {
     }
 
     func send(_ action: TeleopAction) {
+        if action == .stop { stopEpoch += 1 }
         // A reset is refused while anything is held: the operator lets go first.
         if action == .resetScene, Self.engaged(session.state) {
             log("→ \(action) refused: something is held")

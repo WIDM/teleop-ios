@@ -26,6 +26,8 @@ private final class WireTransport: LinkTransport {
 /// that waited behind a finishing hold, the button ramp, the reset that releases the stop, and the mode change.
 final class OperatingLinkTests: XCTestCase {
     private var transport: WireTransport!
+    /// The listening connection's socket, once the link opened it.
+    private var observerWire: WireTransport?
     private var opened = 0
     private var clock = 10_000
     private var model: AppModel!
@@ -57,7 +59,7 @@ final class OperatingLinkTests: XCTestCase {
             makeTransport: { [unowned self] _ in
                 opened += 1
                 let made = WireTransport()
-                if opened == 1 { transport = made }
+                if opened == 1 { transport = made } else { observerWire = made }
                 return made
             },
             nowMs: { [unowned self] in clock },
@@ -487,6 +489,65 @@ final class OperatingLinkTests: XCTestCase {
         step(90)
         XCTAssertFalse(transport.types.contains("reset_scene"), "the countdown fired after the server's stop")
         XCTAssertTrue(model.session.state.emergencyStop)
+        touch(1, .ended, x: 200, y: top)
+    }
+
+    /// A server stop that arrives after the countdown's two seconds ran out but before the next tick fires the
+    /// overdue reset as it cancels: the reset still does not go out.
+    func testAServerStopAtTheEndOfTheCountdownSendsNoReset() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        // The countdown runs out 2 s after touch-down: 1.98 s of ticks, then 40 ms with none.
+        step(60)
+        XCTAssertFalse(transport.types.contains("reset_scene"))
+        clock += 40
+        transport.server("state", ["estop": true])
+        step(5)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the overdue countdown cleared the server's stop")
+        XCTAssertTrue(model.session.state.emergencyStop)
+        touch(1, .ended, x: 200, y: top)
+    }
+
+    /// Stopped here, another client releases the server and stops it again while this phone counts down a reset
+    /// from its own stop: that newer stop is not cleared.
+    func testANewServerStopDuringAResetFromTheLatchedStopSendsNoReset() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let bottom = layout.bottomBand.y + 20
+        let top = layout.topBand.maxY - 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        transport.server("state", ["estop": true])
+        transport.server("state", ["estop": false])
+        XCTAssertTrue(model.session.state.emergencyStop, "the phone keeps its own stop")
+        touch(2, .began, x: 200, y: top)
+        step(30)
+        transport.server("state", ["estop": true])
+        step(40)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the reset cleared a newer stop")
+        XCTAssertTrue(model.session.state.emergencyStop)
+        touch(2, .ended, x: 200, y: top)
+    }
+
+    /// A stop seen only on the listening connection also keeps a countdown from clearing it.
+    func testAStopSeenOnTheListeningConnectionSendsNoReset() throws {
+        bringUp(.screenTurns)
+        let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
+        listening.server("welcome")
+        listening.server("state", ["estop": false, "gripper": "open"])
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(30)
+        listening.server("state", ["estop": true, "gripper": "open"])
+        step(40)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the reset cleared a stop the listener saw")
         touch(1, .ended, x: 200, y: top)
     }
 

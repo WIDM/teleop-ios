@@ -40,6 +40,9 @@ final class LiveLinkController {
     var onCatchingUp: ((Bool) -> Void)?
     /// Why the server E-stopped, just before the `stop` action is reported.
     var onServerStop: ((String) -> Void)?
+    /// A stop began on the server, seen on either connection, before any action it leads to. A reset asked for
+    /// before it must not go out and clear it.
+    var onStopSeen: (() -> Void)?
     /// What the operator should feel or hear about the engaged hold and the scene reset.
     var onFeedback: ((FeedbackEvent) -> Void)?
     /// Every `state` from either connection, in the order the server sent them, before the actions it leads to.
@@ -516,7 +519,9 @@ final class LiveLinkController {
     private func handle(_ text: String) {
         guard let link else { return }
         let wasWelcomed = link.welcomed
+        let stopsBefore = link.stopEpoch
         let received = link.receive(text)
+        if link.stopEpoch != stopsBefore { onStopSeen?() }
         if !wasWelcomed, link.welcomed { welcomed(link) }
         // A final ack can put a held-back start on the wire.
         syncStart()
@@ -657,7 +662,17 @@ final class LiveLinkController {
     }
 
     private func handleObserver(_ text: String) {
-        guard let observer, let event = observer.receive(text) else { return }
+        guard let observer else { return }
+        let stopsBefore = observer.stopEpoch
+        let hadState = observer.lastState != nil
+        let received = observer.receive(text)
+        // The listening connection can see a stop first: the control link's waiting reset is dropped too. Its first
+        // state after (re)opening only reports a stop the control link already knows, so it does not count.
+        if hadState, observer.stopEpoch != stopsBefore {
+            link?.noteStopSeenElsewhere()
+            onStopSeen?()
+        }
+        guard let event = received else { return }
         switch event {
         case .up, .state:
             if let state = observer.lastState { stateArrived(state, serverMs: observer.lastStateServerMs) }
