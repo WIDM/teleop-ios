@@ -240,6 +240,20 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
     }
 
+    /// The stop a reset from the stop meant to clear is gone once a state says not stopped: a stop after that is a
+    /// new one, and the waiting retry must not clear it.
+    func testANewStopAfterTheReleaseCancelsAResetFromTheStop() {
+        bringUp(estop: true)
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        _ = server("state", ["estop": false, "gripper": "closed"])
+        _ = server("state", ["estop": true, "gripper": "closed"])
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(lastSeq, first, "the retry cleared a newer stop")
+    }
+
     func testAResetTheSimulatorCannotTakeIsReported() {
         bringUp()
         link.resetScene()

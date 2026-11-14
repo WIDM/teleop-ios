@@ -393,7 +393,15 @@ public final class TeleopLink {
             }
             // The server stopped (another client's STOP, or its own safety stop) while a reset asked for before it
             // still waits to go out: it must not go out now, as the server clears its stop when it reads a reset.
-            if parsed.estop, let pending = reset, pending.seq == nil, !pending.fromStop { reset = nil }
+            // One asked for from the stop is exempt only from that stop: once a state says not stopped, a later stop
+            // is a new one.
+            if let pending = reset, pending.seq == nil {
+                if !parsed.estop {
+                    reset?.fromStop = false
+                } else if !pending.fromStop {
+                    reset = nil
+                }
+            }
             let estop = parsed.estop
             let gripper = parsed.gripper
             if !ready {
