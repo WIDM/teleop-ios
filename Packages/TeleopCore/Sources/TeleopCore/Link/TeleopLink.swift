@@ -102,6 +102,8 @@ public final class TeleopLink {
     public private(set) var lastState: ServerState?
     public private(set) var lastStateAtMs: Int?
     public private(set) var lastStateServerMs: Int?
+    /// The message seq of the newest `state`: the server numbers a state after the command it read last.
+    public private(set) var lastStateSeq: Int?
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
     /// The newest control start that went on the wire.
@@ -114,7 +116,7 @@ public final class TeleopLink {
     /// (`noteStopSeen`). The owner decides that across both connections, so one stop reported twice counts once.
     public private(set) var stopEpoch = 0
     /// The seq of the newest `estop` sent on this connection.
-    private var estopSeq: Int?
+    public private(set) var estopSeq: Int?
     /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
     /// numbers each `state` with the newest seq it has read on the connection (or, after a final ack, with that
     /// command's own seq), so one it sent before the `estop` reached it carries a smaller number.
@@ -400,6 +402,7 @@ public final class TeleopLink {
             lastState = parsed
             lastStateAtMs = now()
             lastStateServerMs = message["ts"] as? Int
+            lastStateSeq = message["seq"] as? Int
             if let gripper = parsed.gripper { lastGripper = gripper }
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true

@@ -23,8 +23,8 @@ final class OperatingController {
     private var countdownStartedAt: TimeInterval?
     /// The model's `stopEpoch` when the countdown's touch began.
     private var countdownStopEpoch: Int?
-    /// The model's `stopEpoch` when each top band touch began: a countdown it starts later, even in the same step
-    /// as a stop, still dates from the touch.
+    /// The model's `stopEpoch` when each top band touch began: the countdown dates from the touch that started it,
+    /// even when it starts in the same step as a stop.
     private var topBandTouchEpochs: [Int: Int] = [:]
     /// The engaged wrist hold's newest target, before the lead bound.
     private(set) var wristTarget = WristTarget.identity
@@ -269,7 +269,7 @@ final class OperatingController {
         case .emergencyStop: model.send(.stop)
         case .resetCountdownStarted:
             countdownStartedAt = now()
-            countdownStopEpoch = topBandTouchEpochs.values.min() ?? model.stopEpoch
+            countdownStopEpoch = arbiter.countdownTouchID.flatMap { topBandTouchEpochs[$0] } ?? model.stopEpoch
         case .resetCountdownCancelled:
             countdownStartedAt = nil
             countdownStopEpoch = nil

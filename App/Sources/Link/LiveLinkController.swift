@@ -78,10 +78,18 @@ final class LiveLinkController {
     /// Server time (`ts`) of the newest state handed on. A state from the other connection that left the server
     /// earlier is older news and is dropped.
     private var newestStateServerMs: Int?
-    /// Whether the newest state from either connection, by the server's clock, said stopped; nil before the first.
-    private var serverStopped: Bool?
-    /// The server time of that state.
-    private var stopStateServerMs: Int?
+    /// What each connection last said about the stop, in that connection's own order.
+    private struct StopView {
+        var stopped: Bool?
+        /// Server time and seq of the newest state on this connection that said not stopped.
+        var notStoppedMs: Int?
+        var notStoppedSeq: Int?
+    }
+    private var controlStops = StopView()
+    private var observerStops = StopView()
+    /// The newest stop counted (or the phone's own), as the server-time window it began in: after `afterMs`, at or
+    /// before `byMs`. A report from the other connection whose window overlaps it is the same stop.
+    private var lastStopBegan: (afterMs: Int?, byMs: Int?)?
     /// The newest `state` handed on, from either connection.
     private(set) var newestState: ServerState?
     private var timer: Timer?
@@ -231,8 +239,9 @@ final class LiveLinkController {
         announcedStart = nil
         restarting = false
         newestStateServerMs = nil
-        serverStopped = nil
-        stopStateServerMs = nil
+        controlStops = StopView()
+        observerStops = StopView()
+        lastStopBegan = nil
         holdStart = nil
         lastSample = nil
         resetSentAtMs = nil
@@ -528,7 +537,7 @@ final class LiveLinkController {
         let received = link.receive(text)
         switch received {
         case .up?, .state?:
-            if let state = link.lastState { observeStop(state, serverMs: link.lastStateServerMs) }
+            if let state = link.lastState { observeStop(state, on: link, view: &controlStops) }
         default:
             break
         }
@@ -610,18 +619,38 @@ final class LiveLinkController {
         openObserver()
     }
 
-    /// Decides when the server began a stop, from the states of both connections in the server's own order: a state
-    /// saying stopped after one that said not stopped (or the first). One stop reported on both connections counts
-    /// once, and an older state arriving late on the other connection changes nothing. Runs before the state's
-    /// actions, so a reset asked for before the stop is dropped before anything can fire it.
-    private func observeStop(_ state: ServerState, serverMs: Int?) {
-        if let serverMs, let newest = stopStateServerMs, serverMs < newest { return }
-        if let serverMs { stopStateServerMs = serverMs }
-        let began = state.estop && serverStopped != true
-        serverStopped = state.estop
-        guard began else { return }
+    /// Decides when the server began a stop. Each connection keeps its own order, so a stop begins on a connection
+    /// at a state saying stopped after one that said not stopped (or its first): the stop began in the server-time
+    /// window between the two. The same stop reported on the other connection has an overlapping window and counts
+    /// once; one that began after the phone's own `estop` reached the server, and before any state said stopped, is
+    /// that STOP, already counted when it was pressed. Runs before the state's actions, so a reset asked for before
+    /// the stop is dropped before anything can fire it.
+    private func observeStop(_ state: ServerState, on connection: TeleopLink, view: inout StopView) {
+        let ms = connection.lastStateServerMs
+        let seq = connection.lastStateSeq
+        defer { view.stopped = state.estop }
+        guard state.estop else {
+            view.notStoppedMs = ms
+            view.notStoppedSeq = seq
+            return
+        }
+        guard view.stopped != true else { return }
+        let window = (afterMs: view.notStoppedMs, byMs: ms)
+        // The phone's own STOP: the server read its estop between the last not-stopped state and this one.
+        if let sent = connection.estopSeq, let seq, seq >= sent, (view.notStoppedSeq ?? Int.min) < sent {
+            lastStopBegan = window
+            return
+        }
+        if let last = lastStopBegan, Self.overlap(window, last) { return }
+        lastStopBegan = window
         link?.noteStopSeen()
         onStopSeen?()
+    }
+
+    /// Two windows a stop began in share a moment. Without server times nothing can be shown to be shared.
+    private static func overlap(_ a: (afterMs: Int?, byMs: Int?), _ b: (afterMs: Int?, byMs: Int?)) -> Bool {
+        guard let aBy = a.byMs, let bBy = b.byMs else { return false }
+        return (a.afterMs ?? Int.min) < bBy && (b.afterMs ?? Int.min) < aBy
     }
 
     private func stateArrived(_ state: ServerState, serverMs: Int?) {
@@ -689,7 +718,7 @@ final class LiveLinkController {
         guard let observer, let event = observer.receive(text) else { return }
         switch event {
         case .up, .state:
-            if let state = observer.lastState { observeStop(state, serverMs: observer.lastStateServerMs) }
+            if let state = observer.lastState { observeStop(state, on: observer, view: &observerStops) }
         default:
             break
         }
@@ -713,6 +742,7 @@ final class LiveLinkController {
         observerTransport?.close()
         observerTransport = nil
         observer = nil
+        observerStops = StopView()
     }
 
     private func tickObserver() {

@@ -7,6 +7,8 @@ private final class WireTransport: LinkTransport {
     var onText: ((String) -> Void)?
     var onClose: (() -> Void)?
     var sent: [[String: Any]] = []
+    /// The server's clock for `ts`, shared by both connections as on a real server.
+    var serverMs: () -> Int = { 0 }
 
     func open() {}
     func close() {}
@@ -17,7 +19,7 @@ private final class WireTransport: LinkTransport {
     var types: [String] { sent.map { $0["type"] as! String } }
 
     func server(_ type: String, seq: Int = 0, _ payload: [String: Any] = [:]) {
-        let message: [String: Any] = ["v": 1, "type": type, "ts": 0, "seq": seq, "payload": payload]
+        let message: [String: Any] = ["v": 1, "type": type, "ts": serverMs(), "seq": seq, "payload": payload]
         onText?(String(data: try! JSONSerialization.data(withJSONObject: message), encoding: .utf8)!)
     }
 }
@@ -59,6 +61,7 @@ final class OperatingLinkTests: XCTestCase {
             makeTransport: { [unowned self] _ in
                 opened += 1
                 let made = WireTransport()
+                made.serverMs = { [unowned self] in clock }
                 if opened == 1 { transport = made } else { observerWire = made }
                 return made
             },
@@ -623,6 +626,72 @@ final class OperatingLinkTests: XCTestCase {
         transport.server("state", ["estop": true])
         transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
         XCTAssertTrue(model.session.state.emergencyStop, "the late ok released a newer stop")
+    }
+
+    /// Each connection keeps its own order: the control connection's late "not stopped" then "stopped" is a new stop
+    /// even though the listener's newer state, which arrived first, already said stopped.
+    func testANewStopShownLateOnTheControlConnectionSendsNoReset() throws {
+        bringUp(.screenTurns)
+        let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
+        listening.server("welcome")
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        let layout = model.operating.layout!
+        touch(1, .began, x: 200, y: layout.bottomBand.y + 20)
+        touch(1, .ended, x: 200, y: layout.bottomBand.y + 20)
+        transport.server("state", ["estop": true])
+        listening.server("state", ["estop": true])
+        step()
+        let top = layout.topBand.maxY - 20
+        touch(2, .began, x: 200, y: top)
+        step(20)
+        let released = clock
+        step(5)
+        listening.server("state", ["estop": true])
+        transport.serverMs = { released }
+        transport.server("state", ["estop": false])
+        transport.serverMs = { [unowned self] in clock }
+        transport.server("state", ["estop": true])
+        step(40)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the reset cleared the newer stop")
+        touch(2, .ended, x: 200, y: top)
+    }
+
+    /// A top band finger made dead by STOP does not spoil a fresh hold by another finger after the STOP.
+    func testAResetByANewFingerAfterStopGoesOutWhileTheOldFingerStaysDown() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let top = layout.topBand.maxY - 20
+        touch(1, .began, x: 120, y: top)
+        step(10)
+        touch(2, .began, x: 200, y: layout.bottomBand.y + 20)
+        touch(2, .ended, x: 200, y: layout.bottomBand.y + 20)
+        transport.server("state", ["estop": true])
+        touch(3, .began, x: 280, y: top)
+        step(65)
+        XCTAssertTrue(transport.types.contains("reset_scene"), "the dead finger's age dropped the fresh reset")
+        touch(1, .ended, x: 120, y: top)
+        touch(3, .ended, x: 280, y: top)
+    }
+
+    /// The server's report of the phone's own STOP is not a second stop: a reset held down before that report
+    /// arrived still goes out.
+    func testTheReportOfTheOwnStopDoesNotDropAResetBegunBeforeIt() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        touch(1, .began, x: 200, y: layout.bottomBand.y + 20)
+        touch(1, .ended, x: 200, y: layout.bottomBand.y + 20)
+        let estop = seq(of: "estop")
+        let top = layout.topBand.maxY - 20
+        touch(2, .began, x: 200, y: top)
+        step(10)
+        transport.server("state", seq: estop, ["estop": true])
+        step(60)
+        XCTAssertTrue(transport.types.contains("reset_scene"), "the report of the own STOP dropped the reset")
+        touch(2, .ended, x: 200, y: top)
     }
 
     /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.

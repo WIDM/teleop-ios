@@ -128,6 +128,10 @@ public struct InputArbiter: Sendable {
     }
 
     /// The hold engaged now, if any.
+    /// The touch whose countdown started last. Kept after the countdown ends, so its owner can still tell which touch
+    /// a `resetCountdownStarted` and `fireReset` read in the same step came from.
+    public private(set) var countdownTouchID: Int?
+
     public var engagedHold: HoldKind? {
         if case .hold(_, let kind)? = engaged { return kind }
         return nil
@@ -627,6 +631,7 @@ public struct InputArbiter: Sendable {
                 } else {
                     band.phase = .counting
                     engaged = .countdown(id)
+                    countdownTouchID = id
                     out.append(.resetCountdownStarted)
                     // A control-surface touch still undecided was down when the countdown began, so it is dead
                     // until lifted, even after the reset; it plays NO if it would commit (I-2.1, I-2.3, I-3).
