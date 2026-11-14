@@ -110,12 +110,9 @@ public final class TeleopLink {
     /// `stopEpoch` is the link's `stopEpoch` when it was asked for: a stop seen after that is one the reset never
     /// meant to clear, so the reset no longer goes out (the server clears its stop when it reads one).
     private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool, stopEpoch: Int)?
-    /// Counts the stops this link has seen begin: an `estop` it sent, a state saying stopped after one that said
-    /// not stopped (or the first state), and a stop the owner saw on another connection. Repeated states of the
-    /// same stop do not count.
+    /// Counts the stops that began: an `estop` this link sent, and each stop its owner saw the server begin
+    /// (`noteStopSeen`). The owner decides that across both connections, so one stop reported twice counts once.
     public private(set) var stopEpoch = 0
-    /// Whether the newest state said stopped; nil before the first.
-    private var lastStateStopped: Bool?
     /// The seq of the newest `estop` sent on this connection.
     private var estopSeq: Int?
     /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
@@ -200,10 +197,10 @@ public final class TeleopLink {
 
     public func estopReset() { emit("estop_reset", [:]) }
 
-    /// The owner saw a stop begin on another connection (the listening one): it counts here too.
-    public func noteStopSeenElsewhere() { stopSeen() }
-
-    private func stopSeen() {
+    /// The owner saw the server begin a stop (another client's STOP, or the server's own safety stop), on either
+    /// connection. A reset asked for before it must not clear it: one still waiting to go out is dropped, and a busy
+    /// answer to one in flight is a refusal, not a retry.
+    public func noteStopSeen() {
         stopEpoch += 1
         if let pending = reset, pending.seq == nil { reset = nil }
     }
@@ -377,7 +374,6 @@ public final class TeleopLink {
         sentTypes = [:]
         lastHeardAt = nil
         lastStart = nil
-        lastStateStopped = nil
         estopSeq = nil
         estopConfirmed = false
     }
@@ -408,10 +404,6 @@ public final class TeleopLink {
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true
             }
-            // A stop beginning here (another client's STOP, or the server's own safety stop) drops a reset that still
-            // waits to go out: it was asked for before this stop and must not clear it.
-            if parsed.estop, lastStateStopped != true { stopSeen() }
-            lastStateStopped = parsed.estop
             let estop = parsed.estop
             let gripper = parsed.gripper
             if !ready {

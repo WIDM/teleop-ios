@@ -389,6 +389,9 @@ final class AppModel {
     /// Counts every stop that began: each STOP press, and each stop the server began on either connection, also
     /// while the stop is already latched here. A reset counted down from before a stop must not clear it.
     private(set) var stopEpoch = 0
+    /// `stopEpoch` when a reset was asked for from the stop: its confirmation releases the stop only if no stop
+    /// began since.
+    private var resetFromStopEpoch: Int?
 
     /// The top band was held 2 s (§6.4): reset the scene. In the stop state the server's reset clears the stop
     /// once it confirms it (`sceneResetDone`), unless STOP is pressed again first; the practice link resets at once.
@@ -412,6 +415,7 @@ final class AppModel {
         }
         if s.emergencyStop {
             if link.resetScene() {
+                resetFromStopEpoch = stopEpoch
                 perform(.resetScene, fromServer: false)
             } else {
                 raise(.notReset)
@@ -497,6 +501,11 @@ final class AppModel {
     /// Server-side changes. A server E-stop latches here too, but is not echoed back.
     private func fromServer(_ action: TeleopAction) {
         if action == .stop, session.state.emergencyStop { return }
+        if action == .sceneResetDone {
+            // A stop that began after the reset was asked for is one the reset never meant to clear.
+            if let asked = resetFromStopEpoch, asked != stopEpoch { session.state.resetClearsStop = false }
+            resetFromStopEpoch = nil
+        }
         if action == .linkLost, session.state.connected {
             let engaged = Self.engaged(session.state)
             holdEngagedAtLoss = engaged

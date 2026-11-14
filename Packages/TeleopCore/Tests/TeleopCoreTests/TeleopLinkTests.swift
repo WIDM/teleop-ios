@@ -215,13 +215,13 @@ final class TeleopLinkTests: XCTestCase {
     }
 
     /// The server clears its stop when it reads a reset, so a retry waiting while the server stops (another
-    /// client's STOP) must not go out: it would release that stop and move the arm.
-    func testAServerStopCancelsAResetStillWaitingToRetry() {
+    /// client's STOP, as the owner saw it) must not go out: it would release that stop and move the arm.
+    func testAStopSeenCancelsAResetStillWaitingToRetry() {
         bringUp()
         link.resetScene()
         let first = lastSeq
         XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
-        XCTAssertEqual(server("state", ["estop": true, "gripper": "closed"]), .state(estop: true, gripper: .closed))
+        link.noteStopSeen()
         XCTAssertFalse(link.resetPending)
         clock += TeleopLink.resetRetryMs
         link.service()
@@ -240,40 +240,12 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
     }
 
-    /// The stop a reset from the stop meant to clear is gone once a state says not stopped: a stop after that is a
-    /// new one, and the waiting retry must not clear it.
-    func testANewStopAfterTheReleaseCancelsAResetFromTheStop() {
+    /// A stop seen while the reset is in flight: its busy answer is a refusal, not a retry.
+    func testABusyAnswerAfterAStopSeenIsARefusal() {
         bringUp(estop: true)
         link.resetScene()
         let first = lastSeq
-        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
-        _ = server("state", ["estop": false, "gripper": "closed"])
-        _ = server("state", ["estop": true, "gripper": "closed"])
-        clock += TeleopLink.resetRetryMs
-        link.service()
-        XCTAssertEqual(lastSeq, first, "the retry cleared a newer stop")
-    }
-
-    /// The release can come while the reset is still in flight: a stop after it is new, so the busy retry is dropped.
-    func testANewStopAfterAReleaseSeenInFlightDropsTheRetry() {
-        bringUp(estop: true)
-        link.resetScene()
-        let first = lastSeq
-        _ = server("state", ["estop": false, "gripper": "closed"])
-        XCTAssertEqual(
-            server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]), nil)
-        _ = server("state", ["estop": true, "gripper": "closed"])
-        clock += TeleopLink.resetRetryMs
-        link.service()
-        XCTAssertEqual(lastSeq, first, "the retry cleared a newer stop")
-    }
-
-    /// A busy answer that comes after a newer stop is a refusal, not a retry.
-    func testABusyAnswerAfterANewStopIsARefusal() {
-        bringUp()
-        link.resetScene()
-        let first = lastSeq
-        _ = server("state", ["estop": true, "gripper": "closed"])
+        link.noteStopSeen()
         XCTAssertEqual(
             server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]),
             .resetRefused(reason: "busy"))
@@ -282,17 +254,16 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(lastSeq, first)
     }
 
-    /// A stop seen on another connection drops a reset still waiting to go out.
-    func testAStopSeenElsewhereDropsAWaitingReset() {
+    /// The link's own STOP counts too: it drops the waiting reset.
+    func testOwnStopDropsAWaitingReset() {
         bringUp()
         link.resetScene()
         let first = lastSeq
         XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
-        link.noteStopSeenElsewhere()
-        XCTAssertFalse(link.resetPending)
+        link.estop()
         clock += TeleopLink.resetRetryMs
         link.service()
-        XCTAssertEqual(lastSeq, first)
+        XCTAssertEqual(types.filter { $0 == "reset_scene" }.count, 1)
     }
 
     func testAResetTheSimulatorCannotTakeIsReported() {

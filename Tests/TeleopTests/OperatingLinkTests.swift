@@ -551,6 +551,80 @@ final class OperatingLinkTests: XCTestCase {
         touch(1, .ended, x: 200, y: top)
     }
 
+    /// Input stalls for more than 2 s right after a top band touch-down, then a server stop arrives: the countdown
+    /// starts and runs out in one step, and its reset still does not go out.
+    func testAStallThenAServerStopSendsNoReset() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        clock += 2100
+        transport.server("state", ["estop": true])
+        step(5)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the stalled countdown cleared the server's stop")
+        touch(1, .ended, x: 200, y: top)
+    }
+
+    /// The listening connection's first state can carry a new stop the control connection has not reported yet.
+    func testAStopInTheListenersFirstStateSendsNoReset() throws {
+        bringUp(.screenTurns)
+        let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(30)
+        listening.server("welcome")
+        listening.server("state", ["estop": true, "gripper": "open"])
+        step(40)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the reset cleared a stop the listener saw first")
+        touch(1, .ended, x: 200, y: top)
+    }
+
+    /// One stop reported on both connections counts once: a reset begun after it, from the stop, still goes out
+    /// when the listening connection's report of that same stop arrives during the countdown.
+    func testTheSameStopReportedTwiceStillLetsAResetFromItGoOut() throws {
+        bringUp(.screenTurns)
+        let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
+        listening.server("welcome")
+        listening.server("state", ["estop": false, "gripper": "open"])
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        transport.server("state", ["estop": true, "gripper": "open"])
+        XCTAssertTrue(model.session.state.emergencyStop)
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(30)
+        listening.server("state", ["estop": true, "gripper": "open"])
+        step(40)
+        XCTAssertTrue(transport.types.contains("reset_scene"), "the listener's copy of the stop dropped the reset")
+        touch(1, .ended, x: 200, y: top)
+    }
+
+    /// A reset asked for from the stop, confirmed only after the server was released and stopped again: the newer
+    /// stop stays latched.
+    func testALateOkAfterANewStopReleasesNothing() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let layout = model.operating.layout!
+        let bottom = layout.bottomBand.y + 20
+        let top = layout.topBand.maxY - 20
+        touch(1, .began, x: 200, y: bottom)
+        touch(1, .ended, x: 200, y: bottom)
+        transport.server("state", ["estop": true])
+        touch(2, .began, x: 200, y: top)
+        step(65)
+        XCTAssertTrue(transport.types.contains("reset_scene"))
+        touch(2, .ended, x: 200, y: top)
+        let reset = seq(of: "reset_scene")
+        transport.server("state", ["estop": false])
+        transport.server("state", ["estop": true])
+        transport.server("ack", seq: reset, ["seq": reset, "status": "ok", "reason": "scene_reset"])
+        XCTAssertTrue(model.session.state.emergencyStop, "the late ok released a newer stop")
+    }
+
     /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.
     func testTheOkOfAResetAskedForBeforeTheStopReleasesNothing() {
         bringUp(.screenTurns)

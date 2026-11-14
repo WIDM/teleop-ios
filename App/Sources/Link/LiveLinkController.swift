@@ -78,6 +78,10 @@ final class LiveLinkController {
     /// Server time (`ts`) of the newest state handed on. A state from the other connection that left the server
     /// earlier is older news and is dropped.
     private var newestStateServerMs: Int?
+    /// Whether the newest state from either connection, by the server's clock, said stopped; nil before the first.
+    private var serverStopped: Bool?
+    /// The server time of that state.
+    private var stopStateServerMs: Int?
     /// The newest `state` handed on, from either connection.
     private(set) var newestState: ServerState?
     private var timer: Timer?
@@ -227,6 +231,8 @@ final class LiveLinkController {
         announcedStart = nil
         restarting = false
         newestStateServerMs = nil
+        serverStopped = nil
+        stopStateServerMs = nil
         holdStart = nil
         lastSample = nil
         resetSentAtMs = nil
@@ -519,9 +525,13 @@ final class LiveLinkController {
     private func handle(_ text: String) {
         guard let link else { return }
         let wasWelcomed = link.welcomed
-        let stopsBefore = link.stopEpoch
         let received = link.receive(text)
-        if link.stopEpoch != stopsBefore { onStopSeen?() }
+        switch received {
+        case .up?, .state?:
+            if let state = link.lastState { observeStop(state, serverMs: link.lastStateServerMs) }
+        default:
+            break
+        }
         if !wasWelcomed, link.welcomed { welcomed(link) }
         // A final ack can put a held-back start on the wire.
         syncStart()
@@ -600,6 +610,20 @@ final class LiveLinkController {
         openObserver()
     }
 
+    /// Decides when the server began a stop, from the states of both connections in the server's own order: a state
+    /// saying stopped after one that said not stopped (or the first). One stop reported on both connections counts
+    /// once, and an older state arriving late on the other connection changes nothing. Runs before the state's
+    /// actions, so a reset asked for before the stop is dropped before anything can fire it.
+    private func observeStop(_ state: ServerState, serverMs: Int?) {
+        if let serverMs, let newest = stopStateServerMs, serverMs < newest { return }
+        if let serverMs { stopStateServerMs = serverMs }
+        let began = state.estop && serverStopped != true
+        serverStopped = state.estop
+        guard began else { return }
+        link?.noteStopSeen()
+        onStopSeen?()
+    }
+
     private func stateArrived(_ state: ServerState, serverMs: Int?) {
         if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
         if let serverMs { newestStateServerMs = serverMs }
@@ -662,17 +686,13 @@ final class LiveLinkController {
     }
 
     private func handleObserver(_ text: String) {
-        guard let observer else { return }
-        let stopsBefore = observer.stopEpoch
-        let hadState = observer.lastState != nil
-        let received = observer.receive(text)
-        // The listening connection can see a stop first: the control link's waiting reset is dropped too. Its first
-        // state after (re)opening only reports a stop the control link already knows, so it does not count.
-        if hadState, observer.stopEpoch != stopsBefore {
-            link?.noteStopSeenElsewhere()
-            onStopSeen?()
+        guard let observer, let event = observer.receive(text) else { return }
+        switch event {
+        case .up, .state:
+            if let state = observer.lastState { observeStop(state, serverMs: observer.lastStateServerMs) }
+        default:
+            break
         }
-        guard let event = received else { return }
         switch event {
         case .up, .state:
             if let state = observer.lastState { stateArrived(state, serverMs: observer.lastStateServerMs) }

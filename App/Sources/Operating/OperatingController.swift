@@ -21,8 +21,11 @@ final class OperatingController {
     private var hand: Hand
     /// When the reset countdown began, while it runs.
     private var countdownStartedAt: TimeInterval?
-    /// The model's `stopEpoch` when the countdown began.
+    /// The model's `stopEpoch` when the countdown's touch began.
     private var countdownStopEpoch: Int?
+    /// The model's `stopEpoch` when each top band touch began: a countdown it starts later, even in the same step
+    /// as a stop, still dates from the touch.
+    private var topBandTouchEpochs: [Int: Int] = [:]
     /// The engaged wrist hold's newest target, before the lead bound.
     private(set) var wristTarget = WristTarget.identity
     /// Buttons mode: touches that began in the control surface belong to the pad, not to the input rules.
@@ -84,7 +87,11 @@ final class OperatingController {
                 return
             }
         }
+        if sample.phase == .began, arbiter.layout.zone(x: sample.x, y: sample.y) == .topBand {
+            topBandTouchEpochs[sample.id] = model.stopEpoch
+        }
         feed([.touch(sample)], at: time)
+        if sample.phase == .ended || sample.phase == .cancelled { topBandTouchEpochs[sample.id] = nil }
     }
 
     func attitude(_ attitude: simd_quatd, at time: TimeInterval) {
@@ -262,7 +269,7 @@ final class OperatingController {
         case .emergencyStop: model.send(.stop)
         case .resetCountdownStarted:
             countdownStartedAt = now()
-            countdownStopEpoch = model.stopEpoch
+            countdownStopEpoch = topBandTouchEpochs.values.min() ?? model.stopEpoch
         case .resetCountdownCancelled:
             countdownStartedAt = nil
             countdownStopEpoch = nil
