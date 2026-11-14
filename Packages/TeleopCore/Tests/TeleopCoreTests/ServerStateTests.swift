@@ -74,6 +74,15 @@ final class ServerStateTests: XCTestCase {
         XCTAssertEqual(state.recorder?.discarded, 2)
     }
 
+    /// The guide rounds joint angles to whole degrees: one no joint can reach must count as missing, not crash it.
+    func testAJointAngleNoJointCanReachIsMissing() {
+        let state = parse(#"{"wrist_roll_deg": 1e20, "wrist_flex_deg": -1e300, "gripper_deg": 361}"#)
+        XCTAssertNil(state.wristRollDeg)
+        XCTAssertNil(state.wristFlexDeg)
+        XCTAssertNil(state.gripperDeg)
+        XCTAssertEqual(parse(#"{"wrist_roll_deg": -360}"#).wristRollDeg, -360)
+    }
+
     func testEveryActivityLabelTheAppActsOn() {
         let labels: [String: ServerActivity] = [
             "pose_tracking": .poseTracking, "pose_clamped": .poseClamped, "orienting": .orienting,

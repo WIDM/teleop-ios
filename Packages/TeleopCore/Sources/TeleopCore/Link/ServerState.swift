@@ -128,9 +128,9 @@ public struct ServerState: Equatable, Sendable {
         goal = Self.vector(payload["goal_pos"])
         taskSuccess = payload["task_success"] as? Bool
         episode = Self.integer(payload["episode"])
-        wristFlexDeg = Self.number(payload["wrist_flex_deg"])
-        wristRollDeg = Self.number(payload["wrist_roll_deg"])
-        gripperDeg = Self.number(payload["gripper_deg"])
+        wristFlexDeg = Self.jointAngle(payload["wrist_flex_deg"])
+        wristRollDeg = Self.jointAngle(payload["wrist_roll_deg"])
+        gripperDeg = Self.jointAngle(payload["gripper_deg"])
         // An unrecognised label is treated like a missing key: the recorder's state is unknown.
         if let label = (payload["rec"] as? String).flatMap(RecorderLabel.init(rawValue:)) {
             recorder = RecorderStatus(
@@ -168,6 +168,12 @@ public struct ServerState: Equatable, Sendable {
         // JSONSerialization gives NSNumber; a Bool is an NSNumber too and must not read as 0 or 1.
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         return number.doubleValue
+    }
+
+    /// A joint angle in degrees, or nil when it cannot be one: the guide rounds these to whole degrees, and a value
+    /// an Int cannot hold (say `1e20` from a broken server) would crash the app there.
+    private static func jointAngle(_ value: Any?) -> Double? {
+        number(value).flatMap { $0.isFinite && abs($0) <= 360 ? $0 : nil }
     }
 
     private static func integer(_ value: Any?) -> Int? {
