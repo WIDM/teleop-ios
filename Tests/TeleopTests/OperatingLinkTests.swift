@@ -585,26 +585,6 @@ final class OperatingLinkTests: XCTestCase {
         touch(1, .ended, x: 200, y: top)
     }
 
-    /// One stop reported on both connections counts once: a reset begun after it, from the stop, still goes out
-    /// when the listening connection's report of that same stop arrives during the countdown.
-    func testTheSameStopReportedTwiceStillLetsAResetFromItGoOut() throws {
-        bringUp(.screenTurns)
-        let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
-        listening.server("welcome")
-        listening.server("state", ["estop": false, "gripper": "open"])
-        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
-        step()
-        transport.server("state", ["estop": true, "gripper": "open"])
-        XCTAssertTrue(model.session.state.emergencyStop)
-        let top = model.operating.layout!.topBand.maxY - 20
-        touch(1, .began, x: 200, y: top)
-        step(30)
-        listening.server("state", ["estop": true, "gripper": "open"])
-        step(40)
-        XCTAssertTrue(transport.types.contains("reset_scene"), "the listener's copy of the stop dropped the reset")
-        touch(1, .ended, x: 200, y: top)
-    }
-
     /// A reset asked for from the stop, confirmed only after the server was released and stopped again: the newer
     /// stop stays latched.
     func testALateOkAfterANewStopReleasesNothing() {
@@ -675,25 +655,6 @@ final class OperatingLinkTests: XCTestCase {
         touch(3, .ended, x: 280, y: top)
     }
 
-    /// The server's report of the phone's own STOP is not a second stop: a reset held down before that report
-    /// arrived still goes out.
-    func testTheReportOfTheOwnStopDoesNotDropAResetBegunBeforeIt() {
-        bringUp(.screenTurns)
-        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
-        step()
-        let layout = model.operating.layout!
-        touch(1, .began, x: 200, y: layout.bottomBand.y + 20)
-        touch(1, .ended, x: 200, y: layout.bottomBand.y + 20)
-        let estop = seq(of: "estop")
-        let top = layout.topBand.maxY - 20
-        touch(2, .began, x: 200, y: top)
-        step(10)
-        transport.server("state", seq: estop, ["estop": true])
-        step(60)
-        XCTAssertTrue(transport.types.contains("reset_scene"), "the report of the own STOP dropped the reset")
-        touch(2, .ended, x: 200, y: top)
-    }
-
     /// A late report of the phone's own STOP on the listener does not widen that STOP's window over a release and a
     /// newer stop the control connection shows after it.
     func testALateReportOfTheOwnStopDoesNotHideANewerStop() throws {
@@ -726,26 +687,29 @@ final class OperatingLinkTests: XCTestCase {
         touch(2, .ended, x: 200, y: top)
     }
 
-    /// The listener can report the phone's STOP before it has read its own estop: that is still the phone's STOP, so
-    /// a reset held down after the press still goes out.
-    func testTheListenerReportingTheOwnStopFirstDoesNotDropAReset() throws {
+    /// Deliberately coarse: a stop's report arriving during a countdown begun after that stop, here the listener's
+    /// copy of it, still drops the reset, with "Not reset.". Holding the top band again then resets.
+    func testALateCopyOfTheStopDropsTheResetAndAFreshHoldResets() throws {
         bringUp(.screenTurns)
         let listening = try XCTUnwrap(observerWire, "the listening connection did not open")
         listening.server("welcome")
-        listening.server("state", ["estop": false])
+        listening.server("state", ["estop": false, "gripper": "open"])
         model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
         step()
-        let layout = model.operating.layout!
-        touch(1, .began, x: 200, y: layout.bottomBand.y + 20)
-        touch(1, .ended, x: 200, y: layout.bottomBand.y + 20)
-        let estop = seq(of: "estop")
-        let top = layout.topBand.maxY - 20
+        transport.server("state", ["estop": true, "gripper": "open"])
+        XCTAssertTrue(model.session.state.emergencyStop)
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(30)
+        listening.server("state", ["estop": true, "gripper": "open"])
+        step(40)
+        XCTAssertFalse(transport.types.contains("reset_scene"))
+        XCTAssertTrue(model.cueLog.contains { $0.event == .notReset })
+        touch(1, .ended, x: 200, y: top)
+        step()
         touch(2, .began, x: 200, y: top)
-        step(10)
-        listening.server("state", seq: 0, ["estop": true])
-        transport.server("state", seq: estop, ["estop": true])
-        step(60)
-        XCTAssertTrue(transport.types.contains("reset_scene"), "the listener's report of the own STOP dropped the reset")
+        step(65)
+        XCTAssertTrue(transport.types.contains("reset_scene"), "a fresh hold after the reports still resets")
         touch(2, .ended, x: 200, y: top)
     }
 

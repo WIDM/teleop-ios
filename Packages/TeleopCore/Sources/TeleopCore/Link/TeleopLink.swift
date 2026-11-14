@@ -102,8 +102,6 @@ public final class TeleopLink {
     public private(set) var lastState: ServerState?
     public private(set) var lastStateAtMs: Int?
     public private(set) var lastStateServerMs: Int?
-    /// The message seq of the newest `state`: the server numbers a state after the command it read last.
-    public private(set) var lastStateSeq: Int?
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
     /// The newest control start that went on the wire.
@@ -113,10 +111,10 @@ public final class TeleopLink {
     /// meant to clear, so the reset no longer goes out (the server clears its stop when it reads one).
     private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool, stopEpoch: Int)?
     /// Counts the stops that began: an `estop` this link sent, and each stop its owner saw the server begin
-    /// (`noteStopSeen`). The owner decides that across both connections, so one stop reported twice counts once.
+    /// (`noteStopSeen`), on either connection.
     public private(set) var stopEpoch = 0
     /// The seq of the newest `estop` sent on this connection.
-    public private(set) var estopSeq: Int?
+    private var estopSeq: Int?
     /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
     /// numbers each `state` with the newest seq it has read on the connection (or, after a final ack, with that
     /// command's own seq), so one it sent before the `estop` reached it carries a smaller number.
@@ -201,10 +199,13 @@ public final class TeleopLink {
 
     /// The owner saw the server begin a stop (another client's STOP, or the server's own safety stop), on either
     /// connection. A reset asked for before it must not clear it: one still waiting to go out is dropped, and a busy
-    /// answer to one in flight is a refusal, not a retry.
-    public func noteStopSeen() {
+    /// answer to one in flight is a refusal, not a retry. Returns whether a waiting reset was dropped.
+    @discardableResult
+    public func noteStopSeen() -> Bool {
         stopEpoch += 1
-        if let pending = reset, pending.seq == nil { reset = nil }
+        guard let pending = reset, pending.seq == nil else { return false }
+        reset = nil
+        return true
     }
 
     /// True while a scene reset is waiting to go out or for its answer. Every start is refused meanwhile: a reset
@@ -402,7 +403,6 @@ public final class TeleopLink {
             lastState = parsed
             lastStateAtMs = now()
             lastStateServerMs = message["ts"] as? Int
-            lastStateSeq = message["seq"] as? Int
             if let gripper = parsed.gripper { lastGripper = gripper }
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true
