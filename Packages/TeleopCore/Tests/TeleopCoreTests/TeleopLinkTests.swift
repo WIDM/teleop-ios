@@ -214,6 +214,32 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(lastSeq, second, "only one retry")
     }
 
+    /// The server clears its stop when it reads a reset, so a retry waiting while the server stops (another
+    /// client's STOP) must not go out: it would release that stop and move the arm.
+    func testAServerStopCancelsAResetStillWaitingToRetry() {
+        bringUp()
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        XCTAssertEqual(server("state", ["estop": true, "gripper": "closed"]), .state(estop: true, gripper: .closed))
+        XCTAssertFalse(link.resetPending)
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(lastSeq, first, "the retry went out after the server stopped")
+    }
+
+    /// A reset asked for from the stop is meant to clear it: states that still say stopped do not cancel it.
+    func testAResetAskedForFromTheStopStillRetries() {
+        bringUp(estop: true)
+        link.resetScene()
+        let first = lastSeq
+        XCTAssertNil(server("ack", seq: first, ["seq": first, "status": "rejected", "reason": "busy"]))
+        _ = server("state", ["estop": true, "gripper": "closed"])
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(types.suffix(2), ["reset_scene", "reset_scene"])
+    }
+
     func testAResetTheSimulatorCannotTakeIsReported() {
         bringUp()
         link.resetScene()

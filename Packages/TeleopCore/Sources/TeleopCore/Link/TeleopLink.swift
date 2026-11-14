@@ -107,7 +107,8 @@ public final class TeleopLink {
     /// The newest control start that went on the wire.
     public private(set) var lastStart: SentStart?
     /// A scene reset asked for and not yet answered: waiting for a stop's final ack, waiting to retry, or in flight.
-    private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool)?
+    /// `fromStop` says the server was stopped when it was asked for: such a reset is meant to clear the stop.
+    private var reset: (sinceMs: Int, seq: Int?, retryAtMs: Int?, retried: Bool, fromStop: Bool)?
     /// The seq of the newest `estop` sent on this connection.
     private var estopSeq: Int?
     /// A `state` saying stopped has come that the server wrote after it read the newest `estop` sent here. The server
@@ -208,7 +209,7 @@ public final class TeleopLink {
         guard ready, !holdActive, !gripperJogActive, !turnActive else { return false }
         // One reset at a time.
         if resetPending { return true }
-        reset = (now(), nil, nil, false)
+        reset = (now(), nil, nil, false, lastState?.estop == true)
         sendDueReset()
         return true
     }
@@ -390,6 +391,9 @@ public final class TeleopLink {
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true
             }
+            // The server stopped (another client's STOP, or its own safety stop) while a reset asked for before it
+            // still waits to go out: it must not go out now, as the server clears its stop when it reads a reset.
+            if parsed.estop, let pending = reset, pending.seq == nil, !pending.fromStop { reset = nil }
             let estop = parsed.estop
             let gripper = parsed.gripper
             if !ready {
@@ -419,7 +423,7 @@ public final class TeleopLink {
                     return .resetDone
                 }
                 if reason == "busy", !pending.retried {
-                    reset = (pending.sinceMs, nil, now() + Self.resetRetryMs, true)
+                    reset = (pending.sinceMs, nil, now() + Self.resetRetryMs, true, pending.fromStop)
                     return nil
                 }
                 reset = nil
