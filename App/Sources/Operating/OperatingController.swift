@@ -26,6 +26,7 @@ final class OperatingController {
     /// Buttons mode: touches that began in the control surface belong to the pad, not to the input rules.
     private var padTouches: Set<Int> = []
     private var wasOnOperatingScreen: Bool
+    private var wasStopped: Bool
     private var cameraStopped = false
     private var queue: [Step] = []
     private var running = false
@@ -51,6 +52,7 @@ final class OperatingController {
             constants: constants
         )
         wasOnOperatingScreen = Self.operatingRoutes.contains(model.session.route)
+        wasStopped = model.session.state.emergencyStop
     }
 
     deinit { timer?.invalidate() }
@@ -143,6 +145,11 @@ final class OperatingController {
         let onScreen = Self.operatingRoutes.contains(model.session.route)
         let left = wasOnOperatingScreen && !onScreen
         wasOnOperatingScreen = onScreen
+        // A stop the server reports (another client's STOP, a safety stop) ends a reset counting down as the STOP
+        // band does: in the stop state that reset would release the stop it never saw. Every held input stays dead.
+        let stopped = model.session.state.emergencyStop
+        let newlyStopped = stopped && !wasStopped
+        wasStopped = stopped
         if let held = buttons.engaged {
             if !Self.holds(held, model.session.state) {
                 buttons.holdEnded()
@@ -150,7 +157,7 @@ final class OperatingController {
                 enqueue(.endButtonHold)
             }
         }
-        if left || (arbiter.engagedHold.map { !Self.holds($0, model.session.state) } ?? false) {
+        if left || newlyStopped || (arbiter.engagedHold.map { !Self.holds($0, model.session.state) } ?? false) {
             feed([.endAllHolds], at: now())
         }
     }

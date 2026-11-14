@@ -472,6 +472,24 @@ final class OperatingLinkTests: XCTestCase {
         XCTAssertFalse(transport.types.contains("estop_reset"))
     }
 
+    /// A stop the server reports while the top band counts down (another client's STOP) cancels the countdown: in
+    /// the stop state its reset would release that stop.
+    func testAServerStopCancelsTheResetCountdown() {
+        bringUp(.screenTurns)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        step()
+        let top = model.operating.layout!.topBand.maxY - 20
+        touch(1, .began, x: 200, y: top)
+        step(20)
+        XCTAssertNotNil(model.operating.resetCountdown)
+        transport.server("state", ["estop": true])
+        XCTAssertTrue(model.session.state.emergencyStop)
+        step(90)
+        XCTAssertFalse(transport.types.contains("reset_scene"), "the countdown fired after the server's stop")
+        XCTAssertTrue(model.session.state.emergencyStop)
+        touch(1, .ended, x: 200, y: top)
+    }
+
     /// The ok of a reset asked for before STOP releases nothing: the operator's STOP came last.
     func testTheOkOfAResetAskedForBeforeTheStopReleasesNothing() {
         bringUp(.screenTurns)
