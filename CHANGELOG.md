@@ -3,13 +3,38 @@
 What each version of the iOS app does. The version shows at the bottom of Settings.
 
 Rules: every build installed on a phone gets a new version here first. `0.x.0` adds or changes behaviour;
-`0.x.y` only fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
+`0.x.y` only fixes. From 1.0.0 on the same holds one place up: `1.x.0` adds or changes behaviour, `1.x.y` only
+fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+## 1.0.1 (2026-11-15)
+
+A scene reset no longer releases an emergency stop it never saw, and odd joint readings no longer crash the app.
+
+What a person using the app notices:
+
+- Fixed: STOP pressed while the top band counts down to a reset, even in its first moment, cancels the reset.
+  Before, the countdown ran on and its reset released the stop and drove the arm back to the reset pose with no
+  deliberate release.
+- Fixed: a stop from somewhere else (another client's STOP, or the server's own safety stop) while a reset counts
+  down or waits to go out cancels that reset. Before, the reset could clear that stop while the phone showed
+  STOPPED. When that stop comes while the phone's reset is already on its way, an estop follows the reset, so the
+  server ends stopped.
+- A reset begun after the stop still releases it, as before. A reset held down in the moment before a report of a
+  stop arrives is dropped with "Not reset."; holding the top band again resets.
+- Fixed: a joint angle no joint can reach from the server (for example `1e20`) is ignored instead of crashing the
+  guide.
+
 What a maintainer needs to know:
 
+- The rule: a reset may release only a stop that began before it was asked for. `AppModel.stopEpoch` counts each
+  STOP press and each stop the server begins on either connection (`LiveLinkController.observeStop`, every state
+  saying stopped after one saying not stopped, deliberately without telling repeats apart). A countdown dates from
+  its own top band touch (`InputArbiter.countdownTouchID`); its reset, a waiting or retried reset in `TeleopLink`
+  (`noteStopSeen`) and a reset's confirmation are all dropped once a stop began since; a reset already sent gets an
+  `estop` behind it on the control socket. A step carrying STOP drops a `fireReset` from the same step.
 - `docs/parity.md` says where the app's screens at 1.0.0 are drawn in the Figma file (the pages Mockup v3 and
   Mockup v3 · reference) and how those frames differ from the app; `docs/figma/mockup-v3-frames.tsv` lists the
   frames with their nodes.
