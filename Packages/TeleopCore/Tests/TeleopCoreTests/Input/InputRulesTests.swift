@@ -105,6 +105,23 @@ final class InputRulesTests: XCTestCase {
         XCTAssertEqual(rig.wait(2), [.resetCountdownStarted, .fireReset])
     }
 
+    func testAStopDuringTheCountdownCancelsTheReset() {
+        // The reset was asked for before the STOP; it must not go out after it and release the stop.
+        var rig = Rig(.screenTurns)
+        rig.touchDown(1, at: Rig.topBand)
+        XCTAssertEqual(rig.wait(0.5), [.resetCountdownStarted])
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand), [.resetCountdownCancelled, .emergencyStop])
+        rig.facts.refusal = .stopped
+        XCTAssertEqual(rig.wait(2), [])
+        // The top band finger is dead until lifted; lifting it says nothing.
+        XCTAssertEqual(rig.lift(1), [])
+        XCTAssertNil(rig.arbiter.nextDeadline)
+        // A new hold of the top band, started after the STOP, still resets from the stop.
+        rig.lift(2)
+        rig.touchDown(3, at: Rig.topBand)
+        XCTAssertEqual(rig.wait(2), [.resetCountdownStarted, .fireReset])
+    }
+
     func testLiftingBeforeTwoSecondsCancelsSilently() {
         var rig = Rig(.keyTurns)
         rig.touchDown(1, at: Rig.topBand)

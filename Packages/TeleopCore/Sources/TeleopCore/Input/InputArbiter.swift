@@ -307,6 +307,16 @@ public struct InputArbiter: Sendable {
         case .bottomBand:
             // No filter applies: a palm here stops the robot too (I-3).
             touches[s.id] = .stop
+            // A reset counting down was asked for before this STOP: it must not fire after it and release the stop.
+            // Its top band finger stays dead until lifted; a new hold, begun after the STOP, may reset from it.
+            if case .countdown(let counting)? = engaged {
+                engaged = nil
+                if case .band(var band)? = touches[counting] {
+                    band.phase = .dead(owes: nil)
+                    touches[counting] = .band(band)
+                }
+                out.append(.resetCountdownCancelled)
+            }
             out.append(.emergencyStop)
             if !facts.connectionUp { cue(.refused(.notStopped)) }
         case .gap:
