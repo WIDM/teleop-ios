@@ -507,10 +507,12 @@ final class AssistPropertyTests: XCTestCase {
     }
 
     /// P16: a step in which a withheld NO may play. The thumb lifts, or its slide stops being mostly up or turns out
-    /// sideways; the upper key's hold ends; or a fact refuses translation, so the thumb's slide cannot latch.
+    /// sideways; the upper key's hold ends; a STOP ends every latch attempt; or a fact refuses translation, so the
+    /// thumb's slide cannot latch.
     private static func mayPlayAWithheldNO(_ events: [InputEvent], facts: InputFacts, thumbs: [Int: Thumb]) -> Bool {
         if facts.refusal != nil || facts.trackingRefusal != nil || facts.translationRefusal != nil { return true }
         for event in events {
+            if isStop(event) { return true }
             switch event {
             case .keyUp(.upper), .holdsEnded, .becameActive, .modeChanged, .assistChanged:
                 return true

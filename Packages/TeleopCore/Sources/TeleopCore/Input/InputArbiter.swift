@@ -35,7 +35,8 @@ public struct InputArbiter: Sendable {
     private var now: TimeInterval = -.infinity
     private var facts = InputFacts()
     private var out: [InputCommand] = []
-    /// An accepted STOP touch-down came earlier in this call: nothing later in it starts a move nobody holds.
+    /// An accepted STOP touch-down came earlier in this call: nothing later in it starts a move nobody holds or a
+    /// latch attempt.
     private var stoppedInCall = false
 
     /// What each `.startTranslation` the last call emitted was, in order: `.phone` for a held or latched start (the
@@ -395,6 +396,9 @@ public struct InputArbiter: Sendable {
             // session's ALARM is its cue.
             endLoose(.stop)
             if !facts.connectionUp { cue(.refused(.notStopped)) }
+            // It also ends every latch attempt, so a slide begun before it never latches the hold, in this call or a
+            // later one. A NO an attempt withheld plays after the stop's own cues.
+            endAttempts()
         case .gap:
             touches[s.id] = .ignored
         case .gear, .topBand:
@@ -453,9 +457,9 @@ public struct InputArbiter: Sendable {
                 }
             }
             var touch = SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase)
-            if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation) {
-                // Anywhere on the surface, scheme B's centre band included, a thumb may latch the upper key's hold.
-                // Its phase stays as 1.0.1 has it.
+            if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
+                // Anywhere on the surface, scheme B's centre band included, a thumb may latch the upper key's hold,
+                // unless a STOP came earlier in this call. Its phase stays as 1.0.1 has it.
                 touch.latch = LatchAttempt()
             }
             touches[s.id] = .surface(touch)

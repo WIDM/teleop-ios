@@ -203,8 +203,9 @@ final class LockHoldSlideTests: XCTestCase {
         XCTAssertEqual(rig.lift(1), [])
     }
 
-    /// A STOP in the call where the slide reaches 10 mm: nothing latches. The NO the slide withheld plays when the
-    /// hold ends.
+    /// A STOP in the call where the slide reaches 10 mm ends the attempt: nothing latches, in that call or in the next
+    /// ones, even with no fact refusing and the thumb still up the glass. The NO the slide withheld plays after the
+    /// stop.
     func testNoLatchInACallWithAStop() {
         var rig = holding(.screenTurns)
         rig.touchDown(1, at: Rig.middle, after: 0.1)
@@ -212,9 +213,36 @@ final class LockHoldSlideTests: XCTestCase {
         rig.slide(1, mm: 9, degrees: 90)
         let up = rig.sample(1, .moved, Rig.middle - SIMD2(0, 10 * Rig.pointsPerMm), radius: 8)
         let stop = rig.sample(2, .began, Rig.bottomBand, radius: 8)
-        XCTAssertEqual(rig.batch([up, stop], after: 0.01), [.emergencyStop])
+        XCTAssertEqual(rig.batch([up, stop], after: 0.01), [.emergencyStop, .cue(.dead)])
+        XCTAssertEqual(rig.facts, InputFacts(), "nothing refuses in the calls that follow")
+        XCTAssertEqual(rig.wait(0.01), [], "no latch in the next call")
+        XCTAssertEqual(rig.move(1, to: Rig.middle - SIMD2(0, 12 * Rig.pointsPerMm), after: 0.01), [])
+        XCTAssertEqual(rig.wait(0.1), [])
         XCTAssertEqual(rig.arbiter.engagement, .held(.key(.upper), .translation))
-        XCTAssertEqual(rig.send(.holdsEnded(.announced), after: 0.05), [.stopTranslation, .cue(.dead)])
+        XCTAssertEqual(rig.send(.holdsEnded(.announced), after: 0.05), [.stopTranslation], "the NO played once")
+    }
+
+    /// A thumb that lands after a STOP in the same call is no latch attempt: it is 1.0.1's thumb, and its slide up in
+    /// the next calls latches nothing.
+    func testAThumbDownAfterAStopInItsCallCannotLatch() {
+        let script: (inout Rig) -> [[InputCommand]] = { rig in
+            let stop = rig.sample(2, .began, Rig.bottomBand, radius: 8)
+            let thumb = rig.sample(1, .began, Rig.middle, radius: 8)
+            return [
+                rig.press(.upper, after: 0.1),
+                rig.batch([stop, thumb], after: 0.1),
+                rig.move(1, to: Rig.middle, after: 0.1),
+                rig.slide(1, mm: 12, degrees: 90),
+                rig.wait(0.1),
+                rig.send(.holdsEnded(.announced), after: 0.05),
+            ]
+        }
+        var off = Rig(.screenTurns)
+        var on = Rig(.screenTurns, assist: Rig.lockHoldSlide())
+        let expected = script(&off)
+        XCTAssertEqual(script(&on), expected)
+        XCTAssertTrue(expected.joined().contains(.cue(.dead)), "1.0.1 plays the slide's NO")
+        XCTAssertFalse(on.log.contains(.cue(.drive(.latched))))
     }
 
     /// A gear touch and a top band touch that went down during the hold say nothing once the thumb latches: no
