@@ -376,6 +376,19 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertEqual(cue.outside, .right)
     }
 
+    /// The server's clamp arms a side again as a tick does: a clamp at the right face with the point back inside the
+    /// forward face by more than the re-arm distance arms forward, though no tick saw the point back inside it, so the
+    /// next crossing of the forward face is told.
+    func testAClampBackInsideOneFaceArmsThatSideAgain() {
+        XCTAssertEqual(tick(corner(0.006, -0.01)), .forward)
+        clock += 2000
+        let clamp = cue.serverClamped(corner(-0.006, 0.001), at: clock)
+        XCTAssertTrue(clamp.foreseen)
+        XCTAssertEqual(clamp.told, .right)
+        XCTAssertEqual(cue.outside, .right)
+        XCTAssertEqual(tick(corner(0.003, 0.001), after: 2000), .forward, "armed again at the clamp")
+    }
+
     /// A new hold arms every side, not only the last one told, and the new hold keeps its own memory.
     func testANewHoldArmsEverySideAgain() {
         XCTAssertEqual(tick(corner(0.006, -0.01)), .forward)
