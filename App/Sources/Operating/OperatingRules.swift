@@ -89,11 +89,12 @@ enum OperatingRules {
     }
 
     /// What the arm and the task look like, robot base frame; nil until the server has reported the arm.
-    /// `commanded`: where the link sends the reported arm point during a translation hold. `commandOutside` and
-    /// `lowestGripperZ`: the guide's aids, copied into the reading; nil, the default, is version 1.0.1's reading.
+    /// `commanded`: where the link sends the reported arm point during a translation hold. `commandOutside`,
+    /// `lowestGripperZ` and `lowestPinchZ`: the guide's aids, copied into the reading; nil, the default, is version
+    /// 1.0.1's reading.
     static func arm(
         _ state: ServerState?, commanded: SIMD3<Float>?, gripping: Bool, profile: RobotProfile,
-        commandOutside: OperatorDirection? = nil, lowestGripperZ: Float? = nil
+        commandOutside: OperatorDirection? = nil, lowestGripperZ: Float? = nil, lowestPinchZ: Float? = nil
     ) -> ArmReading? {
         guard let state, let reported = state.endEffector.map(float) else { return nil }
         let pinch = profile.pinchPoint(
@@ -112,7 +113,8 @@ enum OperatingRules {
             pinchSource: pinch.source,
             boxShift: pinch.offset - profile.toolOffset,
             commandOutside: commandOutside,
-            lowestGripperZ: lowestGripperZ
+            lowestGripperZ: lowestGripperZ,
+            lowestPinchZ: lowestPinchZ
         )
     }
 

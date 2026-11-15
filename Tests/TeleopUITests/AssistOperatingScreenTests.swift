@@ -11,6 +11,7 @@ final class AssistOperatingScreenTests: XCTestCase {
     private static let words: [String: (en: String, zh: String)] = [
         "locked": ("Locked on", "已鎖定"),
         "ready_aids": ("Ready", "就緒"),
+        "lowest_aids": ("Ready", "就緒"),
     ]
 
     private struct Size {
@@ -67,6 +68,15 @@ final class AssistOperatingScreenTests: XCTestCase {
 
     func testTheGuideWithItsAids() {
         render("ready_aids")
+    }
+
+    /// The jaws back at the lowest height a stall reached, on something 3 cm above the table: the height says so in
+    /// both languages, and the screenshot shows the dashed line at the jaws, clear of the table line.
+    func testTheLowestHeightOnSomethingAboveTheTable() {
+        render("lowest_aids") { app, language in
+            let expected = language == "en" ? "Height 3.0 cm · lowest" : "離桌面 3.0 公分 · 最低點"
+            XCTAssertEqual(app.element("readout.height").label, expected, language)
+        }
     }
 
     private struct Seen {

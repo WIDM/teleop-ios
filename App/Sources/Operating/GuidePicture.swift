@@ -106,7 +106,8 @@ struct GuidePicture: Equatable {
     let targetGap: SIMD2<Double>?
     let lines: [Line]
     /// The guide's aids, each nil or false without its aid. The lowest pinch height a downward stall reached, as a
-    /// share of the view from behind's height, drawn as a dashed line across the box.
+    /// share of the view from behind's height, drawn as a dashed line across the box; "lowest" on the height read-out
+    /// uses the same height.
     let lowestY: Double?
     /// The pinch point's height above the table as a share of the box's height above it, 0 to 1, for the shadow under
     /// the pinch point: the only height cue the view from above has.
@@ -177,10 +178,14 @@ struct GuidePicture: Equatable {
         holding = reading.gripping && reading.target != nil
         approximate = reading.pinchSource.isApproximate
 
-        // The lowest height is kept for the gripper link; it is drawn for the pinch point, moved by this reading's
-        // offset as the ring and the box are. Up in the operator's frame is up in the base frame.
+        // The lowest height is the pinch point's own when the server reported the pinch point at the stall: on a table
+        // it stays put whatever the arm's posture. Without it, the gripper link's lowest height is moved by this
+        // reading's offset, as the ring and the box are, which is off by as much as the offset changed with the
+        // posture since. Up in the operator's frame is up in the base frame.
         let offset = profile.toolOffset + reading.boxShift
-        let lowest = aids?.lowestCue == true ? reading.lowestGripperZ.map { Double($0) + Double(offset.z) } : nil
+        let lowestHeight =
+            reading.lowestPinchZ.map(Double.init) ?? reading.lowestGripperZ.map { Double($0) + Double(offset.z) }
+        let lowest = aids?.lowestCue == true ? lowestHeight : nil
         lowestY = lowest.map { min(max(projection.behind(SIMD3(pinchPoint.x, pinchPoint.y, $0)).y, 0), 1) }
         let rise = boxHigh.z - table
         lift = aids?.shadow == true ? (rise > 0 ? min(max((pinchPoint.z - table) / rise, 0), 1) : 0) : nil

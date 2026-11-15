@@ -22,7 +22,7 @@ private final class GuideTestTransport: LinkTransport {
 /// the same way, each with the aids it draws.
 final class SingleGuidePictureTests: XCTestCase {
     /// The fixtures that draw the guide's aids, and which; every other fixture draws none.
-    private static let fixtureAids: [String: GuideAids] = ["ready_aids": .all]
+    private static let fixtureAids: [String: GuideAids] = ["ready_aids": .all, "lowest_aids": .all]
 
     private var control: GuideTestTransport?
     private var clock = 10_000

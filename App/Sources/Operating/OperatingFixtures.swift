@@ -73,6 +73,9 @@ enum OperatingFixtures {
         // The guide's aids drawn: the shadow under the jaws, the lowest height a stall reached just above the table,
         // and which way is forward and which way is up.
         all["ready_aids"] = display(.ready, arm: stalledOnTheTableBefore(task()), recorder: armed, aids: .all)
+        // The jaws back at the lowest height a stall reached, on something above the table: the height says "lowest",
+        // and the dashed line from behind lies at the jaws, clear of the table line.
+        all["lowest_aids"] = display(.ready, arm: atTheLowestOnSomething(), recorder: armed, aids: .all)
         return all
     }()
 
@@ -154,6 +157,21 @@ enum OperatingFixtures {
     private static func stalledOnTheTableBefore(_ reading: ArmReading) -> ArmReading {
         var reading = reading
         reading.lowestGripperZ = onTable + 0.005 - profile.toolOffset.z
+        return reading
+    }
+
+    /// The jaws resting on something 3 cm above the table, where a downward stall left both lowest heights. The server
+    /// reports the pinch point, so the line and "lowest" follow it; the gripper link's lowest height is 6 mm off what
+    /// the profile's tool offset gives, as a change of the arm's posture leaves it.
+    private static func atTheLowestOnSomething() -> ArmReading {
+        let pinch = SIMD3(centre.x - 0.02, centre.y + 0.01, onTable + 0.03)
+        var reading = ArmReading(
+            pinchPoint: pinch, commanded: nil, jawOpening: 0.4, wristTurnDeg: 90, wristTiltDeg: 0, target: nil,
+            goal: nil, gripping: false
+        )
+        reading.pinchSource = .reported
+        reading.lowestPinchZ = pinch.z
+        reading.lowestGripperZ = pinch.z - profile.toolOffset.z - 0.006
         return reading
     }
 

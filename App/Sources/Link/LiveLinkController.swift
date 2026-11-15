@@ -185,6 +185,10 @@ final class LiveLinkController {
     /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
     /// control connection was welcomed, for the guide's lowest line; nil before one and with that rule off.
     var lowestSeen: Double? { monitor.lowestSeen }
+    /// The same for the pinch point's height, from stalls whose state carried the server's pinch point; nil before one,
+    /// with that rule off, and from a server that reports no pinch point. The guide draws its lowest line from this
+    /// when there is one.
+    var lowestPinchSeen: Double? { monitor.lowestPinchSeen }
     /// How old the arm position in `newestArmState` is, milliseconds: the time since it arrived, plus half the median
     /// round trip, because the server measured it before sending it. Nil before the first.
     var newestArmAgeMs: Int? {

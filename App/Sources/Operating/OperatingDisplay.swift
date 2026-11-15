@@ -40,10 +40,12 @@ struct ArmReading: Equatable, Sendable {
     /// How far the workspace box is drawn from the profile's: the reading's gripper-to-pinch offset minus the
     /// profile's `toolOffset`. Zero unless the server reports a tool point.
     var boxShift: SIMD3<Float> = .zero
-    /// The guide's aids: the side the commanded point is outside the work area on, and the lowest gripper-link height
-    /// a downward stall reached. Nil with the aids off.
+    /// The guide's aids: the side the commanded point is outside the work area on, the lowest gripper-link height a
+    /// downward stall reached, and the lowest pinch-point height one reached when the server reports the pinch point.
+    /// Nil with the aids off.
     var commandOutside: OperatorDirection? = nil
     var lowestGripperZ: Float? = nil
+    var lowestPinchZ: Float? = nil
 }
 
 /// Everything the operating screen draws. The screens read this and nothing else about the link.

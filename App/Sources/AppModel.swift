@@ -727,7 +727,8 @@ final class AppModel {
             s.liveLink
             ? OperatingRules.arm(
                 serverState, commanded: link.commandedArm, gripping: gripping, profile: profile,
-                commandOutside: link.commandOutside, lowestGripperZ: link.lowestSeen.map { Float($0) }) : nil
+                commandOutside: link.commandOutside, lowestGripperZ: link.lowestSeen.map { Float($0) },
+                lowestPinchZ: link.lowestPinchSeen.map { Float($0) }) : nil
         // The guide's aids in force draw into the one picture; nil draws version 1.0.1's.
         let aids = assist.guide
         let display = OperatingDisplay(

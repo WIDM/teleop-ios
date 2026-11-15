@@ -354,8 +354,9 @@ final class GuideAidsLinkTests: XCTestCase {
     }
 
     /// Against the server model over a real socket: from the reset pose the jaws reach the table a little under 3 cm
-    /// down. The hand asks for 5 cm down, and the arm stands on the table. With the aids on that is "Can't go lower."
-    /// and the lowest height is where it stands; with them off it is version 1.0.1's "Blocked." and no height.
+    /// down. The hand asks for 5 cm down, and the arm stands on the table. With the aids on that is "Can't go lower.",
+    /// the lowest heights are where the arm and the jaws stand, and the guide's line lies at the height of the pinch
+    /// point the server reports there; with them off it is version 1.0.1's "Blocked." and no height.
     func testAgainstTheServerModelsTableTheArmCannotGoLower() throws {
         for aids in [true, false] {
             let server = LocalTeleopServer()
@@ -386,8 +387,19 @@ final class GuideAidsLinkTests: XCTestCase {
             if aids {
                 let lowest = try XCTUnwrap(model.link.lowestSeen)
                 XCTAssertEqual(lowest, server.inspect { $0.world.arm.z }, accuracy: 0.002, "where the arm stands")
+                let pinchZ = server.inspect { ($0.world.arm + $0.config.toolOffset).z }
+                let lowestPinch = try XCTUnwrap(model.link.lowestPinchSeen)
+                XCTAssertEqual(lowestPinch, pinchZ, accuracy: 0.002, "where the jaws stand")
+                XCTAssertTrue(wait(2, until: { model.operating.guide?.lowestY != nil }), "the line is drawn")
+                let picture = try XCTUnwrap(model.operating.guide)
+                let y = try XCTUnwrap(picture.lowestY)
+                let range = picture.projection.height
+                let lineZ = range.lowerBound + (1 - y) * (range.upperBound - range.lowerBound)
+                XCTAssertEqual(lineZ, pinchZ, accuracy: 0.002, "the line at the jaws' height on the table")
             } else {
                 XCTAssertNil(model.link.lowestSeen)
+                XCTAssertNil(model.link.lowestPinchSeen)
+                XCTAssertNil(model.operating.guide?.lowestY)
             }
             model.send(.holdArmEnd)
         }

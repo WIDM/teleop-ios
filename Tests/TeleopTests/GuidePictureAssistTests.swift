@@ -24,7 +24,7 @@ final class GuidePictureAssistTests: XCTestCase {
 
     private func reading(
         _ pinch: SIMD3<Float>? = nil, outsideOn side: OperatorDirection? = nil, lowestGripperZ: Float? = nil,
-        boxShift: SIMD3<Float> = .zero
+        lowestPinchZ: Float? = nil, boxShift: SIMD3<Float> = .zero
     ) -> ArmReading {
         let pinch = pinch ?? centre
         var reading = ArmReading(
@@ -33,7 +33,14 @@ final class GuidePictureAssistTests: XCTestCase {
         reading.boxShift = boxShift
         reading.commandOutside = side
         reading.lowestGripperZ = lowestGripperZ
+        reading.lowestPinchZ = lowestPinchZ
         return reading
+    }
+
+    /// The height, robot base frame, that a share of the view from behind's height stands for in `picture`.
+    private func height(atBehindY y: Double, in picture: GuidePicture) -> Double {
+        let range = picture.projection.height
+        return range.lowerBound + (1 - y) * (range.upperBound - range.lowerBound)
     }
 
     private func picture(_ reading: ArmReading, _ aids: GuideAids?) -> GuidePicture {
@@ -68,11 +75,13 @@ final class GuidePictureAssistTests: XCTestCase {
             reading(outsideOn: .forward, lowestGripperZ: gripperZ(atPinch: centre.z)),
             reading(SIMD3(profile.workspaceMin.x - 0.03, centre.y, centre.z), outsideOn: .right),
             reading(lowestGripperZ: gripperZ(atPinch: centre.z - 0.001), boxShift: SIMD3(0.004, -0.003, -0.006)),
+            reading(lowestGripperZ: gripperZ(atPinch: centre.z), lowestPinchZ: centre.z),
         ]
         for carried in carrying {
             var plain = carried
             plain.commandOutside = nil
             plain.lowestGripperZ = nil
+            plain.lowestPinchZ = nil
             let version101 = GuidePicture(reading: plain, profile: profile)
             XCTAssertEqual(GuidePicture(reading: carried, profile: profile), version101)
             XCTAssertEqual(picture(carried, nil), version101)
@@ -136,6 +145,42 @@ final class GuidePictureAssistTests: XCTestCase {
         XCTAssertNil(picture(reading(), .all).lowestY, "no stall yet")
         XCTAssertNil(picture(reading(lowestGripperZ: stall), Self.only(\.shadow)).lowestY, "without its aid")
         XCTAssertNotNil(picture(reading(lowestGripperZ: stall), Self.only(\.lowestCue)).lowestY)
+    }
+
+    /// From a server that reports the pinch point, the line and "lowest" use the pinch point's own lowest height, which
+    /// a change of the arm's posture since the stall does not move. Without it, the gripper link's lowest height moved
+    /// by the reading's offset is used, and that moves with the offset: here 10 mm higher in the later posture.
+    func testTheLowestLineFollowsThePinchPointsLowestHeightWhenThereIsOne() throws {
+        let stallPinch = Float(table) + 0.005
+        // The measured offset less the profile's, at the stall and in a later posture whose offset is 10 mm higher.
+        let atStall = SIMD3<Float>(0.004, -0.003, -0.006)
+        let later = SIMD3<Float>(0.004, -0.003, 0.004)
+        let gripperAtStall = stallPinch - (profile.toolOffset + atStall).z
+        for shift in [atStall, later] {
+            let p = picture(reading(lowestGripperZ: gripperAtStall, lowestPinchZ: stallPinch, boxShift: shift), .all)
+            let y = try XCTUnwrap(p.lowestY)
+            XCTAssertEqual(
+                height(atBehindY: y, in: p), Double(stallPinch), accuracy: 1e-6, "the pinch point's, \(shift)")
+            XCTAssertLessThan(y, p.tableY, "above the table")
+        }
+        let atStallPicture = picture(reading(lowestGripperZ: gripperAtStall, boxShift: atStall), .all)
+        let laterPicture = picture(reading(lowestGripperZ: gripperAtStall, boxShift: later), .all)
+        let atStallY = try XCTUnwrap(atStallPicture.lowestY), laterY = try XCTUnwrap(laterPicture.lowestY)
+        XCTAssertEqual(height(atBehindY: atStallY, in: atStallPicture), Double(stallPinch), accuracy: 1e-6)
+        XCTAssertEqual(
+            height(atBehindY: laterY, in: laterPicture), Double(stallPinch) + 0.010, accuracy: 1e-6,
+            "without the pinch point, the line moves with the offset")
+
+        // The jaws back at the stall's height in the later posture: "lowest" by the pinch point's height, and not by
+        // the gripper link's moved 10 mm.
+        let back = SIMD3(centre.x, centre.y, stallPinch)
+        guard case .height(let cm) = picture(reading(back), nil).lines[0] else { return XCTFail("no height") }
+        let pinchKept = reading(back, lowestGripperZ: gripperAtStall, lowestPinchZ: stallPinch, boxShift: later)
+        XCTAssertEqual(picture(pinchKept, .all).lines[0], .heightLowest(cm: cm))
+        let gripperKept = reading(back, lowestGripperZ: gripperAtStall, boxShift: later)
+        XCTAssertEqual(picture(gripperKept, .all).lines[0], .height(cm: cm))
+        XCTAssertNil(picture(pinchKept, Self.only(\.shadow)).lowestY, "without its aid")
+        XCTAssertEqual(picture(pinchKept, Self.only(\.shadow)).lines[0], .height(cm: cm), "without its aid")
     }
 
     /// The shadow's lift: the pinch height above the table over the box's height above it, 0 at the table, 1 at the
