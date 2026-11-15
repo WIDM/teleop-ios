@@ -32,6 +32,7 @@ struct SettingsScreen: View {
             Form {
                 control
                 taskAid
+                assistSection
                 recording
                 server
                 practiceSection
@@ -141,6 +142,20 @@ struct SettingsScreen: View {
             Text("settings.task_aid")
         } footer: {
             Text("settings.task_aid_help")
+        }
+    }
+
+    /// The aids' master switch. Off makes the operating screen, its cues and its guide those of version 1.0.1. It sits
+    /// above Recording, not at the end of the form: the UI tests reach the rows from Recording down with two swipes to
+    /// the bottom, and a section after About would push Recording out of their reach.
+    private var assistSection: some View {
+        Section {
+            Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
+                .accessibilityIdentifier("settings.assist")
+        } header: {
+            Text("settings.assist")
+        } footer: {
+            Text("settings.assist_help")
         }
     }
 

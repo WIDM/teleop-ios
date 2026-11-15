@@ -95,6 +95,12 @@ To see what a plan contains without running it, build once and list the tests:
     xcodebuild test-without-building -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
       -destination "platform=iOS Simulator,name=$SIM" -enumerate-tests
 
+The AssistOff plan runs the app's unit tests again with the aids' master switch off (`-assist NO` on launch), and
+`OffPlanTests` fails if the switch did not reach them. CI runs it after the Default plan:
+
+    caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan AssistOff \
+      -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
+
 ### Launch arguments for UI tests
 
 The app reads these from its launch arguments (`XCUIApplication.launchArguments`). Every UI test launch passes
@@ -111,6 +117,7 @@ The app is silent by itself as the unit-test host.
 | `-startRoute <raw value>` | open on that route (`Route.swift`), for example `s1_connect` |
 | `-firstRunDone YES` | skip the permissions screen and the tutorial at launch |
 | `-controlMode screenTurns`, `keyTurns` or `buttons`; `-hand left` or `right`; `-taskAid YES` or `NO`; `-appLanguage en` or `zh-Hant` | the saved settings, pinned for one launch |
+| `-assist YES` or `NO`; `-lockVariant off`, `pressPress` or `holdThenSlide` | the aids' master switch and lock choice, pinned for one launch; a change in Settings still applies until the app quits |
 | `-operatingFixture <name>` | show one of the named displays in `OperatingFixtures.swift` on the operating screen, and nothing else |
 | `-screenFrame 375x667x20x0` | draw the app in a frame of that width and height, at the top left, with those top and bottom safe-area insets, to check a smaller phone's layout |
 | `-recordHaptics YES` | put the haptics the app asks for into a hidden element (`test.haptics`) that XCUITest can read |

@@ -86,8 +86,10 @@ schemes:
     test:
       config: Debug
       # Default: everything but the live tests. Live: only ServerMotionTests, which drive the lab simulator
-      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1.
+      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1. AssistOff: the app's unit tests again, launched
+      # with the aids' master switch off.
       testPlans:
         - path: TestPlans/Default.xctestplan
           defaultPlan: true
         - path: TestPlans/Live.xctestplan
+        - path: TestPlans/AssistOff.xctestplan

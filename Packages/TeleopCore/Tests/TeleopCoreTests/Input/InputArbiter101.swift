@@ -4,6 +4,7 @@
 // changes, so it compiles in the test target against today's vocabulary:
 //   - the type is named `InputArbiter101`, and the module is imported with `@testable import TeleopCore`;
 //   - in `apply`, `case .endAllHolds: endAllHolds()` becomes `case .holdsEnded: endAllHolds()`.
+//   - in `apply`, `case .assistChanged: endAllHolds()` is added, the aids being an event 1.0.1 never had.
 // Nothing else. It is never edited to make a test pass; if today's vocabulary changes so that it no longer compiles,
 // the same kind of adaptation is made and named here.
 import Foundation
@@ -218,6 +219,7 @@ public struct InputArbiter101: Sendable {
         case .attitude(let q): attitudeSample(q)
         case .tick: break
         case .holdsEnded: endAllHolds()
+        case .assistChanged: endAllHolds()
         case .becameActive: becameActive()
         case .modeChanged(let newScheme, let newHand):
             endAllHolds()

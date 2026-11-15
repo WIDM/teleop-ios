@@ -64,6 +64,8 @@ public enum InputEvent: Equatable, Sendable {
     case becameActive
     /// A scheme or Hand change. Ends every hold first, as `holdsEnded` does.
     case modeChanged(InputScheme, Hand)
+    /// The aids' configuration changed in Settings. Ends every hold first, as `modeChanged` does.
+    case assistChanged(Assist)
     /// The server reset the scene (`ok scene_reset`, an `episode` change or a new `welcome.session`). On an
     /// unknown server the tilt window counts commanded tilt from here.
     case sceneReset

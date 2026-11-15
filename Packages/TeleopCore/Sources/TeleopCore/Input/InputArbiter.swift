@@ -12,6 +12,8 @@ public struct InputArbiter: Sendable {
     public var layout: SurfaceLayout
     public private(set) var scheme: InputScheme
     public private(set) var hand: Hand
+    /// The aids allowed now. Changed only by `.assistChanged`, which ends every hold first.
+    public private(set) var assist: Assist
 
     private var keys: [InputKey: KeyState] = [:]
     private var keyBeganAt: [InputKey: TimeInterval] = [:]
@@ -79,12 +81,15 @@ public struct InputArbiter: Sendable {
         var windowEnded = false
     }
 
-    public init(scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants = .appendixA)
-    {
+    public init(
+        scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants = .appendixA,
+        assist: Assist = .off
+    ) {
         self.scheme = scheme
         self.hand = hand
         self.layout = layout
         self.constants = constants
+        self.assist = assist
     }
 
     // MARK: Reading the state
@@ -209,6 +214,9 @@ public struct InputArbiter: Sendable {
             endAllHolds()
             scheme = newScheme
             hand = newHand
+        case .assistChanged(let newAssist):
+            endAllHolds()
+            assist = newAssist
         case .sceneReset:
             commandedTiltSinceReset = 0
             tiltAtReset = lastWristTarget.axis == .tilt ? lastWristTarget.degrees : 0

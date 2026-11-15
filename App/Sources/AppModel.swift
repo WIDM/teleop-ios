@@ -65,6 +65,8 @@ final class AppModel {
     private var modeSetting: ControlMode
     private var handSetting: Hand
     private var taskAidSetting: Bool
+    private var assistSetting: Bool
+    private var lockChoiceSetting: LockChoice
     private var surfaceLayout: SurfaceLayout?
     /// The robot. Tests pass another to run a robot that allows other aids or none.
     @ObservationIgnored let profile: RobotProfile
@@ -92,6 +94,8 @@ final class AppModel {
     static let handKey = "hand"
     static let taskAidKey = "taskAid"
     static let operatingFixtureKey = "operatingFixture"
+    static let assistKey = "assist"
+    static let lockChoiceKey = "lockVariant"
 
     /// Settings → Control → Mode, kept across launches. A change while anything is engaged is refused.
     var controlMode: ControlMode {
@@ -132,12 +136,66 @@ final class AppModel {
         }
     }
 
+    /// Settings → Aids, the master switch, kept across launches. On by default. Off turns every aid off: the operating
+    /// screen, its cues and its guide are then version 1.0.1's. Refused, like the mode, while anything is engaged.
+    var assistOn: Bool {
+        get { assistSetting }
+        set {
+            guard newValue != assistSetting else { return }
+            guard !Self.engaged(session.state), !controller.isEngaged else {
+                raise(.refused(.letGoFirst))
+                return
+            }
+            assistSetting = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.assistKey)
+            // Rounds with and without the aids are compared from the developer log.
+            log("assist: \(newValue ? "on" : "off")")
+            assistDidChange()
+        }
+    }
+
+    /// Settings → Aids → Lock, kept across launches as its raw value. Off by default. It counts only when the master
+    /// switch is on and the robot allows lock. Refused while anything is engaged.
+    var lockChoice: LockChoice {
+        get { lockChoiceSetting }
+        set {
+            guard newValue != lockChoiceSetting else { return }
+            guard !Self.engaged(session.state), !controller.isEngaged else {
+                raise(.refused(.letGoFirst))
+                return
+            }
+            lockChoiceSetting = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.lockChoiceKey)
+            log("assist: lock \(newValue.rawValue)")
+            assistDidChange()
+        }
+    }
+
+    /// The one configuration of the aids, resolved from the two settings and the robot. Derived, never stored, so it
+    /// cannot disagree with them.
+    var assist: Assist {
+        Assist.resolve(masterOn: assistSetting, lockChoice: lockChoiceSetting, profile: profile.assist)
+    }
+
+    private func assistDidChange() {
+        controller.assistChanged(assist)
+        refreshOperating()
+    }
+
+    /// A saved Bool that a launch argument can set as YES or NO. A launch argument arrives as a string, which a cast
+    /// to Bool misses, so whether it is there and what it says are read apart.
+    static func savedBool(_ key: String, default value: Bool, _ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: key) == nil ? value : defaults.bool(forKey: key)
+    }
+
     /// - Parameters:
     ///   - haptics, sounds, speech: nil plays them on the device, except in the unit-test host and under the UI tests'
     ///     `-quietCues YES`, which stay silent.
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
     ///   - clientName: how the app names itself to the server; the bundle's version and build unless a test passes one.
     ///   - profile: the robot; everything that needs one, the link included, uses this one.
+    ///   - assistOn, lockChoice: the aids' settings for this model in place of the saved ones, and giving them saves
+    ///     nothing; nil reads the saved settings.
     init(
         start: Route = .s2,
         haptics: HapticsPlaying? = nil,
@@ -150,7 +208,9 @@ final class AppModel {
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
         inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         clientName: String = LiveLinkController.clientName(),
-        profile: RobotProfile = .so101Simulator
+        profile: RobotProfile = .so101Simulator,
+        assistOn: Bool? = nil,
+        lockChoice: LockChoice? = nil
     ) {
         self.profile = profile
         var state = FakeTeleopState()
@@ -168,6 +228,9 @@ final class AppModel {
         modeSetting = mode
         handSetting = hand
         taskAidSetting = taskAid
+        assistSetting = assistOn ?? Self.savedBool(Self.assistKey, default: true, defaults)
+        lockChoiceSetting =
+            lockChoice ?? defaults.string(forKey: Self.lockChoiceKey).flatMap(LockChoice.init(rawValue:)) ?? .off
         onTargetCue = OnTargetCue(window: SIMD2(profile.graspTolerance))
         self.fixture = fixture
         operating =
@@ -210,7 +273,7 @@ final class AppModel {
         link.onStopSeen = { [weak self] in self?.stopEpoch += 1 }
         link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
         controller = OperatingController(
-            model: self, mode: mode, hand: hand, constants: profile.inputConstants, now: inputClock
+            model: self, mode: mode, hand: hand, constants: profile.inputConstants, assist: assist, now: inputClock
         )
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.

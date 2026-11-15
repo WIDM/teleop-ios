@@ -57,6 +57,19 @@ jobs:
         env:
           NSUnbufferedIO: "YES"
 
+      - name: xcodebuild test with the aids switched off
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Teleop.xcodeproj \
+            -scheme Teleop \
+            -testPlan AssistOff \
+            -destination "platform=iOS Simulator,name=$SIM_NAME" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild-assist-off.log
+        env:
+          NSUnbufferedIO: "YES"
+
       - name: Export screenshots
         if: always()
         run: |
@@ -80,7 +93,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: build/xcodebuild.log
+          path: |
+            build/xcodebuild.log
+            build/xcodebuild-assist-off.log
 
       - name: Upload screenshots
         if: always()

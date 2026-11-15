@@ -50,7 +50,10 @@ final class OperatingController {
         case endButtonHold
     }
 
-    init(model: AppModel, mode: ControlMode, hand: Hand, constants: InputConstants, now: @escaping () -> TimeInterval) {
+    init(
+        model: AppModel, mode: ControlMode, hand: Hand, constants: InputConstants, assist: Assist,
+        now: @escaping () -> TimeInterval
+    ) {
         self.model = model
         self.mode = mode
         self.hand = hand
@@ -58,7 +61,7 @@ final class OperatingController {
         arbiter = InputArbiter(
             scheme: Self.scheme(mode) ?? .screenTurns, hand: hand,
             layout: SurfaceLayout(width: 402, height: 874, safeTop: 62, safeBottom: 34, constants: constants),
-            constants: constants
+            constants: constants, assist: assist
         )
         wasOnOperatingScreen = Self.operatingRoutes.contains(model.session.route)
         wasStopped = model.session.state.emergencyStop
@@ -125,6 +128,11 @@ final class OperatingController {
         releaseAllButtons()
         padTouches = []
         feed([.modeChanged(Self.scheme(mode) ?? arbiter.scheme, hand)], at: now())
+    }
+
+    /// The aids' configuration changed in Settings. Ends every hold, as a mode change does.
+    func assistChanged(_ assist: Assist) {
+        feed([.assistChanged(assist)], at: now())
     }
 
     /// The app left or returned to the active state (I-11): every hold ends on leaving, and every input held across

@@ -130,6 +130,13 @@ final class AssistConfigTests: XCTestCase {
         assertGoTo(noCorrections, isKept: true, "corrections 0")
     }
 
+    /// The input rules are built with every aid off unless the caller says otherwise, so every test and caller that
+    /// does not ask for an aid runs 1.0.1's rules.
+    func testTheArbiterDefaultsToOff() {
+        XCTAssertEqual(InputArbiter(scheme: .screenTurns, layout: ArbiterRig.layout).assist, .off)
+        XCTAssertEqual(InputArbiter(scheme: .keyTurns, hand: .left, layout: ArbiterRig.layout).assist, .off)
+    }
+
     /// Resolves a robot that allows everything with these go-to numbers; only `goTo` may depend on them.
     private func assertGoTo(
         _ limits: GoToLimits, isKept: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line

@@ -1409,6 +1409,54 @@
         }
       }
     },
+    "settings.assist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aids"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輔助功能"
+          }
+        }
+      }
+    },
+    "settings.assist_help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off turns lock, tap-to-go and the guide's extra cues off. Lock works in the phone modes."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉時，鎖定、點選前往和導引圖的額外提示都會關閉。鎖定只在螢幕轉腕和按鍵轉腕模式有效。"
+          }
+        }
+      }
+    },
+    "settings.assist_on": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free aids"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免持輔助"
+          }
+        }
+      }
+    },
     "settings.clear_log": {
       "localizations": {
         "en": {

@@ -1,7 +1,7 @@
 import XCTest
 @testable import TeleopCore
 
-/// Today's input rules, as every caller builds them, against version 1.0.1's, frozen in this test target as
+/// Today's input rules with every aid off (`Assist.off`) against version 1.0.1's, frozen in this test target as
 /// `InputArbiter101`. Both are fed the same 12,000 generated cases (the property test's generator and seed) and must
 /// agree at every step on the commands and on what each input is doing, and on what they report about engagement and
 /// timers. Nothing is listed by hand, so whatever is added later is held to 1.0.1 here.
@@ -11,7 +11,8 @@ final class OffEqualsVersion101Tests: XCTestCase {
         for index in 0..<InputArbiterPropertyTests.cases {
             let scenario = Scenario.generate(&rng, index: index)
             var old = InputArbiter101(scheme: scenario.scheme, hand: scenario.hand, layout: ArbiterRig.layout)
-            var new = InputArbiter(scheme: scenario.scheme, hand: scenario.hand, layout: ArbiterRig.layout)
+            var new = InputArbiter(
+                scheme: scenario.scheme, hand: scenario.hand, layout: ArbiterRig.layout, assist: .off)
             for step in scenario.timeline {
                 let facts = scenario.facts(at: step.time)
                 let expected = old.handle(step.event, at: step.time, facts: facts)
