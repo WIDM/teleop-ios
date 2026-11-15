@@ -31,6 +31,9 @@ final class AssistPropertyTests: XCTestCase {
         XCTAssertGreaterThan(totals.stopsAfterALatchInTheStep, 50)
         XCTAssertGreaterThan(totals.inputsHeldAcrossALooseStart, 100)
         XCTAssertGreaterThan(totals.casesWithWaitWhileLoose, 50)
+        XCTAssertGreaterThan(totals.slideLatches, 300)
+        XCTAssertGreaterThan(totals.centreBandSlideLatches, 50)
+        XCTAssertGreaterThan(totals.withheldNOs, 100)
     }
 
     struct Totals {
@@ -44,6 +47,23 @@ final class AssistPropertyTests: XCTestCase {
         /// Inputs other than the latching key that were down when a move nobody holds began.
         var inputsHeldAcrossALooseStart = 0
         var casesWithWaitWhileLoose = 0
+        var slideLatches = 0
+        /// Latches by a slide that began in scheme B's centre band, dead and silent in 1.0.1.
+        var centreBandSlideLatches = 0
+        var withheldNOs = 0
+    }
+
+    /// A control-surface touch as the generator moved it.
+    struct Thumb {
+        var downAt: TimeInterval
+        var down: SIMD2<Double>
+        var at: SIMD2<Double>
+        /// It went down while the upper key held the arm.
+        var inHeldUp: Bool
+        /// Some sample of it was a sideways slide by `ThumbSlide`.
+        var sideways = false
+        /// A NO was played for it.
+        var playedNO = false
     }
 
     // MARK: One case
@@ -53,8 +73,15 @@ final class AssistPropertyTests: XCTestCase {
         let base = scenario.base
         var arbiter = InputArbiter(
             scheme: base.scheme, hand: base.hand, layout: ArbiterRig.layout, assist: scenario.assist)
-        // P-ON: the same events on 1.0.1, until the first new gesture.
+        let variant = scenario.assist.lock?.variant
+        // P-ON: the same events on 1.0.1, until the first new gesture. After a NO withheld by a slide (variant 2) it
+        // goes on until the latch, the two then differing only in when NOs play: `withheld` counts the NOs owed.
         var twin: InputArbiter? = InputArbiter(scheme: base.scheme, hand: base.hand, layout: ArbiterRig.layout)
+        var withheld: Int?
+        // P6, P16: every control-surface touch down, as the generator moved it.
+        var thumbs: [Int: Thumb] = [:]
+        // When the upper key's translation hold began, while it runs.
+        var heldUpSince: TimeInterval?
         // O9: the same events with every sample of a touch that began in the bottom safe area turned into a tick.
         var strip: InputArbiter? = scenario.safeAreaTouches.isEmpty ? nil : arbiter
         if scenario.assist == .off { totals.offCases += 1 }
@@ -92,12 +119,34 @@ final class AssistPropertyTests: XCTestCase {
                 case .touch(let s) where s.phase == .ended || s.phase == .cancelled: down.remove(.touch(s.id))
                 default: break
                 }
+                guard case .touch(let s) = event else { continue }
+                let point = SIMD2(s.x, s.y)
+                switch s.phase {
+                case .began where ArbiterRig.layout.zone(x: s.x, y: s.y) == .controlSurface:
+                    let inHeldUp = engagementBefore == .held(.key(.upper), .translation)
+                    thumbs[s.id] = Thumb(downAt: step.time, down: point, at: point, inHeldUp: inHeldUp)
+                case .moved:
+                    guard var thumb = thumbs[s.id] else { break }
+                    thumb.at = point
+                    let slide = ThumbSlide.judge(
+                        from: thumb.down, to: point, layout: ArbiterRig.layout, constants: .appendixA)
+                    if slide == .sideways { thumb.sideways = true }
+                    thumbs[s.id] = thumb
+                default:
+                    break
+                }
             }
             let commands = arbiter.handle(step.events, at: step.time, facts: facts)
             let held = arbiter.held
             let engagement = arbiter.engagement
             let drives = commands.isEmpty ? [] : ArbiterRig.drives(commands)
             let latchedHere = drives.contains(.latched)
+            let heldUpBefore = heldUpSince
+            if engagement == .held(.key(.upper), .translation) {
+                if engagementBefore != engagement { heldUpSince = step.time }
+            } else {
+                heldUpSince = nil
+            }
 
             // O9
             // The twins are run in place: the arbiter is a large value, and copying it every step costs more than the
@@ -114,7 +163,7 @@ final class AssistPropertyTests: XCTestCase {
                 if strip!.held != held { return "O9: a touch from the bottom safe area is held \(at())" }
             }
 
-            // P-ON
+            // P-ON, and P16 while the twin lasts
             if twin != nil {
                 var events = step.events
                 for (i, event) in events.enumerated() {
@@ -122,11 +171,41 @@ final class AssistPropertyTests: XCTestCase {
                 }
                 let offCommands = twin!.handle(events, at: step.time, facts: facts)
                 let offHeld = twin!.held
-                if offCommands != commands || offHeld != held {
-                    if scenario.assist == .off { return "P-ON: .off gave \(commands), 1.0.1 \(offCommands) \(at())" }
-                    if !Self.isNewGesture(on: commands, off: offCommands) {
-                        return "P-ON: first difference \(commands), off \(offCommands) \(at())"
+                let onNOs = Self.noCount(commands), offNOs = Self.noCount(offCommands)
+                let sameButNOs =
+                    !latchedHere && held == offHeld && Self.withoutNOs(commands) == Self.withoutNOs(offCommands)
+                if withheld == nil, offCommands == commands, offHeld == held {
+                    // Still 1.0.1.
+                } else if scenario.assist == .off {
+                    return "P-ON: .off gave \(commands), 1.0.1 \(offCommands) \(at())"
+                } else if variant == .holdThenSlide, sameButNOs {
+                    // (3), then P16: the two differ only in when a NO plays. Each withheld NO plays exactly once
+                    // later, and never while its thumb still slides mostly up.
+                    if withheld == nil, offNOs - onNOs > 1 { return "P-ON: \(offNOs - onNOs) NOs withheld \(at())" }
+                    let owed = (withheld ?? 0) + offNOs - onNOs
+                    if owed < 0 { return "P16: a NO played that was never withheld: \(commands) \(at())" }
+                    if onNOs > offNOs, !Self.mayPlayAWithheldNO(step.events, facts: facts, thumbs: thumbs) {
+                        return "P16: a withheld NO played while its thumb still slides up \(at())"
                     }
+                    if offNOs > onNOs { totals.withheldNOs += offNOs - onNOs }
+                    withheld = owed
+                } else {
+                    // The first new gesture, from the closed list.
+                    var fits = false
+                    switch variant {
+                    case .pressPress?:
+                        fits = withheld == nil && Self.isPressGesture(on: commands, off: offCommands)
+                    case .holdThenSlide?:
+                        // (2) A latch by a slide: the latch cue, and the latching thumb's NO, if it was owed one,
+                        // dropped, never played.
+                        let others = commands.filter { $0 != .cue(.drive(.latched)) }
+                        fits =
+                            commands.count - others.count == 1 && onNOs == 0 && (withheld ?? 0) + offNOs <= 1
+                            && Self.withoutNOs(others) == Self.withoutNOs(offCommands)
+                    case nil:
+                        break
+                    }
+                    if !fits { return "P-ON: first difference \(commands), off \(offCommands) \(at())" }
                     for input in Set(held.keys).union(offHeld.keys) where held[input] != offHeld[input] {
                         let upper = input == .key(.upper) && offHeld[input] == .engaged(.translation)
                         let downAtTheStart = latchedHere && downBefore.contains(input)
@@ -136,6 +215,7 @@ final class AssistPropertyTests: XCTestCase {
                         }
                     }
                     twin = nil
+                    withheld = nil
                 }
             }
 
@@ -226,10 +306,37 @@ final class AssistPropertyTests: XCTestCase {
                 if case .countdown? = engagementBefore { idle = true }
                 let latches = drives.filter { $0 == .latched }.count
                 let start = commands.firstIndex(of: .startTranslation)
-                guard idle, step.events.contains(.keyDown(.upper)), arbiter.assist.lock?.variant == .pressPress,
-                    translationStarts == 1, latches == 1, let start, start + 1 < commands.count,
-                    commands[start + 1] == .cue(.drive(.latched)), since == step.time
-                else { return "P5: latched from \(String(describing: engagementBefore)) with \(commands) \(at())" }
+                let byPress =
+                    idle && step.events.contains(.keyDown(.upper)) && arbiter.assist.lock?.variant == .pressPress
+                    && translationStarts == 1 && latches == 1 && start.map { $0 + 1 < commands.count } == true
+                    && commands[start! + 1] == .cue(.drive(.latched))
+                let bySlide =
+                    engagementBefore == .held(.key(.upper), .translation)
+                    && arbiter.assist.lock?.variant == .holdThenSlide && translationStarts == 0
+                    && translationStops == 0 && latches == 1
+                guard byPress || bySlide, since == step.time else {
+                    return "P5: latched from \(String(describing: engagementBefore)) with \(commands) \(at())"
+                }
+                // P6
+                if bySlide {
+                    let latching = thumbs.filter { held[.touch($0.key)] != nil }
+                    guard latching.count == 1, let (id, thumb) = latching.first else {
+                        return "P6: \(latching.count) thumbs down at a latch by a slide \(at())"
+                    }
+                    let slide = ThumbSlide.judge(
+                        from: thumb.down, to: thumb.at, layout: ArbiterRig.layout, constants: .appendixA)
+                    let began = heldUpBefore.map { thumb.inHeldUp && thumb.downAt >= $0 } ?? false
+                    let windowOver = step.time >= thumb.downAt + arbiter.constants.palmWindowMs / 1000 - 1e-9
+                    if !began || !windowOver || slide != .up || thumb.sideways || thumb.playedNO {
+                        return "P6: touch \(id) latched: \(thumb), \(slide) \(at())"
+                    }
+                    totals.slideLatches += 1
+                    if arbiter.scheme == .keyTurns,
+                        ArbiterRig.layout.side(x: thumb.down.x, hand: arbiter.hand) == .centre
+                    {
+                        totals.centreBandSlideLatches += 1
+                    }
+                }
             }
             if !(engagementBefore?.isLoose == true), drives.contains(where: { $0 != .latched }) || drives.count > 1 {
                 return "P8: \(drives) with nothing loose before \(at())"
@@ -261,7 +368,7 @@ final class AssistPropertyTests: XCTestCase {
                 }
             }
             for drive in drives {
-                if drive == .latched { totals.pressLatches += 1 }
+                if drive == .latched, translationStarts > 0 { totals.pressLatches += 1 }
                 if drive == .ended(.timeLimit) { totals.lockLimits += 1 }
             }
 
@@ -352,6 +459,22 @@ final class AssistPropertyTests: XCTestCase {
                 return "P9/P17: \(input) is \(held[input]!) \(at())"
             }
 
+            // Who played a NO, for P6: with no new input in the step and one thumb held, the NO is that thumb's.
+            if !commands.isEmpty, commands.contains(.cue(.dead)) {
+                let fresh = step.events.contains {
+                    switch $0 {
+                    case .keyDown: return true
+                    case .touch(let s): return s.phase == .began
+                    default: return false
+                    }
+                }
+                let heldThumbs = thumbs.keys.filter { lastHeld[.touch($0)] != nil }
+                if !fresh, heldThumbs.count == 1, let id = heldThumbs.first { thumbs[id]?.playedNO = true }
+            }
+            if thumbs.keys.contains(where: { !down.contains(.touch($0)) }) {
+                thumbs = thumbs.filter { down.contains(.touch($0.key)) }
+            }
+
             // O5, O6
             for input in everDead where held[input] != nil && held[input] != .dead {
                 return "O5: dead \(input) is \(held[input]!) \(at())"
@@ -364,6 +487,8 @@ final class AssistPropertyTests: XCTestCase {
             lastHeld = held
         }
         if sawWaitWhileLoose { totals.casesWithWaitWhileLoose += 1 }
+        // P16: every NO withheld has played by the end.
+        if let withheld, withheld != 0 { return "P16: \(withheld) NOs withheld never played" }
         // O7, O8
         if let open { return "O7: \(open) never stopped" }
         if countdown { return "O7: the countdown never ended" }
@@ -373,9 +498,39 @@ final class AssistPropertyTests: XCTestCase {
 
     // MARK: The statements' helpers
 
-    /// P-ON's closed list: at the first step where the aided arbiter and its `.off` twin differ, the aided commands
-    /// are the twin's with exactly one new gesture.
-    private static func isNewGesture(on: [InputCommand], off: [InputCommand]) -> Bool {
+    private static func noCount(_ commands: [InputCommand]) -> Int {
+        commands.isEmpty ? 0 : commands.filter { $0 == .cue(.dead) }.count
+    }
+
+    private static func withoutNOs(_ commands: [InputCommand]) -> [InputCommand] {
+        commands.filter { $0 != .cue(.dead) }
+    }
+
+    /// P16: a step in which a withheld NO may play. The thumb lifts, or its slide stops being mostly up or turns out
+    /// sideways; the upper key's hold ends; or a fact refuses translation, so the thumb's slide cannot latch.
+    private static func mayPlayAWithheldNO(_ events: [InputEvent], facts: InputFacts, thumbs: [Int: Thumb]) -> Bool {
+        if facts.refusal != nil || facts.trackingRefusal != nil || facts.translationRefusal != nil { return true }
+        for event in events {
+            switch event {
+            case .keyUp(.upper), .holdsEnded, .becameActive, .modeChanged, .assistChanged:
+                return true
+            case .touch(let s) where s.phase == .ended || s.phase == .cancelled:
+                return true
+            case .touch(let s) where s.phase == .moved:
+                guard let thumb = thumbs[s.id] else { continue }
+                let slide = ThumbSlide.judge(
+                    from: thumb.down, to: thumb.at, layout: ArbiterRig.layout, constants: .appendixA)
+                if !ThumbSlide.mostlyUp(from: thumb.down, to: thumb.at) || slide == .sideways { return true }
+            default:
+                continue
+            }
+        }
+        return false
+    }
+
+    /// P-ON's closed list for variant 1: at the first step where the aided arbiter and its `.off` twin differ, the
+    /// aided commands are the twin's with exactly one new gesture.
+    private static func isPressGesture(on: [InputCommand], off: [InputCommand]) -> Bool {
         guard let start = off.firstIndex(of: .startTranslation) else { return false }
         // (1) A variant 1 latch: the latch cue right after its start, and, when a STOP comes later in the step, the
         // stop of what it latched right after the STOP.
@@ -511,10 +666,11 @@ final class AssistPropertyTests: XCTestCase {
 
 /// One generated case with the aids: `Scenario.generate`'s keys, touches, turns and ticks, then a longer stretch with
 /// the configuration's gestures: presses of the upper key 0.1 to 1.5 s apart (the lower key now and then), some with
-/// a STOP in the same step before or after the press; inputs already down when a press comes; touches anywhere,
-/// filtered or not; every reason every hold ends for; the app coming back, the aids and the mode changing; scene
-/// resets and wrist starts; spells of facts that refuse, `.wait` among them; and a final every-hold-ends after every
-/// release.
+/// a STOP in the same step before or after the press; with variant 2, thumbs landing during the hold on a half or in
+/// the centre band and sliding up, and the top band or the gear touched during it; inputs already down when a press
+/// comes; touches anywhere, filtered or not; every reason every hold ends for; the app coming back, the aids and the
+/// mode changing; scene resets and wrist starts; spells of facts that refuse, `.wait` among them; and a final
+/// every-hold-ends after every release.
 struct AssistScenario {
     struct Step {
         var time: TimeInterval
@@ -560,8 +716,13 @@ struct AssistScenario {
 
     static func generate(_ rng: inout SplitMix64, index: Int) -> AssistScenario {
         let base = Scenario.generate(&rng, index: index)
+        let roll = rng.uniform(0, 1)
         let assist =
-            rng.chance(0.2) ? Assist.off : Assist(lock: LockRule(variant: .pressPress, timeLimitS: rng.uniform(0.3, 3)))
+            roll < 0.2
+            ? Assist.off
+            : Assist(
+                lock: LockRule(variant: roll < 0.6 ? .pressPress : .holdThenSlide, timeLimitS: rng.uniform(0.3, 3)))
+        let slides = assist.lock?.variant == .holdThenSlide
         let layout = ArbiterRig.layout
         var steps = base.timeline.map { Step(time: $0.time, order: $0.order, events: [$0.event]) }
         var order = steps.count
@@ -592,7 +753,10 @@ struct AssistScenario {
         let start = keysFree + rng.uniform(0.05, 0.3)
         let end = start + rng.uniform(1, 4)
 
-        // Presses, each perhaps with inputs already down when it comes, or with a STOP in its step.
+        // The phone at rest again, so a turn of a few degrees below is one.
+        add(start - 0.01, [.attitude(Phone.rest)])
+        // Presses, each perhaps with inputs already down when it comes, or with a STOP in its step; with variant 2, a
+        // thumb landing during the hold, and the top band or the gear touched during it.
         var t = start
         while t < end {
             let key: InputKey = rng.chance(0.8) ? .upper : .lower
@@ -627,7 +791,53 @@ struct AssistScenario {
                     add(t + rng.uniform(0.02, 0.45), [touch(id, .ended, p, 10)])
                 }
             }
-            let length = rng.uniform(0.03, 0.6)
+            let length = slides && key == .upper ? rng.uniform(0.2, 2) : rng.uniform(0.03, 0.6)
+            if slides, key == .upper, rng.chance(0.7) {
+                // A thumb lands on a half or in the centre band, and slides 6 to 14 mm at angles around up, at 1 to
+                // 40 ms a millimetre, some pausing, some after the phone turned 5 degrees.
+                let id = newID()
+                let surface = layout.controlSurface
+                let x =
+                    rng.chance(0.4)
+                    ? rng.uniform(185, 217) : rng.chance(0.5) ? rng.uniform(40, 170) : rng.uniform(232, 362)
+                var p = SIMD2(x, rng.uniform(surface.y + 120, surface.maxY - 10))
+                var when = t + rng.uniform(0.02, 0.3)
+                add(when, [touch(id, .began, p, rng.uniform(6, 60))])
+                if rng.chance(0.2) {
+                    for i in 1...6 {
+                        when += 1.0 / 60
+                        add(when, [.attitude(Phone.attitude(turn: Double(i)))])
+                    }
+                }
+                when += rng.uniform(0, 0.08)
+                let mm = rng.uniform(6, 14)
+                let degrees = 90 + rng.uniform(-35, 35)
+                let perMm = rng.uniform(0.001, 0.04)
+                let pauseAfter = rng.chance(0.25) ? 1 + Int(rng.next() % 8) : -1
+                let step = SIMD2(cos(degrees * .pi / 180), -sin(degrees * .pi / 180)) * ArbiterRig.pointsPerMm
+                var travelled = 0.0
+                var moves = 0
+                while travelled < mm - 1e-9 {
+                    let d = min(1, mm - travelled)
+                    travelled += d
+                    when += perMm * d
+                    p += step * d
+                    add(when, [touch(id, .moved, p, 20)])
+                    moves += 1
+                    if moves == pauseAfter { when += rng.uniform(0.2, 0.5) }
+                }
+                add(when + rng.uniform(0.02, 0.5), [touch(id, rng.chance(0.1) ? .cancelled : .ended, p, 20)])
+            }
+            if slides, key == .upper, rng.chance(0.3) {
+                let id = newID()
+                let p =
+                    rng.chance(0.5)
+                    ? SIMD2(rng.uniform(80, 380), rng.uniform(70, layout.topBand.maxY - 1))
+                    : SIMD2(rng.uniform(layout.gear.x + 13, layout.gear.maxX - 1), layout.gear.y + 20)
+                let when = t + rng.uniform(0.02, 0.3)
+                add(when, [touch(id, .began, p, 10)])
+                add(when + rng.uniform(0.05, 1), [touch(id, .ended, p, 10)])
+            }
             if rng.chance(0.1) {
                 let id = newID()
                 let p = SIMD2(rng.uniform(20, 380), layout.bottomBand.y + 20)

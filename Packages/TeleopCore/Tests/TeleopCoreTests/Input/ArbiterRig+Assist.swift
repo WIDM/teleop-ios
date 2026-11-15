@@ -15,6 +15,11 @@ extension ArbiterRig {
         Assist(lock: LockRule(variant: .pressPress, timeLimitS: limit))
     }
 
+    /// Lock, variant 2, with the SO-101's 30 s limit unless another is given.
+    static func lockHoldSlide(limit: Double = 30) -> Assist {
+        Assist(lock: LockRule(variant: .holdThenSlide, timeLimitS: limit))
+    }
+
     /// Variant 1: a press of the upper key latches; it is released at once.
     @discardableResult
     mutating func latchByPress(after dt: TimeInterval = 0) -> [InputCommand] {

@@ -33,6 +33,18 @@ final class ThumbSlideTests: XCTestCase {
         XCTAssertEqual(judge(down + SIMD2(0, -30)), .short)
     }
 
+    /// 10 mm in points, measured back in millimetres, can come out a hair under 10 in floating point; it is still a
+    /// slide of 10 mm.
+    func testTenMillimetresThatRoundJustUnderAreStillASlide() {
+        let layout = SurfaceLayout(width: 402, height: 874, safeTop: 62, safeBottom: 34, pointsPerMm: 4.54)
+        let at = moved(right: 0, up: 10, on: layout)
+        let measured = layout.millimetres(down.y - at.y)
+        XCTAssertLessThan(measured, 10, "the case this test is about")
+        XCTAssertGreaterThan(measured, 10 - 1e-9)
+        XCTAssertEqual(judge(at, on: layout), .up)
+        XCTAssertEqual(judge(moved(right: 10, up: 0, on: layout), on: layout), .sideways)
+    }
+
     func testMostlyUpAndUpMillimetres() {
         XCTAssertTrue(ThumbSlide.mostlyUp(from: down, to: moved(right: 0, up: 1)))
         XCTAssertTrue(ThumbSlide.mostlyUp(from: down, to: moved(right: -0.9, up: 1)))

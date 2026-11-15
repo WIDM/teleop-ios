@@ -89,6 +89,17 @@ public struct InputArbiter: Sendable {
         var mapper: RotationMapper
         var phase: Phase
         var windowEnded = false
+        /// Variant 2: it began during the upper key's translation hold, and may latch that hold by sliding up.
+        var latch: LatchAttempt?
+    }
+
+    /// A thumb that may latch the upper key's hold by sliding up the glass (variant 2).
+    private struct LatchAttempt: Equatable, Sendable {
+        /// It has gone `slideUnderWayMm` up the glass while mostly up, and stayed mostly up since.
+        var underWay = false
+        /// A NO the 1.0.1 rules owed it fell due while it was under way. It plays when the attempt ends without a
+        /// latch; a latch drops it.
+        var withheldNO = false
     }
 
     public init(
@@ -441,8 +452,13 @@ public struct InputArbiter: Sendable {
                     phase = engaged != nil ? .dead(owesNO: true) : .waiting
                 }
             }
-            touches[s.id] = .surface(
-                SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase))
+            var touch = SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase)
+            if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation) {
+                // Anywhere on the surface, scheme B's centre band included, a thumb may latch the upper key's hold.
+                // Its phase stays as 1.0.1 has it.
+                touch.latch = LatchAttempt()
+            }
+            touches[s.id] = .surface(touch)
         }
     }
 
@@ -467,6 +483,8 @@ public struct InputArbiter: Sendable {
         guard case .surface(var touch)? = touches[s.id] else { return }
         touch.at = SIMD2(s.x, s.y)
         touches[s.id] = .surface(touch)
+        // The attempt is followed first, so a NO that falls due now is withheld if the slide is under way.
+        if touch.latch != nil { followAttempt(s.id) }
         if touch.windowEnded { judge(s.id) }
     }
 
@@ -477,6 +495,8 @@ public struct InputArbiter: Sendable {
             break
         case .surface(let touch):
             if touch.phase == .engaged, case .held(.touch(id), _)? = engaged { stopEngaged() }
+            // Lifted without a latch: the NO it withheld plays now.
+            if touch.latch?.withheldNO == true { cue(.dead) }
         case .band(let band):
             switch band.phase {
             case .pending, .live:
@@ -575,7 +595,7 @@ public struct InputArbiter: Sendable {
             }
         case .dead(owesNO: true):
             switch outcome {
-            case .wrist, .open: cue(.dead)
+            case .wrist, .open: oweNO(id)
             case .unclear, .sideways: break
             }
             markDead(id)
@@ -610,11 +630,24 @@ public struct InputArbiter: Sendable {
             touches[id] = .surface(touch)
             if !start(.gripper(action), by: .touch(id)) { markDead(id) }
         case .dead(owesNO: true):
-            cue(.dead)
+            oweNO(id)
             markDead(id)
         case .dead(owesNO: false), .engaged:
             break
         }
+    }
+
+    /// A NO the 1.0.1 rules owe this touch falls due. It plays now, unless the touch is a latch attempt under way: then
+    /// it waits until the attempt ends, and a latch drops it. An attempt that played its NO is spent.
+    private mutating func oweNO(_ id: Int) {
+        guard case .surface(var touch)? = touches[id], var attempt = touch.latch, attempt.underWay else {
+            cue(.dead)
+            endAttempt(id)
+            return
+        }
+        attempt.withheldNO = true
+        touch.latch = attempt
+        touches[id] = .surface(touch)
     }
 
     private mutating func markDead(_ id: Int) {
@@ -807,11 +840,14 @@ public struct InputArbiter: Sendable {
 
     /// Sends the stop for the engaged hold (I-1).
     private mutating func stopEngaged() {
-        guard case .held(_, let kind)? = engaged else { return }
+        guard case .held(let input, let kind)? = engaged else { return }
         engaged = nil
         switch kind {
         case .translation:
             out.append(.stopTranslation)
+            // Variant 2: with the upper key's hold over, nothing is left to latch; a NO an attempt withheld plays
+            // after the stop.
+            if input == .key(.upper) { endAttempts() }
         case .gripper:
             out.append(.stopGripper)
         case .wrist:
@@ -830,6 +866,7 @@ public struct InputArbiter: Sendable {
             out.append(.resetCountdownCancelled)
         }
         stopEngaged()
+        endAttempts()
         for key in keys.keys { keys[key] = .dead }
         for (id, role) in touches {
             switch role {
@@ -888,14 +925,18 @@ public struct InputArbiter: Sendable {
         cue(.drive(.latched))
     }
 
-    /// Runs once per call, after the call's events, which have already ended a move nobody holds if one of them was
-    /// going to. Posture, tracking and the time limit cover a latched follow from its first moment.
+    /// Runs once per call, after the call's events. A variant 2 thumb latches here, never in a call that held a STOP;
+    /// then a move nobody holds is checked, which an input in this call has already ended if it was going to. Posture,
+    /// tracking and the time limit cover a latched follow from its first moment.
     ///
     /// The refusal backstop ends it for a refusal that means the session cannot run a hold (no link, stopped, slow
     /// link, settings open); the session's own ending for those arrives in the same turn, so this is a last resort,
     /// heard as the unnamed ending. It never ends one on `.wait`: the server shows a success or is resetting, ends the
     /// hold itself, and the link reports it; a success is told by its sound and narration.
     private mutating func gate() {
+        if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
+            latchBySlide()
+        }
         guard case .latched(let since)? = engaged else { return }
         if let refusal = facts.refusal, refusal != .wait {
             endLoose(.ended(.unnamed))
@@ -908,17 +949,70 @@ public struct InputArbiter: Sendable {
         }
     }
 
+    /// Variant 2: a thumb whose palm window is over and whose slide from touch-down is a deliberate one up the glass
+    /// (`ThumbSlide`) latches the upper key's hold. The session's hold goes on, so nothing is sent; the key, still
+    /// down, and the thumb are dead from now on. When a fact refuses translation the thumb is spent instead, and a NO
+    /// it withheld plays, as 1.0.1 owed it.
+    private mutating func latchBySlide() {
+        for id in touches.keys.sorted() {
+            guard case .surface(let touch)? = touches[id], touch.latch != nil, touch.windowEnded,
+                ThumbSlide.judge(from: touch.down, to: touch.at, layout: layout, constants: constants) == .up
+            else { continue }
+            if refusal(for: .translation) != nil {
+                endAttempt(id)
+            } else {
+                engaged = .latched(since: now)
+                deadenInputsDown()
+                cue(.drive(.latched))
+            }
+            return
+        }
+    }
+
+    /// Variant 2: where a latch attempt's slide has got to. Once it has gone `slideUnderWayMm` up the glass while
+    /// mostly up it is under way, and a NO it owes waits; it ends, playing a NO it withheld, when it stops being
+    /// mostly up after that, or when the slide turns out sideways.
+    private mutating func followAttempt(_ id: Int) {
+        guard case .surface(var touch)? = touches[id], var attempt = touch.latch else { return }
+        let mostlyUp = ThumbSlide.mostlyUp(from: touch.down, to: touch.at)
+        let up = ThumbSlide.upMillimetres(from: touch.down, to: touch.at, layout: layout)
+        if mostlyUp, up >= constants.slideUnderWayMm - 1e-9 {
+            attempt.underWay = true
+        } else if attempt.underWay, !mostlyUp {
+            return endAttempt(id)
+        }
+        if ThumbSlide.judge(from: touch.down, to: touch.at, layout: layout, constants: constants) == .sideways {
+            return endAttempt(id)
+        }
+        touch.latch = attempt
+        touches[id] = .surface(touch)
+    }
+
+    /// Ends a latch attempt without a latch: a NO it withheld plays now.
+    private mutating func endAttempt(_ id: Int) {
+        guard case .surface(var touch)? = touches[id], let attempt = touch.latch else { return }
+        touch.latch = nil
+        touches[id] = .surface(touch)
+        if attempt.withheldNO { cue(.dead) }
+    }
+
+    /// Every latch attempt ends without a latch, in a fixed order.
+    private mutating func endAttempts() {
+        for id in touches.keys.sorted() { endAttempt(id) }
+    }
+
     /// A move nobody holds begins: every input already down becomes dead and silent, as `endAllHolds` marks them but
-    /// without a stop. Each surface touch, undecided or dead but still owing a NO, becomes dead owing nothing; each top
-    /// band or gear touch becomes dead owing nothing, so no countdown, no Settings and no "Let go first."; each key
-    /// down becomes dead. Their later moves, timers, lifts and releases emit nothing. Only an input that goes down
-    /// after the start can end the move.
+    /// without a stop. Each surface touch, undecided or dead but still owing a NO, becomes dead owing nothing, and a
+    /// latch attempt's withheld NO is dropped; each top band or gear touch becomes dead owing nothing, so no countdown,
+    /// no Settings and no "Let go first."; each key down becomes dead. Their later moves, timers, lifts and releases
+    /// emit nothing. Only an input that goes down after the start can end the move.
     private mutating func deadenInputsDown() {
         for key in keys.keys { keys[key] = .dead }
         for (id, role) in touches {
             switch role {
             case .surface(var touch):
                 touch.phase = .dead(owesNO: false)
+                touch.latch = nil
                 touches[id] = .surface(touch)
             case .band(var band):
                 band.phase = .dead(owes: nil)

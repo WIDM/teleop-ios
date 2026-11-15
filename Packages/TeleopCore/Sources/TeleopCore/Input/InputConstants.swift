@@ -59,6 +59,13 @@ public struct InputConstants: Equatable, Sendable {
     // Reset (I-3)
     public var resetHoldS: Double
 
+    // Thumb gestures of the aids. Not in Appendix A; kept here so every input threshold has one source.
+
+    /// A thumb sliding toward a lock is under way once it has gone this far up the glass while mostly up, millimetres.
+    /// From then on a NO it owes waits until it latches, lifts or turns away. Evidence that would change it: hand
+    /// traces of the gesture.
+    public var slideUnderWayMm: Double
+
     public init(
         rollClampDeg: Double = 55, tiltClampDeg: Double = 20,
         rollWindowDeg: Double = 150, tiltWindowDeg: Double = 25,
@@ -72,7 +79,7 @@ public struct InputConstants: Equatable, Sendable {
         gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874,
         referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
-        resetHoldS: Double = 2.0
+        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3
     ) {
         self.rollClampDeg = rollClampDeg
         self.tiltClampDeg = tiltClampDeg
@@ -103,6 +110,7 @@ public struct InputConstants: Equatable, Sendable {
         self.keyReplayMs = keyReplayMs
         self.keyReplayGuard = keyReplayGuard
         self.resetHoldS = resetHoldS
+        self.slideUnderWayMm = slideUnderWayMm
     }
 
     /// Appendix A as written. `rollSign` and `tiltSign` are +1 until C-I5 measures them.
