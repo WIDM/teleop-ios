@@ -51,6 +51,15 @@ final class FeedbackMonitorLowestTests: XCTestCase {
         }
     }
 
+    /// The full stall is lowest only with the command at least 10 mm below: 8 mm below and 7 mm across is mostly below
+    /// and still 10 mm away, so it is the blocked rule's stall, and no lowest height is kept.
+    func testAStallWithTheCommandMostlyBelowButUnderTenMillimetresBelowIsBlocked() {
+        monitor.startSent(.pose, restart: false, at: 0)
+        let events = stand(at: onTable, commanded: SIMD3(0.007, 0, -0.008), from: 200, through: 1600)
+        XCTAssertEqual(events.map(\.event), [.limit(.blocked)])
+        XCTAssertNil(monitor.lowestSeen)
+    }
+
     /// Pushing down past the box's floor sets the clamp label; blocked is silenced by it, lowest is not.
     func testLowestIsToldAfterAClamp() {
         monitor.startSent(.pose, restart: false, at: 0)
@@ -129,6 +138,24 @@ final class FeedbackMonitorLowestTests: XCTestCase {
             } else {
                 XCTAssertNil(told, "\(c)")
             }
+        }
+    }
+
+    /// Within 2 mm of the lowest height found counts below it as well as above: 1.5 mm below, sent 12 mm lower, is a
+    /// second visit, told within 0.4 s; 2.5 mm below waits for the blocked rule's full second. Either way the lower
+    /// height is then the lowest.
+    func testTheQuickerStallIsWithinTwoMillimetresBelowTheLowestHeightToo() {
+        for (below, toldByMs) in [(0.0015, 400), (0.0025, 1000)] {
+            setUp()
+            monitor.startSent(.pose, restart: false, at: 0)
+            _ = stand(at: onTable, commanded: SIMD3(0, 0, -0.02), from: 200, through: 1600)
+            monitor.released(.pose)
+            monitor.startSent(.pose, restart: false, at: 2000)
+            let lower = onTable - SIMD3(0, 0, below)
+            let events = stand(at: lower, commanded: SIMD3(0, 0, -0.012), from: 2200, through: 4400)
+            XCTAssertEqual(events.map(\.event), [.limit(.lowest)], "\(below)")
+            XCTAssertEqual(events.first.map { $0.atMs - 2200 }, toldByMs, "\(below)")
+            XCTAssertEqual(monitor.lowestSeen, lower.z, "\(below)")
         }
     }
 

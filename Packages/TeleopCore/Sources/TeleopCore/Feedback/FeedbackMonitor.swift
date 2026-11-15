@@ -43,9 +43,9 @@ public struct FeedbackMonitor {
 
     public let limits: GripperLimits
     /// With the guide's aids on: a stall against a downward command is `.limit(.lowest)` in place of
-    /// `.limit(.blocked)`, not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets the
-    /// clamp label, just when the operator needs to hear it), and told once per approach. False is version 1.0.1, and
-    /// forgets `lowestSeen`.
+    /// `.limit(.blocked)`, not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets
+    /// the clamp label, just when the operator needs to hear it), and told once per approach. False is version 1.0.1,
+    /// and forgets `lowestSeen`.
     public var reportsLowest = false {
         didSet { if !reportsLowest { lowestSeen = nil } }
     }
