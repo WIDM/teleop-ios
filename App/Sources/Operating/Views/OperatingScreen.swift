@@ -388,8 +388,8 @@ private struct PhoneSurface: View {
                 StateWords(
                     look: look, practice: display.practice, wordSize: Self.wordSize(scale),
                     detailSize: max(15, 20 * scale))
-                if display.taskAid, let arm = display.arm {
-                    GuideView(picture: GuidePicture(reading: arm, profile: profile), scale: scale)
+                if display.taskAid, let picture = display.guide {
+                    GuideView(picture: picture, scale: scale)
                 } else {
                     Spacer(minLength: 0)
                 }

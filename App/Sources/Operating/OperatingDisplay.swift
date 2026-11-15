@@ -58,4 +58,7 @@ struct OperatingDisplay: Equatable, Sendable {
     var arm: ArmReading?  // nil until the server has reported the arm
     var practice: Bool
     var taskAid: Bool
+    /// The guide as numbers, built once per refresh from `arm`: the screen draws this picture and the on-target cue
+    /// judges by it, so the two cannot disagree. Nil while there is no arm reading.
+    var guide: GuidePicture? = nil
 }

@@ -652,16 +652,16 @@ final class AppModel {
     private func refreshOperating() {
         guard fixture == nil, let controller else { return }
         let s = session.state
+        let arm =
+            s.liveLink
+            ? OperatingRules.arm(serverState, commanded: link.commandedArm, gripping: gripping, profile: profile) : nil
         let display = OperatingDisplay(
             mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
             engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
             resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
             speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
-            latencyMs: s.latencyMs, address: s.serverAddress,
-            arm: s.liveLink
-                ? OperatingRules.arm(serverState, commanded: link.commandedArm, gripping: gripping, profile: profile)
-                : nil,
-            practice: !s.liveLink, taskAid: taskAidSetting
+            latencyMs: s.latencyMs, address: s.serverAddress, arm: arm, practice: !s.liveLink, taskAid: taskAidSetting,
+            guide: arm.map { GuidePicture(reading: $0, profile: profile) }
         )
         if operating != display { operating = display }
         feelOnTarget(display)
@@ -672,7 +672,8 @@ final class AppModel {
         // Only with the server connected: practice draws no arm, and a closed link leaves its last state behind, which
         // must not count as a target reported anew when the link or the real server comes back.
         guard session.state.liveLink, session.state.connected else { return }
-        let picture = display.arm.map { GuidePicture(reading: $0, profile: profile) }
+        // The picture the screen draws: the cue judges by what is shown, never by a second picture of its own.
+        let picture = display.guide
         // A stop the server reports counts before the session has latched it: the same state may bring both.
         let stopped = session.state.emergencyStop || serverState?.estop == true
         let look = OnTargetCue.Look(

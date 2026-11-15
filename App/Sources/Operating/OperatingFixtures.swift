@@ -71,6 +71,7 @@ enum OperatingFixtures {
         return all
     }()
 
+    /// The guide is built from the reading as the model builds it, so a fixture draws exactly what the app would.
     private static func display(
         _ state: OperatingState, mode: ControlMode = .screenTurns, link: Bool = true, arm: ArmReading?,
         recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60
@@ -80,7 +81,7 @@ enum OperatingFixtures {
             speed: .coarse, recorder: recorder,
             stopExits: practice ? StopExits.offered(recorder: nil, practice: true) : exits,
             linkUp: link || practice, latencyMs: link ? latency : nil, address: "192.168.0.10:8765", arm: arm,
-            practice: practice, taskAid: true
+            practice: practice, taskAid: true, guide: arm.map { GuidePicture(reading: $0, profile: profile) }
         )
     }
 
