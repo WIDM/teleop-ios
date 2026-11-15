@@ -211,6 +211,9 @@ final class OperatingController {
         }
     }
 
+    /// The move nobody holds, for the screen's words; nil otherwise.
+    var loose: Engagement? { arbiter.engagement.flatMap { $0.isLoose ? $0 : nil } }
+
     /// 0…1 while the top band is held toward a reset.
     var resetCountdown: Double? {
         countdownStartedAt.map { min(max((now() - $0) / arbiter.constants.resetHoldS, 0), 1) }

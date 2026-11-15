@@ -41,13 +41,24 @@ struct TutorialScreen: View {
         default:
             // Holding still while the arm catches up is for the phone's motion: a held arrow keeps moving the arm.
             let holdStill: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.hold_still"]
+            // Lock is a gesture of the keys and the thumb: the pad's arrows never latch.
+            let lock: [LocalizedStringKey] = mode == .buttons ? [] : lockLine(model.assist.lock?.variant)
             return Page(
                 title: "tutorial.cues.title",
                 lines: ["tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go"]
                     + holdStill + [
                         "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
                         "tutorial.cue.grip", "tutorial.cue.alarm",
-                    ])
+                    ] + lock)
+        }
+    }
+
+    /// How the chosen lock latches and how it stops; nothing when no lock is in force.
+    private func lockLine(_ variant: LockVariant?) -> [LocalizedStringKey] {
+        switch variant {
+        case .pressPress?: return ["tutorial.cue.lock_press"]
+        case .holdThenSlide?: return ["tutorial.cue.lock_slide"]
+        case nil: return []
         }
     }
 

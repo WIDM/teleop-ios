@@ -36,6 +36,10 @@ enum OperatingWords {
             return Look(
                 word: L10n.string("state.moving"), details: detail.map { [L10n.string($0)] } ?? [],
                 colour: TeleopColors.stateBlue)
+        case .locked(let catchingUp):
+            // In the moving colour, since the arm moves; no key is held to let go of, so the detail says how it stops.
+            let details = [L10n.string("detail.stop_any")] + (catchingUp ? [L10n.string("detail.catching_up")] : [])
+            return Look(word: L10n.string("state.locked"), details: details, colour: TeleopColors.stateBlue)
         case .turning(let degrees, let limit, let estimated):
             return Look(
                 word: L10n.string("state.turning"), details: [progress(degrees, limit, estimated)],

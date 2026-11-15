@@ -577,6 +577,22 @@
         }
       }
     },
+    "detail.stop_any": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any key or touch stops it"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按任一鍵或觸碰即停"
+          }
+        }
+      }
+    },
     "detail.tap_to_connect": {
       "localizations": {
         "en": {
@@ -1809,6 +1825,70 @@
         }
       }
     },
+    "settings.lock": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定"
+          }
+        }
+      }
+    },
+    "settings.lock_hold_slide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold, then slide a thumb up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住，再用拇指往上滑"
+          }
+        }
+      }
+    },
+    "settings.lock_off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關"
+          }
+        }
+      }
+    },
+    "settings.lock_press_press": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press, then press to stop"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按一下，再按一下就停"
+          }
+        }
+      }
+    },
     "settings.log_empty": {
       "localizations": {
         "en": {
@@ -2241,6 +2321,22 @@
         }
       }
     },
+    "state.locked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locked on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已鎖定"
+          }
+        }
+      }
+    },
     "state.moving": {
       "localizations": {
         "en": {
@@ -2621,6 +2717,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "長震兩下：手機替你放開了，放開再按。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.lock_press": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock: a press of the upper key keeps the arm following. Any key or touch stops it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定：按一下上面的音量鍵，手臂就一直跟著手機。按任一鍵或觸碰即停。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.lock_slide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock: while holding the upper key, slide a thumb up. Any key or touch stops it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定：按住上面的音量鍵時，拇指在螢幕上往上滑。按任一鍵或觸碰即停。"
           }
         }
       }

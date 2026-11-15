@@ -738,6 +738,7 @@ final class AppModel {
         facts.commandsBlocked = s.commandsBlocked
         facts.latencyMs = s.latencyMs
         facts.engaged = controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind)
+        facts.loose = controller.loose
         facts.wristTarget = controller.wristTarget
         facts.wristMeasured = serverState?.wristRollDeg != nil
         facts.catchingUp = catchingUp

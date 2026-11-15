@@ -36,8 +36,10 @@ final class GuideAidsScreenTests: XCTestCase {
 
     func testTheViewsSayWhichWayIsForwardAndWhichWayIsUp() {
         let labels = [
-            "en": ("From above. Up the screen is forward.", "From behind. Up the screen is up.", "Ready"),
-            "zh-Hant": ("從上面看。螢幕往上是前方。", "從後面看。螢幕往上是上方。", "就緒"),
+            "en": (
+                "From above. Up the screen is forward.", "From behind. Up the screen is up.", "Ready", "Height 6.2 cm"
+            ),
+            "zh-Hant": ("從上面看。螢幕往上是前方。", "從後面看。螢幕往上是上方。", "就緒", "離桌面 6.2 公分"),
         ]
         for size in Self.sizes {
             for (language, expected) in labels {
@@ -54,7 +56,7 @@ final class GuideAidsScreenTests: XCTestCase {
                     XCTAssertTrue(screen.contains(panel), "\(what): \(id) \(panel) leaves the screen")
                 }
                 // The lowest height is just above the table and the jaws 6 cm up: the height is the plain one.
-                XCTAssertTrue(app.element("readout.height").exists, what)
+                XCTAssertEqual(app.element("readout.height").label, expected.3, what)
             }
         }
     }

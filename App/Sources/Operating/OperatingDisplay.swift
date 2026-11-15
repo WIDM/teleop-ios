@@ -11,6 +11,8 @@ enum OperatingState: Equatable, Sendable {
     case connecting(address: String)
     case ready
     case moving(catchingUp: Bool)
+    /// The arm follows the phone with no key held, until any key or touch stops it.
+    case locked(catchingUp: Bool)
     case turning(degrees: Double, limit: Double, estimated: Bool)
     case tilting(degrees: Double, limit: Double, estimated: Bool)
     case opening

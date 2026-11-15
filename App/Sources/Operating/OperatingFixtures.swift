@@ -21,6 +21,8 @@ enum OperatingFixtures {
         all["moving"] = display(.moving(catchingUp: false), arm: task(moving: true), recorder: capturing)
         all["moving_hotel"] = display(.moving(catchingUp: true), arm: hotel(moving: true), recorder: notRecording)
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
+        // A follow nobody holds: lock chosen, the key let go of after the press.
+        all["locked"] = display(.locked(catchingUp: false), arm: task(moving: true), recorder: capturing)
         all["turning"] = display(
             .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
         var turningLeft = all["turning"]!

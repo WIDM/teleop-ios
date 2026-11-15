@@ -145,13 +145,25 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The aids' master switch. Off makes the operating screen, its cues and its guide those of version 1.0.1. It sits
-    /// above Recording, not at the end of the form: the UI tests reach the rows from Recording down with two swipes to
-    /// the bottom, and a section after About would push Recording out of their reach.
+    /// The aids' master switch, and lock when the robot allows it. Off makes the operating screen, its cues and its
+    /// guide those of version 1.0.1, so the lock row is disabled while the switch is off. It sits above Recording, not
+    /// at the end of the form: the UI tests reach the rows from Recording down with two swipes to the bottom, and a
+    /// section after About would push Recording out of their reach.
     private var assistSection: some View {
         Section {
             Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
                 .accessibilityIdentifier("settings.assist")
+            if model.profile.assist.lock != nil {
+                Picker(selection: $model.lockChoice) {
+                    Text("settings.lock_off").tag(LockChoice.off)
+                    Text("settings.lock_press_press").tag(LockChoice.pressPress)
+                    Text("settings.lock_hold_slide").tag(LockChoice.holdThenSlide)
+                } label: {
+                    Text("settings.lock")
+                }
+                .disabled(!model.assistOn)
+                .accessibilityIdentifier("settings.lock")
+            }
         } header: {
             Text("settings.assist")
         } footer: {

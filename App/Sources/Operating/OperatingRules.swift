@@ -20,6 +20,8 @@ struct OperatingFacts {
     var latencyMs: Int?
     /// The hold the input rules or the pad run now.
     var engaged: HoldKind?
+    /// The move nobody holds, when the input rules run one.
+    var loose: Engagement?
     /// The engaged wrist hold's target: its axis once committed, and the degrees asked for in this hold.
     var wristTarget = WristTarget.identity
     /// The server reports wrist angles; without them the angle shown is the one asked for, an estimate.
@@ -66,9 +68,12 @@ enum OperatingRules {
         return .ready
     }
 
+    /// A follow nobody holds sits where moving sits: under the stop, the link, the camera and a saved take, above a
+    /// refusal.
     private static func holding(_ held: HoldKind, _ f: OperatingFacts) -> OperatingState {
         switch held {
         case .translation:
+            if case .latched? = f.loose { return .locked(catchingUp: f.catchingUp) }
             return .moving(catchingUp: f.catchingUp)
         case .gripper(.open):
             return .opening
