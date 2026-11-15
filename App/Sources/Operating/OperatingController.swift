@@ -35,8 +35,6 @@ final class OperatingController {
     private var wasConnected: Bool
     private var wasBlocked: Bool
     private var cameraStopped = false
-    /// The reason given with the newest `holdsEnded` fed to the input rules.
-    private(set) var lastInterruption: Interruption?
     private var queue: [Step] = []
     private var running = false
     private var timer: Timer?
@@ -227,7 +225,6 @@ final class OperatingController {
     // MARK: Carrying out
 
     private func feed(_ events: [InputEvent], at time: TimeInterval) {
-        for case .holdsEnded(let reason) in events { lastInterruption = reason }
         enqueue(.events(events, time))
     }
 

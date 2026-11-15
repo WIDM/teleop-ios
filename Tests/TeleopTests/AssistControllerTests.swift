@@ -17,28 +17,38 @@ private final class ReasonTestTransport: LinkTransport {
     }
 }
 
-/// When every hold ends, the controller tells the input rules why, as far as the app knows it: a stop or a lost link
-/// has played its own cue, a refused start has played its refusal, and the slow link, leaving the operating screen,
-/// leaving the app and the camera stopping are named. A reason nobody gives is never taken for one already told.
+/// When every hold ends, the controller tells the input rules why, as far as the app knows it, and a follow nobody
+/// holds is heard ending for that reason: a stop or a lost link has played its own cue, a refused start has played its
+/// refusal, and the slow link, leaving the operating screen, leaving the app and the camera stopping are named. A
+/// reason nobody gives is heard as "Stopped here." alone, never taken for one already told. With a hold tied to an
+/// input the reason changes nothing anyone hears, so these run on a follow latched by a press of the upper key, chosen
+/// through the model.
 final class AssistControllerTests: XCTestCase {
     private var control: ReasonTestTransport?
     private var clock = 10_000
     private var model: AppModel!
     private var savedMode: String?
+    /// The cue log's length when the follow latched.
+    private var mark = 0
 
     override func setUp() {
         super.setUp()
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
     }
 
+    /// Both of the aids' settings are removed, never put back: a launch argument shadows the saved value, so a value
+    /// read here and written back could be the argument's, saved for good. The models here are given the aids and
+    /// save nothing; this keeps it so if a test ever sets them.
     override func tearDown() {
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
+        UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         model = nil
         control = nil
         super.tearDown()
     }
 
-    /// A model on a real server, in scheme A, whose link is not open yet.
+    /// A model on a real server, in scheme A, with lock variant 1, whose link is not open yet.
     private func makeModel() {
         clock = 10_000
         control = nil
@@ -52,9 +62,11 @@ final class AssistControllerTests: XCTestCase {
             },
             makeObserverTransport: { _ in ReasonTestTransport() },
             nowMs: { [unowned self] in clock },
-            inputClock: { [unowned self] in Double(clock) / 1000 }
+            inputClock: { [unowned self] in Double(clock) / 1000 },
+            assistOn: true, lockChoice: .pressPress
         )
         model.controlMode = .screenTurns
+        mark = model.cueLog.count
     }
 
     /// Standby with the link up.
@@ -67,70 +79,112 @@ final class AssistControllerTests: XCTestCase {
         XCTAssertTrue(model.session.state.connected)
     }
 
-    /// The upper key moves the arm.
-    private func holdTheArm() {
+    /// The upper key's press starts the follow, and its release leaves it running.
+    private func latchTheArm(line: UInt = #line) {
         clock += 100
         model.keyEvent(.upper, down: true)
-        XCTAssertTrue(model.session.state.armMoving)
-        XCTAssertEqual(model.controller.engagedHold, .translation)
+        clock += 100
+        model.keyEvent(.upper, down: false)
+        XCTAssertTrue(model.session.state.armMoving, line: line)
+        guard case .latched? = model.controller.arbiter.engagement else {
+            return XCTFail("not latched: \(String(describing: model.controller.arbiter.engagement))", line: line)
+        }
+        XCTAssertEqual(model.cueLog.last?.event, .drive(.latched), line: line)
+        mark = model.cueLog.count
     }
 
-    private func assertEnded(_ reason: Interruption, _ message: String, line: UInt = #line) {
-        XCTAssertEqual(model.controller.lastInterruption, reason, message, line: line)
+    /// The endings of a follow heard since it latched.
+    private var endingsHeard: [DriveCue] {
+        model.cueLog.dropFirst(mark).compactMap { entry -> DriveCue? in
+            guard case .drive(let cue) = entry.event, cue != .latched else { return nil }
+            return cue
+        }
+    }
+
+    private func heardSinceTheLatch(_ event: CueKey) -> Bool {
+        model.cueLog.dropFirst(mark).contains { $0.event == event }
+    }
+
+    /// The follow ended, the session's hold with it, and exactly this ending was heard: none when someone else has
+    /// told it.
+    private func assertEnded(hearing ending: DriveEnd?, _ message: String, line: UInt = #line) {
+        XCTAssertEqual(endingsHeard, ending.map { [.ended($0)] } ?? [], message, line: line)
         XCTAssertNil(model.controller.arbiter.engagement, message, line: line)
         XCTAssertFalse(model.session.state.armMoving, message, line: line)
     }
 
     func testSessionChangedNamesTheReason() {
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.send(.stop)
-        assertEnded(.announced, "STOP: its ALARM has played")
+        assertEnded(hearing: nil, "STOP: its ALARM has played")
+        XCTAssertTrue(
+            model.cueLog.dropFirst(mark).contains {
+                if case .emergencyStop = $0.event { return true }
+                return false
+            }, "\(model.cueLog)")
 
         bringUp()
-        holdTheArm()
+        latchTheArm()
         control?.onClose?()
-        assertEnded(.announced, "a lost link: its sound and words have played")
+        assertEnded(hearing: nil, "a lost link: its sound and words have played")
+        XCTAssertTrue(heardSinceTheLatch(.linkLost(holdEngaged: true)))
 
         // The session is connected but no link is open, so the link cannot start the hold the session took.
         makeModel()
         model.session.state.markConnected()
         clock += 100
         model.keyEvent(.upper, down: true)
-        assertEnded(.startRefused, "a refused start: its refusal has played")
-        XCTAssertTrue(model.cueLog.contains { $0.event == .refused(.noLink) })
+        assertEnded(hearing: nil, "a refused start: its refusal has played")
+        XCTAssertTrue(heardSinceTheLatch(.refused(.noLink)))
 
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.send(.linkLatency(ms: 500))
         XCTAssertTrue(model.session.state.armMoving, "one slow sample is not a slow link")
+        XCTAssertEqual(endingsHeard, [])
         model.send(.linkLatency(ms: 500))
         XCTAssertTrue(model.session.state.commandsBlocked)
-        assertEnded(.slowLink, "a slow link")
+        assertEnded(hearing: .slowLink, "a slow link")
 
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.send(.openSettings)
         XCTAssertEqual(model.session.route, .s6)
-        assertEnded(.leftScreen, "leaving the operating screen")
+        assertEnded(hearing: .leftScreen, "leaving the operating screen")
 
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.send(.holdArmEnd)
-        assertEnded(.unnamed, "the session's hold ended and nobody said why")
+        assertEnded(hearing: .unnamed, "the session's hold ended and nobody said why")
     }
 
     func testLeavingTheAppAndTheCameraNameTheirReasons() {
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.activeChanged(false)
-        assertEnded(.appLeft, "the app left the active state")
+        assertEnded(hearing: .appLeft, "the app left the active state")
         model.activeChanged(true)
-        XCTAssertEqual(model.controller.lastInterruption, .appLeft, "coming back ends nothing")
+        XCTAssertEqual(endingsHeard, [.ended(.appLeft)], "coming back ends nothing more")
 
         bringUp()
-        holdTheArm()
+        latchTheArm()
         model.controller.cameraInterrupted(true)
-        assertEnded(.cameraStopped, "the camera stopped")
+        assertEnded(hearing: .cameraStopped, "the camera stopped")
+    }
+
+    /// The operator's own ending is carried to the model as such.
+    func testAPressThatEndsTheFollowIsHeardAsStoppedByYou() {
+        bringUp()
+        latchTheArm()
+        clock += 500
+        model.keyEvent(.lower, down: true)
+        XCTAssertEqual(endingsHeard, [.stoppedByYou])
+        XCTAssertNil(model.controller.arbiter.engagement)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertNil(model.session.state.gripperMoving, "the press that ended it moved nothing")
+        clock += 100
+        model.keyEvent(.lower, down: false)
+        XCTAssertEqual(endingsHeard, [.stoppedByYou])
     }
 }

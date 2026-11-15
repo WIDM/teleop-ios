@@ -55,7 +55,8 @@ public enum InputEvent: Equatable, Sendable {
     /// active state, a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or
     /// the server ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the
     /// call can return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare. For
-    /// a hold tied to an input and for the countdown every reason does the same.
+    /// a hold tied to an input and for the countdown every reason does the same; for a move nobody holds, the reason
+    /// picks the cue its ending plays.
     case holdsEnded(Interruption)
     /// The app is active again after leaving the active state (I-11, J8). It got no key-up or touch-up while away, so
     /// every touch held before is forgotten (its later samples are ignored), and a key held before no longer counts
@@ -73,8 +74,21 @@ public enum InputEvent: Equatable, Sendable {
     /// rotation made meanwhile is dropped (I-8.1), and the call returns the target to stream from now on.
     case wristStartSent
 
-    /// Every hold ends with no reason named. A path that knows why should say so with `holdsEnded(_:)`.
+    /// Every hold ends with no reason named. A path that knows why should say so with `holdsEnded(_:)`. A move nobody
+    /// holds that ends this way says "Stopped here.": a new ending path written with it is heard, never silent.
     public static let endAllHolds = InputEvent.holdsEnded(.unnamed)
+}
+
+/// Where the arm hold the session starts takes its motion from. The input rules record `.phone` for each
+/// `.startTranslation` of a call (`InputArbiter.startsThisCall`); the app also uses `.pad` for a direction button's
+/// hold.
+public enum ArmSource: Equatable, Sendable {
+    /// The link follows the phone: a held translation, or a follow latched with no input down.
+    case phone
+    /// The link streams the pad's ramp (buttons mode).
+    case pad
+    /// The link streams the offsets of a move to a point the operator chose.
+    case going
 }
 
 /// Why a press does nothing, as the operator will hear it (E2).

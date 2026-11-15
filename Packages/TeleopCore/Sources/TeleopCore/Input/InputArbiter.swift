@@ -2,7 +2,9 @@ import Foundation
 import simd
 
 /// Decides what every key press, touch and phone turn means under scheme A or B (INTERACTION Part 2), with the time
-/// passed in. Feed it events with the facts of the moment; it returns the commands to carry out, in order.
+/// passed in. Feed it events with the facts of the moment; it returns the commands to carry out, in order. It owns
+/// everything that moves the arm on the operator's behalf: a hold tied to an input that is down, and a follow latched
+/// with no input down. Each of those starts and ends here.
 ///
 /// It does not wait for the server: a start it issues is engaged until it issues the stop. Holding a start back
 /// behind a finishing hold is `TeleopLink`'s job.
@@ -33,6 +35,14 @@ public struct InputArbiter: Sendable {
     private var now: TimeInterval = -.infinity
     private var facts = InputFacts()
     private var out: [InputCommand] = []
+    /// An accepted STOP touch-down came earlier in this call: nothing later in it starts a move nobody holds.
+    private var stoppedInCall = false
+
+    /// What each `.startTranslation` the last call emitted was, in order: `.phone` for a held or latched start (the
+    /// link follows the phone). Emptied at the top of every call, so it is readable until the next one. Its owner
+    /// carries each start by this, never by `engagement` after the call: a STOP later in the same call has already
+    /// emptied the slot. Never `.pad`.
+    public private(set) var startsThisCall: [ArmSource] = []
 
     private enum KeyState: Equatable, Sendable { case engaged, dead }
 
@@ -131,9 +141,10 @@ public struct InputArbiter: Sendable {
     /// a `resetCountdownStarted` and `fireReset` read in the same step came from.
     public private(set) var countdownTouchID: Int?
 
-    /// What is engaged now: a hold and the input it is tied to, or the countdown.
+    /// What is engaged now: a hold and the input it is tied to, a follow nobody holds, or the countdown.
     public var engagement: Engagement? { engaged }
 
+    /// A follow nobody holds reports `.translation`, the hold the session runs for it.
     public var engagedHold: HoldKind? { engaged?.holdKind }
 
     /// A volume key or a control-surface touch is down, whatever it is doing (§0.2; the voice gate V-2).
@@ -141,8 +152,19 @@ public struct InputArbiter: Sendable {
         !keys.isEmpty || touches.values.contains { if case .surface = $0 { return true } else { return false } }
     }
 
-    /// When the next timer runs out, so the owner can tick then instead of waiting for its next 30 Hz tick.
-    public var nextDeadline: TimeInterval? { earliestDeadline()?.at }
+    /// When the next timer runs out, or a latched follow reaches its time limit, so the owner can tick then instead of
+    /// waiting for its next 30 Hz tick. The limit itself is judged after the events of a call, not fired as a timer.
+    public var nextDeadline: TimeInterval? {
+        let timer = earliestDeadline()?.at
+        guard let limit = looseDeadline else { return timer }
+        return min(timer ?? limit, limit)
+    }
+
+    /// When the move nobody holds must end at the latest.
+    private var looseDeadline: TimeInterval? {
+        guard case .latched(let since)? = engaged else { return nil }
+        return since + (assist.lock?.timeLimitS ?? 0)
+    }
 
     // MARK: Handling events
 
@@ -154,14 +176,22 @@ public struct InputArbiter: Sendable {
     /// before the touch moves given ahead of it (A-6t). Timers that ran out before this instant fire first; a timer
     /// that runs out at this very instant fires after the events, so a lift, a palm, a swipe or `holdsEnded` at the
     /// deadline still counts.
+    ///
+    /// Between the events and the timers of this instant, a follow nobody holds is checked once (`gate`). No aid has a
+    /// timer, so nothing before the events can start or end one, and a STOP among the events always comes ahead of
+    /// the checks' endings. The events keep their order under every configuration: a STOP ends the follow that exists
+    /// when it is applied, one latched earlier in the same call included, and nothing after it in the call starts one.
     public mutating func handle(_ events: [InputEvent], at time: TimeInterval, facts: InputFacts) -> [InputCommand] {
         out = []
         self.facts = facts
+        stoppedInCall = false
+        startsThisCall = []
         let time = max(time, now)
         advance(to: time, firingTies: false)
         for event in ordered(events) {
             apply(event)
         }
+        gate()
         advance(to: time, firingTies: true)
         return out
     }
@@ -207,14 +237,19 @@ public struct InputArbiter: Sendable {
         case .touch(let sample): touch(sample)
         case .attitude(let q): attitudeSample(q)
         case .tick: break
-        // Whatever the reason, every hold tied to an input and the countdown end alike.
-        case .holdsEnded: endAllHolds()
-        case .becameActive: becameActive()
+        case .holdsEnded(let reason): holdsEnded(reason)
+        case .becameActive:
+            // The app left without saying so first: a move nobody holds ran while it was away.
+            endLoose(.ended(.appLeft))
+            becameActive()
         case .modeChanged(let newScheme, let newHand):
+            // Sent only from Settings, where nothing is engaged; a move nobody holds still never ends in silence.
+            endLoose(.ended(.unnamed))
             endAllHolds()
             scheme = newScheme
             hand = newHand
         case .assistChanged(let newAssist):
+            endLoose(.ended(.unnamed))
             endAllHolds()
             assist = newAssist
         case .sceneReset:
@@ -240,6 +275,15 @@ public struct InputArbiter: Sendable {
 
     private mutating func keyDown(_ key: InputKey) {
         guard keys[key] == nil else { return }
+        if engaged?.isLoose == true {
+            // Any press ends a move nobody holds, ahead of every check below, a stale key's included. The key is dead
+            // and silent until released, so it starts nothing of its own.
+            staleKeys.remove(key)
+            keyBeganAt[key] = now
+            keys[key] = .dead
+            endLoose(.byYou)
+            return
+        }
         if staleKeys.remove(key) != nil {
             // Still held from before the app left, or pressed again after a release that never arrived: dead either
             // way, and the NO says to press again.
@@ -267,6 +311,13 @@ public struct InputArbiter: Sendable {
                 touch.phase = .dead(owesNO: false)
                 touches[id] = .surface(touch)
             }
+        }
+        if key == .upper, assist.lock?.variant == .pressPress {
+            // The press itself starts the follow. The key is dead from now on, so its release stops nothing and the
+            // next press ends the follow.
+            keys[key] = .dead
+            startLatched()
+            return
         }
         let kind: HoldKind
         switch (key, scheme) {
@@ -328,12 +379,23 @@ public struct InputArbiter: Sendable {
                 }
             }
             out.append(.emergencyStop)
+            stoppedInCall = true
+            // The stop goes first; then a move nobody holds ends, one latched earlier in this call included. The
+            // session's ALARM is its cue.
+            endLoose(.stop)
             if !facts.connectionUp { cue(.refused(.notStopped)) }
         case .gap:
             touches[s.id] = .ignored
         case .gear, .topBand:
             if palm || layout.isAtSideEdge(x: s.x) {
                 touches[s.id] = .ignored
+                return
+            }
+            if engaged?.isLoose == true {
+                // It ends the move nobody holds and does nothing else until lifted: no countdown, no Settings and no
+                // "Let go first.".
+                touches[s.id] = .band(BandTouch(downAt: now, onGear: zone == .gear, phase: .dead(owes: nil)))
+                endLoose(.byYou)
                 return
             }
             let phase: BandTouch.Phase
@@ -346,12 +408,27 @@ public struct InputArbiter: Sendable {
             }
             touches[s.id] = .band(BandTouch(downAt: now, onGear: zone == .gear, phase: phase))
         case .controlSurface:
-            let tracked = touches.values.contains { if case .surface = $0 { return true } else { return false } }
-            if palm || layout.isAtSideEdge(x: s.x) || tracked {
+            if palm || layout.isAtSideEdge(x: s.x) {
                 touches[s.id] = .ignored
                 return
             }
             let side = layout.side(x: s.x, hand: hand)
+            let point = SIMD2(s.x, s.y)
+            let mapper = RotationMapper(anchor: attitude, startsAtCommit: true, constants: constants)
+            if engaged?.isLoose == true {
+                // Anywhere on the surface, scheme B's centre band included, and even with another thumb tracked: one
+                // thumb at a time protects the gestures, never a move nobody holds. Dead and silent until lifted.
+                touches[s.id] = .surface(
+                    SurfaceTouch(
+                        downAt: now, down: point, at: point, side: side, mapper: mapper, phase: .dead(owesNO: false)))
+                endLoose(.byYou)
+                return
+            }
+            let tracked = touches.values.contains { if case .surface = $0 { return true } else { return false } }
+            if tracked {
+                touches[s.id] = .ignored
+                return
+            }
             let phase: SurfaceTouch.Phase
             switch scheme {
             case .screenTurns:
@@ -364,12 +441,8 @@ public struct InputArbiter: Sendable {
                     phase = engaged != nil ? .dead(owesNO: true) : .waiting
                 }
             }
-            let point = SIMD2(s.x, s.y)
             touches[s.id] = .surface(
-                SurfaceTouch(
-                    downAt: now, down: point, at: point, side: side,
-                    mapper: RotationMapper(anchor: attitude, startsAtCommit: true, constants: constants), phase: phase
-                ))
+                SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase))
         }
     }
 
@@ -695,6 +768,7 @@ public struct InputArbiter: Sendable {
         switch kind {
         case .translation:
             out.append(.startTranslation)
+            startsThisCall.append(.phone)
         case .gripper(let action):
             out.append(.startGripper(action))
         case .wrist:
@@ -781,4 +855,104 @@ public struct InputArbiter: Sendable {
     }
 
     private mutating func cue(_ cue: InputCue) { out.append(.cue(cue)) }
+
+    // MARK: A move nobody holds (lock)
+
+    /// How a move nobody holds ended, as the rules know it.
+    private enum LooseEnd: Equatable {
+        /// A key press, or a new touch the filters pass on the control surface, the top band or the gear.
+        case byYou
+        /// The STOP band. The session's ALARM is the cue.
+        case stop
+        /// Someone else has told it (`.announced`), or nothing moved (`.startRefused`).
+        case silent
+        case ended(DriveEnd)
+    }
+
+    /// Variant 1: the accepted press of the upper key starts a follow nobody holds. A press the facts refuse gets the
+    /// refusal a held start would get. After a STOP earlier in this call it is refused as the robot being stopped: the
+    /// facts are from before that STOP.
+    private mutating func startLatched() {
+        if let refusal = refusal(for: .translation) {
+            cue(.refused(refusal))
+            return
+        }
+        if stoppedInCall {
+            cue(.refused(.stopped))
+            return
+        }
+        engaged = .latched(since: now)
+        deadenInputsDown()
+        out.append(.startTranslation)
+        startsThisCall.append(.phone)
+        cue(.drive(.latched))
+    }
+
+    /// Runs once per call, after the call's events, which have already ended a move nobody holds if one of them was
+    /// going to. Posture, tracking and the time limit cover a latched follow from its first moment.
+    ///
+    /// The refusal backstop ends it for a refusal that means the session cannot run a hold (no link, stopped, slow
+    /// link, settings open); the session's own ending for those arrives in the same turn, so this is a last resort,
+    /// heard as the unnamed ending. It never ends one on `.wait`: the server shows a success or is resetting, ends the
+    /// hold itself, and the link reports it; a success is told by its sound and narration.
+    private mutating func gate() {
+        guard case .latched(let since)? = engaged else { return }
+        if let refusal = facts.refusal, refusal != .wait {
+            endLoose(.ended(.unnamed))
+        } else if facts.trackingRefusal != nil {
+            endLoose(.ended(.tracking))
+        } else if facts.translationRefusal != nil {
+            endLoose(.ended(.posture))
+        } else if now >= since + (assist.lock?.timeLimitS ?? 0) - Self.slack {
+            endLoose(.ended(.timeLimit))
+        }
+    }
+
+    /// A move nobody holds begins: every input already down becomes dead and silent, as `endAllHolds` marks them but
+    /// without a stop. Each surface touch, undecided or dead but still owing a NO, becomes dead owing nothing; each top
+    /// band or gear touch becomes dead owing nothing, so no countdown, no Settings and no "Let go first."; each key
+    /// down becomes dead. Their later moves, timers, lifts and releases emit nothing. Only an input that goes down
+    /// after the start can end the move.
+    private mutating func deadenInputsDown() {
+        for key in keys.keys { keys[key] = .dead }
+        for (id, role) in touches {
+            switch role {
+            case .surface(var touch):
+                touch.phase = .dead(owesNO: false)
+                touches[id] = .surface(touch)
+            case .band(var band):
+                band.phase = .dead(owes: nil)
+                touches[id] = .band(band)
+            case .ignored, .stop:
+                break
+            }
+        }
+    }
+
+    /// Ends the move nobody holds: the stop first, then the cue its ending plays. Does nothing when there is none, so
+    /// two endings in one call stop once and cue once.
+    private mutating func endLoose(_ how: LooseEnd) {
+        guard engaged?.isLoose == true else { return }
+        engaged = nil
+        out.append(.stopTranslation)
+        switch how {
+        case .byYou: cue(.drive(.stoppedByYou))
+        case .ended(let end): cue(.drive(.ended(end)))
+        case .stop, .silent: break
+        }
+    }
+
+    /// I-11 with its reason. For a hold tied to an input and for the countdown it is `endAllHolds` whatever the reason;
+    /// a move nobody holds ends with the cue the reason names, or none when its cue has played elsewhere.
+    private mutating func holdsEnded(_ reason: Interruption) {
+        switch reason {
+        case .announced, .startRefused: endLoose(.silent)
+        case .unnamed: endLoose(.ended(.unnamed))
+        case .appLeft: endLoose(.ended(.appLeft))
+        case .cameraStopped: endLoose(.ended(.cameraStopped))
+        case .leftScreen: endLoose(.ended(.leftScreen))
+        case .slowLink: endLoose(.ended(.slowLink))
+        }
+        endAllHolds()
+    }
 }
