@@ -2,10 +2,11 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
-/// A follow nobody holds on the operating screen. "Locked on" sits where "Moving" sits: under the stop, the link, the
-/// camera and a take just saved, above a refusal, and catching up as moving does; a hold someone holds is still
-/// "Moving". Its words say how it stops, in the moving colour, in both languages, and the app shows it from the press
-/// that latched it until the press that ends it.
+/// A follow or a move nobody holds on the operating screen. "Locked on" and "Going" sit where "Moving" sits: under the
+/// stop, the link, the camera and a take just saved, above a refusal, and catching up as moving does; a hold someone
+/// holds is still "Moving". Their words say how they stop, in the moving colour, in both languages, and the scheme's
+/// hints, whose touches would stop them, are hidden. The app shows a follow from the press that latched it until the
+/// press that ends it, and the guide is told where a move is headed.
 final class OperatingRulesAssistTests: XCTestCase {
     private var savedLanguage = L10n.language
     private var savedMode: String?
@@ -86,6 +87,86 @@ final class OperatingRulesAssistTests: XCTestCase {
         L10n.language = .zhHant
         XCTAssertEqual(OperatingWords.look(fixture).word, "已鎖定")
         XCTAssertEqual(OperatingWords.look(catchingUp).details, ["按任一鍵或觸碰即停", "手臂跟上中"])
+    }
+
+    /// A move to a point tapped on the guide sits where moving sits as well, and catches up as moving does.
+    func testGoingSitsWhereMovingSits() {
+        let going = connected {
+            $0.engaged = .translation
+            $0.loose = .going(target: SIMD3(0.07, -0.15, 0.09), since: 3)
+        }
+        XCTAssertEqual(OperatingRules.state(going), .going(catchingUp: false))
+        var catchingUp = going
+        catchingUp.catchingUp = true
+        XCTAssertEqual(OperatingRules.state(catchingUp), .going(catchingUp: true))
+
+        var everything = going
+        everything.emergencyStop = true
+        everything.cameraStopped = true
+        everything.lastRefusal = (.noLink, 9_900)
+        everything.lastSaved = (3, 9_900)
+        everything.commandsBlocked = true
+        XCTAssertEqual(OperatingRules.state(everything), .stopped(cause: nil), "the stop wins over everything")
+        everything.emergencyStop = false
+        everything.connected = false
+        XCTAssertEqual(OperatingRules.state(everything), .notConnected(reason: nil), "then the link")
+        everything.connected = true
+        XCTAssertEqual(OperatingRules.state(everything), .trackingLost, "then the camera")
+        everything.cameraStopped = false
+        XCTAssertEqual(OperatingRules.state(everything), .saved(count: 3), "then a take just saved")
+        everything.lastSaved = nil
+        XCTAssertEqual(OperatingRules.state(everything), .going(catchingUp: false), "then the move")
+        everything.engaged = nil
+        everything.loose = nil
+        XCTAssertEqual(OperatingRules.state(everything), .refused(.noLink), "then a refusal just heard")
+    }
+
+    /// "Going" in the colour of a moving arm, and how it stops, in both languages.
+    func testTheGoingWordsSayHowItStops() throws {
+        let fixture = try XCTUnwrap(OperatingFixtures.all["going"])
+        let moving = try XCTUnwrap(OperatingFixtures.all["moving"])
+        XCTAssertEqual(OperatingWords.look(fixture).word, "Going")
+        XCTAssertEqual(OperatingWords.look(fixture).details, ["Any key or touch stops it"])
+        XCTAssertEqual(OperatingWords.look(fixture).colour, OperatingWords.look(moving).colour, "the moving colour")
+        var catchingUp = fixture
+        catchingUp.state = .going(catchingUp: true)
+        XCTAssertEqual(OperatingWords.look(catchingUp).details, ["Any key or touch stops it", "Catching up"])
+        L10n.language = .zhHant
+        XCTAssertEqual(OperatingWords.look(fixture).word, "前往中")
+        XCTAssertEqual(OperatingWords.look(fixture).details, ["按任一鍵或觸碰即停"])
+    }
+
+    /// Where the move is headed reaches the guide's reading and changes nothing else in it; without a move the
+    /// reading is version 1.0.1's.
+    func testTheGoTargetReachesTheReading() throws {
+        let state = ServerState(activity: .poseTracking, endEffector: SIMD3(0.02, -0.14, 0.16))
+        let profile = RobotProfile.so101Simulator
+        let plain = try XCTUnwrap(OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile))
+        XCTAssertNil(plain.goTarget)
+        let target = SIMD3<Float>(0.07, -0.15, 0.09)
+        var going = try XCTUnwrap(
+            OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile, goTarget: target))
+        XCTAssertEqual(going.goTarget, target)
+        going.goTarget = nil
+        XCTAssertEqual(going, plain)
+    }
+
+    /// The scheme's hints name touches that move the jaws or the wrist; a follow or a move nobody holds is stopped by
+    /// those touches instead, so the hints are hidden then. Moving, a hold someone holds, shows them as in version
+    /// 1.0.1, and so does every other state.
+    func testTheSchemeHintsAreHiddenWhileLockedOrGoing() {
+        XCTAssertTrue(OperatingRules.hidesSchemeHints(.locked(catchingUp: false)))
+        XCTAssertTrue(OperatingRules.hidesSchemeHints(.locked(catchingUp: true)))
+        XCTAssertTrue(OperatingRules.hidesSchemeHints(.going(catchingUp: false)))
+        XCTAssertTrue(OperatingRules.hidesSchemeHints(.going(catchingUp: true)))
+        let shown: [OperatingState] = [
+            .ready, .moving(catchingUp: false), .moving(catchingUp: true), .opening, .closing(gripped: false),
+            .refused(.posture), .wait(.saving), .slowLink(ms: 450),
+        ]
+        for state in shown { XCTAssertFalse(OperatingRules.hidesSchemeHints(state), "\(state)") }
+        for name in ["locked", "going"] {
+            XCTAssertTrue(OperatingRules.hidesSchemeHints(OperatingFixtures.all[name]!.state), name)
+        }
     }
 
     /// In practice, with lock chosen as a press then a press: the screen says "Locked on" from the latching press,

@@ -22,25 +22,31 @@ private final class ReasonTestTransport: LinkTransport {
 /// refusal, and the slow link, leaving the operating screen, leaving the app and the camera stopping are named. A
 /// reason nobody gives is heard as "Stopped here." alone, never taken for one already told. With a hold tied to an
 /// input the reason changes nothing anyone hears, so these run on a follow latched by a press of the upper key, chosen
-/// through the model.
+/// through the model. Each start is carried as the kind the rules recorded: a tap's start as a move to a point.
 final class AssistControllerTests: XCTestCase {
     private var control: ReasonTestTransport?
     private var clock = 10_000
     private var model: AppModel!
     private var savedMode: String?
+    private var savedTaskAid: Any?
+    /// The phone is held turned 60 degrees on its side, which refuses a phone hold for posture.
+    private var tilted = false
     /// The cue log's length when the follow latched.
     private var mark = 0
 
     override func setUp() {
         super.setUp()
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
+        savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
     }
 
     /// Both of the aids' settings are removed, never put back: a launch argument shadows the saved value, so a value
     /// read here and written back could be the argument's, saved for good. The models here are given the aids and
-    /// save nothing; this keeps it so if a test ever sets them.
+    /// save nothing; this keeps it so if a test ever sets them. The task aid, which draws the guide a tap needs, is put
+    /// back as it was.
     override func tearDown() {
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         model = nil
@@ -52,9 +58,13 @@ final class AssistControllerTests: XCTestCase {
     private func makeModel() {
         clock = 10_000
         control = nil
+        tilted = false
         model = AppModel(
             start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(),
-            pose: { TestPose.portrait }, liveLink: true,
+            pose: { [unowned self] in
+                tilted ? TestPose.portrait(turned: 60, about: SIMD3(0, 0, 1)) : TestPose.portrait
+            },
+            liveLink: true,
             makeTransport: { [unowned self] _ in
                 let made = ReasonTestTransport()
                 control = made
@@ -203,5 +213,36 @@ final class AssistControllerTests: XCTestCase {
         clock += 100
         model.keyEvent(.lower, down: false)
         XCTAssertEqual(endingsHeard, [.stoppedByYou])
+    }
+
+    /// A tap on the guide's view from above starts a move to that point, which the rules record as such, and the
+    /// controller carries it as a move: the session and the link run it on the pad's path, so with the phone held on
+    /// its side, which refuses a phone hold, it starts with no refusal, and nobody holds it.
+    func testAGoingStartIsCarriedAsAGoingHold() throws {
+        bringUp()
+        model.taskAid = true
+        // The arm's pinch point at the travel height, and the guide's view from above where the reference phone draws
+        // it.
+        let pinch = SIMD3<Double>(0.03, -0.18, 0.09)
+        let gripper = pinch - SIMD3<Double>(model.profile.toolOffset)
+        control?.server("state", ["estop": false, "gripper": "open", "ee_pos": [gripper.x, gripper.y, gripper.z]])
+        model.guidePanelChanged(SurfaceLayout.Rect(x: 118, y: 262, width: 166, height: 166))
+        tilted = true
+        XCTAssertEqual(model.inputFacts().translationRefusal, .posture, "a phone hold would be refused")
+        let panel = try XCTUnwrap(model.inputFacts().goPanel)
+        let point = panel.point(over: SIMD3(0.07, -0.15, 0.09))
+        mark = model.cueLog.count
+        clock += 100
+        model.touch(TouchSample(id: 1, phase: .began, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        clock += 50
+        model.touch(TouchSample(id: 1, phase: .ended, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        XCTAssertEqual(model.controller.arbiter.startsThisCall, [.going], "the rules recorded a move")
+        guard case .going? = model.controller.arbiter.engagement else {
+            return XCTFail("no move: \(String(describing: model.controller.arbiter.engagement))")
+        }
+        XCTAssertTrue(model.session.state.armMoving, "the session runs it")
+        XCTAssertTrue(model.link.holdIsLoose, "nobody holds it")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "no refusal")
+        XCTAssertEqual(model.operating.state, .going(catchingUp: false))
     }
 }

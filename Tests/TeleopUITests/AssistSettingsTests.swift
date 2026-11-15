@@ -1,9 +1,10 @@
 import XCTest
 
 /// The aids' section in Settings: right after the Task aid section, above Recording, with the master switch and the
-/// lock row below it, which shows the lock chosen and is disabled while the switch is off; and the tutorial's line for
-/// the lock chosen. Each value is reached by a launch that pins it, never by turning it in the app: a UI test cannot
-/// remove a saved setting afterwards, and the other UI tests launch with neither of the aids' settings saved.
+/// lock row below it, which shows the lock chosen and is disabled while the switch is off; and the tutorial's lines for
+/// the lock chosen and for the tap on the guide. Each value is reached by a launch that pins it, never by turning it in
+/// the app: a UI test cannot remove a saved setting afterwards, and the other UI tests launch with neither of the aids'
+/// settings saved.
 final class AssistSettingsTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -82,6 +83,36 @@ final class AssistSettingsTests: XCTestCase {
                 attachScreenshot("tutorial-lock-\(one.lock)-\(one.language)")
             } else {
                 XCTAssertEqual(lockLines.count, 0, "\(what): no lock line")
+            }
+            app.terminate()
+        }
+    }
+
+    /// The tutorial's last page says a tap on the guide's view from above sends the jaws there, in the phone modes with
+    /// the switch on, in both languages; with the switch off or in buttons mode it has no such line.
+    func testTheTutorialTeachesTheTap() {
+        let cases: [(assist: String, mode: String, language: String, line: String?)] = [
+            ("YES", "screenTurns", "en", "Tap the view from above to send the jaws there."),
+            ("YES", "keyTurns", "zh-Hant", "點一下「從上面看」的圖，夾爪就會移到那裡。"),
+            ("NO", "screenTurns", "en", nil),
+            ("YES", "buttons", "en", nil),
+        ]
+        for one in cases {
+            let what = "\(one.assist) \(one.mode) \(one.language)"
+            let app = XCUIApplication.teleop(
+                ["-startRoute", "t3_tutorial", "-assist", one.assist, "-lockVariant", "off", "-controlMode", one.mode],
+                language: one.language)
+            app.launch()
+            expect(app, "tutorial.title")
+            let tapLines = app.staticTexts.containing(
+                NSPredicate(format: "label BEGINSWITH 'Tap the view from above' OR label BEGINSWITH '點一下「從上面看」'"))
+            if let line = one.line {
+                let shown = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", line)).firstMatch
+                XCTAssertTrue(shown.waitForExistence(timeout: 5), "\(what): the tap line")
+                XCTAssertEqual(tapLines.count, 1, what)
+                attachScreenshot("tutorial-tap-\(one.mode)-\(one.language)")
+            } else {
+                XCTAssertEqual(tapLines.count, 0, "\(what): no tap line")
             }
             app.terminate()
         }

@@ -1,15 +1,17 @@
 import XCTest
 
 /// The operating screen's fixtures for the aids, in English and in Traditional Chinese, at the test device's 874 pt and
-/// at 667 pt, with a screenshot attached: a follow nobody holds says "Locked on" and how it stops, and the guide drawn
-/// with its aids. No text leaves the screen, runs into another, covers the guide or reaches the gap above STOP. Each
-/// launch pins both of the aids' settings and changes neither.
+/// at 667 pt, with a screenshot attached: a follow nobody holds says "Locked on" and how it stops, a move to a tapped
+/// point says "Going", neither shows the scheme's hint, and the guide is drawn with its aids. No text leaves the
+/// screen, runs into another, covers the guide or reaches the gap above STOP. Each launch pins both of the aids'
+/// settings and changes neither.
 final class AssistOperatingScreenTests: XCTestCase {
     private static let aidsPinned = ["-assist", "YES", "-lockVariant", "off"]
 
     /// The fixture, and the state word it shows in English and in Chinese.
     private static let words: [String: (en: String, zh: String)] = [
         "locked": ("Locked on", "已鎖定"),
+        "going": ("Going", "前往中"),
         "ready_aids": ("Ready", "就緒"),
         "lowest_aids": ("Ready", "就緒"),
     ]
@@ -63,6 +65,20 @@ final class AssistOperatingScreenTests: XCTestCase {
             for id in ["guide.above", "guide.behind"] {
                 XCTAssertTrue(app.element(id).exists, "\(language): \(id)")
             }
+            XCTAssertFalse(app.element("operating.hint").exists, "\(language): no scheme hint, whose touches stop it")
+        }
+    }
+
+    /// A move to a point tapped on the guide says "Going" and how it stops, draws the guide with the cross where it is
+    /// headed (in the screenshot), and shows no scheme hint, whose touches would stop it.
+    func testGoing() {
+        render("going") { app, language in
+            let detail = language == "en" ? "Any key or touch stops it" : "按任一鍵或觸碰即停"
+            XCTAssertTrue(app.staticTexts[detail].exists, "\(language): how it stops")
+            for id in ["guide.above", "guide.behind"] {
+                XCTAssertTrue(app.element(id).exists, "\(language): \(id)")
+            }
+            XCTAssertFalse(app.element("operating.hint").exists, "\(language): no scheme hint, whose touches stop it")
         }
     }
 

@@ -5,7 +5,8 @@ import XCTest
 
 /// The guide's aids in the picture: the line naming the side the commanded place is outside on, "lowest" on the height
 /// and the lowest line from behind, the shadow's lift, and which way is forward and up. Each appears only with its own
-/// aid; no aids, or all of them off, is version 1.0.1's picture.
+/// aid; no aids, or all of them off, is version 1.0.1's picture. Where a move to a point is headed is marked whenever
+/// one runs.
 final class GuidePictureAssistTests: XCTestCase {
     private let profile = RobotProfile.so101Simulator
     private var centre: SIMD3<Float> { (profile.workspaceMin + profile.workspaceMax) / 2 }
@@ -181,6 +182,35 @@ final class GuidePictureAssistTests: XCTestCase {
         XCTAssertEqual(picture(gripperKept, .all).lines[0], .height(cm: cm))
         XCTAssertNil(picture(pinchKept, Self.only(\.shadow)).lowestY, "without its aid")
         XCTAssertEqual(picture(pinchKept, Self.only(\.shadow)).lines[0], .height(cm: cm), "without its aid")
+    }
+
+    /// Where a move to a point is headed is marked in both views, placed through the picture's projection as every
+    /// other mark is, with the aids or without them. Without a move there is no mark, and the mark changes nothing else
+    /// in the picture.
+    func testTheGoTargetIsMarkedInBothViews() throws {
+        let target = SIMD3<Float>(centre.x + 0.04, centre.y - 0.03, Float(table) + 0.05)
+        var going = reading()
+        going.goTarget = target
+        for aids in [nil, GuideAids.all] {
+            let p = picture(going, aids)
+            let mark = try XCTUnwrap(p.goTarget, "\(String(describing: aids))")
+            let point = GuidePicture.operatorPoint(target)
+            XCTAssertEqual(mark.above.x, p.projection.above(point).x, accuracy: 1e-12)
+            XCTAssertEqual(mark.above.y, p.projection.above(point).y, accuracy: 1e-12)
+            XCTAssertEqual(mark.behind.x, p.projection.behind(point).x, accuracy: 1e-12)
+            XCTAssertEqual(mark.behind.y, p.projection.behind(point).y, accuracy: 1e-12)
+            XCTAssertFalse(mark.pinned, "inside the box")
+            let without = picture(reading(), aids)
+            XCTAssertNil(without.goTarget)
+            XCTAssertEqual(p.lines, without.lines)
+            XCTAssertEqual(p.pinch, without.pinch)
+            XCTAssertEqual(p.commanded, without.commanded)
+            XCTAssertEqual(p.projection, without.projection)
+        }
+        let outside = SIMD3<Float>(profile.workspaceMax.x + 0.05, centre.y, Float(table) + 0.05)
+        var far = reading()
+        far.goTarget = outside
+        XCTAssertEqual(picture(far, nil).goTarget?.pinned, true, "a place off the view is pinned to its edge")
     }
 
     /// The shadow's lift: the pinch height above the table over the box's height above it, 0 at the table, 1 at the

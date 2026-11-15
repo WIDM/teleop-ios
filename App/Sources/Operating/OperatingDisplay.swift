@@ -13,6 +13,8 @@ enum OperatingState: Equatable, Sendable {
     case moving(catchingUp: Bool)
     /// The arm follows the phone with no key held, until any key or touch stops it.
     case locked(catchingUp: Bool)
+    /// The jaws go to a point tapped on the guide, with no key held, until they arrive or any key or touch stops them.
+    case going(catchingUp: Bool)
     case turning(degrees: Double, limit: Double, estimated: Bool)
     case tilting(degrees: Double, limit: Double, estimated: Bool)
     case opening
@@ -40,6 +42,8 @@ struct ArmReading: Equatable, Sendable {
     /// How far the workspace box is drawn from the profile's: the reading's gripper-to-pinch offset minus the
     /// profile's `toolOffset`. Zero unless the server reports a tool point.
     var boxShift: SIMD3<Float> = .zero
+    /// While a move to a point tapped on the guide runs: where it is headed, pinch point. Nil otherwise.
+    var goTarget: SIMD3<Float>? = nil
     /// The guide's aids: the side the commanded point is outside the work area on, the lowest gripper-link height a
     /// downward stall reached, and the lowest pinch-point height one reached when the server reports the pinch point.
     /// Nil with the aids off.

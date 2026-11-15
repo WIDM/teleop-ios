@@ -34,7 +34,9 @@ private final class LooseLinkTransport: LinkTransport {
 /// streaming the phone after the key is released. Every way the link ends it is heard once, as the follow's own
 /// ending ("Stopped here." and why), and the input rules then add nothing; a refusal the alarm tells is told by the
 /// alarm alone. A slow link is named by the input rules, never by a refusal. A hold someone holds is told as in
-/// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold.
+/// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold. A move
+/// to a point tapped on the guide streams the input rules' offsets through the lead cap and re-sends its start as a
+/// pad hold does.
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
     /// The listening connection's socket, once the link opened it.
@@ -46,6 +48,7 @@ final class AssistLinkTests: XCTestCase {
     private var speech = SpySpeech()
     private var savedLanguage = L10n.language
     private var savedMode: String?
+    private var savedTaskAid: Any?
     /// The cue log's length when the follow latched.
     private var mark = 0
 
@@ -54,15 +57,18 @@ final class AssistLinkTests: XCTestCase {
         savedLanguage = L10n.language
         L10n.language = .en
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
+        savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
     }
 
     /// Both of the aids' settings are removed, never put back: a launch argument shadows the saved value, so a value
     /// read here and written back could be the argument's, saved for good. The models here are given the aids and
-    /// save nothing; this keeps it so if a test ever sets them.
+    /// save nothing; this keeps it so if a test ever sets them. The task aid, which draws the guide a tap needs, is put
+    /// back as it was.
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
         L10n.language = savedLanguage
         model = nil
         transport = nil
@@ -495,6 +501,110 @@ final class AssistLinkTests: XCTestCase {
                 XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_start"), "\(what), \(source)")
             }
         }
+    }
+
+    // MARK: A move to a point tapped on the guide
+
+    /// About where the reference phone draws the guide's view from above; the model is told it as the screen would.
+    private static let panel = SurfaceLayout.Rect(x: 118, y: 262, width: 166, height: 166)
+    /// Where the move starts and where it is sent, robot base frame, pinch point: both at the travel height, 12 cm
+    /// apart, so the command can run more than the lead cap ahead of an arm that does not move.
+    private let goStart = SIMD3<Double>(-0.03, -0.18, 0.09)
+    private let goTarget = SIMD3<Double>(0.09, -0.18, 0.09)
+
+    /// A state with the gripper link where the profile puts the pinch point at `pinch`.
+    private func reportArm(atPinch pinch: SIMD3<Double>) {
+        let gripper = pinch - SIMD3<Double>(model.profile.toolOffset)
+        transport.server("state", ["estop": false, "gripper": "closed", "ee_pos": [gripper.x, gripper.y, gripper.z]])
+    }
+
+    /// Standby with no lock, the arm reported at `goStart`, the guide drawn and its view from above reported; a tap
+    /// over `goTarget`, and the input rules' next look at the arm, still at the travel height, which turns the move
+    /// toward the target. The move runs, nobody holds it, and nothing has been heard.
+    private func tapAMove(line: UInt = #line) {
+        bringUp(lock: .off)
+        model.taskAid = true
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        reportArm(atPinch: goStart)
+        model.guidePanelChanged(Self.panel)
+        guard let panel = model.inputFacts().goPanel else { return XCTFail("no panel reaches the rules", line: line) }
+        let point = panel.point(over: goTarget)
+        clock += 50
+        model.touch(TouchSample(id: 1, phase: .began, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        clock += 50
+        model.touch(TouchSample(id: 1, phase: .ended, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        clock += 33
+        model.controller.tick()
+        guard case .going? = model.controller.arbiter.engagement else {
+            return XCTFail("no move: \(String(describing: model.controller.arbiter.engagement))", line: line)
+        }
+        XCTAssertTrue(model.session.state.armMoving, line: line)
+        XCTAssertTrue(model.link.holdIsLoose, line: line)
+        XCTAssertEqual(transport.types.last, "pose_start", line: line)
+        XCTAssertEqual(heard, [], line: line)
+    }
+
+    /// Every offset sent for the newest translation hold, as asked, metres in the link's frame.
+    private var offsetsSent: [SIMD3<Double>] {
+        transport.sent.filter { $0["type"] as? String == "pose_update" }.map { message in
+            let p = (message["payload"] as! [String: Any])["p_rel_m"] as! [Double]
+            return SIMD3(p[0], p[1], p[2])
+        }
+    }
+
+    /// A move streams the input rules' offsets through the lead cap every hold has. While the arm is within the cap
+    /// each update is the rules' offset; with the arm not seen to move the command runs ahead at the move's speed, no
+    /// update ever asks for more than 8 cm, and the hold counts as paused once one is held at the cap.
+    func testAGoingHoldStreamsTheOffsetThroughTheLeadCap() throws {
+        tapAMove()
+        tick()
+        let first = try XCTUnwrap(offsetsSent.last)
+        let asked = try XCTUnwrap(model.controller.goOffset())
+        // The wire carries tenths of a millimetre on each axis.
+        XCTAssertEqual(simd_distance(first, asked), 0, accuracy: 0.0001, "the input rules' offset, as asked")
+        XCTAssertGreaterThan(simd_length(first), 0, "on its way")
+        let cap = Double(LiveLinkController.maxLeadMeters)
+        var capped = false
+        for _ in 0..<90 where !capped {
+            run(ticks: 1)
+            capped = offsetsSent.last.map { simd_length($0) >= cap - 0.0005 } ?? false
+        }
+        XCTAssertTrue(capped, "the command ran more than the cap ahead")
+        XCTAssertTrue(model.link.holdPaused, "a hold held at the cap is paused")
+        let farthest = offsetsSent.map(simd_length).max() ?? 0
+        XCTAssertLessThanOrEqual(farthest, cap + 0.0005, "never more than the cap")
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertNotNil(model.controller.loose, "the move goes on")
+        XCTAssertEqual(endings, [])
+    }
+
+    /// A move whose command runs more than the cap ahead re-sends its start as a pad hold does: the link stops the
+    /// server's hold, asks nothing while it waits, starts again from where the server says the arm got to, and asks
+    /// for the rest of the rules' offset from there. The move goes on, nobody holding it, and nothing is heard.
+    func testAGoingHoldResyncsAsAPadHoldDoes() throws {
+        tapAMove()
+        for _ in 0..<90 where transport.types.last(where: { $0 != "test" }) != "pose_stop" { run(ticks: 1) }
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the start is being re-sent")
+        XCTAssertTrue(model.link.holdPaused, "re-sending the start")
+        let updates = offsetsSent.count
+        run(ticks: 5)
+        XCTAssertEqual(offsetsSent.count, updates, "nothing is asked while waiting")
+
+        // The old hold finished with the arm 3 cm along the way.
+        serverAnswers("ok", "pose_stopped")
+        let moved = SIMD3<Double>(0.03, 0, 0)
+        reportArm(atPinch: goStart + moved)
+        XCTAssertEqual(transport.types.last, "pose_start", "started again from where the arm got")
+        tick()
+        let sent = try XCTUnwrap(offsetsSent.last)
+        let asked = try XCTUnwrap(model.controller.goOffset())
+        let rest = asked - OperatorFrame.link(fromBase: moved)
+        XCTAssertLessThan(simd_length(rest), Double(LiveLinkController.maxLeadMeters), "within the cap again")
+        XCTAssertEqual(simd_distance(sent, rest), 0, accuracy: 0.0001, "the rest of the rules' offset")
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertNotNil(model.controller.loose, "the move goes on")
+        XCTAssertTrue(model.link.holdIsLoose, "nobody holds it")
+        XCTAssertEqual(endings, [])
     }
 
     /// Ticks until the link sends its next probe, then the server answers it `ms` later.

@@ -398,9 +398,13 @@ private struct PhoneSurface: View {
 
     var body: some View {
         let stopped = { if case .stopped = display.state { return true } else { return false } }()
+        // While a follow or a move nobody holds runs, the hints' touches would stop it: they are hidden, keeping their
+        // room so the guide does not move.
+        let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
         ZStack(alignment: .top) {
             if display.mode == .keyTurns, !stopped {
-                SchemeBHints(display: display, layout: layout, scale: scale, ink: Self.hintInk(look))
+                SchemeBHints(
+                    display: display, layout: layout, scale: scale, ink: Self.hintInk(look), wordsHidden: hintsHidden)
             }
             VStack(spacing: 8 * scale) {
                 StateWords(
@@ -420,6 +424,7 @@ private struct PhoneSurface: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("operating.hint")
+                        .modifier(HiddenKeepingRoom(hidden: hintsHidden))
                 } else if display.mode == .keyTurns, !stopped {
                     Color.clear.frame(height: max(14, 18 * scale))
                 }
@@ -437,6 +442,8 @@ private struct SchemeBHints: View {
     let layout: SurfaceLayout
     let scale: Double
     let ink: Color
+    /// The words are hidden, keeping their room, while their touches would stop a follow or a move nobody holds.
+    var wordsHidden = false
 
     var body: some View {
         let cs = layout.controlSurface
@@ -465,6 +472,21 @@ private struct SchemeBHints: View {
             .font(.system(size: max(13, 16 * scale), weight: .semibold))
             .foregroundStyle(ink)
             .accessibilityIdentifier(id)
+            .modifier(HiddenKeepingRoom(hidden: wordsHidden))
+    }
+}
+
+/// A view that is not shown for now: out of sight and out of accessibility, still taking its room, so nothing around
+/// it moves.
+private struct HiddenKeepingRoom: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        if hidden {
+            content.hidden().accessibilityHidden(true)
+        } else {
+            content
+        }
     }
 }
 

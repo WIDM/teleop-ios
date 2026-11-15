@@ -5,13 +5,14 @@ import TeleopCore
 /// can be tested without drawing.
 ///
 /// The base form uses only what any arm reports: the pinch point inside the workspace box, seen from above and from
-/// behind, its height above the table, how far the jaws are open, the wrist's turn and tilt when reported, and where
-/// the arm is being asked to go during a move. Only when the server reports task objects does it add a target and a
-/// goal as plain shapes, the gap from the pinch point to the target, "on target" inside the on-target window, and
-/// "holding" while the jaws grip. A pinch point the profile can only estimate roughly is drawn hollow, says so, and is
-/// never "on target". The guide's aids, each only when it is on, add: the side the commanded place is outside the work
-/// area on, the lowest height a downward stall reached (a line from behind, and "lowest" on the height while the pinch
-/// point is back there), a shadow under the pinch point, and which way is forward and which way is up.
+/// behind, its height above the table, how far the jaws are open, the wrist's turn and tilt when reported, where the
+/// arm is being asked to go during a move, and where a move to a point tapped on the guide is headed. Only when the
+/// server reports task objects does it add a target and a goal as plain shapes, the gap from the pinch point to the
+/// target, "on target" inside the on-target window, and "holding" while the jaws grip. A pinch point the profile can
+/// only estimate roughly is drawn hollow, says so, and is never "on target". The guide's aids, each only when it is on,
+/// add: the side the commanded place is outside the work area on, the lowest height a downward stall reached (a line
+/// from behind, and "lowest" on the height while the pinch point is back there), a shadow under the pinch point, and
+/// which way is forward and which way is up.
 ///
 /// Both views are equally wide and share one left-right axis and one scale, so a thing sits at the same x in both.
 /// From above, up is the operator's forward; from behind, up is up. Places are shares of a view's width and height,
@@ -88,6 +89,8 @@ struct GuidePicture: Equatable {
     let tableY: Double
     let pinch: Mark
     let commanded: Mark?
+    /// Where a move to a point tapped on the guide is headed, drawn as a cross in both views; nil when none runs.
+    let goTarget: Mark?
     /// 0 closed … 1 open; nil when not reported.
     let jawOpening: Double?
     let target: Mark?
@@ -150,6 +153,7 @@ struct GuidePicture: Equatable {
         let pinchPoint = Self.operatorPoint(reading.pinchPoint)
         pinch = mark(reading.pinchPoint)
         commanded = reading.commanded.map(mark)
+        goTarget = reading.goTarget.map(mark)
         jawOpening = reading.jawOpening.map { min(max($0, 0), 1) }
         target = reading.target.map(mark)
         goal = reading.goal.map(mark)

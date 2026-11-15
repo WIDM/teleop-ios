@@ -22,6 +22,7 @@ private final class FactsTestTransport: LinkTransport {
 /// rules are told about the moment with tap-to-go allowed, and with the switch off.
 final class AssistModelTests: XCTestCase {
     private var savedMode: String?
+    private var savedTaskAid: Any?
     private var clock = 10_000
     private var transport: FactsTestTransport!
 
@@ -31,15 +32,17 @@ final class AssistModelTests: XCTestCase {
     override func setUp() {
         super.setUp()
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
+        savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
     }
 
     /// Both of the aids' settings are removed, never put back: a launch argument shadows the saved value, so a value
     /// read here and written back could be the argument's (the AssistOff plan's `-assist NO`), saved for good. The UI
-    /// tests and every other test launch with neither saved.
+    /// tests and every other test launch with neither saved. The task aid is put back as it was.
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
         transport = nil
         super.tearDown()
     }
@@ -198,20 +201,23 @@ final class AssistModelTests: XCTestCase {
 
         // The arm measured and the panel reported: off, the rules are told neither, and nothing else changes.
         let live = liveModel(assistOn: true)
+        live.taskAid = true
         live.guidePanelChanged(Self.panel)
         var onFacts = live.inputFacts()
         XCTAssertNotNil(onFacts.arm, "on, the measured arm is told")
+        XCTAssertNotNil(onFacts.goPanel, "on, the panel drawn is told")
         live.assistOn = false
         let offFacts = live.inputFacts()
         XCTAssertNil(offFacts.arm, "off, no arm")
         XCTAssertNil(offFacts.goPanel, "off, no panel")
         onFacts.arm = nil
+        onFacts.goPanel = nil
         XCTAssertEqual(offFacts, onFacts)
     }
 
     /// With tap-to-go allowed the input rules are told where the arm was last measured: the pinch point of the newest
     /// position reported, how old it is, and whether the link is pausing the hold. The panel the screen reports is
-    /// kept, and not told yet. A robot that allows no tap-to-go is told no arm.
+    /// kept and told while the guide is drawn. A robot that allows no tap-to-go is told no arm.
     func testTheFactsCarryTheMeasuredArmWhenTapToGoIsAllowed() throws {
         let model = liveModel(assistOn: true)
         XCTAssertNotNil(model.assist.goTo)
@@ -239,14 +245,44 @@ final class AssistModelTests: XCTestCase {
         XCTAssertEqual(model.inputFacts().arm?.holdPaused, true)
         model.send(.holdArmEnd)
 
+        model.taskAid = true
         model.guidePanelChanged(Self.panel)
         XCTAssertEqual(model.guidePanelRect, Self.panel, "the panel the screen reports is kept")
-        XCTAssertNil(model.inputFacts().goPanel, "and not told to the input rules")
+        XCTAssertEqual(model.inputFacts().goPanel?.rect, Self.panel, "and told to the input rules")
         model.guidePanelChanged(nil)
         XCTAssertNil(model.guidePanelRect)
+        XCTAssertNil(model.inputFacts().goPanel, "no longer drawn")
 
         var noTaps = RobotProfile.so101Simulator
         noTaps.assist.goTo = nil
         XCTAssertNil(liveModel(profile: noTaps, assistOn: true).inputFacts().arm, "a robot without tap-to-go")
+    }
+
+    /// The panel reaches the input rules only while the guide is drawn: a phone mode, the task aid on, an arm reading
+    /// and the view from above reported. It is then the reported rectangle with the projection, the work box and the
+    /// table of the picture drawn in it, so a tap asks for the place drawn under the finger.
+    func testThePanelReachesTheRulesOnlyWhileTheGuideIsDrawn() throws {
+        let model = liveModel(assistOn: true)
+        model.controlMode = .screenTurns
+        model.taskAid = true
+        XCTAssertNil(model.inputFacts().goPanel, "no view reported")
+        model.guidePanelChanged(Self.panel)
+        let picture = try XCTUnwrap(model.operating.guide)
+        let drawn = GoPanel(
+            rect: Self.panel, projection: picture.projection, boxLow: picture.workBoxLow, boxHigh: picture.workBoxHigh,
+            tableHeight: Double(model.profile.tableHeight))
+        XCTAssertEqual(model.inputFacts().goPanel, drawn)
+        model.taskAid = false
+        XCTAssertNil(model.inputFacts().goPanel, "the task aid off draws no guide")
+        model.taskAid = true
+        model.controlMode = .buttons
+        XCTAssertNil(model.inputFacts().goPanel, "buttons mode draws no guide")
+        model.controlMode = .keyTurns
+        XCTAssertEqual(model.inputFacts().goPanel, drawn, "scheme B draws it")
+
+        let practice = AppModel(start: .p4, pose: { TestPose.portrait }, liveLink: false, assistOn: true)
+        practice.connect()
+        practice.guidePanelChanged(Self.panel)
+        XCTAssertNil(practice.inputFacts().goPanel, "practice draws no guide")
     }
 }

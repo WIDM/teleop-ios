@@ -23,19 +23,24 @@ private final class HeardTestTransport: LinkTransport {
     }
 }
 
-/// A follow nobody holds never ends in silence, and never ends twice. One row per way it can end, each run for a
-/// follow latched by a press of the upper key and for one latched by a thumb slid up while the key is held, through
-/// the model with a scripted server and the test's clocks. Each row asserts that the follow ended, the session's hold
-/// and the link's hold with it, and that exactly one ending cue was heard, from a row of the cue table that cannot be
-/// dropped (it speaks at the first or second level, or plays a sound).
+/// A follow or a move nobody holds never ends in silence, and never ends twice. One row per way it can end, each run
+/// for a follow latched by a press of the upper key, for one latched by a thumb slid up while the key is held, and for
+/// a move to a point tapped on the guide where the ending applies to it, through the model with a scripted server and
+/// the test's clocks. Each row asserts that the follow or the move ended, the session's hold and the link's hold with
+/// it, and that exactly one ending cue was heard, from a row of the cue table that cannot be dropped (it speaks at the
+/// first or second level, or plays a sound).
 final class LooseEndingHeardTests: XCTestCase {
-    /// How the follow was latched.
-    enum Start: CaseIterable { case pressPress, holdThenSlide }
+    /// How the follow was latched, or the move started.
+    enum Start: CaseIterable { case pressPress, holdThenSlide, going }
 
-    /// One way a follow ends: what it needs before the latch, the robot it runs on, and what causes it.
+    /// The two latched follows: endings that watch the phone, or a lock's time limit, are theirs alone.
+    static let follows: Set<Start> = [.pressPress, .holdThenSlide]
+
+    /// One way it ends: what it needs before the start, the robot it runs on, what causes it, and the starts it ends.
     struct Row {
         var name: String
         var profile: RobotProfile = .so101Simulator
+        var starts = Set(Start.allCases)
         var before: (LooseEndingHeardTests) -> Void = { _ in }
         var cause: (LooseEndingHeardTests) -> Void
     }
@@ -49,21 +54,25 @@ final class LooseEndingHeardTests: XCTestCase {
     private var nextTouch = 1
     private var savedLanguage = L10n.language
     private var savedMode: String?
+    private var savedTaskAid: Any?
 
     override func setUp() {
         super.setUp()
         savedLanguage = L10n.language
         L10n.language = .en
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
+        savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
     }
 
     /// The aids are chosen through the model's initializer, which saves nothing; both keys are removed all the same,
     /// never put back to a value read before: a launch argument shadows the saved value, so a value read here and
-    /// written back could be the argument's, saved for good.
+    /// written back could be the argument's, saved for good. The task aid, which draws the guide a tap needs, is put
+    /// back as it was.
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
         L10n.language = savedLanguage
         model = nil
         transport = nil
@@ -74,23 +83,29 @@ final class LooseEndingHeardTests: XCTestCase {
     /// The table, kept beside the assertion, so a new ending is one more row.
     static var rows: [Row] {
         [
-            Row(name: "too fast") { test in
+            // A move to a point does not watch the phone: the phone's speed and tracking end only a follow.
+            Row(name: "too fast", starts: follows) { test in
                 test.run(ticks: 10)
                 test.position = SIMD3(0.2, 0, 0)
                 test.tick()
             },
-            Row(name: "tracking lost, seen by the link") { test in
+            Row(name: "tracking lost, seen by the link", starts: follows) { test in
                 test.position = nil
                 test.tick()
             },
-            Row(name: "tracking lost, seen by the input rules") { test in
+            Row(name: "tracking lost, seen by the input rules", starts: follows) { test in
                 test.position = nil
                 test.clock += 100
                 test.model.controller.tick()
             },
-            Row(name: "a re-sent start the server never finished") { test in
+            Row(name: "a re-sent start the server never finished", starts: follows) { test in
                 test.sweepRight()
                 test.run(ticks: 100)
+            },
+            // The move's command runs more than the lead cap ahead of an arm that is not seen to move, so the link
+            // re-sends the start, and the server never finishes the old hold.
+            Row(name: "a re-sent start the server never finished, on a move", starts: [.going]) { test in
+                test.run(ticks: 120)
             },
             Row(name: "the watchdog after GO") { test in
                 test.run(ticks: 10)
@@ -110,13 +125,13 @@ final class LooseEndingHeardTests: XCTestCase {
             // The refusal can come after the hold was taken as accepted (a link with jitter): the alarm alone tells it.
             Row(name: "a stopped robot after GO, then its stop state") { test in
                 test.run(ticks: 10)
-                XCTAssertEqual(test.model.cueLog.last?.event, .holdLive, "\(test.model.lockChoice): accepted")
+                XCTAssertEqual(test.model.cueLog.last?.event, .holdLive, "\(test.started): accepted")
                 let accepted = test.model.cueLog.count
                 test.serverAnswers("rejected", "estop_active")
                 test.transport.server("state", ["estop": true, "gripper": "closed"])
                 XCTAssertEqual(
                     test.model.cueLog.dropFirst(accepted).map(\.event), [.emergencyStop(.other, takeDiscarded: false)],
-                    "\(test.model.lockChoice): the alarm and nothing else")
+                    "\(test.started): the alarm and nothing else")
             },
             Row(name: "an emergency-stop reason, then the stop state") { test in
                 test.run(ticks: 10)
@@ -155,13 +170,36 @@ final class LooseEndingHeardTests: XCTestCase {
             Row(name: "the app left") { $0.model.activeChanged(false) },
             Row(name: "the camera stopped") { $0.model.controller.cameraInterrupted(true) },
             Row(name: "the operating screen left") { $0.model.send(.openSettings) },
-            Row(name: "the phone held sideways") { test in
+            Row(name: "the phone held sideways", starts: follows) { test in
                 test.tilted = true
                 test.clock += 100
                 test.model.controller.tick()
             },
-            Row(name: "the lock's time limit", profile: oneSecondLock) { test in
+            Row(name: "the lock's time limit", profile: oneSecondLock, starts: follows) { test in
                 test.clock += 1100
+                test.model.controller.tick()
+            },
+            Row(name: "the move arrived", starts: [.going]) { test in
+                test.reportArm(atPinch: test.goTarget)
+                test.clock += 33
+                test.model.controller.tick()
+            },
+            // Fresh positions of an arm that does not move: once the command has reached the tapped point and the
+            // start's grace is over, the arm settles more than a correction's reach short.
+            Row(name: "the move stopped short", starts: [.going]) { test in
+                for _ in 0..<40 where test.model.controller.loose != nil {
+                    test.clock += 200
+                    test.reportArm(atPinch: test.goStart)
+                    test.model.controller.tick()
+                }
+            },
+            Row(name: "no arm data during the move", starts: [.going]) { test in
+                test.clock += 2100
+                test.model.controller.tick()
+            },
+            // A tenth of the 3 s the 12 cm take at speed, with no allowance: the limit is 0.3 s after the tap.
+            Row(name: "the move's time limit", profile: shortGoLimit, starts: [.going]) { test in
+                test.clock += 400
                 test.model.controller.tick()
             },
             Row(name: "a key") { test in
@@ -173,7 +211,9 @@ final class LooseEndingHeardTests: XCTestCase {
             Row(name: "a touch on the gear") { $0.touch(at: $0.gear) },
             // The start waits behind the jaws' stop, so the link's feedback has nothing engaged when tracking is lost:
             // the link ends the hold and records nothing it told.
-            Row(name: "a link path that tells nothing", before: { $0.closeAndReleaseTheJaws() }) { test in
+            Row(
+                name: "a link path that tells nothing", starts: follows, before: { $0.closeAndReleaseTheJaws() }
+            ) { test in
                 test.position = nil
                 test.tick()
             },
@@ -181,12 +221,14 @@ final class LooseEndingHeardTests: XCTestCase {
     }
 
     func testEveryEndingIsHeardExactlyOnce() {
+        var runs: [Start: Int] = [:]
         for row in Self.rows {
-            for start in Start.allCases {
+            for start in Start.allCases where row.starts.contains(start) {
+                runs[start, default: 0] += 1
                 let what = "\(row.name), \(start)"
                 bringUp(profile: row.profile, start: start)
                 row.before(self)
-                latch(start, what)
+                begin(start, what)
                 let before = model.cueLog.count
                 row.cause(self)
                 XCTAssertNil(model.controller.arbiter.engagement, what)
@@ -201,6 +243,8 @@ final class LooseEndingHeardTests: XCTestCase {
                 XCTAssertTrue(endings.allSatisfy(Self.cannotBeDropped), "\(what): \(endings.map(\.event))")
             }
         }
+        // Every start is run: a table that lost the rows of one fails here.
+        XCTAssertEqual(Set(runs.keys), Set(Start.allCases), "\(runs)")
     }
 
     /// A move's endings, the alarm, link loss during a hold, and a success's narration.
@@ -225,11 +269,31 @@ final class LooseEndingHeardTests: XCTestCase {
         return profile
     }
 
+    /// The simulator's robot with a move's time limit a tenth of its path's time at speed, with no allowance.
+    static var shortGoLimit: RobotProfile {
+        var profile = RobotProfile.so101Simulator
+        profile.assist.goTo?.timeFactor = 0.1
+        profile.assist.goTo?.allowanceS = 0
+        return profile
+    }
+
+    /// About where the reference phone draws the guide's view from above; the model is told it as the screen would.
+    static let panel = SurfaceLayout.Rect(x: 118, y: 262, width: 166, height: 166)
+    /// Where a move starts and where it is sent, robot base frame, pinch point: both at the travel height, 12 cm
+    /// apart, so the command can run more than the lead cap ahead of an arm that does not move.
+    let goStart = SIMD3<Double>(-0.03, -0.18, 0.09)
+    let goTarget = SIMD3<Double>(0.09, -0.18, 0.09)
+
     // MARK: The app, the server and the hand
 
-    /// Standby on the real server in scheme A with the link up, the reference phone's layout, and lock chosen for
-    /// `start`, given to the model without saving it.
+    /// How the row now being run started, for its messages.
+    private(set) var started = Start.pressPress
+
+    /// Standby on the real server in scheme A with the link up and the reference phone's layout. For a follow, lock
+    /// chosen for `start`; for a move, no lock, the arm reported at `goStart`, the task aid on so the guide is drawn,
+    /// and its view from above reported. The aids are given to the model without saving them.
     private func bringUp(profile: RobotProfile, start: Start) {
+        started = start
         position = .zero
         tilted = false
         clock = 10_000
@@ -255,7 +319,7 @@ final class LooseEndingHeardTests: XCTestCase {
             nowMs: { [unowned self] in clock },
             inputClock: { [unowned self] in Double(clock) / 1000 },
             clientName: "teleop-ios/1.0.0 (7)", profile: profile,
-            assistOn: true, lockChoice: start == .pressPress ? .pressPress : .holdThenSlide
+            assistOn: true, lockChoice: Self.lockChoice(start)
         )
         model.controlMode = .screenTurns
         model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
@@ -264,10 +328,29 @@ final class LooseEndingHeardTests: XCTestCase {
         model.connect()
         transport.server("welcome")
         transport.server("state", ["estop": false, "gripper": "closed"])
+        guard start == .going else { return }
+        model.taskAid = true
+        reportArm(atPinch: goStart)
+        model.guidePanelChanged(Self.panel)
     }
 
-    /// Latches the follow the way `start` does and checks it latched, with its cue heard once.
-    private func latch(_ start: Start, _ what: String) {
+    private static func lockChoice(_ start: Start) -> LockChoice {
+        switch start {
+        case .pressPress: return .pressPress
+        case .holdThenSlide: return .holdThenSlide
+        case .going: return .off
+        }
+    }
+
+    /// A state with the gripper link where the profile puts the pinch point at `pinch`.
+    func reportArm(atPinch pinch: SIMD3<Double>) {
+        let gripper = pinch - SIMD3<Double>(model.profile.toolOffset)
+        transport.server("state", ["estop": false, "gripper": "closed", "ee_pos": [gripper.x, gripper.y, gripper.z]])
+    }
+
+    /// Latches the follow, or taps the move, the way `start` does and checks it began, with the latch's cue heard once
+    /// and nothing heard for a move, whose GO comes when the server accepts it.
+    private func begin(_ start: Start, _ what: String) {
         let heardBefore = model.cueLog.count
         switch start {
         case .pressPress:
@@ -290,13 +373,27 @@ final class LooseEndingHeardTests: XCTestCase {
             touchSample(id, .ended, at: SIMD2(point.x, point.y - 12 * layout.pointsPerMm))
             clock += 20
             model.keyEvent(.upper, down: false)
+        case .going:
+            guard let panel = model.inputFacts().goPanel else { return XCTFail("\(what): no panel reaches the rules") }
+            let point = panel.point(over: goTarget)
+            clock += 50
+            let id = touchDown(at: point)
+            clock += 50
+            touchSample(id, .ended, at: point)
+            // The input rules' next look at the arm, still at the travel height, turns the move toward the target.
+            clock += 33
+            model.controller.tick()
         }
-        guard case .latched? = model.controller.arbiter.engagement else {
-            return XCTFail("\(what): not latched: \(String(describing: model.controller.arbiter.engagement))")
+        let engagement = model.controller.arbiter.engagement
+        switch (start, engagement) {
+        case (.going, .going?): break
+        case (.pressPress, .latched?), (.holdThenSlide, .latched?): break
+        default: return XCTFail("\(what): not begun: \(String(describing: engagement))")
         }
         XCTAssertTrue(model.session.state.armMoving, what)
         XCTAssertTrue(model.link.holdIsLoose, what)
-        XCTAssertEqual(model.cueLog.dropFirst(heardBefore).map(\.event), [.drive(.latched)], what)
+        let heard = model.cueLog.dropFirst(heardBefore).map(\.event)
+        XCTAssertEqual(heard, start == .going ? [] : [.drive(.latched)], what)
     }
 
     private var layout: SurfaceLayout { model.controller.arbiter.layout }

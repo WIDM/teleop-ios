@@ -23,6 +23,8 @@ enum OperatingFixtures {
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
         // A follow nobody holds: lock chosen, the key let go of after the press.
         all["locked"] = display(.locked(catchingUp: false), arm: task(moving: true), recorder: capturing)
+        // A move to a point tapped on the guide: the commanded ring on its way, the cross where it is headed.
+        all["going"] = display(.going(catchingUp: false), arm: going(), recorder: capturing)
         all["turning"] = display(
             .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
         var turningLeft = all["turning"]!
@@ -129,6 +131,14 @@ enum OperatingFixtures {
             pinchPoint: pinch, commanded: moving ? pinch + SIMD3(0.015, -0.03, -0.02) : nil, jawOpening: 0.9,
             wristTurnDeg: 90, wristTiltDeg: 0, target: target, goal: goal, gripping: false
         )
+    }
+
+    /// On the way to a point tapped on the guide, at the travel height the profile gives above the table.
+    private static func going() -> ArmReading {
+        var reading = task(moving: true)
+        let travel = profile.assist.goTo.map { Float($0.travelHeightM) } ?? 0
+        reading.goTarget = SIMD3(centre.x + 0.04, centre.y - 0.03, onTable + travel)
+        return reading
     }
 
     private static func onTarget() -> ArmReading {

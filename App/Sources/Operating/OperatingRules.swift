@@ -68,13 +68,16 @@ enum OperatingRules {
         return .ready
     }
 
-    /// A follow nobody holds sits where moving sits: under the stop, the link, the camera and a saved take, above a
-    /// refusal.
+    /// A follow or a move nobody holds sits where moving sits: under the stop, the link, the camera and a saved take,
+    /// above a refusal.
     private static func holding(_ held: HoldKind, _ f: OperatingFacts) -> OperatingState {
         switch held {
         case .translation:
-            if case .latched? = f.loose { return .locked(catchingUp: f.catchingUp) }
-            return .moving(catchingUp: f.catchingUp)
+            switch f.loose {
+            case .latched?: return .locked(catchingUp: f.catchingUp)
+            case .going?: return .going(catchingUp: f.catchingUp)
+            default: return .moving(catchingUp: f.catchingUp)
+            }
         case .gripper(.open):
             return .opening
         case .gripper(.closed):
@@ -88,13 +91,23 @@ enum OperatingRules {
         }
     }
 
+    /// The scheme's hints name touches that move the jaws or the wrist. While a follow or a move nobody holds runs,
+    /// those touches stop it instead, so the hints are not shown; the state's detail says how it stops.
+    static func hidesSchemeHints(_ state: OperatingState) -> Bool {
+        switch state {
+        case .locked, .going: return true
+        default: return false
+        }
+    }
+
     /// What the arm and the task look like, robot base frame; nil until the server has reported the arm.
-    /// `commanded`: where the link sends the reported arm point during a translation hold. `commandOutside`,
-    /// `lowestGripperZ` and `lowestPinchZ`: the guide's aids, copied into the reading; nil, the default, is version
-    /// 1.0.1's reading.
+    /// `commanded`: where the link sends the reported arm point during a translation hold. `goTarget`: where a move to
+    /// a point is headed, pinch point. `commandOutside`, `lowestGripperZ` and `lowestPinchZ`: the guide's aids, copied
+    /// into the reading. Nil, the default for each, is version 1.0.1's reading.
     static func arm(
         _ state: ServerState?, commanded: SIMD3<Float>?, gripping: Bool, profile: RobotProfile,
-        commandOutside: OperatorDirection? = nil, lowestGripperZ: Float? = nil, lowestPinchZ: Float? = nil
+        goTarget: SIMD3<Float>? = nil, commandOutside: OperatorDirection? = nil, lowestGripperZ: Float? = nil,
+        lowestPinchZ: Float? = nil
     ) -> ArmReading? {
         guard let state, let reported = state.endEffector.map(float) else { return nil }
         let pinch = profile.pinchPoint(
@@ -112,6 +125,7 @@ enum OperatingRules {
             gripping: gripping,
             pinchSource: pinch.source,
             boxShift: pinch.offset - profile.toolOffset,
+            goTarget: goTarget,
             commandOutside: commandOutside,
             lowestGripperZ: lowestGripperZ,
             lowestPinchZ: lowestPinchZ

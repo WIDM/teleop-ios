@@ -478,9 +478,24 @@ final class AppModel {
             ),
             connectionUp: !s.liveLink || link.isUp || link.observerUp
         )
-        // Tap-to-go starts from where the arm was measured; without it the facts are version 1.0.1's.
-        if assist.goTo != nil { facts.arm = armFix }
+        // Tap-to-go starts from where the arm was measured and judges a tap against the panel drawn; without it the
+        // facts are version 1.0.1's.
+        if assist.goTo != nil {
+            facts.arm = armFix
+            facts.goPanel = goPanel
+        }
         return facts
+    }
+
+    /// The panel the input rules judge a tap against: where the screen reported the guide's view from above, with the
+    /// projection, the work box and the table of the picture drawn there. Nil unless the guide is drawn: a phone mode,
+    /// the task aid on, an arm reading, and the view reported.
+    private var goPanel: GoPanel? {
+        guard operating.mode != .buttons, operating.taskAid, let picture = operating.guide, let rect = guidePanelRect
+        else { return nil }
+        return GoPanel(
+            rect: rect, projection: picture.projection, boxLow: picture.workBoxLow, boxHigh: picture.workBoxHigh,
+            tableHeight: Double(profile.tableHeight))
     }
 
     /// Where the arm was last measured, for tap-to-go: the pinch point of the newest position either connection
@@ -727,6 +742,7 @@ final class AppModel {
             s.liveLink
             ? OperatingRules.arm(
                 serverState, commanded: link.commandedArm, gripping: gripping, profile: profile,
+                goTarget: controller.goTarget.map { SIMD3<Float>($0) },
                 commandOutside: link.commandOutside, lowestGripperZ: link.lowestSeen.map { Float($0) },
                 lowestPinchZ: link.lowestPinchSeen.map { Float($0) }) : nil
         // The guide's aids in force draw into the one picture; nil draws version 1.0.1's.

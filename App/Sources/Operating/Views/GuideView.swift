@@ -154,6 +154,18 @@ private enum GuideInk {
             style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
     }
 
+    /// Where a move to a point tapped on the guide is headed: a cross in the target's colour, its arms a little longer
+    /// than the ring's radius, so it reads apart from the dashed ring of where the arm is being sent now.
+    static func goTarget(_ context: inout GraphicsContext, at centre: CGPoint, ring radius: Double) {
+        let reach = radius * 1.6
+        var cross = Path()
+        cross.move(to: CGPoint(x: centre.x - reach, y: centre.y))
+        cross.addLine(to: CGPoint(x: centre.x + reach, y: centre.y))
+        cross.move(to: CGPoint(x: centre.x, y: centre.y - reach))
+        cross.addLine(to: CGPoint(x: centre.x, y: centre.y + reach))
+        context.stroke(cross, with: .color(TeleopColors.guideTarget), lineWidth: 2)
+    }
+
     /// The shadow under the pinch point (the guide's aid): at the table it is the ring's size, and the higher the jaws
     /// the wider and fainter it is. How it looks, not what it says: these are drawing numbers.
     static func shadowWidth(ring radius: Double, lift: Double) -> Double { radius * 2 * (1 + 1.2 * lift) }
@@ -184,9 +196,9 @@ private enum GuideInk {
     }
 }
 
-/// From above: the workspace box, the goal and the target when reported, where the arm is asked to go, and a ring
-/// where the jaws pinch. Up is the operator's forward. With the guide's aids, a shadow under the ring and an arrow
-/// that says so.
+/// From above: the workspace box, the goal and the target when reported, where the arm is asked to go and where a move
+/// to a tapped point is headed, and a ring where the jaws pinch. Up is the operator's forward. With the guide's aids, a
+/// shadow under the ring and an arrow that says so.
 private struct GuideAbove: View {
     let picture: GuidePicture
 
@@ -225,6 +237,9 @@ private struct GuideAbove: View {
                     GuideInk.commanded(
                         &context, from: pinch, to: GuideInk.point(commanded.above, in: size), radius: radius)
                 }
+                if let goTarget = picture.goTarget {
+                    GuideInk.goTarget(&context, at: GuideInk.point(goTarget.above, in: size), ring: radius)
+                }
                 context.stroke(
                     Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(GuideInk.jaws(picture)),
                     lineWidth: picture.onTarget ? 4 : 2.5)
@@ -239,9 +254,10 @@ private struct GuideAbove: View {
     }
 }
 
-/// From behind: the table, the workspace box above it, the target and the goal when reported, a dotted drop from
-/// the pinch point to the table, and the jaws opened as far as they are. Up is up. With the guide's aids, a shadow on
-/// the table under the jaws, the lowest height a downward stall reached, and an arrow that says up is up.
+/// From behind: the table, the workspace box above it, the target and the goal when reported, a dotted drop from the
+/// pinch point to the table, where a move to a tapped point is headed, and the jaws opened as far as they are. Up is
+/// up. With the guide's aids, a shadow on the table under the jaws, the lowest height a downward stall reached, and an
+/// arrow that says up is up.
 private struct GuideBehind: View {
     let picture: GuidePicture
 
@@ -307,6 +323,9 @@ private struct GuideBehind: View {
                 if let commanded = picture.commanded {
                     GuideInk.commanded(
                         &context, from: pinch, to: GuideInk.point(commanded.behind, in: size), radius: radius)
+                }
+                if let goTarget = picture.goTarget {
+                    GuideInk.goTarget(&context, at: GuideInk.point(goTarget.behind, in: size), ring: radius)
                 }
                 drawJaws(&context, at: pinch, radius: radius)
                 if picture.directionLabels { GuideInk.direction(&context, "guide.arrow_up") }

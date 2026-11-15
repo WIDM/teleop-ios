@@ -2305,6 +2305,22 @@
         }
       }
     },
+    "state.going": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Going"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往中"
+          }
+        }
+      }
+    },
     "state.link_lost": {
       "localizations": {
         "en": {
@@ -2797,6 +2813,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "螢幕底部的紅色橫條：急停。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.tap_to_go": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the view from above to send the jaws there. Any key or touch stops them."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。按任一鍵或觸碰即停。"
           }
         }
       }

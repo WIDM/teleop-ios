@@ -9,7 +9,8 @@ import XCTest
 /// socket in real time. A press then a press: the arm follows the phone with no key held until the next press. A hold
 /// then a slide: a thumb slid up the glass while the upper key is held latches the follow, in scheme A, in scheme B's
 /// centre band and on a half slowly, and a thumb that does not slide changes nothing. Every ending of a latched follow
-/// stops the server's hold and is heard exactly once.
+/// stops the server's hold and is heard exactly once. A tap on the guide's view from above sends the jaws to that point
+/// at the travel height, in both schemes, and "Arrived." is heard once.
 final class LocalAssistTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var hand: ScriptedOperator!
@@ -281,6 +282,41 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertTrue(hand.wait(2, until: { !model.session.state.armMoving }), "the server's watchdog ended it")
         assertEnded("a stalled path", hearing: .drive(.ended(.linkHiccup)), since: mark)
         XCTAssertTrue(model.session.state.connected, "the stall cost the hold, not the link")
+    }
+
+    // MARK: A tap on the guide
+
+    /// The hand taps the view from above over a point 4 cm to the side of and 3 cm beyond the jaws: the screen says
+    /// "Going", the arm goes to the travel height and across, the move ends within the profile's tolerance of the
+    /// tapped point at that height, the server's hold ends with it, and "Arrived." is the one ending heard.
+    private func aTapGoesThere(_ mode: ControlMode) throws {
+        try start(mode, lock: .off)
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let pinch = try hand.measuredPinch()
+        let target = SIMD3(pinch.x + 0.04, pinch.y - 0.03, Double(model.profile.tableHeight) + goTo.travelHeightM)
+        let mark = model.cueLog.count
+        try hand.tapGuide(over: target)
+        guard case .going = model.operating.state else {
+            return XCTFail("\(mode): the screen shows \(model.operating.state)")
+        }
+        XCTAssertTrue(hand.wait(15, until: { !model.session.state.armMoving }), "\(mode): the move ended")
+        XCTAssertEqual(endings(since: mark), [.drive(.arrived)], "\(mode)")
+        XCTAssertNil(model.controller.loose, "\(mode)")
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
+        let jaws = server.inspect { $0.world.arm + $0.config.toolOffset }
+        XCTAssertLessThanOrEqual(
+            simd_distance(jaws, target), goTo.arriveToleranceM, "\(mode): the jaws at the tapped point, \(jaws)")
+        hand.pump(0.5)
+        XCTAssertEqual(endings(since: mark), [.drive(.arrived)], "\(mode): nothing more")
+    }
+
+    func testATapOnTheGuideGoesThereSchemeA() throws {
+        try aTapGoesThere(.screenTurns)
+    }
+
+    func testATapOnTheGuideGoesThereSchemeB() throws {
+        try aTapGoesThere(.keyTurns)
     }
 
     /// A thumb comes down at `point`, rests longer than a reset takes, and lifts: the touch that ends a follow is dead
