@@ -378,10 +378,18 @@ public struct FeedbackMonitor {
     /// Version 1.0.1's blocked stall, silent while any state of its second was sent at least 10 mm lower (the operator
     /// is asking for lower, and the lowest rule answers that), and judged only over states that arrived regularly.
     private static func isBlockedWithoutAskingLower(_ hold: Engaged, at now: Int) -> Bool {
-        guard isBlocked(hold, at: now), let window = Self.window(of: hold.samples, ms: blockedWindowMs) else {
-            return false
-        }
+        guard isBlocked(hold, at: now), !asksLowerNow(hold),
+            let window = Self.window(of: hold.samples, ms: blockedWindowMs)
+        else { return false }
         return arrivesRegularly(window) && !window.contains { $0.below.map { $0 >= blockedShortMeters } ?? false }
+    }
+
+    /// The command held now is at least 10 mm under the newest state's gripper link. The operator is asking for lower
+    /// although no state has arrived with that ask yet: a state without the gripper link's position adds no sample,
+    /// and the next state with one is judged by the lowest rule.
+    private static func asksLowerNow(_ hold: Engaged) -> Bool {
+        guard let target = hold.target, let newest = hold.samples.last else { return false }
+        return newest.position.z - target.z >= blockedShortMeters
     }
 
     /// The arm has risen 10 mm above where the lowest cue was told, so the next stall is a new approach: judged on the

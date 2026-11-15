@@ -658,4 +658,26 @@ final class FeedbackMonitorLowestTests: XCTestCase {
             + states(at: [1400], arm: { _ in atZero }, gap: { _ in down(0.012) })
         XCTAssertEqual(told(inputs), [lowest(at: 1400)])
     }
+
+    /// "Blocked." is also silent while the command held now is at least 10 mm below the newest state's gripper link,
+    /// though no state judged so far was asked that much lower. After a second of states asked 6 mm lower with the arm
+    /// still, the command moves 12 mm lower and a state without the gripper link's position comes at 1300 ms: nothing
+    /// there, and the next state with a position, at 1400 ms, is told "lowest". Exactly 10 mm lower and 5 mm to the
+    /// side is silent too; 9.9 mm lower and 5 mm to the side is not an ask for lower, and "Blocked." comes at 1300 ms.
+    func testBlockedIsSilentWhileTheCommandHeldNowAsksForLower() {
+        let noPosition = ServerState(activity: .poseTracking, endEffector: nil)
+        let cases: [(gap: SIMD3<Double>, heard: [Heard])] = [
+            (down(0.012), [lowest(at: 1400)]),
+            (SIMD3(0.005, 0, -0.010), [lowest(at: 1400)]),
+            (SIMD3(0.005, 0, -0.0099), [blocked(at: 1300)]),
+        ]
+        for c in cases {
+            let inputs: [Input] =
+                [.press(atMs: 0)]
+                + states(at: every(from: 200, through: 1200), arm: { _ in atZero }, gap: { _ in down(0.006) })
+                + [.command(atZero + c.gap), .state(atMs: 1300, noPosition)]
+                + states(at: [1400], arm: { _ in atZero }, gap: { _ in c.gap })
+            XCTAssertEqual(told(inputs), c.heard, "\(c.gap)")
+        }
+    }
 }
