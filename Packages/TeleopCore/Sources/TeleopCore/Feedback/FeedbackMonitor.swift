@@ -22,8 +22,8 @@ public struct GripperLimits: Equatable, Sendable {
 /// - GRIP on contact while closing, or in the states that follow letting go of a close; from then on the jaws count
 ///   as gripping until an open, a scene reset or a new server run.
 /// - Nothing for a hold the server ends with a success, and nothing judged while the success shows.
-/// - With `reportsLowest` (the guide's aids), END for an arm that cannot go lower: the blocked rule's stall with the
-///   commanded point at least 10 mm below and mostly below, in place of blocked.
+/// - With `reportsLowest` (the guide's aids), END for an arm that cannot go lower, still in height while the operator
+///   asks for lower, in place of blocked; blocked then stays silent while the operator asks for lower.
 public struct FeedbackMonitor {
     public static let acceptMinMs = 100
     public static let acceptMaxMs = 300
@@ -35,23 +35,57 @@ public struct FeedbackMonitor {
     public static let blockedShortMeters = 0.010
     public static let blockedMovedMeters = 0.002
     public static let blockedWindowMs = 1000
-    /// The lowest rule's quicker stall, back near the lowest height already found: sent at least this much lower, and
-    /// moved less than this in this long.
+    /// The lowest rule's quicker stall, back near the lowest height already found: every state of its window sent at
+    /// least this much lower, and the height moved less than this in this long.
     public static let lowestQuickShortMeters = 0.005
     public static let lowestQuickMovedMeters = 0.001
     public static let lowestQuickMs = 300
+    /// The lowest rule's full stall asks the newest state to be sent at least `blockedShortMeters` lower and every
+    /// state of its second at least this much, so a hand that wavers around 10 mm still asks.
+    public static let lowestSustainMeters = 0.005
+    /// With the lowest rule on, no two states of a window it judges arrived further apart than this: states held back
+    /// and delivered together say nothing about how the arm stood between them.
+    public static let arrivalGapMs = 400
 
     public let limits: GripperLimits
-    /// With the guide's aids on: a stall against a downward command is `.limit(.lowest)` in place of
-    /// `.limit(.blocked)`, not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets
-    /// the clamp label, just when the operator needs to hear it), and told once per approach. False is version 1.0.1,
-    /// and forgets `lowestSeen`.
+    /// With the guide's aids on: an arm that stands against the operator's ask for lower is `.limit(.lowest)`, told
+    /// once per approach and not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets
+    /// the clamp label, just when the operator needs to hear it); `.limit(.blocked)` stays silent while the operator
+    /// asks for lower. False is version 1.0.1 in every rule, and forgets both lowest heights.
     public var reportsLowest = false {
-        didSet { if !reportsLowest { lowestSeen = nil } }
+        didSet {
+            if !reportsLowest {
+                lowestSeen = nil
+                lowestPinchSeen = nil
+            }
+        }
     }
-    /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
+    /// The lowest gripper-link height, robot base frame, at which the arm stood against an ask for lower since the
     /// control connection was welcomed; a lower stall replaces it. Nil before one, and with `reportsLowest` off.
     public private(set) var lowestSeen: Double?
+    /// The same for the pinch point's height, from stalls whose newest state carries the pinch point; nil before one.
+    /// Forgotten whenever `lowestSeen` is.
+    public private(set) var lowestPinchSeen: Double?
+
+    /// One state of a translation hold that carried the gripper link's position.
+    private struct Sample {
+        let atMs: Int
+        /// The gripper link, robot base frame.
+        let position: SIMD3<Double>
+        /// The pinch point, robot base frame, when the state carries it.
+        let pinch: SIMD3<Double>?
+        /// How far the commanded point held when the state arrived lay under its gripper link; nil before the first
+        /// command. It is never judged again against a later command.
+        let below: Double?
+    }
+
+    /// Where the lowest cue was told: the newest state's height then (the pinch point's when that state carried it,
+    /// else the gripper link's) and the gripper link's height.
+    private struct ToldHeight {
+        let height: Double
+        let ofPinch: Bool
+        let gripperZ: Double
+    }
 
     /// The operator's hold from its first start until it ends. A hold the app restarts on its own stays the same hold.
     private struct Engaged {
@@ -67,12 +101,11 @@ public struct FeedbackMonitor {
         var empty = false
         var fullyOpen = false
         var blocked = false
-        /// The height the arm last stood at against a downward command, told, in this approach; nil while the lowest
-        /// cue is armed.
-        var lowestAt: Double?
+        /// Where the lowest cue was told in this approach; nil while it is armed.
+        var lowestTold: ToldHeight?
         /// Where the app is sending the arm, robot base frame.
         var target: SIMD3<Double>?
-        var samples: [(atMs: Int, position: SIMD3<Double>)] = []
+        var samples: [Sample] = []
     }
 
     private var engaged: Engaged?
@@ -206,21 +239,14 @@ public struct FeedbackMonitor {
                 events.append(.limit(.workspace))
             }
             if let position = state.endEffector {
-                current.samples.append((now, position))
+                let below = current.target.map { position.z - $0.z }
+                current.samples.append(Sample(atMs: now, position: position, pinch: state.toolPoint, below: below))
                 current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
             }
-            if let at = current.lowestAt, let newest = current.samples.last,
-                newest.position.z >= at + Self.blockedShortMeters
-            {
-                current.lowestAt = nil
-            }
-            if reportsLowest, let height = lowestStall(current, at: now) {
-                lowestSeen = min(lowestSeen ?? height, height)
-                if current.lowestAt == nil {
-                    current.lowestAt = height
-                    events.append(.limit(.lowest))
-                }
+            if reportsLowest {
+                events += judgeHeight(&current, at: now)
             } else if !current.blocked, !current.clamped, Self.isBlocked(current, at: now) {
+                // Version 1.0.1's rule, untouched by the lowest rule.
                 current.blocked = true
                 events.append(.limit(.blocked))
             }
@@ -255,6 +281,7 @@ public struct FeedbackMonitor {
         self.session = session
         releasedClose = false
         lowestSeen = nil
+        lowestPinchSeen = nil
     }
 
     /// The server reset the scene: the jaws hold nothing.
@@ -293,24 +320,105 @@ public struct FeedbackMonitor {
         return window.allSatisfy { length($0.position - oldest.position) < blockedMovedMeters }
     }
 
-    /// The height a fresh measured arm stands at against a downward command, if it does: the commanded point is below
-    /// it and that is the largest part of the gap, and either the blocked rule's stall holds with it at least 10 mm
-    /// below, or, back within 2 mm of `lowestSeen`, it is at least 5 mm below and the arm moved under 1 mm in 0.3 s.
-    private func lowestStall(_ hold: Engaged, at now: Int) -> Double? {
-        guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < Self.freshStateMs else {
+    // The lowest rule, used only with `reportsLowest` on.
+    //
+    // An arm on a table slides along it, so it is never still in all three directions for a second: the rule judges
+    // its height alone, and asks for no direction, since a push that is partly sideways into the table stops the arm
+    // as surely. The height is the pinch point's when the server reports it, because the gripper link's height on the
+    // table changes with the arm's posture while the pinch point's does not. Each state is judged by the command held
+    // when it arrived, and a window is judged only when its states arrived regularly, so states that come late, or
+    // held back and all at once, cannot make a stall out of an arm that was moving.
+
+    /// The lowest cue, once per approach, and "Blocked." when the operator is not asking for lower.
+    private mutating func judgeHeight(_ hold: inout Engaged, at now: Int) -> [FeedbackEvent] {
+        if let told = hold.lowestTold, let newest = hold.samples.last, Self.hasRisen(newest, above: told) {
+            hold.lowestTold = nil
+        }
+        if isLowestStall(hold, at: now), let newest = hold.samples.last {
+            // Both heights are kept from every stall, told or not.
+            lowestSeen = min(lowestSeen ?? newest.position.z, newest.position.z)
+            if let pinch = newest.pinch { lowestPinchSeen = min(lowestPinchSeen ?? pinch.z, pinch.z) }
+            guard hold.lowestTold == nil else { return [] }
+            hold.lowestTold = ToldHeight(
+                height: newest.pinch?.z ?? newest.position.z, ofPinch: newest.pinch != nil,
+                gripperZ: newest.position.z)
+            // One stall, one cue: a told lowest is this hold's blocked cue as well.
+            hold.blocked = true
+            return [.limit(.lowest)]
+        }
+        guard !hold.blocked, !hold.clamped, Self.isBlockedWithoutAskingLower(hold, at: now) else { return [] }
+        hold.blocked = true
+        return [.limit(.blocked)]
+    }
+
+    /// The fresh measured arm stands against the operator's ask for lower. The full stall: the newest state sent at
+    /// least 10 mm lower, every state of the last second at least 5 mm lower, arriving regularly, and the height
+    /// within 2 mm over that second. Or the quicker one, back within 2 mm of the lowest height found of the same kind:
+    /// every state of the last 0.3 s at least 5 mm lower, arriving regularly, and the height within 1 mm.
+    private func isLowestStall(_ hold: Engaged, at now: Int) -> Bool {
+        guard hold.target != nil, let newest = hold.samples.last, now - newest.atMs < Self.freshStateMs else {
+            return false
+        }
+        if let below = newest.below, below >= Self.blockedShortMeters,
+            let window = Self.window(of: hold.samples, ms: Self.blockedWindowMs),
+            Self.asks(window, atLeast: Self.lowestSustainMeters), Self.arrivesRegularly(window),
+            Self.isStill(window, within: Self.blockedMovedMeters)
+        {
+            return true
+        }
+        let height = newest.pinch?.z ?? newest.position.z
+        guard let lowest = newest.pinch == nil ? lowestSeen : lowestPinchSeen,
+            abs(height - lowest) <= Self.blockedMovedMeters,
+            let window = Self.window(of: hold.samples, ms: Self.lowestQuickMs),
+            Self.asks(window, atLeast: Self.lowestQuickShortMeters), Self.arrivesRegularly(window)
+        else { return false }
+        return Self.isStill(window, within: Self.lowestQuickMovedMeters)
+    }
+
+    /// Version 1.0.1's blocked stall, silent while any state of its second was sent at least 10 mm lower (the operator
+    /// is asking for lower, and the lowest rule answers that), and judged only over states that arrived regularly.
+    private static func isBlockedWithoutAskingLower(_ hold: Engaged, at now: Int) -> Bool {
+        guard isBlocked(hold, at: now), let window = Self.window(of: hold.samples, ms: blockedWindowMs) else {
+            return false
+        }
+        return arrivesRegularly(window) && !window.contains { $0.below.map { $0 >= blockedShortMeters } ?? false }
+    }
+
+    /// The arm has risen 10 mm above where the lowest cue was told, so the next stall is a new approach: judged on the
+    /// same kind of height, or on the gripper link's when the pinch point has come or gone since.
+    private static func hasRisen(_ newest: Sample, above told: ToldHeight) -> Bool {
+        guard (newest.pinch != nil) == told.ofPinch else {
+            return newest.position.z >= told.gripperZ + blockedShortMeters
+        }
+        return (newest.pinch?.z ?? newest.position.z) >= told.height + blockedShortMeters
+    }
+
+    /// From the last sample at least `ms` older than the newest to the newest, with every sample that arrived in that
+    /// one's millisecond; nil while no sample is that old.
+    private static func window(of samples: [Sample], ms: Int) -> [Sample]? {
+        guard let newest = samples.last, let oldest = samples.last(where: { newest.atMs - $0.atMs >= ms }) else {
             return nil
         }
-        let gap = target - newest.position
-        let below = -gap.z
-        guard below >= abs(gap.x), below >= abs(gap.y) else { return nil }
-        let height = newest.position.z
-        if below >= Self.blockedShortMeters, Self.isBlocked(hold, at: now) { return height }
-        guard let lowestSeen, abs(height - lowestSeen) <= Self.blockedMovedMeters, below >= Self.lowestQuickShortMeters,
-            let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= Self.lowestQuickMs })
-        else { return nil }
-        let window = hold.samples.filter { $0.atMs >= oldest.atMs }
-        return window.allSatisfy { Self.length($0.position - oldest.position) < Self.lowestQuickMovedMeters }
-            ? height : nil
+        return samples.filter { $0.atMs >= oldest.atMs }
+    }
+
+    /// Every sample was sent at least `meters` lower when it arrived; one that came before any command was not.
+    private static func asks(_ window: [Sample], atLeast meters: Double) -> Bool {
+        window.allSatisfy { $0.below.map { $0 >= meters } ?? false }
+    }
+
+    /// No two consecutive samples arrived more than `arrivalGapMs` apart.
+    private static func arrivesRegularly(_ window: [Sample]) -> Bool {
+        zip(window, window.dropFirst()).allSatisfy { $1.atMs - $0.atMs <= arrivalGapMs }
+    }
+
+    /// Every sample's height is less than `meters` from the oldest's: the pinch point's when every sample carries it,
+    /// the gripper link's for all of them otherwise.
+    private static func isStill(_ window: [Sample], within meters: Double) -> Bool {
+        let pinchHeights = window.compactMap { $0.pinch?.z }
+        let heights = pinchHeights.count == window.count ? pinchHeights : window.map(\.position.z)
+        guard let oldest = heights.first else { return false }
+        return heights.allSatisfy { abs($0 - oldest) < meters }
     }
 
     private static func length(_ vector: SIMD3<Double>) -> Double { (vector * vector).sum().squareRoot() }
