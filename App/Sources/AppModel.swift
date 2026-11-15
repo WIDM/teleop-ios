@@ -478,6 +478,17 @@ final class AppModel {
         pendingButtonHold = false
     }
 
+    /// The input rules latched the arm hold: it goes on with no input held. Marks the link's hold as one nobody holds,
+    /// so the endings the link causes are told as the follow's own, and plays the latch cue. False, and silent, when
+    /// the session runs no arm hold: the start the latch came with was refused, and that refusal is what the operator
+    /// heard.
+    func armHoldBecameLoose() -> Bool {
+        guard session.state.armMoving else { return false }
+        if session.state.liveLink { link.holdIsLoose = true }
+        raise(.drive(.latched))
+        return true
+    }
+
     /// Counts every stop that began: each STOP press, and each stop the server began on either connection, also
     /// while the stop is already latched here. A reset counted down from before a stop must not clear it.
     private(set) var stopEpoch = 0
@@ -832,8 +843,11 @@ final class AppModel {
             raise(.holdLive(hold: demoHold))
         }
         refreshRecorder()
-        // A start the session ignored, or the link could not start, was refused: the operator has heard why.
-        let told: Interruption? = action == .holdArmStart && !session.state.armMoving ? .startRefused : nil
+        // A start the session ignored, or the link could not start, was refused: the operator has heard why. A hold the
+        // link ended comes with how the link told the operator, when the hold was one nobody held.
+        let told: Interruption? =
+            action == .holdArmStart && !session.state.armMoving
+            ? .startRefused : action == .holdArmEnd && fromServer ? link.takeLooseEnding() : nil
         controller.sessionChanged(told: told)
     }
 

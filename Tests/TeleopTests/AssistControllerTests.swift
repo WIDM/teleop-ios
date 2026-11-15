@@ -173,6 +173,23 @@ final class AssistControllerTests: XCTestCase {
         assertEnded(hearing: .cameraStopped, "the camera stopped")
     }
 
+    /// A press whose start the link could not carry latches nothing the operator hears: the refusal is the one cue,
+    /// and the latch cue that came with the start is not played.
+    func testTheLatchCueIsSkippedWhenTheStartWasRefused() {
+        // The session is connected but no link is open, so the link cannot start the hold the session took.
+        makeModel()
+        model.session.state.markConnected()
+        clock += 100
+        model.keyEvent(.upper, down: true)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertNil(model.controller.arbiter.engagement)
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.noLink)])
+        XCTAssertFalse(model.link.holdIsLoose)
+        clock += 100
+        model.keyEvent(.upper, down: false)
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.noLink)], "the release adds nothing")
+    }
+
     /// The operator's own ending is carried to the model as such.
     func testAPressThatEndsTheFollowIsHeardAsStoppedByYou() {
         bringUp()

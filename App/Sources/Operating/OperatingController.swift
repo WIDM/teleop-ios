@@ -312,6 +312,9 @@ final class OperatingController {
             } else {
                 model.send(.openSettings)
             }
+        // The latch is told only while the session runs the arm hold: a start refused in the same step has played its
+        // refusal, and nothing moved.
+        case .cue(.drive(.latched)): _ = model.armHoldBecameLoose()
         case .cue(let cue): cueRaised(cue)
         }
     }

@@ -123,6 +123,12 @@ final class LiveLinkController {
     /// The work-area rule has spoken in the operator's current hold: the server's own clamp END for it would tell the
     /// same crossing twice.
     private var workAreaToldThisHold = false
+    /// The running translation hold is one nobody holds, such as a follow the input rules latched. Set by AppModel;
+    /// cleared when the hold ends here and when the link closes. While it is set, the endings this link causes are told
+    /// as the move's own endings, which are queued and never dropped.
+    var holdIsLoose = false
+    /// How the operator was told of the last ending this link caused of a hold nobody held, until AppModel reads it.
+    private var looseEnding: Interruption?
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -270,6 +276,8 @@ final class LiveLinkController {
         newestState = nil
         leadBound = WristLeadBound()
         lastTickAtMs = nil
+        holdIsLoose = false
+        looseEnding = nil
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -335,7 +343,15 @@ final class LiveLinkController {
         armAtSegmentStart = nil
         commandedArm = nil
         resync = nil
+        holdIsLoose = false
         onCatchingUp?(false)
+    }
+
+    /// How the operator was told of the ending this link just caused of a hold nobody held, read once by AppModel as
+    /// the session drops the hold; nil when this link recorded none.
+    func takeLooseEnding() -> Interruption? {
+        defer { looseEnding = nil }
+        return looseEnding
     }
 
     /// Ends the server hold without ending the operator's, to find out where the arm is.
@@ -358,7 +374,7 @@ final class LiveLinkController {
         guard link.poseStart(holdParams) else {
             restarting = false
             onLog?("link: could not continue the hold after a resync")
-            emit(monitor.endedByApp(.noAnswer))
+            endedTranslation(monitor.endedByApp(.noAnswer))
             holdEnded()
             onAction?(.holdArmEnd)
             return
@@ -493,7 +509,7 @@ final class LiveLinkController {
         if link.gripperJogActive, ticks % 4 == 0 { link.keepalive() }
         if let resync, translating, nowMs() - resync.sinceMs > Self.resyncTimeoutMs {
             onLog?("link: server did not finish the hold during a resync, hold ended")
-            emit(monitor.endedByApp(.noAnswer))
+            endedTranslation(monitor.endedByApp(.noAnswer))
             holdEnded()
             onAction?(.holdArmEnd)
             return
@@ -535,7 +551,7 @@ final class LiveLinkController {
         guard let holdStart else { return nil }
         guard let current = pose().map(Self.position) else {
             onLog?("link: tracking lost, hold ended")
-            emit(monitor.endedByApp(.tracking))
+            endedTranslation(monitor.endedByApp(.tracking))
             onAction?(.holdArmEnd)
             return nil
         }
@@ -548,7 +564,7 @@ final class LiveLinkController {
             let speed = simd_distance(current, last.position) / (Float(now - last.atMs) / 1000)
             if speed > Self.maxSpeedMetersPerSecond {
                 onLog?(String(format: "link: phone moved too fast (%.2f m/s), hold ended", speed))
-                emit(monitor.endedByApp(.tooFast))
+                endedTranslation(monitor.endedByApp(.tooFast))
                 onAction?(.holdArmEnd)
                 return nil
             }
@@ -626,7 +642,7 @@ final class LiveLinkController {
             onLog?("link: hold ended by server: \(reason)")
             // A success is not the cause of a later emergency stop.
             if reason != TeleopLink.successReason { lastRefusal = (reason, nowMs()) }
-            emit(monitor.startRefused(reason: reason, at: nowMs()))
+            endedTranslation(monitor.startRefused(reason: reason, at: nowMs()), serverReason: reason)
             holdEnded()
             onAction?(.holdArmEnd)
         case .resetDone:
@@ -707,8 +723,40 @@ final class LiveLinkController {
         onGripping?(reportedGripping)
     }
 
+    /// Hands events to AppModel. While the hold is one nobody holds, a let-go or a refusal of it becomes the move's own
+    /// ending, through conversions that name every reason, so a new reason does not compile without one; a refusal
+    /// another cue tells becomes nothing. Every other event passes unchanged. Events go out one by one: in this file an
+    /// array literal returned with a case in front is what the session-safety check reads as a session action.
     private func emit(_ events: [FeedbackEvent]) {
-        for event in events { onFeedback?(event) }
+        for event in events {
+            switch (holdIsLoose, event) {
+            case (true, .letGo(let reason)):
+                onFeedback?(.drive(.ended(DriveEnd(byLink: reason))))
+            case (true, .refused(let refusal)):
+                if let end = DriveEnd(refused: refusal) { onFeedback?(.drive(.ended(end))) }
+            default:
+                onFeedback?(event)
+            }
+        }
+    }
+
+    /// Each place that ends a translation hold here and reports `.holdArmEnd` tells its events through this, in place
+    /// of `emit`, keeping its own order of `holdEnded` and the action. For a hold someone holds it is `emit`. For one
+    /// nobody holds it also records whether the operator has been told: a let-go or a refusal became the move's ending,
+    /// or became nothing because another cue tells it (a stopped robot: the alarm), or the server's reason is told
+    /// elsewhere (a success by its narration, an emergency stop by the alarm). Anything else is recorded as unnamed, so
+    /// the input rules say "Stopped here.".
+    private func endedTranslation(_ events: [FeedbackEvent], serverReason: String? = nil) {
+        guard holdIsLoose else { return emit(events) }
+        let converted = events.contains { event in
+            switch event {
+            case .letGo, .refused: return true
+            default: return false
+            }
+        }
+        let toldElsewhere = serverReason.map(FeedbackMonitor.isToldElsewhere) ?? false
+        emit(events)
+        looseEnding = converted || toldElsewhere ? .announced : .unnamed
     }
 
     // MARK: Listening connection
