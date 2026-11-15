@@ -140,11 +140,16 @@ public struct InputFacts: Equatable, Sendable {
     public var wrist: WristReadings
     /// The control or the observer connection is up, so STOP reaches the server.
     public var connectionUp: Bool
+    /// The measured arm, for tap-to-go. Nil unless tap-to-go is allowed, and before the server has reported a position.
+    public var arm: ArmFix?
+    /// The guide's view from above as it is drawn now, for tap-to-go. Nil unless tap-to-go is allowed and the guide is
+    /// drawn.
+    public var goPanel: GoPanel?
 
     public init(
         refusal: InputRefusal? = nil, trackingRefusal: InputRefusal? = nil, translationRefusal: InputRefusal? = nil,
         resetRefusal: InputRefusal? = nil, gripping: Bool = false, wrist: WristReadings = .unknown,
-        connectionUp: Bool = true
+        connectionUp: Bool = true, arm: ArmFix? = nil, goPanel: GoPanel? = nil
     ) {
         self.refusal = refusal
         self.trackingRefusal = trackingRefusal
@@ -153,6 +158,8 @@ public struct InputFacts: Equatable, Sendable {
         self.gripping = gripping
         self.wrist = wrist
         self.connectionUp = connectionUp
+        self.arm = arm
+        self.goPanel = goPanel
     }
 }
 

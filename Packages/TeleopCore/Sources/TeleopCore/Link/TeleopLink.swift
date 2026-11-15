@@ -214,6 +214,10 @@ public final class TeleopLink {
         return true
     }
 
+    /// The active control's start is being kept off the wire until the control a stop just ended has finished (its
+    /// final ack, or `finishWaitMs`). The arm cannot have moved for that start yet.
+    public var startHeldBack: Bool { heldBack != nil }
+
     /// True while a scene reset is waiting to go out or for its answer. Every start is refused meanwhile: a reset
     /// must never go out behind a start (a start held back for the same final ack would go first), and the server
     /// takes none while it resets. One the server never answered stops counting after a while.
