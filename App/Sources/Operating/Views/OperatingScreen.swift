@@ -80,7 +80,7 @@ private struct OperatingSurface: View {
         ZStack(alignment: .topLeading) {
             ZoneFills(layout: layout, colour: look.colour, practice: display.practice)
             TouchLayer { sample, time in model.touch(sample, at: time) }
-            OperatingDrawing(display: display, layout: layout, look: look, scale: scale, profile: model.profile)
+            OperatingDrawing(display: display, layout: layout, look: look, scale: scale)
                 .allowsHitTesting(false)
         }
         .overlayPreferenceValue(StateWordsBounds.self) { words in
@@ -192,7 +192,6 @@ private struct OperatingDrawing: View {
     let layout: SurfaceLayout
     let look: OperatingWords.Look
     let scale: Double
-    let profile: RobotProfile
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -201,7 +200,7 @@ private struct OperatingDrawing: View {
                 ButtonsStrip(display: display, look: look, scale: scale)
                     .place(Self.strip(display, layout: layout, scale: scale))
             } else {
-                PhoneSurface(display: display, layout: layout, look: look, scale: scale, profile: profile)
+                PhoneSurface(display: display, layout: layout, look: look, scale: scale)
                     .place(layout.controlSurface)
             }
             BottomBandLabel(scale: scale).place(layout.bottomBand)
@@ -368,7 +367,6 @@ private struct PhoneSurface: View {
     let layout: SurfaceLayout
     let look: OperatingWords.Look
     let scale: Double
-    let profile: RobotProfile
 
     /// Smaller than §7.2's 56 pt, so the guide has room under it.
     static func wordSize(_ scale: Double) -> Double { max(30, 44 * scale) }

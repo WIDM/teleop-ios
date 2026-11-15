@@ -17,9 +17,13 @@ private final class GuideTestTransport: LinkTransport {
     }
 }
 
-/// The guide is built once per refresh, from the arm reading, and carried in the display: the screen draws that
-/// picture and the on-target cue judges by it, so the two cannot disagree. Fixtures carry theirs the same way.
+/// The guide is built once per refresh, from the arm reading and the guide's aids in force, and carried in the display:
+/// the screen draws that picture and the on-target cue judges by it, so the two cannot disagree. Fixtures carry theirs
+/// the same way, each with the aids it draws.
 final class SingleGuidePictureTests: XCTestCase {
+    /// The fixtures that draw the guide's aids, and which; every other fixture draws none.
+    private static let fixtureAids: [String: GuideAids] = ["ready_aids": .all]
+
     private var control: GuideTestTransport?
     private var clock = 10_000
     private var savedTaskAid: Any?
@@ -49,6 +53,7 @@ final class SingleGuidePictureTests: XCTestCase {
             nowMs: { [unowned self] in clock }
         )
         model.taskAid = true
+        let aids = model.assist.guide
         XCTAssertNil(model.operating.guide, "no arm reported yet")
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.connect()
@@ -56,14 +61,14 @@ final class SingleGuidePictureTests: XCTestCase {
         control?.server("state", armState(model, above: 0.02))
         let above = model.operating.guide
         XCTAssertNotNil(above)
-        XCTAssertEqual(above, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile) })
+        XCTAssertEqual(above, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile, aids: aids) })
         XCTAssertEqual(above?.onTarget, false)
         XCTAssertEqual(felt.felt.filter { $0 == .play(.onTarget) }.count, 0)
 
         clock += 1000
         control?.server("state", armState(model, above: 0))
         let on = model.operating.guide
-        XCTAssertEqual(on, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile) })
+        XCTAssertEqual(on, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile, aids: aids) })
         XCTAssertEqual(on?.onTarget, true)
         XCTAssertEqual(
             felt.felt.filter { $0 == .play(.onTarget) }.count, 1, "felt as the drawn picture turns On target")
@@ -71,10 +76,13 @@ final class SingleGuidePictureTests: XCTestCase {
 
     func testEveryFixtureCarriesThePictureOfItsReading() {
         for (name, display) in OperatingFixtures.all {
+            let aids = Self.fixtureAids[name]
             XCTAssertEqual(
-                display.guide, display.arm.map { GuidePicture(reading: $0, profile: .so101Simulator) }, name)
+                display.guide, display.arm.map { GuidePicture(reading: $0, profile: .so101Simulator, aids: aids) },
+                name)
         }
         XCTAssertNotNil(OperatingFixtures.all["ready"]?.guide)
+        XCTAssertEqual(OperatingFixtures.all["ready_aids"]?.guide?.directionLabels, true, "a fixture draws the aids")
         XCTAssertNil(OperatingFixtures.all["not_connected"]?.guide)
     }
 

@@ -670,14 +670,18 @@ final class AppModel {
         let s = session.state
         let arm =
             s.liveLink
-            ? OperatingRules.arm(serverState, commanded: link.commandedArm, gripping: gripping, profile: profile) : nil
+            ? OperatingRules.arm(
+                serverState, commanded: link.commandedArm, gripping: gripping, profile: profile,
+                commandOutside: link.commandOutside, lowestGripperZ: link.lowestSeen.map { Float($0) }) : nil
+        // The guide's aids in force draw into the one picture; nil draws version 1.0.1's.
+        let aids = assist.guide
         let display = OperatingDisplay(
             mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
             engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
             resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
             speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
             latencyMs: s.latencyMs, address: s.serverAddress, arm: arm, practice: !s.liveLink, taskAid: taskAidSetting,
-            guide: arm.map { GuidePicture(reading: $0, profile: profile) }
+            guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids) }
         )
         if operating != display { operating = display }
         feelOnTarget(display)

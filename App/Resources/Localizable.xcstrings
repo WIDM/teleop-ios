@@ -609,6 +609,134 @@
         }
       }
     },
+    "guide.arrow_forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前"
+          }
+        }
+      }
+    },
+    "guide.arrow_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
+          }
+        }
+      }
+    },
+    "guide.command_outside.back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far back"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太後面"
+          }
+        }
+      }
+    },
+    "guide.command_outside.down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too low"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太低"
+          }
+        }
+      }
+    },
+    "guide.command_outside.forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far forward"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太前面"
+          }
+        }
+      }
+    },
+    "guide.command_outside.left": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far left"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太靠左"
+          }
+        }
+      }
+    },
+    "guide.command_outside.right": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far right"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太靠右"
+          }
+        }
+      }
+    },
+    "guide.command_outside.up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too high"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太高"
+          }
+        }
+      }
+    },
     "guide.from_above": {
       "localizations": {
         "en": {
@@ -625,6 +753,22 @@
         }
       }
     },
+    "guide.from_above_directions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From above. Up the screen is forward."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從上面看。螢幕往上是前方。"
+          }
+        }
+      }
+    },
     "guide.from_behind": {
       "localizations": {
         "en": {
@@ -637,6 +781,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "從後面看"
+          }
+        }
+      }
+    },
+    "guide.from_behind_directions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From behind. Up the screen is up."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從後面看。螢幕往上是上方。"
           }
         }
       }
@@ -701,6 +861,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "離桌面 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.height_lowest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height %@ cm · lowest"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離桌面 %@ 公分 · 最低點"
           }
         }
       }

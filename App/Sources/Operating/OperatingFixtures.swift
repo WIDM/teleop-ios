@@ -68,20 +68,26 @@ enum OperatingFixtures {
         stopped.hand = .left
         all["buttons_stopped"] = stopped
         all["buttons_practice"] = display(.ready, mode: .buttons, arm: nil, recorder: .unknown, practice: true)
+        // The guide's aids drawn: the shadow under the jaws, the lowest height a stall reached just above the table,
+        // and which way is forward and which way is up.
+        all["ready_aids"] = display(.ready, arm: stalledOnTheTableBefore(task()), recorder: armed, aids: .all)
         return all
     }()
 
     /// The guide is built from the reading as the model builds it, so a fixture draws exactly what the app would.
+    /// `aids`: the guide's aids it draws; nil draws version 1.0.1's guide.
     private static func display(
         _ state: OperatingState, mode: ControlMode = .screenTurns, link: Bool = true, arm: ArmReading?,
-        recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60
+        recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60,
+        aids: GuideAids? = nil
     ) -> OperatingDisplay {
         OperatingDisplay(
             mode: mode, hand: .right, state: state, layout: nil, engaged: nil, resetCountdown: nil, heldButton: nil,
             speed: .coarse, recorder: recorder,
             stopExits: practice ? StopExits.offered(recorder: nil, practice: true) : exits,
             linkUp: link || practice, latencyMs: link ? latency : nil, address: "192.168.0.10:8765", arm: arm,
-            practice: practice, taskAid: true, guide: arm.map { GuidePicture(reading: $0, profile: profile) }
+            practice: practice, taskAid: true,
+            guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids) }
         )
     }
 
@@ -138,6 +144,14 @@ enum OperatingFixtures {
     private static func approximate(_ reading: ArmReading) -> ArmReading {
         var reading = reading
         reading.pinchSource = .estimated(approximate: true)
+        return reading
+    }
+
+    /// The reading after a downward stall with the jaws just above the table: the lowest height, kept for the gripper
+    /// link, is the profile's tool offset above that pinch height.
+    private static func stalledOnTheTableBefore(_ reading: ArmReading) -> ArmReading {
+        var reading = reading
+        reading.lowestGripperZ = onTable + 0.005 - profile.toolOffset.z
         return reading
     }
 

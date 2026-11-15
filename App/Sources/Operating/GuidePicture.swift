@@ -9,7 +9,9 @@ import TeleopCore
 /// the arm is being asked to go during a move. Only when the server reports task objects does it add a target and a
 /// goal as plain shapes, the gap from the pinch point to the target, "on target" inside the profile's tolerance, and
 /// "holding" while the jaws grip. A pinch point the profile can only estimate roughly is drawn hollow, says so, and is
-/// never "on target".
+/// never "on target". The guide's aids, each only when it is on, add: the side the commanded place is outside the work
+/// area on, the lowest height a downward stall reached (a line from behind, and "lowest" on the height while the pinch
+/// point is back there), a shadow under the pinch point, and which way is forward and which way is up.
 ///
 /// Both views are equally wide and share one left-right axis and one scale, so a thing sits at the same x in both.
 /// From above, up is the operator's forward; from behind, up is up. Places are shares of a view's width and height,
@@ -46,6 +48,8 @@ struct GuidePicture: Equatable {
     enum Line: Equatable {
         /// The pinch point's height above the table.
         case height(cm: Double)
+        /// The same, while the pinch point is back at the lowest height a downward stall reached (the guide's aid).
+        case heightLowest(cm: Double)
         case jaws(percentOpen: Int)
         case wrist(turnDeg: Int?, tiltDeg: Int?)
         /// The pinch point is an estimate that may be off by more than half the on-target window.
@@ -56,6 +60,8 @@ struct GuidePicture: Equatable {
         case holding
         /// While holding: from the pinch point to the goal.
         case goal(acrossCm: Double, height: Height)
+        /// The place being commanded is outside the work area on this side, in the operator's words (the guide's aid).
+        case commandOutside(OperatorDirection)
         /// The pinch point is outside the workspace box.
         case outside
     }
@@ -99,8 +105,17 @@ struct GuidePicture: Equatable {
     /// without a target.
     let targetGap: SIMD2<Double>?
     let lines: [Line]
+    /// The guide's aids, each nil or false without its aid. The lowest pinch height a downward stall reached, as a
+    /// share of the view from behind's height, drawn as a dashed line across the box.
+    let lowestY: Double?
+    /// The pinch point's height above the table as a share of the box's height above it, 0 to 1, for the shadow under
+    /// the pinch point: the only height cue the view from above has.
+    let lift: Double?
+    /// Draw which way is forward and which way is up on the views, and say it in their accessibility labels.
+    let directionLabels: Bool
 
-    init(reading: ArmReading, profile: RobotProfile) {
+    /// `aids`: the guide's aids in force (`Assist.guide`); nil draws and says exactly what version 1.0.1 does.
+    init(reading: ArmReading, profile: RobotProfile, aids: GuideAids? = nil) {
         let ends = (profile.workspaceMin + reading.boxShift, profile.workspaceMax + reading.boxShift)
         workBoxLow = SIMD3<Double>(simd_min(ends.0, ends.1))
         workBoxHigh = SIMD3<Double>(simd_max(ends.0, ends.1))
@@ -159,7 +174,20 @@ struct GuidePicture: Equatable {
         targetGap = reading.target.map(gap(to:))
         holding = reading.gripping && reading.target != nil
         approximate = reading.pinchSource.isApproximate
-        var lines: [Line] = [.height(cm: (pinchPoint.z - table) * 100)]
+
+        // The lowest height is kept for the gripper link; it is drawn for the pinch point, moved by this reading's
+        // offset as the ring and the box are. Up in the operator's frame is up in the base frame.
+        let offset = profile.toolOffset + reading.boxShift
+        let lowest = aids?.lowestCue == true ? reading.lowestGripperZ.map { Double($0) + Double(offset.z) } : nil
+        lowestY = lowest.map { min(max(projection.behind(SIMD3(pinchPoint.x, pinchPoint.y, $0)).y, 0), 1) }
+        let rise = boxHigh.z - table
+        lift = aids?.shadow == true ? (rise > 0 ? min(max((pinchPoint.z - table) / rise, 0), 1) : 0) : nil
+        directionLabels = aids?.directionLabels == true
+
+        // Back within the monitor's 2 mm of the lowest height, the height says so.
+        let atLowest = lowest.map { abs(pinchPoint.z - $0) <= FeedbackMonitor.blockedMovedMeters } ?? false
+        let heightCm = (pinchPoint.z - table) * 100
+        var lines: [Line] = [atLowest ? .heightLowest(cm: heightCm) : .height(cm: heightCm)]
         if let open = jawOpening { lines.append(.jaws(percentOpen: Int((open * 100).rounded()))) }
         if reading.wristTurnDeg != nil || reading.wristTiltDeg != nil {
             lines.append(
@@ -182,6 +210,7 @@ struct GuidePicture: Equatable {
             if onTarget { lines.append(.onTarget) }
         }
         self.onTarget = onTarget
+        if aids?.workAreaWords == true, let side = reading.commandOutside { lines.append(.commandOutside(side)) }
         if outside { lines.append(.outside) }
         self.lines = lines
     }
