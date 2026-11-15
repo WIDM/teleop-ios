@@ -8,7 +8,8 @@ public struct GoPanel: Equatable, Sendable {
     /// Operating-screen points, origin top left: the coordinates touches arrive in.
     public var rect: SurfaceLayout.Rect
     public var projection: GuideProjection
-    /// The work box as drawn: the profile's box moved by the reading's measured offset, robot base frame, pinch point,
+    /// The work box as drawn: the profile's box moved by the reading's `boxShift` (its measured gripper-to-pinch offset
+    /// less the profile's tool offset, zero unless the server reports a tool point), robot base frame, pinch point,
     /// metres, corners sorted.
     public var boxLow: SIMD3<Double>
     public var boxHigh: SIMD3<Double>

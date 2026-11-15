@@ -49,6 +49,29 @@ final class GuideProjectionTests: XCTestCase {
         XCTAssertEqual(centre.y, 0.5, accuracy: 1e-9)
     }
 
+    /// The ranges on boxes that are not the SO-101's cube with the table under its top: the margin comes from the box's
+    /// width and depth only, however tall it is, and a table above the box's top still has the margin above it.
+    func testTheRangesHoldForATallBoxAndATableAboveTheBox() {
+        // 10 cm across, 8 cm deep, 30 cm tall: the margin is 15 % of 10 cm, not of 30 cm.
+        let tall = GuideProjection(boxLow: SIMD3(0, 0, 0), boxHigh: SIMD3(0.1, 0.08, 0.3), table: 0.02)
+        XCTAssertEqual(tall.across.lowerBound, -0.015, accuracy: 1e-12)
+        XCTAssertEqual(tall.across.upperBound, 0.115, accuracy: 1e-12)
+        XCTAssertEqual(tall.depth.lowerBound, -0.015, accuracy: 1e-12)
+        XCTAssertEqual(tall.depth.upperBound, 0.095, accuracy: 1e-12)
+        XCTAssertEqual(tall.height.lowerBound, 0.02 - 0.0075, accuracy: 1e-12)
+        XCTAssertEqual(tall.height.upperBound, 0.3 + 0.015, accuracy: 1e-12)
+        XCTAssertEqual(tall.aboveAspect, 0.13 / 0.11, accuracy: 1e-12)
+        XCTAssertEqual(tall.behindAspect, 0.13 / (0.315 - 0.0125), accuracy: 1e-12)
+
+        // A table 3 cm above a 5 cm box's top: the view from behind runs from just under the table to the margin
+        // over it.
+        let low = GuideProjection(boxLow: SIMD3(0, 0, 0), boxHigh: SIMD3(0.1, 0.1, 0.05), table: 0.08)
+        XCTAssertEqual(low.height.lowerBound, 0.08 - 0.0075, accuracy: 1e-12)
+        XCTAssertEqual(low.height.upperBound, 0.08 + 0.015, accuracy: 1e-12)
+        XCTAssertEqual(low.behindAspect, 0.13 / 0.0225, accuracy: 1e-9)
+        XCTAssertEqual(low.behind(SIMD3(0.05, 0.05, 0.08)).y, 1 - 0.0075 / 0.0225, accuracy: 1e-12, "the table's line")
+    }
+
     func testAboveAndItsInverseRoundTrip() {
         let p = projection(low: boxMin, high: boxMax, table: table)
         var random = SplitMix64(seed: 0x6E1D_E0B5)

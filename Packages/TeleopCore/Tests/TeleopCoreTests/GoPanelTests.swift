@@ -106,6 +106,38 @@ final class GoPanelTests: XCTestCase {
         }
     }
 
+    /// A box deeper than it is wide draws a view from above that is not square, and the panel is the frame it was drawn
+    /// in: a tap's height on the glass is read against the panel's height, its place across against its width.
+    func testTheInverseHoldsOnAPanelThatIsNotSquare() {
+        let low = SIMD3(-0.04, -0.26, -0.008), high = SIMD3(0.06, -0.10, 0.152)
+        let a = GuideProjection.operatorPoint(low), b = GuideProjection.operatorPoint(high)
+        let projection = GuideProjection(boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
+        // 10 cm across and 16 cm deep, with a margin of 2.4 cm: 14.8 by 20.8 cm, drawn 120 pt wide as the guide does.
+        XCTAssertEqual(projection.aboveAspect, 0.148 / 0.208, accuracy: 1e-12)
+        let frame = SurfaceLayout.Rect(x: 130, y: 250, width: 120, height: 120 / projection.aboveAspect)
+        let p = GoPanel(rect: frame, projection: projection, boxLow: low, boxHigh: high, tableHeight: table)
+
+        let centre = p.target(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2, travelHeight: travel)
+        XCTAssertEqual(centre.x, (low.x + high.x) / 2, accuracy: 1e-9)
+        XCTAssertEqual(centre.y, (low.y + high.y) / 2, accuracy: 1e-9)
+        // The bottom right corner is the view's near right corner: past the box's base −x face and its near (+y) face,
+        // each by the margin.
+        let corner = p.target(x: frame.maxX, y: frame.maxY, travelHeight: travel)
+        XCTAssertEqual(corner.x, low.x - 0.024, accuracy: 1e-9)
+        XCTAssertEqual(corner.y, high.y + 0.024, accuracy: 1e-9)
+        // A quarter of the way down is a quarter of the 20.8 cm depth, not of the 14.8 cm width.
+        let quarter = p.target(x: frame.x + frame.width / 2, y: frame.y + frame.height / 4, travelHeight: travel)
+        XCTAssertEqual(quarter.y, (low.y + high.y) / 2 - 0.052, accuracy: 1e-9)
+
+        var random = SplitMix64(seed: 0x0B_10E6)
+        for i in 0..<500 {
+            let x = random.uniform(frame.x - 20, frame.maxX + 20), y = random.uniform(frame.y - 20, frame.maxY + 20)
+            let drawn = p.point(over: p.target(x: x, y: y, travelHeight: travel))
+            XCTAssertEqual(drawn.x, x, accuracy: 1e-9, "\(i)")
+            XCTAssertEqual(drawn.y, y, accuracy: 1e-9, "\(i)")
+        }
+    }
+
     func testPointOverIsTheInverse() {
         let p = panel(shift: SIMD3(-0.01, 0.02, 0))
         var random = SplitMix64(seed: 0x60_9A4E1)
