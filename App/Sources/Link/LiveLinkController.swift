@@ -667,8 +667,21 @@ final class LiveLinkController {
         newestState = state
         newestStateAtMs = nowMs()
         var events = monitor.observe(state, at: nowMs())
+        // The server clamps at the face, the work-area rule only past its slack, so pushed slowly the clamp comes
+        // first. With the commanded point past a face the rule watches, the clamp is that crossing: the rule tells it
+        // now, in place of the server's END.
+        if events.contains(.limit(.workspace)), let point = commandedArm,
+            let clamp = workAreaCue?.serverClamped(SIMD3<Double>(point), at: nowMs()), clamp.foreseen
+        {
+            events.removeAll { $0 == .limit(.workspace) }
+            if let side = clamp.told {
+                workAreaToldThisHold = true
+                events.append(.commandOutside(side))
+            }
+        }
         // The work-area rule already told this hold's crossing; the server's clamp of it would be a second buzz. A
-        // clamp the rule did not foresee (a server whose box differs from the profile's) still plays.
+        // clamp the rule did not foresee (a server whose box differs from the profile's, or a face the rule does not
+        // watch) still plays.
         if workAreaToldThisHold { events.removeAll { $0 == .limit(.workspace) } }
         emit(events)
         noteGripping()

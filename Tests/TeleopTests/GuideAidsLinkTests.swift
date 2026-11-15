@@ -207,6 +207,63 @@ final class GuideAidsLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt, [.play(.go), .play(.end)])
     }
 
+    /// Pushed slowly, the server clamps at the face before the commanded point is past the rule's slack. That clamp is
+    /// the crossing: the rule tells its side at once, the line shows it, the server's END is left out, and nothing more
+    /// is told as the point goes on out.
+    func testASlowCrossingTheServerClampsFirstIsToldOnceWithItsSide() {
+        // 9.65 mm inside the forward face (base −y), so no step lands on the face or on the slack's boundary.
+        let start = SIMD3(resetPose.x, gripperBox().low.y + 0.00965, resetPose.z)
+        bringUp(aids: true, arm: start)
+        model.send(.holdArmStart)
+        // Forward a millimetre a tick (ARKit forward is −z): after 11, 1.35 mm past the face, inside the slack.
+        for step in 1...11 {
+            position = SIMD3(0, 0, -0.001 * Float(step))
+            tick()
+        }
+        XCTAssertNil(model.link.commandOutside, "inside the slack")
+        XCTAssertEqual(sidesTold, [])
+        transport.server("state", state(start, ik: "pose_tracking"))
+        transport.server("state", state(start, ik: "pose_clamped"))
+        XCTAssertEqual(model.link.commandOutside, .forward, "the line says what the cue says")
+        XCTAssertEqual(sidesTold, [.forward])
+        for step in 12...30 {
+            position = SIMD3(0, 0, -0.001 * Float(step))
+            tick()
+            transport.server("state", state(start, ik: "pose_clamped"))
+        }
+        XCTAssertEqual(model.link.commandOutside, .forward)
+        XCTAssertEqual(sidesTold, [.forward])
+        XCTAssertFalse(cues.contains(.limit(.workspace)), "one crossing, one buzz")
+        XCTAssertEqual(felt.felt, [.play(.go), .play(.end)])
+        XCTAssertEqual(speech.spoken, ["Too far forward."])
+    }
+
+    /// The server's END is left out only in the hold in which the rule spoke: in the next hold, a clamp the rule did
+    /// not foresee (the commanded point well inside the box) is felt.
+    func testTheServersClampIsLeftOutOnlyInTheHoldTheRuleSpokeIn() {
+        let start = SIMD3(resetPose.x, gripperBox().low.y + 0.01, resetPose.z)
+        bringUp(aids: true, arm: start)
+        model.send(.holdArmStart)
+        handForward(3)
+        transport.server("state", state(start, ik: "pose_tracking"))
+        transport.server("state", state(start, ik: "pose_clamped"))
+        XCTAssertEqual(sidesTold, [.forward])
+        XCTAssertFalse(cues.contains(.limit(.workspace)), "the rule told this hold's crossing")
+        model.send(.holdArmEnd)
+        serverFinishesHold(armAt: start)
+        run(ticks: 50)
+        position = .zero
+        model.send(.holdArmStart)
+        run(ticks: 12)
+        XCTAssertNil(model.link.commandOutside, "inside the box")
+        transport.server("state", state(start, ik: "pose_tracking"))
+        transport.server("state", state(start, ik: "pose_clamped"))
+        XCTAssertEqual(sidesTold, [.forward])
+        XCTAssertEqual(cues.filter { $0 == .limit(.workspace) }.count, 1, "felt in the next hold")
+        XCTAssertEqual(felt.felt.filter { $0 == .play(.end) }.count, 2, "the side told, then the clamp")
+        XCTAssertEqual(felt.felt.last, .play(.end))
+    }
+
     /// The simulator's box floor is below its table: the table stops the arm first, and the lowest rule tells that, so
     /// the work-area rule does not also say "Too low.". On a profile whose box floor is above the table it does.
     func testAFloorBelowTheTableIsNotToldAndOneAboveItIs() {

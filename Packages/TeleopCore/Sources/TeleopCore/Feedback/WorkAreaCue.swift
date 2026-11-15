@@ -17,6 +17,11 @@ import simd
 ///
 /// Only the faces of the sides it watches count. A face the arm is stopped before, such as a floor below the table, is
 /// left out by whoever builds the rule: something else already tells that stop, and one act should get one cue.
+///
+/// The server clamps at the face itself, so a point pushed slowly out is clamped before it is past the slack. When the
+/// server reports that clamp with the point past a watched face by any amount, that is the crossing: it is told at once
+/// (the gap and each side's re-arm still hold) and the face itself is the edge until the point is back inside, so the
+/// server need not tell it as well. A clamp with the point past no watched face is one this rule did not foresee.
 public struct WorkAreaCue: Sendable {
     /// Beyond a face by more than this counts as outside: the guide's own millimetre plus rounding.
     public static let slackMeters = 0.002
@@ -38,6 +43,9 @@ public struct WorkAreaCue: Sendable {
     /// The side last told and not yet armed again; nil while armed.
     private var told: OperatorDirection?
     private var playedAtMs: Int?
+    /// The server has clamped the point at a watched face in this hold, and the point has not been back inside every
+    /// watched face since: until it is, past a face by any amount is outside.
+    private var clampedAtFace = false
 
     /// `low` and `high` are opposite corners of the box in gripper-link space, robot base frame; either order.
     /// `sides`: the faces that count; all six unless a face cannot be reached.
@@ -54,13 +62,49 @@ public struct WorkAreaCue: Sendable {
     /// plays now.
     public mutating func commanded(_ point: SIMD3<Double>, at nowMs: Int) -> OperatorDirection? {
         guard hasBox else { return nil }
-        // At a corner the side the point is farthest beyond is named; an exact tie goes to the first in the table.
+        let farthest = farthestPast(point)
+        // Back inside every watched face: the clamp is over, and the slack counts again.
+        if farthest.by <= 0 { clampedAtFace = false }
+        outside = farthest.by > (clampedAtFace ? 0 : Self.slackMeters) ? farthest.side : nil
+        return tellOutside(point, at: nowMs)
+    }
+
+    /// The server reports its clamp of this hold, with the gripper-link point the link is commanding now. `foreseen` is
+    /// true when that point is past a watched face by any amount: the clamp is the crossing the rule watches for, its
+    /// side is outside now and told at once unless the gap or that side's re-arm holds it back, and the server's own
+    /// cue for the clamp would tell it twice. False, the point is past no watched face (a server whose box differs, or
+    /// a face the rule does not watch): nothing changes, and the server's cue is the one that tells it. `told` is the
+    /// side when the cue plays now.
+    public mutating func serverClamped(
+        _ point: SIMD3<Double>, at nowMs: Int
+    ) -> (foreseen: Bool, told: OperatorDirection?) {
+        guard hasBox else { return (false, nil) }
+        let farthest = farthestPast(point)
+        guard farthest.by > 0 else { return (false, nil) }
+        clampedAtFace = true
+        outside = farthest.side
+        return (true, tellOutside(point, at: nowMs))
+    }
+
+    /// A new hold started: every side can be told again, and the slack counts until the server clamps.
+    public mutating func holdStarted() {
+        told = nil
+        clampedAtFace = false
+    }
+
+    /// The watched side whose face `point` is farthest past, and by how much (negative: inside every watched face). At
+    /// a corner the side the point is farthest beyond is named; an exact tie goes to the first in the table.
+    private func farthestPast(_ point: SIMD3<Double>) -> (side: OperatorDirection, by: Double) {
         var farthest = (side: OperatorDirection.forward, by: -Double.infinity)
         for side in OperatorDirection.allCases where sides.contains(side) {
             let by = excess(of: point, past: side)
             if by > farthest.by { farthest = (side, by) }
         }
-        outside = farthest.by > Self.slackMeters ? farthest.side : nil
+        return farthest
+    }
+
+    /// Plays the cue for `outside` unless that side is told and not armed again, or the last cue is too recent.
+    private mutating func tellOutside(_ point: SIMD3<Double>, at nowMs: Int) -> OperatorDirection? {
         if let side = told, excess(of: point, past: side) <= -Self.rearmMeters { told = nil }
         guard let side = outside, side != told else { return nil }
         if let played = playedAtMs, nowMs - played < Self.minimumGapMs { return nil }
@@ -68,9 +112,6 @@ public struct WorkAreaCue: Sendable {
         playedAtMs = nowMs
         return side
     }
-
-    /// A new hold started: every side can be told again.
-    public mutating func holdStarted() { told = nil }
 
     /// How far `point` lies past the box's face on `side`, metres: positive outside, negative inside.
     private func excess(of point: SIMD3<Double>, past side: OperatorDirection) -> Double {

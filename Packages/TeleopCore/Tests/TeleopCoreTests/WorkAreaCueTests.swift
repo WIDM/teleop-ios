@@ -196,6 +196,78 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertEqual(tick(past(.up, by: 0.004), after: 1400), .up)
     }
 
+    /// Pushed slowly, the server clamps at the face before the point is past the slack. A clamp with the point past a
+    /// watched face by any amount is that crossing: told at once, and the face itself is the edge for the line until
+    /// the point is back inside, after which the slack counts again.
+    func testAClampPastAFaceIsToldAtOnceWithoutTheSlack() {
+        XCTAssertNil(tick(past(.forward, by: 0.001)))
+        XCTAssertNil(cue.outside, "inside the slack")
+        clock += 20
+        let clamp = cue.serverClamped(past(.forward, by: 0.001), at: clock)
+        XCTAssertTrue(clamp.foreseen)
+        XCTAssertEqual(clamp.told, .forward)
+        XCTAssertEqual(cue.outside, .forward, "the line says what the cue says")
+        for by in [0.0005, 0.0015, 0.004, 0.0001] {
+            XCTAssertNil(tick(past(.forward, by: by)), "\(by)")
+            XCTAssertEqual(cue.outside, .forward, "still clamped, \(by)")
+        }
+        XCTAssertNil(tick(past(.forward, by: -0.0001)))
+        XCTAssertNil(cue.outside, "back inside")
+        XCTAssertNil(tick(past(.forward, by: 0.001), after: 2000))
+        XCTAssertNil(cue.outside, "the slack counts again")
+    }
+
+    /// A clamp with the point past no watched face is one the rule did not foresee: inside the box, past a face it
+    /// does not watch, or with no box. Nothing is told and the slack still counts.
+    func testAClampPastNoWatchedFaceIsNotForeseen() {
+        let inside = cue.serverClamped(past(.forward, by: -0.0001), at: 0)
+        XCTAssertFalse(inside.foreseen)
+        XCTAssertNil(inside.told)
+        XCTAssertNil(cue.outside)
+        XCTAssertNil(tick(past(.forward, by: 0.001), after: 2000), "the slack still counts")
+        XCTAssertNil(cue.outside)
+        var noFloor = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        let floor = noFloor.serverClamped(past(.down, by: 0.03), at: 0)
+        XCTAssertFalse(floor.foreseen)
+        XCTAssertNil(floor.told)
+        XCTAssertNil(noFloor.outside)
+        var noBox = WorkAreaCue(low: low, high: SIMD3(high.x, .nan, high.z))
+        XCTAssertFalse(noBox.serverClamped(past(.forward, by: 0.01), at: 0).foreseen)
+        XCTAssertNil(noBox.outside)
+    }
+
+    /// The gap between cues and each side's re-arm still hold for a clamp: a side told and not armed again is not told
+    /// again, and a cue the gap holds back plays on the first tick it allows while the point is still past the face.
+    func testAClampKeepsTheGapAndTheReArm() {
+        XCTAssertEqual(tick(past(.forward, by: 0.003)), .forward)
+        XCTAssertNil(tick(past(.forward, by: -0.004), after: 2000))
+        clock += 2000
+        let again = cue.serverClamped(past(.forward, by: 0.001), at: clock)
+        XCTAssertTrue(again.foreseen)
+        XCTAssertNil(again.told, "not armed again")
+        XCTAssertEqual(cue.outside, .forward)
+
+        // Left told in one hold, and a new hold clamped at the forward face 0.2 s later.
+        XCTAssertEqual(tick(past(.left, by: 0.003), after: 2000), .left)
+        cue.holdStarted()
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 100))
+        clock += 100
+        let held = cue.serverClamped(past(.forward, by: 0.001), at: clock)
+        XCTAssertTrue(held.foreseen)
+        XCTAssertNil(held.told, "within the gap")
+        XCTAssertEqual(cue.outside, .forward)
+        XCTAssertNil(tick(past(.forward, by: 0.0012), after: 1000))
+        XCTAssertEqual(tick(past(.forward, by: 0.0014), after: 300), .forward, "played once the gap allows")
+    }
+
+    /// A new hold ends the clamp: the slack counts until the server clamps again.
+    func testANewHoldEndsTheClamp() {
+        XCTAssertEqual(cue.serverClamped(past(.left, by: 0.001), at: 0).told, .left)
+        cue.holdStarted()
+        XCTAssertNil(tick(past(.left, by: 0.001), after: 2000))
+        XCTAssertNil(cue.outside)
+    }
+
     func testNothingWithoutABox() {
         // Not known on one axis, unbounded everywhere, unbounded on one side only.
         let unbounded = SIMD3(Double.infinity, .infinity, .infinity)
