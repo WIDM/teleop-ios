@@ -9,10 +9,11 @@ import simd
 /// `slackMeters` is outside, on the side whose face it is farthest beyond, named through the axis table of
 /// `OperatorDirection`.
 ///
-/// The cue plays on the tick that turns inside into outside, and again when the side changes while outside. Once a side
-/// has been told, it is told again only after the point has come back inside that side's face by `rearmMeters`, or a
-/// new hold has started, so a point resting on a face is told once. Two cues are never closer than `minimumGapMs`, so a
-/// point hovering at the edge does not chatter; a cue held back by that gap plays on the first tick after it if the
+/// A side not yet told plays when it becomes the side outside: on the tick that turns inside into outside, or when the
+/// farthest side changes while outside. Each side is told again only after the point has been back inside its own
+/// face by `rearmMeters`, or after a new hold has started, so a point resting on a face is told once, and so is each
+/// side of a corner where the farthest side flips between two faces. Two cues are never closer than `minimumGapMs`, so
+/// a point hovering at the edge does not chatter; a cue held back by that gap plays on the first tick after it if the
 /// point is still out on a side not yet told.
 ///
 /// Only the faces of the sides it watches count. A face the arm is stopped before, such as a floor below the table, is
@@ -40,8 +41,9 @@ public struct WorkAreaCue: Sendable {
     public private(set) var outside: OperatorDirection?
     /// A box with a number that is not finite has no faces the arm can be asked past, so nothing is ever outside it.
     private let hasBox: Bool
-    /// The side last told and not yet armed again; nil while armed.
-    private var told: OperatorDirection?
+    /// The sides told and not yet armed again, each until the point is back inside its own face; empty while every
+    /// side is armed.
+    private var told: Set<OperatorDirection> = []
     private var playedAtMs: Int?
     /// The server has clamped the point at a watched face in this hold, and the point has not been back inside every
     /// watched face since: until it is, past a face by any amount is outside.
@@ -58,8 +60,8 @@ public struct WorkAreaCue: Sendable {
         hasBox = [low.x, low.y, low.z, high.x, high.y, high.z].allSatisfy(\.isFinite)
     }
 
-    /// One tick of a translation hold, with the gripper-link point the link is commanding. Returns the side when the cue
-    /// plays now.
+    /// One tick of a translation hold, with the gripper-link point the link is commanding. Returns the side when the
+    /// cue plays now.
     public mutating func commanded(_ point: SIMD3<Double>, at nowMs: Int) -> OperatorDirection? {
         guard hasBox else { return nil }
         let farthest = farthestPast(point)
@@ -88,7 +90,7 @@ public struct WorkAreaCue: Sendable {
 
     /// A new hold started: every side can be told again, and the slack counts until the server clamps.
     public mutating func holdStarted() {
-        told = nil
+        told = []
         clampedAtFace = false
     }
 
@@ -105,10 +107,10 @@ public struct WorkAreaCue: Sendable {
 
     /// Plays the cue for `outside` unless that side is told and not armed again, or the last cue is too recent.
     private mutating func tellOutside(_ point: SIMD3<Double>, at nowMs: Int) -> OperatorDirection? {
-        if let side = told, excess(of: point, past: side) <= -Self.rearmMeters { told = nil }
-        guard let side = outside, side != told else { return nil }
+        told = told.filter { excess(of: point, past: $0) > -Self.rearmMeters }
+        guard let side = outside, !told.contains(side) else { return nil }
         if let played = playedAtMs, nowMs - played < Self.minimumGapMs { return nil }
-        told = side
+        told.insert(side)
         playedAtMs = nowMs
         return side
     }

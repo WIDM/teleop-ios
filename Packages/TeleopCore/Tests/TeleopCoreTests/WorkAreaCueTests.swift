@@ -142,8 +142,10 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertNil(tick(corner, after: 980))
         XCTAssertEqual(tick(corner, after: 20), .left, "played on the first tick the gap allows")
         XCTAssertNil(tick(corner))
-        // And back to farther forward than left.
-        XCTAssertEqual(tick(past(.left, by: 0.003, from: past(.forward, by: 0.006)), after: 1500), .forward)
+        // And back to farther forward than left: the line names the farthest side, but forward was told and the point
+        // has not been back inside the forward face since, so the cue does not repeat it.
+        XCTAssertNil(tick(past(.left, by: 0.003, from: past(.forward, by: 0.006)), after: 1500))
+        XCTAssertEqual(cue.outside, .forward)
     }
 
     func testHoveringAtTheEdgeGivesOneEventPerGapAtMost() {
@@ -307,5 +309,80 @@ final class WorkAreaCueTests: XCTestCase {
                 XCTAssertEqual(rule.outside, picture.outside, "\(point)")
             }
         }
+    }
+
+    /// A point at the forward-right corner: `forward` past the forward face and `right` past the right face (negative:
+    /// inside it), at the box's centre height.
+    private func corner(_ forward: Double, _ right: Double) -> SIMD3<Double> {
+        past(.right, by: right, from: past(.forward, by: forward))
+    }
+
+    /// Each side keeps its own memory: at a corner where the farthest side keeps swapping between two faces, each is
+    /// told once while the point never comes back inside either face. The line follows the point at every tick.
+    func testAtACornerEachSideIsToldOnceUntilItsOwnFaceIsLeft() {
+        XCTAssertEqual(tick(corner(0.006, -0.01)), .forward)
+        XCTAssertEqual(tick(corner(0.006, 0.009), after: 2000), .right)
+        for round in 0..<3 {
+            XCTAssertNil(tick(corner(0.009, 0.006), after: 2000), "forward is told and not armed again, \(round)")
+            XCTAssertEqual(cue.outside, .forward)
+            XCTAssertNil(tick(corner(0.006, 0.009), after: 2000), "right is told and not armed again, \(round)")
+            XCTAssertEqual(cue.outside, .right)
+        }
+    }
+
+    /// Back inside the forward face by the re-arm distance while still out on the right arms forward alone: out
+    /// forward again is told, out right again is not. A shorter return arms nothing.
+    func testBackInsideOneFaceAtACornerArmsThatSideAlone() {
+        XCTAssertEqual(tick(corner(0.006, -0.01)), .forward)
+        XCTAssertEqual(tick(corner(0.006, 0.009), after: 2000), .right)
+        XCTAssertNil(tick(corner(-0.004, 0.009), after: 2000))
+        XCTAssertNil(tick(corner(0.012, 0.009), after: 2000), "back 4 mm inside the forward face is not enough")
+        XCTAssertEqual(cue.outside, .forward)
+        XCTAssertNil(tick(corner(-0.006, 0.009), after: 2000))
+        XCTAssertEqual(cue.outside, .right)
+        XCTAssertEqual(tick(corner(0.012, 0.009), after: 2000), .forward, "armed again on its own face")
+        XCTAssertNil(tick(corner(0.012, 0.015), after: 2000), "right never came back inside its face")
+        XCTAssertEqual(cue.outside, .right)
+    }
+
+    /// The same through the server's clamp: a clamp at a side told and not armed again tells nothing, however often
+    /// the corner swaps; a side armed again on its own face is told by the next clamp there, and the other is not.
+    func testAClampAtACornerKeepsEachSideItsOwnReArm() {
+        clock += 20
+        XCTAssertEqual(cue.serverClamped(corner(0.001, -0.01), at: clock).told, .forward)
+        clock += 2000
+        XCTAssertEqual(cue.serverClamped(corner(0.001, 0.0015), at: clock).told, .right)
+        for round in 0..<3 {
+            clock += 2000
+            let forward = cue.serverClamped(corner(0.0015, 0.001), at: clock)
+            XCTAssertTrue(forward.foreseen)
+            XCTAssertNil(forward.told, "forward is told and not armed again, \(round)")
+            XCTAssertEqual(cue.outside, .forward)
+            clock += 2000
+            let right = cue.serverClamped(corner(0.001, 0.0015), at: clock)
+            XCTAssertTrue(right.foreseen)
+            XCTAssertNil(right.told, "right is told and not armed again, \(round)")
+            XCTAssertEqual(cue.outside, .right)
+        }
+        // Back inside the forward face by the re-arm distance, still out on the right: forward alone is armed.
+        XCTAssertNil(tick(corner(-0.006, 0.0015), after: 2000))
+        XCTAssertEqual(cue.outside, .right)
+        clock += 2000
+        XCTAssertEqual(cue.serverClamped(corner(0.002, 0.0015), at: clock).told, .forward, "armed again on its face")
+        clock += 2000
+        let right = cue.serverClamped(corner(0.001, 0.002), at: clock)
+        XCTAssertTrue(right.foreseen)
+        XCTAssertNil(right.told, "right never came back inside its face")
+        XCTAssertEqual(cue.outside, .right)
+    }
+
+    /// A new hold arms every side, not only the last one told, and the new hold keeps its own memory.
+    func testANewHoldArmsEverySideAgain() {
+        XCTAssertEqual(tick(corner(0.006, -0.01)), .forward)
+        XCTAssertEqual(tick(corner(0.006, 0.009), after: 2000), .right)
+        cue.holdStarted()
+        XCTAssertEqual(tick(corner(0.009, 0.006), after: 2000), .forward)
+        XCTAssertEqual(tick(corner(0.006, 0.009), after: 2000), .right)
+        XCTAssertNil(tick(corner(0.009, 0.006), after: 2000), "told in this hold and not armed again")
     }
 }
