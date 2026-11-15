@@ -14,6 +14,9 @@ import simd
 /// new hold has started, so a point resting on a face is told once. Two cues are never closer than `minimumGapMs`, so a
 /// point hovering at the edge does not chatter; a cue held back by that gap plays on the first tick after it if the
 /// point is still out on a side not yet told.
+///
+/// Only the faces of the sides it watches count. A face the arm is stopped before, such as a floor below the table, is
+/// left out by whoever builds the rule: something else already tells that stop, and one act should get one cue.
 public struct WorkAreaCue: Sendable {
     /// Beyond a face by more than this counts as outside: the guide's own millimetre plus rounding.
     public static let slackMeters = 0.002
@@ -25,6 +28,8 @@ public struct WorkAreaCue: Sendable {
     /// The box in gripper-link space, robot base frame, metres.
     public let low: SIMD3<Double>
     public let high: SIMD3<Double>
+    /// The sides whose faces count. A point past any other face is judged as if that face were not there.
+    public let sides: Set<OperatorDirection>
     /// The side the commanded point is outside on now, for the guide's line; nil while inside. The line and the cue
     /// read this one value, so they cannot disagree.
     public private(set) var outside: OperatorDirection?
@@ -35,9 +40,13 @@ public struct WorkAreaCue: Sendable {
     private var playedAtMs: Int?
 
     /// `low` and `high` are opposite corners of the box in gripper-link space, robot base frame; either order.
-    public init(low: SIMD3<Double>, high: SIMD3<Double>) {
+    /// `sides`: the faces that count; all six unless a face cannot be reached.
+    public init(
+        low: SIMD3<Double>, high: SIMD3<Double>, sides: Set<OperatorDirection> = Set(OperatorDirection.allCases)
+    ) {
         self.low = simd_min(low, high)
         self.high = simd_max(low, high)
+        self.sides = sides
         hasBox = [low.x, low.y, low.z, high.x, high.y, high.z].allSatisfy(\.isFinite)
     }
 
@@ -47,7 +56,7 @@ public struct WorkAreaCue: Sendable {
         guard hasBox else { return nil }
         // At a corner the side the point is farthest beyond is named; an exact tie goes to the first in the table.
         var farthest = (side: OperatorDirection.forward, by: -Double.infinity)
-        for side in OperatorDirection.allCases {
+        for side in OperatorDirection.allCases where sides.contains(side) {
             let by = excess(of: point, past: side)
             if by > farthest.by { farthest = (side, by) }
         }

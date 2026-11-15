@@ -179,7 +179,22 @@ final class AppModel {
 
     private func assistDidChange() {
         controller.assistChanged(assist)
+        guideAidsChanged()
         refreshOperating()
+    }
+
+    /// Hands the link the guide's aids it runs, with the work box in gripper-link space: the profile keeps the box for
+    /// the pinch point, the server keeps the gripper link in it, and the guide draws ring and box moved by the same
+    /// measured offset, so judging the commanded gripper-link point against the box less the tool offset is what the
+    /// picture shows. A floor below the table is not told: the table stops the arm first, and the lowest rule tells
+    /// that.
+    private func guideAidsChanged() {
+        let low = profile.workspaceMin - profile.toolOffset
+        let high = profile.workspaceMax - profile.toolOffset
+        var sides = Set(OperatorDirection.allCases)
+        if min(profile.workspaceMin.z, profile.workspaceMax.z) < profile.tableHeight { sides.remove(.down) }
+        link.guideAidsChanged(
+            assist.guide, gripperBox: (low: SIMD3<Double>(low), high: SIMD3<Double>(high)), sides: sides)
     }
 
     /// A saved Bool that a launch argument can set as YES or NO. A launch argument arrives as a string, which a cast
@@ -275,6 +290,7 @@ final class AppModel {
         controller = OperatingController(
             model: self, mode: mode, hand: hand, constants: profile.inputConstants, assist: assist, now: inputClock
         )
+        guideAidsChanged()
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }

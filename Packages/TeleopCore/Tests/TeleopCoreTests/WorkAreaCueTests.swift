@@ -67,6 +67,50 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertEqual(cue.outside, .left)
     }
 
+    /// Faces at zero, so that how far a point is past one is its coordinate exactly: exactly the slack is inside and
+    /// the next number up is outside; a hair less than the re-arm distance back inside does not arm a side again, and
+    /// exactly that distance does.
+    func testTheSlackAndTheReArmDistanceAreExactBoundaries() {
+        let low = SIMD3(-0.1, -0.1, 0.0)
+        let high = SIMD3(0.0, 0.1, 0.1)
+        for side in [OperatorDirection.left, .down] {
+            var rule = WorkAreaCue(low: low, high: high)
+            // `by` past the face on `side`, inside the box on the other axes.
+            let past: (Double) -> SIMD3<Double> = { by in
+                side == .left ? SIMD3(by, 0.05, 0.05) : SIMD3(-0.05, 0.05, -by)
+            }
+            XCTAssertNil(rule.commanded(past(WorkAreaCue.slackMeters), at: 0))
+            XCTAssertNil(rule.outside, "exactly the slack is inside, \(side)")
+            XCTAssertEqual(rule.commanded(past(WorkAreaCue.slackMeters.nextUp), at: 2000), side)
+            XCTAssertEqual(rule.outside, side)
+            XCTAssertNil(rule.commanded(past((-WorkAreaCue.rearmMeters).nextUp), at: 4000))
+            XCTAssertNil(rule.commanded(past(0.003), at: 6000), "not armed again, \(side)")
+            XCTAssertEqual(rule.outside, side)
+            XCTAssertNil(rule.commanded(past(-WorkAreaCue.rearmMeters), at: 8000))
+            XCTAssertEqual(rule.commanded(past(0.003), at: 10000), side, "armed again, \(side)")
+        }
+    }
+
+    /// A face the rule does not watch counts for nothing: past the floor alone is inside, and past the floor and a
+    /// little forward is forward, however far below. The default watches all six.
+    func testAFaceThatIsNotWatchedCountsForNothing() {
+        XCTAssertEqual(cue.sides, Set(OperatorDirection.allCases))
+        var rule = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        XCTAssertNil(rule.commanded(past(.down, by: 0.05), at: 0))
+        XCTAssertNil(rule.outside)
+        XCTAssertEqual(rule.commanded(past(.forward, by: 0.003, from: past(.down, by: 0.05)), at: 2000), .forward)
+        XCTAssertEqual(rule.outside, .forward)
+        for side in OperatorDirection.allCases where side != .down {
+            var watched = WorkAreaCue(low: low, high: high, sides: [side])
+            XCTAssertEqual(watched.commanded(past(side, by: 0.003), at: 0), side)
+            XCTAssertNil(watched.commanded(past(.down, by: 0.003), at: 2000))
+            XCTAssertNil(watched.outside, "\(side)")
+        }
+        var none = WorkAreaCue(low: low, high: high, sides: [])
+        XCTAssertNil(none.commanded(past(.up, by: 0.1), at: 0))
+        XCTAssertNil(none.outside)
+    }
+
     func testTheLargestExcessWinsAtACorner() {
         XCTAssertEqual(tick(past(.left, by: 0.004, from: past(.forward, by: 0.006))), .forward)
         setUp()

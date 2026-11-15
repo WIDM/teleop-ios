@@ -117,6 +117,12 @@ final class LiveLinkController {
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
+    /// The guide's work-area rule, fed the commanded gripper-link point every tick of a translation hold; nil with that
+    /// aid off, which is version 1.0.1.
+    private var workAreaCue: WorkAreaCue?
+    /// The work-area rule has spoken in the operator's current hold: the server's own clamp END for it would tell the
+    /// same crossing twice.
+    private var workAreaToldThisHold = false
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -157,6 +163,21 @@ final class LiveLinkController {
     /// the robot base frame).
     var objectPosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
     var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
+    /// The side the commanded point is outside the work area on, for the guide's line; nil while inside, with the rule
+    /// off, and whenever no translation is being commanded, so the line never shows the last hold's side.
+    var commandOutside: OperatorDirection? { commandedArm == nil ? nil : workAreaCue?.outside }
+
+    /// The guide's aids this link runs; nil is version 1.0.1. `gripperBox`: the work box in gripper-link space, robot
+    /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
+    /// tells; one the arm is stopped before (a floor below the table) is left out, because another cue tells that stop.
+    func guideAidsChanged(
+        _ aids: GuideAids?, gripperBox: (low: SIMD3<Double>, high: SIMD3<Double>), sides: Set<OperatorDirection>
+    ) {
+        workAreaCue =
+            aids?.workAreaWords == true
+            ? WorkAreaCue(low: gripperBox.low, high: gripperBox.high, sides: sides) : nil
+        workAreaToldThisHold = false
+    }
 
     /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.
     static func clientName(bundle: Bundle = .main) -> String {
@@ -264,6 +285,7 @@ final class LiveLinkController {
         resync = nil
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
+        translationStarted()
         return true
     }
 
@@ -282,7 +304,15 @@ final class LiveLinkController {
         resync = nil
         segmentStartedMs = nowMs()
         armAtSegmentStart = Self.vector(link.lastEndEffector)
+        translationStarted()
         return true
+    }
+
+    /// The operator's translation hold has started (not a resync's restart, which stays the same hold): the work-area
+    /// rule may tell every side again.
+    private func translationStarted() {
+        workAreaCue?.holdStarted()
+        workAreaToldThisHold = false
     }
 
     func endHold() {
@@ -479,7 +509,12 @@ final class LiveLinkController {
         if let start = armAtSegmentStart {
             let target = start + SIMD3(delta.x, delta.y, -delta.z)
             commandedArm = target
-            monitor.commanded(SIMD3(Double(target.x), Double(target.y), Double(target.z)))
+            let point = SIMD3(Double(target.x), Double(target.y), Double(target.z))
+            monitor.commanded(point)
+            if let side = workAreaCue?.commanded(point, at: now) {
+                workAreaToldThisHold = true
+                emit([.commandOutside(side)])
+            }
         }
         onCatchingUp?(catchingUp)
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
@@ -627,7 +662,11 @@ final class LiveLinkController {
         if let serverMs { newestStateServerMs = serverMs }
         newestState = state
         newestStateAtMs = nowMs()
-        emit(monitor.observe(state, at: nowMs()))
+        var events = monitor.observe(state, at: nowMs())
+        // The work-area rule already told this hold's crossing; the server's clamp of it would be a second buzz. A
+        // clamp the rule did not foresee (a server whose box differs from the profile's) still plays.
+        if workAreaToldThisHold { events.removeAll { $0 == .limit(.workspace) } }
+        emit(events)
         noteGripping()
         onState?(state)
     }
