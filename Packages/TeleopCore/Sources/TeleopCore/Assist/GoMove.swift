@@ -13,9 +13,10 @@ import simd
 /// fresh fix is no lower than the travel height less the tolerance, so the jaws never sweep low across the table while
 /// the arm lags. Above the travel height is safe: an arm coming down from above starts its level leg at once and goes
 /// on descending as it moves. A correction on the way up or down only ever raises the command, so the level leg's
-/// command is the travel height plus that raise, never lower, and a correction at the end never takes it lower either:
-/// once the command has reached the travel height, no commanded point is below it. The move ends on measured positions
-/// too: the server drops the remaining lead at a stop, so the stop must wait for the arm, never for the command.
+/// command is the travel height plus that raise, never lower, and a correction at the end may take back a raise but
+/// never goes below the travel height: once the command has reached the travel height, no commanded point is below it.
+/// The move ends on measured positions too: the server drops the remaining lead at a stop, so the stop must wait for
+/// the arm, never for the command.
 struct GoMove: Equatable, Sendable {
     enum Leg: Equatable, Sendable { case vertical, level }
 
@@ -47,8 +48,8 @@ struct GoMove: Equatable, Sendable {
     /// The input rules end the move here.
     private(set) var deadline: TimeInterval
     /// How far vertical corrections raised the commanded height so that the measured pinch point holds the travel
-    /// height. Never negative: the level leg's command is the travel height plus it, and a correction at the end never
-    /// goes below that. The target never moves.
+    /// height. Never negative: the level leg's command is the travel height plus it. A correction at the end may come
+    /// down from it, never below the travel height. The target never moves.
     private var heightAim = 0.0
     private var legFrom: SIMD3<Double>
     private var legTo: SIMD3<Double>
@@ -152,11 +153,13 @@ struct GoMove: Equatable, Sendable {
             guard correctionsLeft > 0, simd_length(remainder) <= limits.correctionReachM else { return .stoppedShort }
             correctionsLeft -= 1
             deadline += simd_length(remainder) / limits.speedMps * limits.timeFactor + limits.settleS
-            // The end moves across by all that is missing, and up if the jaws hang low, but never below the level
-            // leg's own height: an arm resting on something above the travel height would otherwise have the command
-            // pressed down into it at the target. Such an arm settles short again and stops short.
+            // The end moves by all that is missing: across, up if the jaws hang low, and down by a raise that was
+            // false (the server held the arm below the travel height without saying so, and the move took it for
+            // sagging jaws). Never below the travel height itself: an arm resting on something above it would
+            // otherwise have the command pressed down into it at the target. Such an arm settles short again and
+            // stops short. The time limit grows by the whole remainder, even when this floor shortens the leg.
             var end = legTo + remainder
-            end.z = max(end.z, target.z + heightAim)
+            end.z = max(end.z, target.z)
             begin(.correcting(.level), to: end, at: now)
         }
         return nil

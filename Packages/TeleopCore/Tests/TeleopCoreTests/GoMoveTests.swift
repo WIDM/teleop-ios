@@ -540,9 +540,11 @@ final class GoMoveTests: XCTestCase {
     }
 
     /// Jaws that sag 9 mm are raised on the way up; then something under the target holds them 1.5 cm above the
-    /// travel height. The correction at the end would have gone down by that, but it stops at the raised height, not
-    /// at the travel height, and the move stops short.
-    func testACorrectionAtTheEndNeverGoesBelowTheRaise() {
+    /// travel height. The correction at the end goes down by the 9 mm raise and stops at the travel height, not below
+    /// it, and the move stops short. A raise that was false comes down the same way and the arm arrives: the server
+    /// held the arm still below the travel height for a while without saying so, the move took that for sagging jaws
+    /// and raised the command, and the arm, following again, stood that raise above the target.
+    func testACorrectionAtTheEndComesDownToTheTravelHeightAndNeverBelow() throws {
         let start = SIMD3(0.02, -0.2, travel - 0.03)
         let target = SIMD3(0.06, -0.15, travel)
         var move = GoMove(start: start, target: target, limits: limits, at: 0)
@@ -556,7 +558,32 @@ final class GoMoveTests: XCTestCase {
             run.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level, .correcting(.level)])
         let end = move.commanded(at: 100)
         XCTAssertEqual(horizontal(end), horizontal(target))
-        XCTAssertEqual(end.z, travel + 0.009, accuracy: 1e-9, "the raise is kept")
+        XCTAssertEqual(end.z, travel, "down to the travel height, exactly, and not below it")
+
+        // Held still part way up from 0.8 s to 2.2 s: one raise on the way up, a level leg too high to arrive on, and
+        // the correction at the end, which brings it down.
+        var model = ModelledArm(oneWay: 0.05, tau: 0.3)
+        model.frozen = 0.8...2.2
+        let outcome = simulate(from: start, to: target, model, "a false raise")
+        let raise = try XCTUnwrap(outcome.lowestLevel) - travel
+        XCTAssertGreaterThan(raise, limits.arriveToleranceM, "the level leg ran too high to arrive on")
+        XCTAssertEqual(outcome.corrections, 2)
+        XCTAssertEqual(outcome.end, .verdict(.arrived))
+    }
+
+    /// Something under the target holds the jaws 2 cm above the travel height. Each correction at the end would go
+    /// 2 cm down; the floor at the travel height leaves it no length at all, yet the time limit grows by the whole
+    /// remainder, its length over the speed times the factor, plus the settle time.
+    func testAFlooredCorrectionAtTheEndExtendsTheDeadlineByTheWholeRemainder() {
+        let start = SIMD3(0.0, -0.2, travel + 0.04)
+        let target = SIMD3(0.06, -0.15, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let initial = move.deadline
+        let run = drive(&move) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.02)) }
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertEqual(run.corrections.count, 2)
+        XCTAssertEqual(move.commanded(at: 100), target, "neither correction moved the command")
+        XCTAssertEqual(move.deadline, initial + 2 * (0.02 / 0.04 * 1.5 + 0.6), accuracy: 1e-9)
     }
 
     /// Jaws that sag 9 mm, and further the further out they reach: raised 9 mm on the way up, they still hang 12.8 mm
