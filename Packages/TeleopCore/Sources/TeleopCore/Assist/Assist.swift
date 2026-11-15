@@ -105,8 +105,8 @@ public struct GoToLimits: Equatable, Sendable {
     public var travelHeightM: Double
     /// Speed of the commanded pinch point along the path, metres per wall second.
     public var speedMps: Double
-    /// A fresh measured pinch point this close to the target is "arrived"; this close to the travel height starts the
-    /// level leg. Metres.
+    /// A fresh measured pinch point this close to the target is "arrived"; one no lower than the travel height less
+    /// this starts the level leg. Metres.
     public var arriveToleranceM: Double
     /// How many times a move that settled short may aim again by the remainder: on the vertical leg only the commanded
     /// height moves, on the level leg the leg's end.
@@ -120,9 +120,10 @@ public struct GoToLimits: Equatable, Sendable {
     public var allowanceS: Double
     /// No measured position younger than this ends the move ("No arm data."), seconds.
     public var armDataTimeoutS: Double
-    /// After the start, a stall is judged only from positions measured this long after it, unless the arm has already
-    /// been seen the feedback monitor's moved distance (2 mm) from where it started: a start the server takes late, or
-    /// an arm that lags at first, is not a stall. Seconds; 0 is no grace.
+    /// After the start, or after the last pause of the hold if that ended later, a stall is judged only from positions
+    /// measured this long after it, unless the arm has already been seen the feedback monitor's moved distance (2 mm)
+    /// from where it started: a start the server takes late, or an arm that lags at first, is not a stall. Seconds; 0
+    /// is no grace.
     public var startGraceS: Double
 
     public init(

@@ -3,8 +3,10 @@ import simd
 @testable import TeleopCore
 
 /// A going move's path and its verdicts: up or down first, then level, at the profile's speed; a leg over by time,
-/// never by comparing computed points; a stall judged only from positions measured after the command reached the
-/// leg's end, after the last pause and after the start's grace; corrections that move the command, never the target.
+/// never by comparing computed points; a level leg never below the travel height; a stall judged only from positions
+/// measured after the command reached the leg's end, after the last pause and after the start's grace, which runs from
+/// the later of the start and that pause's end; corrections that move the command, never the target, and on the way up
+/// or down only raise it.
 final class GoMoveTests: XCTestCase {
     /// The SO-101 simulator's go numbers (the core tests cannot reach `RobotProfile`).
     private let limits = GoToLimits(
@@ -41,7 +43,8 @@ final class GoMoveTests: XCTestCase {
 
     /// Calls `observe` at every gate step from `from` until it gives a verdict, the deadline passes (judged after the
     /// verdict, as the gate does) or `until`. The arm is measured `age` before each call, where the command was `delay`
-    /// before that, moved by `arm` (a sag, a wall). Every step also checks that the command never outruns its speed.
+    /// before that, moved by `arm` (a sag, a wall). Every step also checks that the command never outruns its speed and
+    /// that the level leg's command is never below the travel height.
     private func drive(
         _ move: inout GoMove, from: TimeInterval = 0, until: TimeInterval = 60, age: Double = 0.1, delay: Double = 0.1,
         arm: (SIMD3<Double>) -> SIMD3<Double> = { $0 }, file: StaticString = #filePath, line: UInt = #line
@@ -68,6 +71,11 @@ final class GoMoveTests: XCTestCase {
                     "the command keeps to its speed, at \(now)", file: file, line: line)
             }
             previous = (now, offset)
+            if move.stage == .level {
+                XCTAssertGreaterThanOrEqual(
+                    move.commanded(at: now).z, move.target.z, "the level leg is never below the travel height, \(now)",
+                    file: file, line: line)
+            }
             if let verdict {
                 run.end = .verdict(verdict)
                 return run
@@ -110,13 +118,20 @@ final class GoMoveTests: XCTestCase {
         // 4 cm at 0.04 m/s: the corner is reached after a second and the command stays there.
         XCTAssertNotEqual(move.commanded(at: 0.99), corner)
         for i in 0..<50 { XCTAssertEqual(move.commanded(at: 1.001 + Double(i) * 0.1), corner, "\(i)") }
-        // An arm still coming down, 1.5 cm or more above the travel height, keeps it waiting there.
+        // An arm coming down, above the travel height, does not turn the corner before the command has reached it.
         for i in 0..<10 {
-            let now = 1.0 + Double(i) * step
-            XCTAssertNil(move.observe(fix(SIMD3(start.x, start.y, 0.125 - 0.001 * Double(i))), at: now))
+            let now = 0.6 + Double(i) * 0.04
+            XCTAssertNil(move.observe(fix(SIMD3(start.x, start.y, 0.128 - 0.001 * Double(i))), at: now))
             XCTAssertEqual(move.stage, .vertical, "\(i)")
             XCTAssertEqual(move.commanded(at: now + 1), corner, "\(i)")
         }
+        // Once it has, the level leg starts at once from the corner, at the travel height, with the arm still 2.8 cm
+        // above it: being above the travel height is safe, and the arm goes on down as it moves.
+        XCTAssertNil(move.observe(fix(SIMD3(start.x, start.y, 0.118)), at: 1.001))
+        XCTAssertEqual(move.stage, .level)
+        XCTAssertEqual(move.commanded(at: 1.001), corner)
+        XCTAssertEqual(move.commanded(at: 1.5).z, travel)
+        XCTAssertEqual(move.correctionsLeft, limits.corrections)
     }
 
     /// A leg whose ends have opposite signs: computed at the full share, its x is −0.01366251418693179, not the leg's
@@ -178,6 +193,31 @@ final class GoMoveTests: XCTestCase {
         let moved = move.commanded(at: 2.0)
         XCTAssertEqual(simd_distance(moved, corner), limits.speedMps * 0.4, accuracy: 1e-12)
         XCTAssertEqual(moved.z, travel, "level")
+    }
+
+    /// An arm that stands where it was tapped, 2.5 cm above the travel height (a start the server has not yet taken, a
+    /// server that froze without saying so): the command is never lowered for it. The level leg starts as soon as the
+    /// command reaches the corner and runs at the travel height, and the move stops short once the command has been at
+    /// the target for the settle time with the arm still standing.
+    func testAnArmStandingAboveTheTravelHeightIsNeverLowered() throws {
+        let start = SIMD3(0.0, -0.2, travel + 0.025)
+        let target = SIMD3(0.06, -0.15, travel)
+        let corner = SIMD3(start.x, start.y, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let run = drive(&move) { _ in start }
+        XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .level])
+        let turned = try XCTUnwrap(run.stages.last?.at)
+        let cornerAt = 0.025 / limits.speedMps
+        XCTAssertGreaterThanOrEqual(turned, cornerAt - 1e-9, "not before the command reached the corner")
+        XCTAssertLessThan(turned, cornerAt + step, "at the first gate step after it")
+        XCTAssertEqual(run.corrections, [], "no correction lowered the command")
+        XCTAssertEqual(move.commanded(at: turned), corner)
+        XCTAssertEqual(move.commanded(at: 100), target, "the level leg ends at the target, at the travel height")
+        // The level leg ends 7.81 cm on; the arm, 8.2 cm from the target, is past the correction reach.
+        let levelEnds = turned + simd_distance(corner, target) / limits.speedMps
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertGreaterThan(run.at, levelEnds + limits.settleS - 1e-9)
+        XCTAssertLessThan(run.at, move.deadline)
     }
 
     func testArrivalNeedsAFreshFixWithinToleranceNotTheCommand() {
@@ -339,6 +379,47 @@ final class GoMoveTests: XCTestCase {
         XCTAssertGreaterThan(notMoved ?? .infinity, limits.startGraceS + limits.settleS - 1e-9, "1.95 mm is not moving")
     }
 
+    /// A start the link holds back for 0.8 s, which the server then takes 1.4 s late: each delay is within its own
+    /// limit, so the grace runs from the end of the pause, not from the tap, and the arm is not taken for stalled.
+    func testTheGraceRunsFromTheEndOfTheLastPause() throws {
+        let start = SIMD3(0.01, -0.17, travel - 0.009)
+        let target = SIMD3(0.05, -0.12, travel)
+        let age = 0.38
+        let heldBack = 0.8
+        func lateArm(_ measuredAt: Double) -> SIMD3<Double> {
+            SIMD3(start.x, start.y, min(travel, start.z + limits.speedMps * max(0, measuredAt - heldBack - 1.4)))
+        }
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        for i in 0...90 {
+            let now = Double(i) * step
+            XCTAssertNil(move.observe(fix(lateArm(now - age), age: age, paused: now < heldBack), at: now), "\(now)")
+            XCTAssertEqual(move.correctionsLeft, limits.corrections, "\(now)")
+        }
+        XCTAssertEqual(move.stage, .level, "the corner was turned once the arm rose")
+        XCTAssertEqual(move.commanded(at: 10).z, travel, "and the level leg runs at the travel height, exactly")
+
+        // An arm that never moves: the first stall is judged only from positions measured 1.5 s after the last paused
+        // call; the next one from positions measured after the correction's leg reached its end, with no new grace.
+        var still = GoMove(start: start, target: target, limits: limits, at: 0)
+        var lastPaused = -Double.infinity
+        var corrections: [TimeInterval] = []
+        for i in 0...240 where corrections.count < 2 {
+            let now = Double(i) * step
+            if now < heldBack { lastPaused = now }
+            let left = still.correctionsLeft
+            XCTAssertNil(still.observe(fix(start, age: age, paused: now < heldBack), at: now), "\(now)")
+            if still.correctionsLeft < left { corrections.append(now) }
+        }
+        XCTAssertEqual(corrections.count, 2)
+        let first = try XCTUnwrap(corrections.first)
+        XCTAssertGreaterThan(first, lastPaused + limits.startGraceS + age + limits.settleS - 1e-9)
+        XCTAssertLessThan(first, lastPaused + limits.startGraceS + age + limits.settleS + 2 * step)
+        let legEnds = first + 0.009 / limits.speedMps
+        let second = try XCTUnwrap(corrections.last)
+        XCTAssertGreaterThan(second, legEnds + age + limits.settleS - 1e-9)
+        XCTAssertLessThan(second, legEnds + age + limits.settleS + 2 * step)
+    }
+
     // MARK: - Corrections
 
     /// The jaws sag 9 mm below the command on the way up: the move settles 9 mm low, the correction raises the
@@ -391,6 +472,40 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(run.corrections.count, 2)
         XCTAssertEqual(move.correctionsLeft, 0)
         XCTAssertLessThan(run.at, move.deadline)
+        // The correction at the end moved the raised end of the level leg by the remainder, 12 mm across: the 9 mm
+        // raise is kept.
+        let end = move.commanded(at: 100)
+        XCTAssertEqual(end.z, travel + 0.009, accuracy: 1e-9, "the correction at the end keeps the raise")
+        XCTAssertEqual(simd_distance(horizontal(end), horizontal(target)), 0.012, accuracy: 1e-9)
+    }
+
+    /// An arm that rises only 45 per cent of the height asked of it settles low twice on the way up: 16.5 mm short,
+    /// then, raised by that, 9.075 mm short. The raises add up, and the level leg runs at the travel height plus both.
+    func testTwoRaisesOnTheWayUpAddUp() throws {
+        let start = SIMD3(0.02, -0.2, travel - 0.03)
+        let target = SIMD3(0.06, -0.15, travel)
+        let weak: (SIMD3<Double>) -> SIMD3<Double> = { SIMD3($0.x, $0.y, start.z + 0.45 * max(0, $0.z - start.z)) }
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let run = drive(&move, arm: weak)
+        XCTAssertEqual(run.end, .verdict(.arrived))
+        XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level])
+        XCTAssertEqual(run.corrections.count, 2)
+        let second = try XCTUnwrap(run.corrections.last)
+        let level = try XCTUnwrap(run.stages.last?.at)
+        XCTAssertLessThan(second, level, "both on the way up")
+
+        var once = GoMove(start: start, target: target, limits: limits, at: 0)
+        _ = drive(&once, until: second - step / 2, arm: weak)
+        XCTAssertEqual(once.correctionsLeft, limits.corrections - 1)
+        let raisedOnce = once.commanded(at: 100)
+        XCTAssertEqual(horizontal(raisedOnce), horizontal(start), "straight up")
+        XCTAssertEqual(raisedOnce.z, travel + 0.0165, accuracy: 1e-9, "raised by the height first missing")
+        var twice = GoMove(start: start, target: target, limits: limits, at: 0)
+        _ = drive(&twice, until: level, arm: weak)
+        XCTAssertEqual(twice.stage, .level)
+        XCTAssertEqual(twice.commanded(at: level).z, travel + 0.025575, accuracy: 1e-9, "the level leg keeps both")
+        XCTAssertEqual(twice.commanded(at: 100).z, travel + 0.025575, accuracy: 1e-9)
+        XCTAssertEqual(horizontal(twice.commanded(at: 100)), horizontal(target))
     }
 
     func testSettledShortCorrectsUntilTheBudgetIsSpentThenStopsShort() {
@@ -498,6 +613,15 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(run.corrections.count, 1)
         // A 1 cm remainder: its length over the speed times the factor, plus the settle time.
         XCTAssertEqual(move.deadline, before + 0.01 / 0.04 * 1.5 + 0.6, accuracy: 1e-9)
+
+        // A raise on the way up extends it the same way: jaws that sag 9 mm settle 9 mm low.
+        let low = SIMD3(0.02, -0.2, travel - 0.03)
+        var up = GoMove(start: low, target: SIMD3(0.06, -0.15, travel), limits: limits, at: 0)
+        let initial = up.deadline
+        let upRun = drive(&up) { SIMD3($0.x, $0.y, max(low.z, $0.z - 0.009)) }
+        XCTAssertEqual(upRun.end, .verdict(.arrived))
+        XCTAssertEqual(upRun.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level])
+        XCTAssertEqual(up.deadline, initial + 0.009 / 0.04 * 1.5 + 0.6, accuracy: 1e-9)
     }
 
     func testTheOffsetIsInTheLinksFrame() {
@@ -523,10 +647,11 @@ final class GoMoveTests: XCTestCase {
 
     /// The arm and the link as a going move meets them, enough to make a slow start, a pause or a late state look like
     /// a stall to rules that were careless about it. The server follows the command the link sent half a round trip
-    /// before, once the start reaches it; while the link pauses the hold the server drops its lead and the arm stands;
-    /// the arm lags the server's setpoint with a time constant and a top speed; states are measured about 5.5 times a
-    /// second and arrive half a round trip later, the first one after the tap possibly late; the rules take a state's
-    /// age from its arrival, as the app does, so a position always looks newer than it is.
+    /// before, once the start reaches it; while the link pauses the hold the server drops its lead and the arm stands,
+    /// and it may also hold the arm still without saying so; the arm lags the server's setpoint with a time constant
+    /// and a top speed; states are measured about 5.5 times a second and arrive half a round trip later, the first one
+    /// after the tap possibly late; the rules take a state's age from its arrival, as the app does, so a position
+    /// always looks newer than it is.
     private struct ModelledArm {
         var oneWay: Double
         var tau: Double
@@ -538,6 +663,9 @@ final class GoMoveTests: XCTestCase {
         var late = 0.0
         /// No state is measured from this time on.
         var silentFrom = Double.infinity
+        /// The server holds the arm where it is over this span of the rules' clock without saying so: a start it took
+        /// late, or a freeze. Afterwards it follows the command again.
+        var frozen: ClosedRange<Double>?
         /// When the first state after the tap is measured, and how old the tap's own state was at the tap.
         var phase = 0.0
         var tapAge = 0.0
@@ -551,6 +679,8 @@ final class GoMoveTests: XCTestCase {
         var corrections: Int
         /// When the newest state the rules had at the end arrived.
         var lastArrival: TimeInterval
+        /// The lowest commanded height while the level leg ran, if it began.
+        var lowestLevel: Double?
     }
 
     private func simulate(
@@ -568,6 +698,7 @@ final class GoMoveTests: XCTestCase {
         var measured = 0
         var corrections = 0
         var turned = false
+        var lowestLevel: Double?
         var previous: SIMD3<Double>?
         var i = 0
         while true {
@@ -578,7 +709,9 @@ final class GoMoveTests: XCTestCase {
                     let t = now - step + step * Double(k) / Double(substeps)
                     let atServer = t - model.oneWay
                     let following = atServer >= model.startSentAt && !(model.pause?.contains(atServer) ?? false)
-                    if following {
+                    if model.frozen?.contains(t) ?? false {
+                        setpoint = arm
+                    } else if following {
                         setpoint = sent[min(sent.count - 1, max(0, Int(atServer / step)))]
                     } else if model.pause?.contains(atServer) ?? false {
                         setpoint = arm
@@ -615,6 +748,11 @@ final class GoMoveTests: XCTestCase {
             }
             previous = offset
             if !turned { XCTAssertEqual(SIMD2(offset.x, offset.y), .zero, "nothing level before the corner, \(label)") }
+            if move.stage == .level {
+                let height = move.commanded(at: now).z
+                lowestLevel = min(lowestLevel ?? height, height)
+                XCTAssertGreaterThanOrEqual(height, target.z, "the level leg never below the travel height, \(label)")
+            }
             sent.append(move.commanded(at: now))
             let end: End?
             if let verdict {
@@ -624,13 +762,16 @@ final class GoMoveTests: XCTestCase {
             } else {
                 end = now > 60 ? .goingOn : nil
             }
-            if let end { return Outcome(end: end, at: now, corrections: corrections, lastArrival: newest.arrived) }
+            if let end {
+                return Outcome(
+                    end: end, at: now, corrections: corrections, lastArrival: newest.arrived, lowestLevel: lowestLevel)
+            }
             i += 1
         }
     }
 
     /// A random tap's start and target in the SO-101's box: every third one starts 9 to 12 mm off the travel height,
-    /// the short vertical leg on which a slow start was once taken for a stall.
+    /// the short vertical leg where a slow start is most easily taken for a stall.
     private func randomGo(_ random: inout SplitMix64, index: Int) -> (start: SIMD3<Double>, target: SIMD3<Double>) {
         let target = SIMD3(random.uniform(-0.05, 0.10), random.uniform(-0.25, -0.10), travel)
         let z: Double
@@ -734,5 +875,53 @@ final class GoMoveTests: XCTestCase {
             XCTAssertLessThanOrEqual(
                 outcome.at, outcome.lastArrival + limits.armDataTimeoutS + step + 1e-9, "silent \(index)")
         }
+    }
+
+    /// A server that takes the start later than the grace, or holds the arm still for a while without saying so: the
+    /// arm stands above or below the travel height for longer than any rule expects, and still no level command runs
+    /// below the travel height (`simulate` checks every call), whatever the move then ends with.
+    func testGeneratedGoesWithAnArmHeldStillNeverRunTheLevelLegLow() {
+        var random = SplitMix64(seed: 0xF2_0237)
+        var level = 0
+        for index in 0..<150 {
+            let go = randomGo(&random, index: index)
+            var model = randomModel(&random)
+            if index % 2 == 0 {
+                model.frozen = 0...random.uniform(1.5, 3.0)
+            } else {
+                let from = random.uniform(0, 3)
+                model.frozen = from...(from + random.uniform(0.5, 2.5))
+            }
+            guard simd_distance(go.start, go.target) > limits.arriveToleranceM else { continue }
+            let outcome = simulate(from: go.start, to: go.target, model, "held still \(index)")
+            XCTAssertNotEqual(outcome.end, .goingOn, "held still \(index)")
+            if outcome.lowestLevel != nil { level += 1 }
+        }
+        XCTAssertGreaterThan(level, 100, "most of them reached the level leg")
+    }
+
+    /// A server that froze for the first 5 s without saying so, on a 2.5 cm way down: the level leg starts once the
+    /// command reaches the corner and runs at the travel height, with no correction on the way down; the arm, still
+    /// standing when the command has waited at the target for the settle time, has stopped short.
+    func testAServerFrozenOnAShortWayDownNeverLowersTheLevelLeg() throws {
+        var model = ModelledArm(oneWay: 0.05, tau: 0.3)
+        model.frozen = 0...5
+        let outcome = simulate(
+            from: SIMD3(0.0, -0.20, travel + 0.025), to: SIMD3(0.06, -0.15, travel), model, "frozen for 5 s")
+        XCTAssertEqual(try XCTUnwrap(outcome.lowestLevel), travel, "the level leg at the travel height, exactly")
+        XCTAssertEqual(outcome.corrections, 0)
+        XCTAssertEqual(outcome.end, .verdict(.stoppedShort))
+    }
+
+    /// A start the server took 2.6 s late, nothing else wrong, on a 2.5 cm way down: the level leg runs at the travel
+    /// height, and the arm arrives without a correction once it moves.
+    func testAStartTakenLateOnAShortWayDownNeverLowersTheLevelLeg() throws {
+        var model = ModelledArm(oneWay: 0.05, tau: 0.3)
+        model.frozen = 0...(model.oneWay + 2.6)
+        let outcome = simulate(
+            from: SIMD3(0.0, -0.20, travel + 0.025), to: SIMD3(0.06, -0.15, travel), model, "start taken 2.6 s late")
+        XCTAssertEqual(try XCTUnwrap(outcome.lowestLevel), travel, "the level leg at the travel height, exactly")
+        XCTAssertEqual(outcome.corrections, 0)
+        XCTAssertEqual(outcome.end, .verdict(.arrived))
     }
 }

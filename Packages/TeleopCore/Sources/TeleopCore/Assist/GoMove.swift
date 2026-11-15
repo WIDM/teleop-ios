@@ -9,9 +9,12 @@ import simd
 /// the leg's end exactly. A point computed at the full share can miss the leg's end in the last bit (a leg whose ends
 /// have opposite signs, for one), and a leg judged by equality would then never end.
 ///
-/// The next leg begins only on measured positions: the level leg starts once a fresh fix is within the tolerance of the
-/// travel height, so the jaws never sweep low across the table while the arm lags. The move ends on measured positions
-/// too: the server drops the remaining lead at a stop, so the stop must wait for the arm, never for the command.
+/// The next leg begins only on measured positions: once the command has reached the corner, the level leg starts when a
+/// fresh fix is no lower than the travel height less the tolerance, so the jaws never sweep low across the table while
+/// the arm lags. Above the travel height is safe: an arm coming down from above starts its level leg at once and goes
+/// on descending as it moves. A correction on the way up or down only ever raises the command, so the level leg's
+/// command is the travel height plus that raise, never lower. The move ends on measured positions too: the server drops
+/// the remaining lead at a stop, so the stop must wait for the arm, never for the command.
 struct GoMove: Equatable, Sendable {
     enum Leg: Equatable, Sendable { case vertical, level }
 
@@ -42,8 +45,8 @@ struct GoMove: Equatable, Sendable {
     private(set) var correctionsLeft: Int
     /// The input rules end the move here.
     private(set) var deadline: TimeInterval
-    /// What vertical corrections added to the commanded height so that the measured pinch point holds the travel
-    /// height. The level leg's command keeps it; the target never moves.
+    /// How far vertical corrections raised the commanded height so that the measured pinch point holds the travel
+    /// height. Never negative: the level leg's command is the travel height plus it. The target never moves.
     private var heightAim = 0.0
     private var legFrom: SIMD3<Double>
     private var legTo: SIMD3<Double>
@@ -109,14 +112,17 @@ struct GoMove: Equatable, Sendable {
         if simd_distance(fix.pinch, start) >= Self.settleMoveM { seenMoving = true }
         if simd_distance(fix.pinch, target) <= limits.arriveToleranceM { return .arrived }
         let atLegEnd = now >= legEndsAt
-        if isVerticalStage, atLegEnd, abs(fix.pinch.z - target.z) <= limits.arriveToleranceM {
+        // Only a measured point lower than the travel height less the tolerance holds the corner: sweeping low is what
+        // this guards against, and an arm above the travel height comes down towards it along the level leg.
+        if isVerticalStage, atLegEnd, target.z - fix.pinch.z <= limits.arriveToleranceM {
             begin(.level, to: target + SIMD3(0, 0, heightAim), at: now)
             return nil
         }
         // A stall is judged only from positions measured after all of these: the command reached the leg's end, the
-        // last pause ended, and the start's grace is over. A late start or a pause is then never taken for a stall,
-        // and the fix taken at the tap never anchors one.
-        let graceEnds = seenMoving ? -TimeInterval.infinity : startedAt + limits.startGraceS
+        // last pause ended, and the start's grace is over, counted from the later of the start and that pause's end.
+        // A late start, a pause, or a start the link held back and the server then took late is never taken for a
+        // stall, and the fix taken at the tap never anchors one.
+        let graceEnds = seenMoving ? -TimeInterval.infinity : max(startedAt, pausedUntil) + limits.startGraceS
         let judgedFrom = max(legEndsAt, pausedUntil, graceEnds)
         guard atLegEnd, !fix.holdPaused, measuredAt > judgedFrom else {
             settle = nil
@@ -130,12 +136,14 @@ struct GoMove: Equatable, Sendable {
         }
         // Settled short of where this leg goes.
         if isVerticalStage {
-            // Only how far the command goes to hold the travel height changes; the target stays where it was tapped.
+            // Settled below the travel height less the tolerance, since anything higher turned the corner above, so
+            // the missing height is positive and a correction here only ever raises the command. Only how far the
+            // command goes to hold the travel height changes; the target stays where it was tapped.
             let missing = target.z - fix.pinch.z
-            guard correctionsLeft > 0, abs(missing) <= limits.correctionReachM else { return .stoppedShort }
+            guard correctionsLeft > 0, missing <= limits.correctionReachM else { return .stoppedShort }
             correctionsLeft -= 1
             heightAim += missing
-            deadline += abs(missing) / limits.speedMps * limits.timeFactor + limits.settleS
+            deadline += missing / limits.speedMps * limits.timeFactor + limits.settleS
             begin(.correcting(.vertical), to: legTo + SIMD3(0, 0, missing), at: now)
         } else {
             let remainder = target - fix.pinch
