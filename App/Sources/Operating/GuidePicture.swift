@@ -61,13 +61,20 @@ struct GuidePicture: Equatable {
     }
 
     /// Room around the workspace box, as a share of its larger side, so a mark on the box's edge is drawn whole.
-    static let marginShare = 0.15
+    static let marginShare = GuideProjection.marginShare
     /// A reading this close outside the box's faces, metres, still counts as inside.
     static let boxSlack = 0.001
 
+    /// Where every spot in both views was placed. A tap on the view from above is read back through this same value,
+    /// so it asks for the place drawn under the finger.
+    let projection: GuideProjection
+    /// The workspace box as drawn, robot base frame, pinch point, metres: the profile's box moved by the reading's
+    /// `boxShift`, corners sorted. Two members rather than a pair, so that `Equatable` is still synthesized.
+    let workBoxLow: SIMD3<Double>
+    let workBoxHigh: SIMD3<Double>
     /// Width over height of the view from above, and of the view from behind.
-    let aboveAspect: Double
-    let behindAspect: Double
+    var aboveAspect: Double { projection.aboveAspect }
+    var behindAspect: Double { projection.behindAspect }
     /// The workspace box in each view. From behind, it stops at the table.
     let boxAbove: Area
     let boxBehind: Area
@@ -94,42 +101,35 @@ struct GuidePicture: Equatable {
     let lines: [Line]
 
     init(reading: ArmReading, profile: RobotProfile) {
-        let corners = (
-            Self.operatorPoint(profile.workspaceMin + reading.boxShift),
-            Self.operatorPoint(profile.workspaceMax + reading.boxShift)
-        )
+        let ends = (profile.workspaceMin + reading.boxShift, profile.workspaceMax + reading.boxShift)
+        workBoxLow = SIMD3<Double>(simd_min(ends.0, ends.1))
+        workBoxHigh = SIMD3<Double>(simd_max(ends.0, ends.1))
+        let corners = (Self.operatorPoint(ends.0), Self.operatorPoint(ends.1))
         // Corners swap sides where an axis is mirrored into the operator's frame.
         let boxLow = simd_min(corners.0, corners.1), boxHigh = simd_max(corners.0, corners.1)
-        let span = boxHigh - boxLow
-        let margin = max(span.x, span.y) * Self.marginShare
         let table = Double(profile.tableHeight)
         let floor = max(boxLow.z, table)
-        let across = (boxLow.x - margin)...(boxHigh.x + margin)
-        let depth = (boxLow.y - margin)...(boxHigh.y + margin)
-        let height = (table - margin / 2)...(max(boxHigh.z, table) + margin)
-        let width = across.upperBound - across.lowerBound
-        aboveAspect = width / (depth.upperBound - depth.lowerBound)
-        behindAspect = width / (height.upperBound - height.lowerBound)
+        let projection = GuideProjection(boxLow: boxLow, boxHigh: boxHigh, table: table)
+        self.projection = projection
+        let width = projection.across.upperBound - projection.across.lowerBound
 
-        func share(_ value: Double, _ range: ClosedRange<Double>) -> Double {
-            (value - range.lowerBound) / (range.upperBound - range.lowerBound)
-        }
         func mark(_ base: SIMD3<Float>) -> Mark {
             let p = Self.operatorPoint(base)
-            let above = Spot(x: share(p.x, across), y: 1 - share(p.y, depth))
-            let behind = Spot(x: share(p.x, across), y: 1 - share(p.z, height))
+            let fromAbove = projection.above(p), fromBehind = projection.behind(p)
+            let above = Spot(x: fromAbove.x, y: fromAbove.y)
+            let behind = Spot(x: fromBehind.x, y: fromBehind.y)
             let shown = (above: Self.clamp(above), behind: Self.clamp(behind))
             return Mark(
                 above: shown.above, behind: shown.behind, pinned: shown.above != above || shown.behind != behind)
         }
 
-        boxAbove = Area(
-            minX: share(boxLow.x, across), minY: 1 - share(boxHigh.y, depth),
-            maxX: share(boxHigh.x, across), maxY: 1 - share(boxLow.y, depth))
-        boxBehind = Area(
-            minX: share(boxLow.x, across), minY: 1 - share(boxHigh.z, height),
-            maxX: share(boxHigh.x, across), maxY: 1 - share(floor, height))
-        tableY = 1 - share(table, height)
+        // From above, the box's farthest forward side is its top edge; from behind, its highest side is.
+        let lowAbove = projection.above(boxLow), highAbove = projection.above(boxHigh)
+        boxAbove = Area(minX: lowAbove.x, minY: highAbove.y, maxX: highAbove.x, maxY: lowAbove.y)
+        let topBehind = projection.behind(boxHigh)
+        let floorBehind = projection.behind(SIMD3(boxLow.x, boxLow.y, floor))
+        boxBehind = Area(minX: floorBehind.x, minY: topBehind.y, maxX: topBehind.x, maxY: floorBehind.y)
+        tableY = projection.behind(SIMD3(boxLow.x, boxLow.y, table)).y
 
         let pinchPoint = Self.operatorPoint(reading.pinchPoint)
         pinch = mark(reading.pinchPoint)
@@ -187,14 +187,9 @@ struct GuidePicture: Equatable {
     }
 
     /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by §3.3's
-    /// axis table.
+    /// axis table: the projection's own conversion.
     static func operatorPoint(_ base: SIMD3<Float>) -> SIMD3<Double> {
-        let b = SIMD3<Double>(base)
-        return SIMD3(
-            simd_dot(b, OperatorDirection.right.baseVector),
-            simd_dot(b, OperatorDirection.forward.baseVector),
-            simd_dot(b, OperatorDirection.up.baseVector)
-        )
+        GuideProjection.operatorPoint(SIMD3<Double>(base))
     }
 
     private static func clamp(_ spot: Spot) -> Spot {
