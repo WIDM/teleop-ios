@@ -448,6 +448,54 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertNil(model.link.newestArmAgeMs)
     }
 
+    /// A move to a point is a hold on the pad's path: it needs no tracked pose to start, where a phone hold is refused,
+    /// and lost tracking does not end it. Nobody holds it, so the link tells its endings as the move's own. It streams
+    /// the offsets the input rules give, and with no move of theirs it sends none.
+    func testAGoingHoldNeedsNoTrackedPose() {
+        bringUp(lock: .off)
+        position = nil
+        model.send(.holdArmStart)
+        XCTAssertFalse(model.session.state.armMoving, "a phone hold needs the phone's pose")
+        XCTAssertEqual(heard, [.refused(.notTracking)])
+        let sent = transport.sent.count
+        model.startArmHold(.going)
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertEqual(transport.types.last, "pose_start", "started with no pose")
+        XCTAssertTrue(model.link.holdIsLoose, "nobody holds it")
+        XCTAssertEqual(heard, [.refused(.notTracking)], "no refusal of its own")
+        run(ticks: 20)
+        XCTAssertTrue(model.session.state.armMoving, "lost tracking does not end it")
+        XCTAssertTrue(model.link.holdIsLoose)
+        XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_update"), "no move of the rules, no offset")
+        XCTAssertEqual(endings, [])
+        model.send(.holdArmEnd)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop")
+        XCTAssertFalse(model.link.holdIsLoose)
+    }
+
+    /// A move to a point the link cannot start is refused as a pad hold is, with the same words and nothing on the
+    /// wire, and the session drops the hold: no link (a link being replaced, which the session still reads as
+    /// connected), and a scene reset waiting for its answer.
+    func testAGoingStartThatCannotStartTakesThePadsFailurePath() {
+        let causes: [(String, Refusal, (AssistLinkTests) -> Void)] = [
+            ("no link", .noLink, { $0.model.connect() }),
+            ("a scene reset waiting", .notReady, { XCTAssertTrue($0.model.link.resetScene()) }),
+        ]
+        for (what, refusal, cause) in causes {
+            for source in [ArmSource.pad, .going] {
+                bringUp(lock: .off)
+                cause(self)
+                XCTAssertTrue(model.session.state.connected, what)
+                let sent = transport.sent.count
+                if source == .pad { model.startButtonTranslation() } else { model.startArmHold(source) }
+                XCTAssertFalse(model.session.state.armMoving, "\(what), \(source)")
+                XCTAssertFalse(model.link.holdIsLoose, "\(what), \(source)")
+                XCTAssertEqual(heard, [.refused(refusal)], "\(what), \(source)")
+                XCTAssertFalse(transport.types.dropFirst(sent).contains("pose_start"), "\(what), \(source)")
+            }
+        }
+    }
+
     /// Ticks until the link sends its next probe, then the server answers it `ms` later.
     private func answerTheNextProbe(after ms: Int, line: UInt = #line) {
         let before = transport.sent.count

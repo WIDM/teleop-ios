@@ -86,8 +86,9 @@ final class AppModel {
     @ObservationIgnored private var lastRefusal: (refusal: Refusal, atMs: Int)?
     /// The newest saved take, and when, for the two-second display.
     @ObservationIgnored private var lastSaved: (count: Int, atMs: Int)?
-    /// The arm hold being started comes from a button, not the phone.
-    @ObservationIgnored private var pendingButtonHold = false
+    /// Where the arm hold being started takes its motion from: the phone, a pad button, or a move to a point the
+    /// operator tapped. The phone unless a caller says otherwise.
+    @ObservationIgnored private var pendingArmSource: ArmSource = .phone
     /// Where the guide's view from above is drawn, in the operating screen's coordinates, which touches arrive in, as
     /// the screen reported it; nil while it is not drawn. Not observed: the screen reports it while laying out.
     @ObservationIgnored private(set) var guidePanelRect: SurfaceLayout.Rect?
@@ -499,11 +500,17 @@ final class AppModel {
         refreshOperating()
     }
 
+    /// Starts the session's arm hold with its motion from `source`. `send(.holdArmStart)` alone starts a phone hold,
+    /// as in version 1.0.1.
+    func startArmHold(_ source: ArmSource) {
+        pendingArmSource = source
+        send(.holdArmStart)
+        pendingArmSource = .phone
+    }
+
     /// Buttons mode: a direction button's hold. The link streams the pad's ramp instead of the phone's movement.
     func startButtonTranslation() {
-        pendingButtonHold = true
-        send(.holdArmStart)
-        pendingButtonHold = false
+        startArmHold(.pad)
     }
 
     /// The input rules latched the arm hold: it goes on with no input held. Marks the link's hold as one nobody holds,
@@ -939,29 +946,34 @@ final class AppModel {
         if before.armMoving, !after.armMoving { link.endHold() }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
-        if !before.armMoving, after.armMoving, pendingButtonHold {
-            if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) {
-                log("link: button hold not started (no link or a reset)")
-                pendingRefusal = link.resetPending ? .notReady : .noLink
-                session.perform(.holdArmEnd)
-                session.pendingCue(.commandBlocked)
-            }
-        } else if !before.armMoving, after.armMoving {
-            let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
-            let held = PhonePosture.of(pose())
-            if held == .tilted || !link.startHold(params) {
-                log(
-                    "link: hold not started (\(held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"))"
-                )
-                if held == .tilted {
-                    pendingRefusal = .posture
-                } else if link.resetPending {
-                    pendingRefusal = .notReady
+        if !before.armMoving, after.armMoving {
+            switch pendingArmSource {
+            case .pad:
+                if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) { buttonHoldNotStarted() }
+            case .going:
+                // A move to a point the operator tapped: a hold on the pad's path, with the input rules' offsets.
+                // Nobody holds it, so the link tells the endings it causes as the move's own.
+                if link.startButtonHold({ [weak self] in self?.controller.goOffset() }) {
+                    link.holdIsLoose = true
                 } else {
-                    pendingRefusal = held == .unknown ? .notTracking : .noLink
+                    buttonHoldNotStarted()
                 }
-                session.perform(.holdArmEnd)
-                session.pendingCue(.commandBlocked)
+            case .phone:
+                let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
+                let held = PhonePosture.of(pose())
+                if held == .tilted || !link.startHold(params) {
+                    let why = held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"
+                    log("link: hold not started (\(why))")
+                    if held == .tilted {
+                        pendingRefusal = .posture
+                    } else if link.resetPending {
+                        pendingRefusal = .notReady
+                    } else {
+                        pendingRefusal = held == .unknown ? .notTracking : .noLink
+                    }
+                    session.perform(.holdArmEnd)
+                    session.pendingCue(.commandBlocked)
+                }
             }
         }
         if before.wristMoving != after.wristMoving {
@@ -997,6 +1009,14 @@ final class AppModel {
         default:
             break
         }
+    }
+
+    /// A hold on the pad's path the link could not start: the session drops it, and the operator hears why.
+    private func buttonHoldNotStarted() {
+        log("link: button hold not started (no link or a reset)")
+        pendingRefusal = link.resetPending ? .notReady : .noLink
+        session.perform(.holdArmEnd)
+        session.pendingCue(.commandBlocked)
     }
 
     private static func isLatency(_ action: TeleopAction) -> Bool {

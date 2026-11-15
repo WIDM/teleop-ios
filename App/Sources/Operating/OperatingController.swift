@@ -214,6 +214,16 @@ final class OperatingController {
     /// The move nobody holds, for the screen's words; nil otherwise.
     var loose: Engagement? { arbiter.engagement.flatMap { $0.isLoose ? $0 : nil } }
 
+    /// The move to a point's offset since it started, metres in the link's frame, for the link to stream; nil when
+    /// none runs. The rules judge it on their own clock.
+    func goOffset() -> SIMD3<Double>? { arbiter.goOffset(at: now()) }
+
+    /// Where the move to a point is headed, robot base frame, pinch point, for the guide; nil when none runs.
+    var goTarget: SIMD3<Double>? {
+        if case .going(let target, _)? = arbiter.engagement { return target }
+        return nil
+    }
+
     /// 0…1 while the top band is held toward a reset.
     var resetCountdown: Double? {
         countdownStartedAt.map { min(max((now() - $0) / arbiter.constants.resetHoldS, 0), 1) }
@@ -246,7 +256,10 @@ final class OperatingController {
                 // A countdown that ran out between ticks fires in the same step as a STOP pressed just after: the
                 // reset would go out ahead of the STOP and could clear it, so the STOP wins.
                 if commands.contains(.emergencyStop) { commands.removeAll { $0 == .fireReset } }
-                for command in commands { carry(command) }
+                // What each start of this call was, in order, as the rules recorded it. Steps run one at a time, so
+                // no other call to the rules can change the record while this one is carried.
+                var starts = arbiter.startsThisCall[...]
+                for command in commands { carry(command, starts: &starts) }
             case .press(let button):
                 press(button)
             case .release(let button):
@@ -281,9 +294,12 @@ final class OperatingController {
         for command in commands { carry(command) }
     }
 
-    private func carry(_ command: InputCommand) {
+    private func carry(_ command: InputCommand, starts: inout ArraySlice<ArmSource>) {
         switch command {
-        case .startTranslation: model.send(.holdArmStart)
+        // The rules recorded what each start was. The engagement after the call cannot say: a STOP later in the same
+        // call has already ended a move to a point, and its start would go out as a phone hold.
+        case .startTranslation:
+            if starts.popFirst() == .going { model.startArmHold(.going) } else { model.send(.holdArmStart) }
         case .stopTranslation: model.send(.holdArmEnd)
         case .startGripper(let target): model.send(.gripperStart(target))
         case .stopGripper: model.send(.gripperEnd)
