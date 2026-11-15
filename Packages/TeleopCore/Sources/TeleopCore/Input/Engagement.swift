@@ -1,17 +1,18 @@
 import Foundation
+import simd
 
 /// The one thing engaged now (I-2: one thing at a time): who drives the arm, or the reset countdown. The input rules
 /// hold exactly one or none. Which inputs are down and what each is doing stays in `InputArbiter.held`, a separate
 /// table.
 ///
-/// Who drives is part of the value: an input that is down (`.held`), or nobody (`.latched`). The case nobody drives
-/// carries no input, so "engaged but not down" cannot be written for it.
+/// Who drives is part of the value: an input that is down (`.held`), or nobody (`.latched`, `.going`). The cases nobody
+/// drives carry no input, so "engaged but not down" cannot be written for them.
 ///
 /// Kept by `InputArbiter`:
 /// - `.held(input, kind)` exactly when `held[input] == .engaged(kind)`, and that input is down.
-/// - While `.latched`, no input reports `.engaged` or `.countingDown`; the session runs one arm hold.
-/// - `.latched` exists only while `assist.lock` is set.
-/// - No call that holds an accepted STOP touch-down leaves `.latched` behind.
+/// - While `.latched` or `.going`, no input reports `.engaged` or `.countingDown`; the session runs one arm hold.
+/// - `.latched` exists only while `assist.lock` is set, `.going` only while `assist.goTo` is set.
+/// - No call that holds an accepted STOP touch-down leaves `.latched` or `.going` behind.
 public enum Engagement: Equatable, Sendable {
     /// A hold that lasts as long as its input is down.
     case held(HeldInput, HoldKind)
@@ -19,11 +20,14 @@ public enum Engagement: Equatable, Sendable {
     case countdown(touch: Int)
     /// The arm follows the phone with no input down, since `since` on the input rules' clock.
     case latched(since: TimeInterval)
+    /// The arm goes to `target` (robot base frame, pinch point, metres) on the app's own offsets, since `since` on the
+    /// input rules' clock.
+    case going(target: SIMD3<Double>, since: TimeInterval)
 
     /// True for a move nobody holds.
     public var isLoose: Bool {
         switch self {
-        case .latched: return true
+        case .latched, .going: return true
         case .held, .countdown: return false
         }
     }
@@ -33,7 +37,7 @@ public enum Engagement: Equatable, Sendable {
     public var holdKind: HoldKind? {
         switch self {
         case .held(_, let kind): return kind
-        case .latched: return .translation
+        case .latched, .going: return .translation
         case .countdown: return nil
         }
     }

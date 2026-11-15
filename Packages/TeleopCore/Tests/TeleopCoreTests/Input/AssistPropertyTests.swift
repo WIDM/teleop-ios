@@ -34,9 +34,32 @@ final class AssistPropertyTests: XCTestCase {
         XCTAssertGreaterThan(totals.slideLatches, 300)
         XCTAssertGreaterThan(totals.centreBandSlideLatches, 50)
         XCTAssertGreaterThan(totals.withheldNOs, 100)
+        XCTAssertGreaterThan(totals.goStarts, 800)
+        for kind in ["the facts", "the work box", "no fresh arm", "a STOP earlier in the step"] {
+            XCTAssertGreaterThan(totals.refusedTaps[kind, default: 0], 50, "taps refused by \(kind)")
+        }
+        for kind in ["arrival", "stopped short", "no arm data", "time limit", "a key", "a touch", "STOP"] {
+            XCTAssertGreaterThan(totals.goEndings[kind, default: 0], 50, "moves to a point ended by \(kind)")
+        }
+        XCTAssertGreaterThan(totals.stopsAfterATapInTheStep, 50)
+        XCTAssertGreaterThan(totals.palmWideLifts, 50)
+        XCTAssertGreaterThan(totals.lateStarts, 50)
+        XCTAssertGreaterThan(totals.casesWithWaitWhileGoing, 50)
     }
 
     struct Totals {
+        /// Moves to a tapped point started.
+        var goStarts = 0
+        /// Taps refused, by what refused them: the facts, the work box, no fresh arm, a STOP earlier in the step.
+        var refusedTaps: [String: Int] = [:]
+        /// Moves to a tapped point ended, by what ended them.
+        var goEndings: [String: Int] = [:]
+        var stopsAfterATapInTheStep = 0
+        /// Lifts as wide as a palm, after the palm window, of touches that were taps in every other way.
+        var palmWideLifts = 0
+        /// Moves begun with an arm that stood still at first.
+        var lateStarts = 0
+        var casesWithWaitWhileGoing = 0
         var offCases = 0
         var pressLatches = 0
         var lockLimits = 0
@@ -66,6 +89,26 @@ final class AssistPropertyTests: XCTestCase {
         var sideways = false
         /// A NO was played for it.
         var playedNO = false
+        /// It passed the palm and edge filters at its touch-down.
+        var accepted = true
+        /// The guide's panel it began inside, with tap-to-go allowed and nothing engaged; nil otherwise.
+        var panel: GoPanel?
+        /// The farthest it went from its touch-down, millimetres, over every sample, the lift sample included.
+        var farthestMm = 0.0
+        /// Its lift: when, how wide, and whether it was cancelled.
+        var liftAt: TimeInterval?
+        var liftRadius = 0.0
+        var cancelled = false
+
+        /// Shaped as a tap: accepted, begun inside the panel with nothing engaged, lifted (not cancelled) at most
+        /// `tapMaxS` after its touch-down, never farther than `tapSlopMm` from it, and lifted narrower than a palm
+        /// (`narrowLift` false leaves the last test out).
+        func isTap(narrowLift: Bool = true) -> Bool {
+            let constants = InputConstants.appendixA
+            guard accepted, panel != nil, !cancelled, let liftAt else { return false }
+            return liftAt - downAt <= constants.tapMaxS + 1e-9 && farthestMm <= constants.tapSlopMm + 1e-9
+                && (!narrowLift || liftRadius < constants.palmRadiusPt)
+        }
     }
 
     // MARK: One case
@@ -100,10 +143,14 @@ final class AssistPropertyTests: XCTestCase {
         var sawWaitWhileLoose = false
         // The last step that held an accepted STOP touch-down.
         var lastStopStep: Int?
+        // With tap-to-go: the arm the rules are told of, and how each move to a point starts, runs and ends.
+        var watch: GoWatch?
+        if let limits = scenario.assist.goTo, let walk = scenario.walk { watch = GoWatch(limits: limits, walk: walk) }
 
         for (index, step) in scenario.steps.enumerated() {
             func at() -> String { "at \(step.time), \(step.events)" }
-            let facts = scenario.facts(at: step.time)
+            var facts = scenario.facts(at: step.time)
+            if watch != nil { facts.arm = watch!.arm.fix(at: step.time) }
             let engagementBefore = arbiter.engagement
             let limitBefore = arbiter.assist.lock?.timeLimitS ?? 0
             let downBefore = down
@@ -118,6 +165,8 @@ final class AssistPropertyTests: XCTestCase {
                 replaysUnnamed = true
             }
             let before: InputArbiter? = silencedEvents.isEmpty && !replaysUnnamed ? nil : arbiter
+            // The control-surface touches lifted in this step, as the generator moved them.
+            var lifted: [Thumb] = []
             for event in step.events {
                 switch event {
                 case .keyDown(let key): down.insert(.key(key))
@@ -131,15 +180,29 @@ final class AssistPropertyTests: XCTestCase {
                 switch s.phase {
                 case .began where ArbiterRig.layout.zone(x: s.x, y: s.y) == .controlSurface:
                     let inHeldUp = engagementBefore == .held(.key(.upper), .translation)
-                    thumbs[s.id] = Thumb(
-                        downAt: step.time, downStep: index, down: point, at: point, inHeldUp: inHeldUp)
+                    var thumb = Thumb(downAt: step.time, downStep: index, down: point, at: point, inHeldUp: inHeldUp)
+                    thumb.accepted = Self.passesTheFilters(s)
+                    if scenario.assist.goTo != nil, engagementBefore == nil, let panel = facts.goPanel,
+                        panel.contains(x: s.x, y: s.y)
+                    {
+                        thumb.panel = panel
+                    }
+                    thumbs[s.id] = thumb
                 case .moved:
                     guard var thumb = thumbs[s.id] else { break }
                     thumb.at = point
                     let slide = ThumbSlide.judge(
                         from: thumb.down, to: point, layout: ArbiterRig.layout, constants: .appendixA)
                     if slide == .sideways { thumb.sideways = true }
+                    thumb.farthestMm = max(thumb.farthestMm, Self.millimetres(from: thumb.down, to: point))
                     thumbs[s.id] = thumb
+                case .ended, .cancelled:
+                    guard var thumb = thumbs[s.id] else { break }
+                    thumb.farthestMm = max(thumb.farthestMm, Self.millimetres(from: thumb.down, to: point))
+                    thumb.liftAt = step.time
+                    thumb.liftRadius = s.majorRadius
+                    thumb.cancelled = s.phase == .cancelled
+                    lifted.append(thumb)
                 default:
                     break
                 }
@@ -150,6 +213,9 @@ final class AssistPropertyTests: XCTestCase {
             let engagement = arbiter.engagement
             let drives = commands.isEmpty ? [] : ArbiterRig.drives(commands)
             let latchedHere = drives.contains(.latched)
+            let recorded = arbiter.startsThisCall
+            // A move nobody holds began in this step: a latch, or a tap that started a move to a point.
+            let looseStartedHere = latchedHere || recorded.contains(.going)
             let heldUpBefore = heldUpSince
             if engagement == .held(.key(.upper), .translation) {
                 if engagementBefore != engagement { heldUpSince = step.time }
@@ -222,13 +288,16 @@ final class AssistPropertyTests: XCTestCase {
                     case nil:
                         break
                     }
+                    if !fits, scenario.assist.goTo != nil, (withheld ?? 0) == 0 {
+                        fits = Self.isTapGesture(on: commands, off: offCommands, facts: facts)
+                    }
                     if !fits {
                         return "an aid changes nothing until it acts: first difference \(commands), off \(offCommands) "
                             + "\(at())"
                     }
                     for input in Set(held.keys).union(offHeld.keys) where held[input] != offHeld[input] {
                         let upper = input == .key(.upper) && offHeld[input] == .engaged(.translation)
-                        let downAtTheStart = latchedHere && downBefore.contains(input)
+                        let downAtTheStart = looseStartedHere && downBefore.contains(input)
                         if held[input] != .dead || !(upper || downAtTheStart) {
                             return "an aid changes nothing until it acts: \(input) is "
                                 + "\(String(describing: held[input])), off \(String(describing: offHeld[input])) "
@@ -320,9 +389,9 @@ final class AssistPropertyTests: XCTestCase {
                 if held[.touch(touch)] != .countingDown {
                     return "the engagement and its input agree: the countdown's touch is not counting \(at())"
                 }
-            case .latched?:
+            case .latched?, .going?:
                 if !engagedInputs.isEmpty {
-                    return "no input engaged during a move nobody holds: \(engagedInputs) while latched \(at())"
+                    return "no input engaged during a move nobody holds: \(engagedInputs) while loose \(at())"
                 }
             case nil:
                 break
@@ -336,13 +405,28 @@ final class AssistPropertyTests: XCTestCase {
 
             // An aid acts only when it is on
             if arbiter.assist.lock == nil, scenario.assist.lock == nil {
-                if loose {
+                if case .latched? = engagement {
                     return "an aid acts only when it is on: \(String(describing: engagement)) without lock \(at())"
                 }
-                if !drives.isEmpty { return "an aid acts only when it is on: \(drives) without lock \(at())" }
+                if drives.contains(.latched) { return "an aid acts only when it is on: \(drives) without lock \(at())" }
             }
-            if commands.contains(.cue(.refused(.outsideWorkArea))) || commands.contains(.cue(.refused(.noArmData))) {
-                return "an aid acts only when it is on: a tap's refusal without tap-to-go \(at())"
+            if arbiter.assist.goTo == nil, scenario.assist.goTo == nil {
+                if case .going? = engagement {
+                    return "an aid acts only when it is on: \(String(describing: engagement)) without tap-to-go "
+                        + "\(at())"
+                }
+                if commands.contains(.cue(.refused(.outsideWorkArea))) || commands.contains(.cue(.refused(.noArmData)))
+                {
+                    return "an aid acts only when it is on: a tap's refusal without tap-to-go \(at())"
+                }
+                let goOnly: [DriveCue] = [.arrived, .ended(.stoppedShort), .ended(.noArmData)]
+                if drives.contains(where: goOnly.contains) || recorded.contains(.going) {
+                    return "an aid acts only when it is on: \(drives), \(recorded) without tap-to-go \(at())"
+                }
+            }
+            if scenario.assist.lock == nil, scenario.assist.goTo == nil {
+                if loose { return "an aid acts only when it is on: \(String(describing: engagement)) \(at())" }
+                if !drives.isEmpty { return "an aid acts only when it is on: \(drives) \(at())" }
             }
 
             // A follow latches only by a press or by a slide
@@ -391,16 +475,29 @@ final class AssistPropertyTests: XCTestCase {
                     }
                 }
             }
-            if !(engagementBefore?.isLoose == true), drives.contains(where: { $0 != .latched }) || drives.count > 1 {
-                return "with nothing loose before, the only drive cue is one latch: \(drives) \(at())"
+            if !(engagementBefore?.isLoose == true), !drives.isEmpty, drives != [.latched], drives != [.arrived] {
+                return "with nothing loose before, the only drive cue is one latch, or a tap's \"Arrived.\": "
+                    + "\(drives) \(at())"
             }
 
-            // A move nobody holds ends once, with the cue of what ended it (its door)
-            if case .latched(let since)? = engagementBefore {
-                let door =
-                    Self.eventDoor(step.events[...])
-                    ?? Self.gateDoor(facts: facts, since: since, limit: limitBefore, time: step.time)
-                if loose {
+            // A move nobody holds ends once, with the cue of what ended it (its door). A move to a point that the
+            // checks after the events ended is judged by `GoWatch`, which knows what its verdicts need.
+            if let looseBefore = engagementBefore, looseBefore.isLoose {
+                let eventDoor = Self.eventDoor(step.events[...])
+                var door = eventDoor
+                if case .latched(let since) = looseBefore {
+                    door = door ?? Self.gateDoor(facts: facts, since: since, limit: limitBefore, time: step.time)
+                }
+                if case .going = looseBefore, eventDoor == nil, !loose {
+                    if translationStops != 1 || drives.count != 1 {
+                        return "a move nobody holds ends once, with its cue: \(commands) \(at())"
+                    }
+                    let stopAt = commands.firstIndex(of: .stopTranslation)!
+                    if commands.dropFirst(stopAt + 1).first != .cue(.drive(drives[0])) {
+                        return "a move nobody holds ends once, with its cue: \(drives[0]) does not follow the stop: "
+                            + "\(commands) \(at())"
+                    }
+                } else if loose {
                     if let door { return "a move nobody holds ends once, with its cue: \(door) did not end it \(at())" }
                     if engagement != engagementBefore {
                         return "a move nobody holds ends once, with its cue: became \(String(describing: engagement)) "
@@ -409,7 +506,9 @@ final class AssistPropertyTests: XCTestCase {
                     if commands.contains(.stopTranslation) || !drives.isEmpty {
                         return "a move nobody holds ends once, with its cue: \(commands) and still loose \(at())"
                     }
-                    if facts.refusal == .wait { sawWaitWhileLoose = true }
+                    if facts.refusal == .wait {
+                        if case .going = looseBefore { watch?.sawWait = true } else { sawWaitWhileLoose = true }
+                    }
                 } else {
                     guard let door else {
                         return "a move nobody holds ends once, with its cue: it ended with no door: \(commands) \(at())"
@@ -432,7 +531,7 @@ final class AssistPropertyTests: XCTestCase {
             }
             for drive in drives {
                 if drive == .latched, translationStarts > 0 { totals.pressLatches += 1 }
-                if drive == .ended(.timeLimit) { totals.lockLimits += 1 }
+                if drive == .ended(.timeLimit), case .latched? = engagementBefore { totals.lockLimits += 1 }
             }
 
             // A STOP ends what exists
@@ -451,12 +550,16 @@ final class AssistPropertyTests: XCTestCase {
                 }
                 let endedBefore = Self.eventDoor(step.events[..<stopEvent]) != nil
                 let latchedBefore = beforeStop.contains(.latched)
-                let looseAtStop = (engagementBefore?.isLoose == true && !endedBefore) || latchedBefore
+                // A tap ahead of the STOP that started a move to a point: the starts before the STOP, as recorded.
+                let startsBeforeStop = commands[..<e].filter { $0 == .startTranslation }.count
+                let wentBefore = recorded.prefix(startsBeforeStop).contains(.going)
+                let looseAtStop = (engagementBefore?.isLoose == true && !endedBefore) || latchedBefore || wentBefore
                 if looseAtStop != after.contains(.stopTranslation) {
                     return "a STOP ends what exists: loose at the STOP \(looseAtStop), \(commands) \(at())"
                 }
                 if looseAtStop { totals.stopsWhileLoose += 1 }
                 if latchedBefore { totals.stopsAfterALatchInTheStep += 1 }
+                if wentBefore { totals.stopsAfterATapInTheStep += 1 }
             }
 
             // A follow ends at its time limit, and when a fact refuses it
@@ -481,10 +584,25 @@ final class AssistPropertyTests: XCTestCase {
                 }
             }
 
-            // Each start is recorded once
-            let recorded = arbiter.startsThisCall
-            if recorded.count != translationStarts || recorded.contains(where: { $0 != .phone }) {
-                return "each start is recorded once: \(recorded) for \(commands) \(at())"
+            // Each start is recorded once, with what the link must follow: the phone for a press of the upper key, a
+            // move to a point only for a tap's, and only with tap-to-go
+            let phoneStarts = recorded.filter { $0 == .phone }.count
+            let goStarts = recorded.filter { $0 == .going }.count
+            let upperPresses = step.events.filter { $0 == .keyDown(.upper) }.count
+            if recorded.count != translationStarts || phoneStarts + goStarts != recorded.count
+                || phoneStarts > upperPresses || goStarts > lifted.filter({ $0.isTap() }).count
+                || (goStarts > 0 && scenario.assist.goTo == nil)
+            {
+                return "each start is recorded once, with what the link follows: \(recorded) for \(commands) \(at())"
+            }
+
+            // How each move to a point starts, runs and ends
+            if watch != nil {
+                let view = GoWatch.Step(
+                    time: step.time, events: step.events, facts: facts, commands: commands, recorded: recorded,
+                    engagementBefore: engagementBefore, engagement: engagement, nextDeadline: arbiter.nextDeadline,
+                    offset: arbiter.goOffset(at: step.time), drives: drives)
+                if let failure = watch!.check(view, lifted: lifted, totals: &totals) { return "\(failure) \(at())" }
             }
 
             // Dead and silent inputs stay so: what they may not do. First by the events of those inputs, against the
@@ -519,10 +637,10 @@ final class AssistPropertyTests: XCTestCase {
                 }
                 if down.contains(ender) { silenced.insert(ender) }
             }
-            if latchedHere {
+            if looseStartedHere {
                 for (input, phase) in held {
                     if phase != .dead {
-                        return "inputs down when a follow begins are dead: \(input) is \(phase) \(at())"
+                        return "inputs down when a move nobody holds begins are dead: \(input) is \(phase) \(at())"
                     }
                     silenced.insert(input)
                     if input != .key(.upper) { totals.inputsHeldAcrossALooseStart += 1 }
@@ -563,6 +681,7 @@ final class AssistPropertyTests: XCTestCase {
             lastHeld = held
         }
         if sawWaitWhileLoose { totals.casesWithWaitWhileLoose += 1 }
+        if watch?.sawWait == true { totals.casesWithWaitWhileGoing += 1 }
         // Every NO withheld has played by the end.
         if let withheld, withheld != 0 { return "a withheld NO plays once, later: \(withheld) never played" }
         // Every start stopped, and nothing held after every release
@@ -627,8 +746,40 @@ final class AssistPropertyTests: XCTestCase {
         return off[..<start].contains(.emergencyStop) && refused == on
     }
 
+    /// The first differences a tap may make: the twin starts nothing, and the aided commands are the twin's with one
+    /// of the tap's outcomes added (its start; a refusal by the facts, the work box, no fresh arm or a STOP earlier in
+    /// the step; or "Arrived."), or with its start and, when a STOP comes later in the step, the stop of what it
+    /// started right after the STOP.
+    private static func isTapGesture(on: [InputCommand], off: [InputCommand], facts: InputFacts) -> Bool {
+        guard !off.contains(.startTranslation), on.count > off.count else { return false }
+        var outcomes: [InputCommand] = [
+            .startTranslation, .cue(.refused(.outsideWorkArea)), .cue(.refused(.noArmData)), .cue(.refused(.stopped)),
+            .cue(.drive(.arrived)),
+        ]
+        if let refusal = facts.refusal { outcomes.append(.cue(.refused(refusal))) }
+        for i in 0...off.count {
+            for outcome in outcomes {
+                var added = off
+                added.insert(outcome, at: i)
+                if added == on { return true }
+            }
+            var stopped = off
+            stopped.insert(.startTranslation, at: i)
+            if let stop = stopped[(i + 1)...].firstIndex(of: .emergencyStop) {
+                stopped.insert(.stopTranslation, at: stop + 1)
+                if stopped == on { return true }
+            }
+        }
+        return false
+    }
+
+    /// The straight distance between two points of the reference screen, millimetres.
+    static func millimetres(from a: SIMD2<Double>, to b: SIMD2<Double>) -> Double {
+        ArbiterRig.layout.millimetres(simd_length(b - a))
+    }
+
     /// The cues the first ending among `events` plays for a move nobody holds, or nil when none of them ends one.
-    private static func eventDoor(_ events: ArraySlice<InputEvent>) -> [DriveCue]? {
+    fileprivate static func eventDoor(_ events: ArraySlice<InputEvent>) -> [DriveCue]? {
         for event in events {
             switch event {
             case .keyDown:
@@ -698,7 +849,7 @@ final class AssistPropertyTests: XCTestCase {
         s.majorRadius < InputConstants.appendixA.palmRadiusPt && !ArbiterRig.layout.isAtSideEdge(x: s.x)
     }
 
-    private static func isStop(_ event: InputEvent) -> Bool {
+    fileprivate static func isStop(_ event: InputEvent) -> Bool {
         guard case .touch(let s) = event, s.phase == .began else { return false }
         return ArbiterRig.layout.zone(x: s.x, y: s.y) == .bottomBand
     }
@@ -749,8 +900,9 @@ final class AssistPropertyTests: XCTestCase {
 /// a STOP in the same step before or after the press; with variant 2, thumbs landing during the hold on a half or in
 /// the centre band and sliding up, and the top band or the gear touched during it; inputs already down when a press
 /// comes; touches anywhere, filtered or not; every reason every hold ends for; the app coming back, the aids and the
-/// mode changing; scene resets and wrist starts; spells of facts that refuse, `.wait` among them; and a final
-/// every-hold-ends after every release.
+/// mode changing; scene resets and wrist starts; spells of facts that refuse, `.wait` among them; with tap-to-go, the
+/// guide's panel, an arm the moves drive, and a stretch of taps after the presses; and a final every-hold-ends after
+/// every release.
 struct AssistScenario {
     struct Step {
         var time: TimeInterval
@@ -777,8 +929,14 @@ struct AssistScenario {
     var spells: [Spell]
     /// Touches that begin in the bottom safe area.
     var safeAreaTouches: Set<Int>
+    /// With tap-to-go: the guide's view from above, and from when it is another one or none (the guide not drawn).
+    var panel: GoPanel?
+    var panelChange: (at: TimeInterval, to: GoPanel?)?
+    /// With tap-to-go: how the measured arm behaves.
+    var walk: ArmWalk?
 
-    /// The base's facts at `time`, with the spells that hold then laid over them.
+    /// The base's facts at `time`, with the spells that hold then laid over them, and the panel drawn then. The arm is
+    /// filled in by the run, which knows what the moves commanded.
     func facts(at time: TimeInterval) -> InputFacts {
         var facts = base.facts(at: time)
         for spell in spells where time >= spell.from && time < spell.to {
@@ -786,22 +944,32 @@ struct AssistScenario {
             if spell.tracking { facts.trackingRefusal = .notTracking }
             if spell.posture { facts.translationRefusal = .posture }
         }
+        if assist.goTo != nil {
+            if let change = panelChange, time >= change.at { facts.goPanel = change.to } else { facts.goPanel = panel }
+        }
         return facts
     }
 
     var summary: String {
-        let configuration = assist.lock.map { "lock \($0.variant) \($0.timeLimitS) s" } ?? "off"
-        return "\(base.summary), \(configuration), \(steps.count) steps"
+        let lock = assist.lock.map { "lock \($0.variant) \($0.timeLimitS) s" } ?? "no lock"
+        let go =
+            assist.goTo.map { "tap-to-go at \($0.speedMps) m/s, \(String(describing: walk?.way))" } ?? "no tap-to-go"
+        return "\(base.summary), \(lock), \(go), \(steps.count) steps"
     }
 
     static func generate(_ rng: inout SplitMix64, index: Int) -> AssistScenario {
         let base = Scenario.generate(&rng, index: index)
         let roll = rng.uniform(0, 1)
-        let assist =
-            roll < 0.2
-            ? Assist.off
-            : Assist(
-                lock: LockRule(variant: roll < 0.6 ? .pressPress : .holdThenSlide, timeLimitS: rng.uniform(0.3, 3)))
+        // One case in five is 1.0.1; the others are lock 1, lock 2, tap-to-go, and tap-to-go with either lock, alike.
+        var assist = Assist.off
+        if roll >= 0.2 {
+            let kind = Int(rng.next() % 5)
+            if kind != 2 {
+                let variant: LockVariant = kind % 2 == 0 ? .pressPress : .holdThenSlide
+                assist.lock = LockRule(variant: variant, timeLimitS: rng.uniform(0.3, 3))
+            }
+            if kind >= 2 { assist.goTo = goLimits(&rng) }
+        }
         let slides = assist.lock?.variant == .holdThenSlide
         let layout = ArbiterRig.layout
         var steps = base.timeline.map { Step(time: $0.time, order: $0.order, events: [$0.event]) }
@@ -990,11 +1158,222 @@ struct AssistScenario {
             spells.append(spell)
         }
 
-        for tick in stride(from: baseEnd + 1.0 / 30, through: end + 0.8, by: 1.0 / 30) { add(tick, [.tick]) }
+        // With tap-to-go, a stretch of taps after the presses: inside the box's part of the panel, in its margin, just
+        // outside it, over the arm where the last move went; some still, some out more than 3 mm and back, some lifted
+        // far away or as wide as a palm, some lasting too long, some with a STOP in the step of their lift, some with
+        // the gear or the top band down across the lift; each followed now and then by a key, a touch, the top band or
+        // the gear, a STOP or every hold ending, with refusals, "wait" and the phone's facts switching meanwhile.
+        var panel: GoPanel?
+        var panelChange: (at: TimeInterval, to: GoPanel?)?
+        var walk: ArmWalk?
+        var last = end
+        if let goTo = assist.goTo {
+            let first = randomPanel(&rng)
+            panel = first
+            // After the presses' last release, so no key is still down from them.
+            let goStart = t + rng.uniform(0.1, 0.3)
+            let goEnd = goStart + rng.uniform(2, 5)
+            last = goEnd
+            if rng.chance(0.1) {
+                panelChange = (rng.uniform(goStart, goEnd), rng.chance(0.4) ? nil : randomPanel(&rng))
+            }
+            walk = randomWalk(&rng, goTo, from: goStart, to: goEnd)
+            var tapAt = goStart
+            var lastPoint: SIMD2<Double>?
+            // When each key is let go of: a key is pressed again only once it is up.
+            var keyUpAt: [InputKey: TimeInterval] = [:]
+            while tapAt < goEnd {
+                let t = tapAt
+                var rect = first.rect
+                if let change = panelChange, t >= change.at, let other = change.to { rect = other.rect }
+                let id = newID()
+                let place = rng.uniform(0, 1)
+                var p = SIMD2(
+                    rect.x + rng.uniform(0.13, 0.87) * rect.width, rect.y + rng.uniform(0.13, 0.87) * rect.height)
+                if let lastPoint, place < 0.15 {
+                    p = lastPoint
+                } else if place >= 0.75, place < 0.9 {
+                    let edge = rng.chance(0.5) ? rng.uniform(0.01, 0.1) : rng.uniform(0.9, 0.99)
+                    if rng.chance(0.5) { p.x = rect.x + edge * rect.width } else { p.y = rect.y + edge * rect.height }
+                } else if place >= 0.9 {
+                    p.x = rng.chance(0.5) ? rect.x - rng.uniform(0.5, 8) : rect.maxX + rng.uniform(0, 8)
+                }
+                lastPoint = p
+                let radius = rng.uniform(6, 60)
+                var duration = rng.chance(0.85) ? rng.uniform(0.03, 0.28) : rng.uniform(0.31, 0.6)
+                var liftPoint = p
+                var liftRadius = radius
+                add(t, [touch(id, .began, p, radius)])
+                let shape = rng.uniform(0, 1)
+                let angle = rng.uniform(0, 2 * .pi)
+                let unit = SIMD2(cos(angle), sin(angle)) * ArbiterRig.pointsPerMm
+                if shape < 0.1 {
+                    add(t + duration * 0.3, [touch(id, .moved, p + unit * rng.uniform(3.5, 6), radius)])
+                    add(t + duration * 0.6, [touch(id, .moved, p, radius)])
+                } else if shape < 0.2 {
+                    add(t + duration * 0.5, [touch(id, .moved, p + unit * rng.uniform(0.5, 2.5), radius)])
+                } else if shape < 0.25 {
+                    liftPoint = p + unit * rng.uniform(4, 8)
+                } else if shape < 0.32 {
+                    duration = rng.uniform(0.11, 0.28)
+                    liftRadius = rng.uniform(95, 130)
+                }
+                let liftAt = t + duration
+                let lift = touch(id, rng.chance(0.03) ? .cancelled : .ended, liftPoint, liftRadius)
+                if rng.chance(0.08) {
+                    let stopID = newID()
+                    let stopPoint = SIMD2(rng.uniform(20, 380), layout.bottomBand.y + 20)
+                    let stop = touch(stopID, .began, stopPoint, 8)
+                    add(liftAt, rng.chance(0.5) ? [lift, stop] : [stop, lift])
+                    add(liftAt + rng.uniform(0.05, 0.3), [touch(stopID, .ended, stopPoint, 8)])
+                } else {
+                    add(liftAt, [lift])
+                }
+                if rng.chance(0.1) {
+                    let gearID = newID()
+                    let gearPoint = SIMD2(rng.uniform(layout.gear.x + 13, layout.gear.maxX - 1), layout.gear.y + 20)
+                    add(liftAt - rng.uniform(0.05, 0.3), [touch(gearID, .began, gearPoint, 10)])
+                    add(liftAt + rng.uniform(0.02, 0.4), [touch(gearID, .ended, gearPoint, 10)])
+                }
+                if rng.chance(0.1) {
+                    // Still inside its palm window at the lift.
+                    let bandID = newID()
+                    let bandPoint = SIMD2(rng.uniform(80, 380), rng.uniform(70, layout.topBand.maxY - 1))
+                    add(liftAt - rng.uniform(0.01, 0.08), [touch(bandID, .began, bandPoint, 10)])
+                    add(liftAt + rng.uniform(0.05, 0.6), [touch(bandID, .ended, bandPoint, 10)])
+                }
+                let next = liftAt + rng.uniform(0.05, 1)
+                let follow = rng.uniform(0, 1)
+                if follow < 0.15 {
+                    let key: InputKey = rng.chance(0.7) ? .upper : .lower
+                    let up = next + rng.uniform(0.05, 0.4)
+                    if next > keyUpAt[key, default: -.infinity] {
+                        add(next, [.keyDown(key)])
+                        add(up, [.keyUp(key)])
+                        keyUpAt[key] = up
+                    }
+                } else if follow < 0.33 {
+                    // A touch on the surface, the top band or the gear.
+                    let otherID = newID()
+                    let surface = layout.controlSurface
+                    var q = SIMD2(rng.uniform(30, 372), rng.uniform(surface.y + 10, surface.maxY - 10))
+                    if follow >= 0.27 {
+                        q = SIMD2(rng.uniform(layout.gear.x + 13, 380), rng.uniform(70, layout.topBand.maxY - 1))
+                    }
+                    add(next, [touch(otherID, .began, q, rng.uniform(6, 60))])
+                    add(next + rng.uniform(0.05, 0.6), [touch(otherID, .ended, q, 20)])
+                } else if follow < 0.4 {
+                    let stopID = newID()
+                    let stopPoint = SIMD2(rng.uniform(20, 380), layout.bottomBand.y + 20)
+                    add(next, [touch(stopID, .began, stopPoint, rng.uniform(6, 120))])
+                    add(next + rng.uniform(0.03, 0.4), [touch(stopID, .ended, stopPoint, 8)])
+                } else if follow < 0.46 {
+                    add(next, [.holdsEnded(reasons[Int(rng.next() % 7)])])
+                }
+                tapAt = next + (rng.chance(0.4) ? rng.uniform(1, 2.5) : rng.uniform(0.05, 1))
+            }
+            for _ in 0..<Int(rng.next() % 3) {
+                let from = rng.uniform(goStart, goEnd)
+                var spell = Spell(from: from, to: from + rng.uniform(0.05, 1), refusal: nil)
+                let roll = rng.uniform(0, 1)
+                if roll < 0.45 {
+                    spell.refusal = .wait
+                } else if roll < 0.7 {
+                    spell.refusal = [InputRefusal.noLink, .stopped, .slowLink, .settingsOpen][Int(rng.next() % 4)]
+                } else if roll < 0.85 {
+                    spell.tracking = true
+                } else {
+                    spell.posture = true
+                }
+                spells.append(spell)
+            }
+            if rng.chance(0.3) { add(rng.uniform(goStart, goEnd), [.holdsEnded(reasons[Int(rng.next() % 7)])]) }
+            if rng.chance(0.04) { add(rng.uniform(goStart, goEnd), [.becameActive]) }
+            if rng.chance(0.04) { add(rng.uniform(goStart, goEnd), [.assistChanged(assist)]) }
+            if rng.chance(0.03) {
+                add(rng.uniform(goStart, goEnd), [.modeChanged(rng.chance(0.5) ? .screenTurns : .keyTurns, base.hand)])
+            }
+        }
+
+        for tick in stride(from: baseEnd + 1.0 / 30, through: last + 0.8, by: 1.0 / 30) { add(tick, [.tick]) }
         // Every hold ends once everything is let go of.
         add((steps.map(\.time).max() ?? 0) + 0.05, [.endAllHolds])
         steps.sort { ($0.time, $0.order) < ($1.time, $1.order) }
-        return AssistScenario(base: base, assist: assist, steps: steps, spells: spells, safeAreaTouches: safeArea)
+        return AssistScenario(
+            base: base, assist: assist, steps: steps, spells: spells, safeAreaTouches: safeArea, panel: panel,
+            panelChange: panelChange, walk: walk)
+    }
+
+    /// Go numbers scaled so that a move, its corrections and its deadline fit inside a case; now and then a travel
+    /// height that puts every target above the box.
+    private static func goLimits(_ rng: inout SplitMix64) -> GoToLimits {
+        GoToLimits(
+            travelHeightM: rng.chance(0.05) ? rng.uniform(0.12, 0.15) : rng.uniform(0.02, 0.1),
+            speedMps: rng.uniform(0.15, 0.4), arriveToleranceM: rng.uniform(0.006, 0.012),
+            corrections: Int(rng.next() % 3), correctionReachM: rng.uniform(0.005, 0.03),
+            settleS: rng.uniform(0.08, 0.3), timeFactor: rng.uniform(1.1, 1.6), allowanceS: rng.uniform(0, 0.5),
+            armDataTimeoutS: rng.uniform(0.5, 1.2), startGraceS: rng.chance(0.3) ? 0 : rng.uniform(0.05, 0.5))
+    }
+
+    /// The guide's view from above of the SO-101 box, now and then moved by a measured offset: over scheme B's centre
+    /// band in half the cases, otherwise on one half.
+    private static func randomPanel(_ rng: inout SplitMix64) -> GoPanel {
+        let surface = ArbiterRig.layout.controlSurface
+        let roll = rng.uniform(0, 1)
+        var side = rng.uniform(110, 150)
+        var x = rng.uniform(14, 176 - side)
+        if roll < 0.5 {
+            side = rng.uniform(110, 200)
+            x = rng.uniform(231 - side, 171)
+        } else if roll >= 0.75 {
+            x = rng.uniform(226, 390 - side)
+        }
+        let y = rng.uniform(surface.y + 10, surface.maxY - side - 10)
+        var shift = SIMD3<Double>.zero
+        if rng.chance(0.3) {
+            shift = SIMD3(rng.uniform(-0.01, 0.01), rng.uniform(-0.01, 0.01), rng.uniform(-0.01, 0.01))
+        }
+        return ArbiterRig.panel(SurfaceLayout.Rect(x: x, y: y, width: side, height: side), shift: shift)
+    }
+
+    /// An arm inside the box, sometimes at the travel height, that reports its position at some age, now and then
+    /// not at first, with gaps and pauses; it follows a move late or on time, sagging, blocked, freezing or creeping.
+    private static func randomWalk(
+        _ rng: inout SplitMix64, _ goTo: GoToLimits, from goStart: TimeInterval, to goEnd: TimeInterval
+    ) -> ArmWalk {
+        let low = ArbiterRig.boxLow, high = ArbiterRig.boxHigh
+        var rest = SIMD3(
+            rng.uniform(low.x + 0.01, high.x - 0.01), rng.uniform(low.y + 0.01, high.y - 0.01),
+            rng.uniform(ArbiterRig.table + 0.005, high.z - 0.01))
+        if rng.chance(0.2) { rest.z = ArbiterRig.table + goTo.travelHeightM }
+        let roll = rng.uniform(0, 1)
+        var way = ArmWalk.Way.follows
+        if roll >= 0.85 {
+            way = .creeps(rng.uniform(0.02, 0.08))
+        } else if roll >= 0.75 {
+            way = .freezes(after: rng.uniform(0.1, 1))
+        } else if roll >= 0.55 {
+            way = .blocked(rng.uniform(0.01, 0.05))
+        } else if roll >= 0.4 {
+            way = .sags(rng.uniform(0.004, 0.02))
+        }
+        var gaps: [ClosedRange<Double>] = []
+        for _ in 0..<Int(rng.next() % 3) {
+            let from = rng.uniform(goStart, goEnd)
+            gaps.append(from...(from + rng.uniform(0.2, 2.5)))
+        }
+        var pauses: [ClosedRange<Double>] = []
+        for _ in 0..<Int(rng.next() % 3) {
+            let from = rng.uniform(goStart, goEnd)
+            pauses.append(from...(from + rng.uniform(0.1, 0.8)))
+        }
+        let firstFixAt = rng.chance(0.15) ? goStart + rng.uniform(0, 1.5) : -.infinity
+        let latency = rng.uniform(0.02, 0.2)
+        let lag = rng.uniform(0, 0.3)
+        let lateStart = rng.chance(0.3) ? rng.uniform(0.2, 1.5) : 0
+        return ArmWalk(
+            rest: rest, firstFixAt: firstFixAt, latency: latency, lag: lag, lateStart: lateStart, way: way, gaps: gaps,
+            pauses: pauses)
     }
 
     /// Anywhere on the reference screen, the zones weighted toward the ones that end a move nobody holds.
@@ -1018,5 +1397,406 @@ struct AssistScenario {
             let safe = layout.bottomSafeArea
             return SIMD2(rng.uniform(0, layout.width), rng.uniform(safe.y, safe.maxY - 0.01))
         }
+    }
+}
+
+// MARK: Tap-to-go in the generated cases
+
+/// How the measured arm behaves in a generated case with tap-to-go.
+struct ArmWalk {
+    enum Way {
+        /// It goes where the move commands.
+        case follows
+        /// Its jaws hang this far below the commanded point, metres.
+        case sags(Double)
+        /// Something holds it this far from the target, metres.
+        case blocked(Double)
+        /// It stops this long after the move began, wherever it is then, seconds.
+        case freezes(after: Double)
+        /// It moves toward the command no faster than this, metres per second.
+        case creeps(Double)
+    }
+
+    /// Where it stands before any move.
+    var rest: SIMD3<Double>
+    /// No position is reported before this.
+    var firstFixAt: TimeInterval
+    /// How old a position is when the rules are told it, seconds.
+    var latency: Double
+    /// How far it trails the command, seconds.
+    var lag: Double
+    /// How long it stands still after each move begins, seconds.
+    var lateStart: Double
+    var way: Way
+    /// Spells in which no new position arrives, so the last one grows old.
+    var gaps: [ClosedRange<Double>]
+    /// Spells in which the link pauses the hold.
+    var pauses: [ClosedRange<Double>]
+}
+
+/// The arm a generated case reports to the input rules: it stands where it is until a move to a point goes, then
+/// makes of what the move commanded what its walk says.
+struct ArmModel {
+    let walk: ArmWalk
+    private(set) var position: SIMD3<Double>
+    private var measured: (pinch: SIMD3<Double>, at: TimeInterval)?
+    /// The move going now: where it began, when, and where to.
+    private var move: (start: SIMD3<Double>, since: TimeInterval, target: SIMD3<Double>)?
+    /// What that move commanded after each step, robot base frame.
+    private var commanded: [(at: TimeInterval, point: SIMD3<Double>)] = []
+    private var frozen: SIMD3<Double>?
+    private var lastAt: TimeInterval?
+
+    init(_ walk: ArmWalk) {
+        self.walk = walk
+        position = walk.rest
+    }
+
+    /// What the rules are told at `time`: the newest position reported, how old it is, and whether the link pauses
+    /// the hold then.
+    mutating func fix(at time: TimeInterval) -> ArmFix? {
+        if let move { position = place(at: time, move) }
+        lastAt = time
+        if time >= walk.firstFixAt, !walk.gaps.contains(where: { $0.contains(time) }) {
+            measured = (position, time - walk.latency)
+        }
+        guard let measured else { return nil }
+        let paused = walk.pauses.contains { $0.contains(time) }
+        return ArmFix(pinch: measured.pinch, ageS: time - measured.at, holdPaused: paused)
+    }
+
+    private mutating func place(
+        at time: TimeInterval, _ move: (start: SIMD3<Double>, since: TimeInterval, target: SIMD3<Double>)
+    ) -> SIMD3<Double> {
+        let elapsed = time - move.since
+        guard elapsed >= walk.lateStart else { return position }
+        let command = commanded.last { $0.at <= time - walk.lag }?.point ?? move.start
+        switch walk.way {
+        case .follows:
+            return command
+        case .sags(let depth):
+            return command - SIMD3(0, 0, depth)
+        case .blocked(let distance):
+            let off = command - move.target
+            guard simd_length(off) < distance else { return command }
+            let away = simd_length(off) > 1e-9 ? off : move.start - move.target
+            return move.target + simd_normalize(away) * distance
+        case .freezes(let after):
+            if elapsed < after { return command }
+            if frozen == nil { frozen = position }
+            return frozen!
+        case .creeps(let speed):
+            let gap = command - position
+            let reach = speed * max(0, time - (lastAt ?? time))
+            return simd_length(gap) > reach ? position + simd_normalize(gap) * reach : command
+        }
+    }
+
+    /// After a step: the move going now, begun from `startFix` if it began in this step, and what it commands.
+    mutating func update(
+        going engagement: Engagement?, startFix: ArmFix?, offset: SIMD3<Double>?, at time: TimeInterval
+    ) {
+        guard case .going(let target, let since)? = engagement, let offset else {
+            move = nil
+            commanded = []
+            frozen = nil
+            return
+        }
+        if move?.since != since {
+            move = (startFix?.pinch ?? position, since, target)
+            commanded = []
+            frozen = nil
+        }
+        commanded.append((time, move!.start + OperatorFrame.base(fromLink: offset)))
+    }
+}
+
+/// What the generated test knows of the move to a point going now, to judge its verdicts and its path.
+struct GoTrack {
+    let start: SIMD3<Double>
+    let target: SIMD3<Double>
+    let since: TimeInterval
+    /// Its deadline when it began. A correction only moves it later.
+    let firstDeadline: TimeInterval
+    /// The last step whose fix said the link was pausing the hold.
+    var lastPausedAt: TimeInterval?
+    /// A fresh fix has shown the arm 2 mm or more from where it began.
+    var seenMoving = false
+    /// A fresh fix was no lower than the travel height less the arrival tolerance.
+    var travelHeightSeen = false
+    /// The offset after each step the move went on in.
+    var offsets: [(at: TimeInterval, offset: SIMD3<Double>)] = []
+
+    init(start: SIMD3<Double>, target: SIMD3<Double>, since: TimeInterval, limits: GoToLimits) {
+        self.start = start
+        self.target = target
+        self.since = since
+        let path = abs(target.z - start.z) + simd_length(SIMD2(target.x - start.x, target.y - start.y))
+        firstDeadline = since + path / limits.speedMps * limits.timeFactor + limits.allowanceS
+    }
+
+    /// What the move's own judgement takes from the fix of a step it judged.
+    mutating func saw(_ fix: ArmFix?, at time: TimeInterval, limits: GoToLimits) {
+        guard let fix, fix.ageS <= limits.armDataTimeoutS else { return }
+        if fix.holdPaused { lastPausedAt = time }
+        guard fix.ageS <= GoWatch.freshS else { return }
+        if simd_distance(fix.pinch, start) >= FeedbackMonitor.blockedMovedMeters { seenMoving = true }
+        if target.z - fix.pinch.z <= limits.arriveToleranceM { travelHeightSeen = true }
+    }
+}
+
+/// The statements about moves to a tapped point, checked after every step of a case with tap-to-go: how a move
+/// starts (only from a tap), how it runs (at its speed, level only once a fresh position has reached the travel
+/// height, never past its deadline, its arm data or a refusal that means the session cannot run a hold), and how it
+/// ends in the checks after the events (arrived on a fresh position at the target; stopped short only after the arm
+/// settled with the command at its leg's end, after the last pause and after the start's grace; no arm data; time).
+struct GoWatch {
+    static let freshS = Double(FeedbackMonitor.freshStateMs) / 1000
+
+    /// One step, as `run` saw it.
+    struct Step {
+        var time: TimeInterval
+        var events: [InputEvent]
+        var facts: InputFacts
+        var commands: [InputCommand]
+        var recorded: [ArmSource]
+        var engagementBefore: Engagement?
+        var engagement: Engagement?
+        var nextDeadline: TimeInterval?
+        var offset: SIMD3<Double>?
+        var drives: [DriveCue]
+    }
+
+    let limits: GoToLimits
+    var arm: ArmModel
+    var track: GoTrack?
+    /// A step of a move to a point had the facts say "wait".
+    var sawWait = false
+    /// The walk stands still at first after each start.
+    private let lateStarts: Bool
+
+    init(limits: GoToLimits, walk: ArmWalk) {
+        self.limits = limits
+        arm = ArmModel(walk)
+        lateStarts = walk.lateStart > 0.2
+    }
+
+    /// Where `tap` sends the arm: the point drawn under its touch-down on the panel of its touch-down.
+    private func target(of tap: AssistPropertyTests.Thumb) -> SIMD3<Double> {
+        tap.panel!.target(x: tap.down.x, y: tap.down.y, travelHeight: limits.travelHeightM)
+    }
+
+    /// The first broken statement of this step, or nil. Then it follows the arm on.
+    mutating func check(
+        _ s: Step, lifted: [AssistPropertyTests.Thumb], totals: inout AssistPropertyTests.Totals
+    ) -> String? {
+        defer { arm.update(going: s.engagement, startFix: s.facts.arm, offset: s.offset, at: s.time) }
+        let taps = lifted.filter { $0.isTap() }
+        if case .going? = s.engagementBefore, let failure = runOrEnd(s, totals: &totals) { return failure }
+        if s.recorded.contains(.going) {
+            if let failure = start(s, taps: taps, totals: &totals) { return failure }
+        } else if s.drives == [.arrived], s.engagementBefore?.isLoose != true {
+            // "Arrived." with nothing going: a tap on the arm, which moves nothing.
+            let onTheArm = s.facts.arm.map { fix in
+                fix.ageS <= Self.freshS
+                    && taps.contains { simd_distance(fix.pinch, target(of: $0)) <= limits.arriveToleranceM }
+            }
+            if s.facts.refusal != nil || onTheArm != true {
+                return "\"Arrived.\" with nothing going is a tap on the arm: \(s.facts), \(lifted)"
+            }
+        } else if !taps.isEmpty {
+            countRefusals(s, totals: &totals)
+        }
+        let palm = InputConstants.appendixA.palmRadiusPt, window = InputConstants.appendixA.palmWindowMs / 1000
+        for thumb in lifted where thumb.isTap(narrowLift: false) && thumb.liftRadius >= palm {
+            if thumb.liftAt! - thumb.downAt > window { totals.palmWideLifts += 1 }
+        }
+        return nil
+    }
+
+    /// A move to a point starts only from a tap: the step's `.ended` sample of a touch that began inside the panel of
+    /// its touch-down with nothing engaged, lifted at most `tapMaxS` after, never farther than `tapSlopMm` from its
+    /// touch-down over every sample, lifted narrower than a palm; with no refusal in the facts, a fix at most 0.4 s
+    /// old, and a target inside the panel's box with no slack, at the travel height above the table.
+    private mutating func start(_ s: Step, taps: [AssistPropertyTests.Thumb], totals: inout AssistPropertyTests.Totals)
+        -> String?
+    {
+        let label = "a move to a point starts only from a tap"
+        if s.recorded.filter({ $0 == .going }).count != 1 || s.engagementBefore != nil {
+            return "\(label): \(s.recorded) with \(String(describing: s.engagementBefore)) before"
+        }
+        if s.facts.refusal != nil { return "\(label): refused by the facts \(s.facts)" }
+        guard let fix = s.facts.arm, fix.ageS <= Self.freshS else {
+            return "\(label): with no fresh arm \(String(describing: s.facts.arm))"
+        }
+        let fitting = taps.filter { tap in
+            let target = target(of: tap)
+            return tap.panel!.inBox(target) && target.z == tap.panel!.tableHeight + limits.travelHeightM
+                && simd_distance(fix.pinch, target) > limits.arriveToleranceM
+        }
+        guard let tap = fitting.first else { return "\(label): no tap in the step could go: \(taps)" }
+        totals.goStarts += 1
+        if lateStarts { totals.lateStarts += 1 }
+        guard case .going(let goal, let since)? = s.engagement else { return nil }
+        if goal != target(of: tap) || since != s.time {
+            return "\(label): it goes to \(goal) since \(since), the tap asks for \(target(of: tap))"
+        }
+        var track = GoTrack(start: fix.pinch, target: goal, since: since, limits: limits)
+        track.saw(fix, at: s.time, limits: limits)
+        if let failure = path(&track, s) { return failure }
+        self.track = track
+        return nil
+    }
+
+    /// The move that was going: either it goes on, keeping every rule a running move keeps, or it ended in this step,
+    /// by an event (its cue is checked by `run`) or by the checks after the events, whose verdict must be one its
+    /// facts allow.
+    private mutating func runOrEnd(_ s: Step, totals: inout AssistPropertyTests.Totals) -> String? {
+        guard var track = self.track else { return "a move to a point is followed from its start: none was seen" }
+        let fix = s.facts.arm
+        let fresh = fix.map { $0.ageS <= Self.freshS } ?? false
+        let atTarget = fresh && simd_distance(fix!.pinch, track.target) <= limits.arriveToleranceM
+        let noData = fix.map { $0.ageS > limits.armDataTimeoutS } ?? true
+        let backstop = s.facts.refusal.map { $0 != .wait } ?? false
+        if case .going(_, let since)? = s.engagement, since == track.since {
+            track.saw(fix, at: s.time, limits: limits)
+            if backstop {
+                return "a move nobody holds ends when the session cannot run a hold: going with \(s.facts)"
+            }
+            if noData {
+                return "a move to a point never outlives its arm data: going with \(String(describing: fix))"
+            }
+            if atTarget { return "a move to a point ends on a fresh position at its target: going at \(fix!)" }
+            guard let next = s.nextDeadline, next > s.time else {
+                return "a move to a point ends at its deadline: going, next \(String(describing: s.nextDeadline))"
+            }
+            if s.facts.refusal == .wait { sawWait = true }
+            let failure = path(&track, s)
+            self.track = track
+            return failure
+        }
+        self.track = nil
+        if let kind = Self.doorKind(s.events) {
+            totals.goEndings[kind, default: 0] += 1
+            return nil
+        }
+        // Ended by the checks after the events.
+        if !backstop { track.saw(fix, at: s.time, limits: limits) }
+        let ending = s.drives.first
+        let label = "a move to a point ends by its verdicts"
+        let kind: String
+        if backstop {
+            kind = "the backstop"
+            if ending != .ended(.unnamed) { return "\(label): \(String(describing: ending)) with \(s.facts)" }
+        } else if noData {
+            kind = "no arm data"
+            if ending != .ended(.noArmData) {
+                return "\(label): \(String(describing: ending)) with \(String(describing: fix))"
+            }
+        } else {
+            switch ending {
+            case .arrived?:
+                kind = "arrival"
+                if !atTarget { return "\(label): \"Arrived.\" on \(String(describing: fix)), target \(track.target)" }
+            case .ended(.stoppedShort)?:
+                kind = "stopped short"
+                if let failure = settled(track, fix: fix, at: s.time) { return failure }
+            case .ended(.timeLimit)?:
+                kind = "time limit"
+                if s.time < track.firstDeadline - 1e-9 {
+                    return "\(label): time is up at \(s.time), before the deadline \(track.firstDeadline)"
+                }
+            default:
+                return "\(label): \(String(describing: ending)) on \(String(describing: fix)) with \(s.facts)"
+            }
+        }
+        totals.goEndings[kind, default: 0] += 1
+        return nil
+    }
+
+    /// A move to a point keeps to its speed, and goes level only once a fresh position has reached the travel height.
+    private func path(_ track: inout GoTrack, _ s: Step) -> String? {
+        guard let offset = s.offset else { return "a move to a point streams its offset while it goes: none" }
+        if let last = track.offsets.last,
+            simd_distance(offset, last.offset) > limits.speedMps * (s.time - last.at) + 1e-9
+        {
+            return "a move to a point keeps to its speed: from \(last.offset) at \(last.at) to \(offset)"
+        }
+        if !track.travelHeightSeen, offset.x != 0 || offset.y != 0 {
+            return "a move to a point goes level only once a fresh position reached the travel height: \(offset)"
+        }
+        track.offsets.append((s.time, offset))
+        return nil
+    }
+
+    /// Stopped short only on a fresh fix with the link not pausing, after the arm settled for the settle time on
+    /// positions measured after the command reached its leg's end (it stood still all that while), after the last
+    /// pause, and after the start's grace, counted from the later of the start and that pause, unless a fix had already
+    /// shown the arm moving.
+    private func settled(_ track: GoTrack, fix: ArmFix?, at time: TimeInterval) -> String? {
+        let label = "a move to a point stops short only once its arm settled"
+        guard let fix, fix.ageS <= Self.freshS, !fix.holdPaused else {
+            return "\(label): on \(String(describing: fix))"
+        }
+        let from = time - fix.ageS - limits.settleS
+        let window = track.offsets.filter { $0.at >= from + 1e-9 }
+        if let first = window.first, window.contains(where: { $0.offset != first.offset }) {
+            return "\(label), with the command at its leg's end: it moved after \(from)"
+        }
+        if let paused = track.lastPausedAt, paused >= from + 1e-9 {
+            return "\(label), after the last pause: paused at \(paused), settling from \(from)"
+        }
+        if !track.seenMoving {
+            let graceEnds = max(track.since, track.lastPausedAt ?? -.infinity) + limits.startGraceS
+            if graceEnds >= from + 1e-9 { return "\(label), after the start's grace: it ends at \(graceEnds)" }
+        }
+        return nil
+    }
+
+    /// What refused a tap in this step, counted by kind.
+    private func countRefusals(_ s: Step, totals: inout AssistPropertyTests.Totals) {
+        let stopFirst =
+            s.events.firstIndex(where: AssistPropertyTests.isStop).map { stop in
+                s.events[..<stop].allSatisfy {
+                    if case .touch(let t) = $0, t.phase == .ended { return false } else { return true }
+                }
+            } ?? false
+        for case .cue(.refused(let refusal)) in s.commands {
+            let kind: String
+            switch refusal {
+            case .outsideWorkArea: kind = "the work box"
+            case .noArmData: kind = "no fresh arm"
+            case .stopped where stopFirst && s.facts.refusal == nil: kind = "a STOP earlier in the step"
+            default:
+                guard refusal == s.facts.refusal else { continue }
+                kind = "the facts"
+            }
+            totals.refusedTaps[kind, default: 0] += 1
+        }
+    }
+
+    /// What ended a move nobody holds among `events`, by kind, or nil when none of them did.
+    private static func doorKind(_ events: [InputEvent]) -> String? {
+        for event in events {
+            switch event {
+            case .keyDown:
+                return "a key"
+            case .touch(let s) where s.phase == .began:
+                switch ArbiterRig.layout.zone(x: s.x, y: s.y) {
+                case .bottomBand:
+                    return "STOP"
+                case .controlSurface, .gear, .topBand:
+                    let palm = InputConstants.appendixA.palmRadiusPt
+                    if s.majorRadius < palm, !ArbiterRig.layout.isAtSideEdge(x: s.x) { return "a touch" }
+                case .gap, .bottomSafeArea:
+                    break
+                }
+            case .holdsEnded, .becameActive, .modeChanged, .assistChanged:
+                return "an interruption"
+            default:
+                continue
+            }
+        }
+        return nil
     }
 }

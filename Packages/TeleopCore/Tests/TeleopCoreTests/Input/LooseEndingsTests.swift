@@ -4,7 +4,7 @@ import XCTest
 
 /// Every way a move nobody holds ends: each stops it exactly once and plays the cue its ending gives, and an input
 /// that ends it does nothing else until released. Inputs that were already down when it began end nothing and stay
-/// silent. Run on a follow latched by a press of the upper key.
+/// silent. Run on a follow latched by a press of the upper key, and on a move to a tapped point.
 final class LooseEndingsTests: XCTestCase {
     typealias Rig = ArbiterRig
 
@@ -323,5 +323,195 @@ final class LooseEndingsTests: XCTestCase {
         XCTAssertEqual(rig.send(.sceneReset, after: 0.1), [])
         XCTAssertEqual(rig.send(.wristStartSent, after: 0.1), [])
         XCTAssertTrue(rig.isLatched)
+    }
+
+    // MARK: A move to a tapped point
+
+    /// The arm at the box's centre, at the travel height, standing still: within the 2 s these tests run the move
+    /// neither arrives nor is judged stalled.
+    private let armStart = SIMD3(0.027617, -0.177418, Rig.travelZ)
+    /// Inside the guide's panel, on a half in both schemes.
+    private let tapPoint = Rig.inPanel(0.3, 0.65)
+
+    /// A rig in `scheme` with a move going to `tapPoint`, started by a tap of touch 1.
+    private func going(
+        _ scheme: InputScheme = .screenTurns, limits: GoToLimits = Rig.goLimits, file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Rig {
+        var rig = Rig(scheme, assist: Rig.goTo(limits))
+        rig.facts = Rig.goFacts(arm: armStart)
+        XCTAssertEqual(rig.tap(1, at: tapPoint, after: 0.1), [.startTranslation], file: file, line: line)
+        XCTAssertTrue(rig.isGoing, file: file, line: line)
+        return rig
+    }
+
+    func testEitherKeyEndsAGoingMove() {
+        for key in [InputKey.upper, .lower] {
+            var rig = going()
+            XCTAssertEqual(rig.press(key, after: 0.1), stoppedByYou, "\(key)")
+            XCTAssertNil(rig.arbiter.engagement, "\(key)")
+            XCTAssertNil(rig.arbiter.goOffset(at: rig.time), "\(key)")
+            XCTAssertEqual(rig.phase(.key(key)), .dead, "\(key)")
+            XCTAssertEqual(rig.rotate(turn: 15), [], "\(key): no wrist")
+            XCTAssertEqual(rig.release(key, after: 0.3), [], "\(key)")
+        }
+    }
+
+    /// A new thumb anywhere on the surface ends it: in the panel, where its quick lift is no tap, and in scheme B's
+    /// centre band. It then moves nothing.
+    func testAnAcceptedTouchEndsAGoingMoveAndIsNoTap() {
+        for (scheme, p) in [
+            (InputScheme.screenTurns, tapPoint), (.keyTurns, tapPoint), (.keyTurns, Rig.middle),
+            (.keyTurns, Rig.inPanel(0.5, 0.5)),
+        ] {
+            var rig = going(scheme)
+            XCTAssertEqual(rig.touchDown(2, at: p, after: 0.2), stoppedByYou, "\(scheme) \(p)")
+            XCTAssertEqual(rig.phase(.touch(2)), .dead, "\(scheme) \(p)")
+            XCTAssertEqual(rig.lift(2, after: 0.05), [], "\(scheme) \(p): no tap")
+            XCTAssertNil(rig.arbiter.engagement, "\(scheme) \(p)")
+        }
+        var rig = going(.keyTurns)
+        rig.touchDown(2, at: Rig.rightHalf, after: 0.2)
+        XCTAssertEqual(rig.wait(0.6), [], "no dwell")
+        XCTAssertEqual(rig.slide(2, mm: 12, degrees: 90), [])
+        XCTAssertEqual(rig.lift(2), [])
+    }
+
+    func testTheTopBandAndTheGearThatEndAGoingMoveDoNothingElse() {
+        var band = going()
+        XCTAssertEqual(band.touchDown(2, at: Rig.topBand, after: 0.2), stoppedByYou)
+        XCTAssertEqual(band.wait(0.1), [], "no \"Let go first.\" when its palm window ends")
+        XCTAssertEqual(band.wait(2.5), [], "no countdown")
+        XCTAssertEqual(band.lift(2), [])
+
+        var gear = going()
+        XCTAssertEqual(gear.touchDown(2, at: Rig.gear, after: 0.2), stoppedByYou)
+        XCTAssertEqual(gear.lift(2, after: 0.2), [], "no Settings and no \"Let go first.\"")
+    }
+
+    func testAFilteredTouchDoesNotEndAGoingMove() {
+        let touches: [(String, SIMD2<Double>, Double)] = [
+            ("a palm in the panel", tapPoint, 130), ("a palm on the gear", Rig.gear, 130),
+            ("the side edge", SIMD2(5, 440), 8), ("the gap", Rig.gap, 8), ("the bottom safe area", SIMD2(201, 860), 8),
+        ]
+        for (name, point, radius) in touches {
+            var rig = going()
+            XCTAssertEqual(rig.touchDown(2, at: point, radius: radius, after: 0.2), [], name)
+            XCTAssertEqual(rig.lift(2, after: 0.05), [], name)
+            XCTAssertTrue(rig.isGoing, name)
+        }
+    }
+
+    func testStopEndsAGoingMoveWithTheEmergencyStopFirstAndNoDriveCue() {
+        var rig = going()
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand, after: 0.2), [.emergencyStop, .stopTranslation])
+        XCTAssertNil(rig.arbiter.engagement)
+        XCTAssertEqual(rig.lift(2, after: 0.2), [])
+
+        var unlinked = going()
+        unlinked.facts.connectionUp = false
+        XCTAssertEqual(
+            unlinked.touchDown(2, at: Rig.bottomBand, after: 0.2),
+            [.emergencyStop, .stopTranslation, .cue(.refused(.notStopped))])
+    }
+
+    /// Its deadline passed between calls; the next call holds a STOP. The STOP ends it, and no time limit is heard.
+    func testStopEndsAGoingMoveAheadOfAnOverdueDeadline() {
+        var limits = Rig.goLimits
+        limits.timeFactor = 1
+        limits.allowanceS = 0
+        var rig = going(limits: limits)
+        var ticked = rig
+        XCTAssertEqual(ticked.wait(1.5), ended(.timeLimit), "the overdue deadline, had the call held no STOP")
+        XCTAssertEqual(rig.touchDown(2, at: Rig.bottomBand, after: 1.5), [.emergencyStop, .stopTranslation])
+        XCTAssertNil(rig.arbiter.engagement)
+    }
+
+    func testEachInterruptionEndsAGoingMoveWithItsEnding() {
+        let named: [(Interruption, DriveEnd)] = [
+            (.unnamed, .unnamed), (.appLeft, .appLeft), (.cameraStopped, .cameraStopped),
+            (.leftScreen, .leftScreen), (.slowLink, .slowLink),
+        ]
+        for (reason, end) in named {
+            var rig = going()
+            XCTAssertEqual(rig.send(.holdsEnded(reason), after: 0.2), ended(end), "\(reason)")
+            XCTAssertNil(rig.arbiter.engagement, "\(reason)")
+        }
+        for reason in [Interruption.announced, .startRefused] {
+            var rig = going()
+            XCTAssertEqual(rig.send(.holdsEnded(reason), after: 0.2), [.stopTranslation], "\(reason)")
+            XCTAssertNil(rig.arbiter.engagement, "\(reason)")
+        }
+    }
+
+    func testTwoDoorsInOneCallStopAGoingMoveOnce() {
+        var rig = going()
+        let touch = rig.sample(2, .began, Rig.rightHalf, radius: 8)
+        XCTAssertEqual(rig.batch([.keyDown(.lower), touch, .holdsEnded(.appLeft)], after: 0.2), stoppedByYou)
+        XCTAssertNil(rig.arbiter.engagement)
+    }
+
+    func testAModeOrAssistChangeOrAReturnToTheAppEndsAGoingMove() {
+        var rig = going()
+        XCTAssertEqual(rig.send(.modeChanged(.keyTurns, .left), after: 0.2), ended(.unnamed))
+        rig = going()
+        XCTAssertEqual(rig.send(.assistChanged(.off), after: 0.2), ended(.unnamed))
+        XCTAssertEqual(rig.arbiter.assist, .off)
+        rig = going()
+        XCTAssertEqual(rig.send(.becameActive, after: 0.2), ended(.appLeft))
+        XCTAssertNil(rig.arbiter.engagement)
+    }
+
+    /// Two seconds of "wait" end nothing, and its final answer ends the move silently; the refusals that mean the
+    /// session cannot run a hold end it, heard as "Stopped here.".
+    func testTheBackstopEndsAGoingMoveButNotForWait() {
+        var rig = going()
+        rig.facts.refusal = .wait
+        for _ in 0..<60 { XCTAssertEqual(rig.wait(1.0 / 30), []) }
+        XCTAssertTrue(rig.isGoing)
+        XCTAssertEqual(rig.send(.holdsEnded(.announced)), [.stopTranslation])
+
+        for refusal in [InputRefusal.noLink, .stopped, .slowLink, .settingsOpen] {
+            var rig = going()
+            rig.facts.refusal = refusal
+            XCTAssertEqual(rig.wait(1.0 / 30), ended(.unnamed), "\(refusal)")
+            XCTAssertNil(rig.arbiter.engagement, "\(refusal)")
+        }
+    }
+
+    /// Inputs already down when the tap started the move end nothing and stay silent: a key that was refused, a gear
+    /// touch past its palm window and a top band touch still inside it.
+    func testInputsDownWhenAGoBeganAreDeadAndSilent() {
+        var rig = Rig(.screenTurns, assist: Rig.goTo())
+        rig.facts = Rig.goFacts(arm: armStart)
+        rig.facts.refusal = .wait
+        XCTAssertEqual(rig.press(.upper, after: 0.1), [.cue(.refused(.wait))])
+        rig.facts.refusal = nil
+        rig.touchDown(2, at: Rig.gear, after: 0.1)
+        let gearDown = rig.time
+        rig.touchDown(1, at: tapPoint, after: 0.05)
+        rig.touchDown(3, at: Rig.topBand, after: 0.05)
+        let bandWindowEnds = rig.time + rig.arbiter.constants.palmWindowMs / 1000
+        XCTAssertEqual(rig.lift(1, after: 0.03), [.startTranslation])
+        for input in [HeldInput.touch(2), .touch(3), .key(.upper)] {
+            XCTAssertEqual(rig.phase(input), .dead, "\(input)")
+        }
+        XCTAssertLessThan(rig.time, bandWindowEnds)
+        XCTAssertEqual(rig.wait(0.1), [], "the band's palm window passed: no \"Let go first.\"")
+        XCTAssertGreaterThan(rig.time, bandWindowEnds, "the band's window ended inside the wait")
+        XCTAssertEqual(
+            rig.lift(2, after: 0.02), [], "the gear lifted inside its tap time: no Settings, no \"Let go first.\"")
+        XCTAssertLessThan(rig.time - gearDown, rig.arbiter.constants.gearTapS, "the gear's lift is a tap")
+        XCTAssertEqual(rig.lift(3, after: 0.05), [], "the band lifted")
+        XCTAssertEqual(rig.release(.upper, after: 0.05), [], "the refused key released")
+        XCTAssertTrue(rig.isGoing, "none of them ended it")
+    }
+
+    func testAttitudeSceneResetAndWristStartSentChangeNothingWhileGoing() {
+        var rig = going()
+        XCTAssertEqual(rig.rotate(turn: 30, tilt: 10), [])
+        XCTAssertEqual(rig.send(.sceneReset, after: 0.1), [])
+        XCTAssertEqual(rig.send(.wristStartSent, after: 0.1), [])
+        XCTAssertTrue(rig.isGoing)
     }
 }

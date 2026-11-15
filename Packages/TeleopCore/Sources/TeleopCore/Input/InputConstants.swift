@@ -65,6 +65,14 @@ public struct InputConstants: Equatable, Sendable {
     /// From then on a NO it owes waits until it latches, lifts or turns away. Evidence that would change it: hand
     /// traces of the gesture.
     public var slideUnderWayMm: Double
+    /// A touch that began inside the guide's view from above is a tap only if it lifts within this, seconds. In scheme
+    /// B the dwell (150 ms; 500 ms on the far half while gripping) comes first and keeps its 1.0.1 meaning. Evidence
+    /// that would change it: durations of intended and unintended taps logged on the device.
+    public var tapMaxS: Double
+    /// ... and only if it never went farther than this from its touch-down, straight distance, millimetres. Well under
+    /// the 10 mm that commits a slide, so a wobble between the two does nothing, as in 1.0.1. Evidence: tap travel
+    /// logged on the device.
+    public var tapSlopMm: Double
 
     public init(
         rollClampDeg: Double = 55, tiltClampDeg: Double = 20,
@@ -79,7 +87,7 @@ public struct InputConstants: Equatable, Sendable {
         gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874,
         referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
-        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3
+        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3, tapMaxS: Double = 0.30, tapSlopMm: Double = 3
     ) {
         self.rollClampDeg = rollClampDeg
         self.tiltClampDeg = tiltClampDeg
@@ -111,6 +119,8 @@ public struct InputConstants: Equatable, Sendable {
         self.keyReplayGuard = keyReplayGuard
         self.resetHoldS = resetHoldS
         self.slideUnderWayMm = slideUnderWayMm
+        self.tapMaxS = tapMaxS
+        self.tapSlopMm = tapSlopMm
     }
 
     /// Appendix A as written. `rollSign` and `tiltSign` are +1 until C-I5 measures them.

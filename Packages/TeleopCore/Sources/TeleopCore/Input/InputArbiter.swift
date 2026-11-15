@@ -3,8 +3,8 @@ import simd
 
 /// Decides what every key press, touch and phone turn means under scheme A or B (INTERACTION Part 2), with the time
 /// passed in. Feed it events with the facts of the moment; it returns the commands to carry out, in order. It owns
-/// everything that moves the arm on the operator's behalf: a hold tied to an input that is down, and a follow latched
-/// with no input down. Each of those starts and ends here.
+/// everything that moves the arm on the operator's behalf: a hold tied to an input that is down, a follow latched with
+/// no input down, and a move to a point tapped on the guide. Each of those starts and ends here.
 ///
 /// It does not wait for the server: a start it issues is engaged until it issues the stop. Holding a start back
 /// behind a finishing hold is `TeleopLink`'s job.
@@ -24,6 +24,8 @@ public struct InputArbiter: Sendable {
     private var staleKeys: Set<InputKey> = []
     private var touches: [Int: TouchRole] = [:]
     private var engaged: Engagement?
+    /// The going move's path. Set exactly while `engaged` is `.going`: by a tap that starts one, cleared by its ending.
+    private var move: GoMove?
     /// The engaged wrist hold's mapper.
     private var wrist: RotationMapper?
     private var lastWristTarget = WristTarget.identity
@@ -40,9 +42,9 @@ public struct InputArbiter: Sendable {
     private var stoppedInCall = false
 
     /// What each `.startTranslation` the last call emitted was, in order: `.phone` for a held or latched start (the
-    /// link follows the phone). Emptied at the top of every call, so it is readable until the next one. Its owner
-    /// carries each start by this, never by `engagement` after the call: a STOP later in the same call has already
-    /// emptied the slot. Never `.pad`.
+    /// link follows the phone), `.going` for a move to a tapped point (the link streams `goOffset(at:)`). Emptied at
+    /// the top of every call, so it is readable until the next one. Its owner carries each start by this, never by
+    /// `engagement` after the call: a STOP later in the same call has already emptied the slot. Never `.pad`.
     public private(set) var startsThisCall: [ArmSource] = []
 
     private enum KeyState: Equatable, Sendable { case engaged, dead }
@@ -80,6 +82,10 @@ public struct InputArbiter: Sendable {
             /// acted (A-3d, B-6).
             case dead(owesNO: Bool)
             case engaged
+            /// Scheme B's centre band inside the guide's view from above, with tap-to-go allowed. Without the guide
+            /// this touch is dead and silent; here it can also be a tap at its lift, and nothing else. `held` reports
+            /// it `.dead`.
+            case tapOnly
         }
 
         var downAt: TimeInterval
@@ -92,6 +98,15 @@ public struct InputArbiter: Sendable {
         var windowEnded = false
         /// Variant 2: it began during the upper key's translation hold, and may latch that hold by sliding up.
         var latch: LatchAttempt?
+        /// The guide's view from above as it was at touch-down, when the touch began inside it with nothing engaged and
+        /// tap-to-go allowed. A tap is judged against this one rectangle and projection. Nil: it is never a tap.
+        var panel: GoPanel?
+        /// The farthest it has been from its touch-down point over every sample, the lift sample included,
+        /// millimetres. Kept only while `panel` is set.
+        var farthestMm = 0.0
+        /// Its lift sample was at least `palmRadiusPt` wide: a palm at the lift is never a tap, whether or not its
+        /// palm window was over.
+        var liftWide = false
     }
 
     /// A thumb that may latch the upper key's hold by sliding up the glass (variant 2).
@@ -139,7 +154,7 @@ public struct InputArbiter: Sendable {
             case .surface(let touch):
                 switch touch.phase {
                 case .waiting: result[.touch(id)] = .waiting
-                case .dead: result[.touch(id)] = .dead
+                case .dead, .tapOnly: result[.touch(id)] = .dead
                 case .engaged:
                     if case .held(.touch(id), let kind)? = engaged { result[.touch(id)] = .engaged(kind) }
                 }
@@ -164,8 +179,8 @@ public struct InputArbiter: Sendable {
         !keys.isEmpty || touches.values.contains { if case .surface = $0 { return true } else { return false } }
     }
 
-    /// When the next timer runs out, or a latched follow reaches its time limit, so the owner can tick then instead of
-    /// waiting for its next 30 Hz tick. The limit itself is judged after the events of a call, not fired as a timer.
+    /// When the next timer runs out, or a move nobody holds reaches its time limit, so the owner can tick then instead
+    /// of waiting for its next 30 Hz tick. The limit itself is judged after the events of a call, not fired as a timer.
     public var nextDeadline: TimeInterval? {
         let timer = earliestDeadline()?.at
         guard let limit = looseDeadline else { return timer }
@@ -174,8 +189,19 @@ public struct InputArbiter: Sendable {
 
     /// When the move nobody holds must end at the latest.
     private var looseDeadline: TimeInterval? {
-        guard case .latched(let since)? = engaged else { return nil }
-        return since + (assist.lock?.timeLimitS ?? 0)
+        switch engaged {
+        case .latched(let since)?: return since + (assist.lock?.timeLimitS ?? 0)
+        case .going?: return move?.deadline
+        default: return nil
+        }
+    }
+
+    /// The going move's offset at `time`, metres, in the frame `TeleopLink.poseUpdate(positionMeters:)` takes: the
+    /// whole way asked for since the move began. Nil when no move to a tapped point is going. On this arbiter's clock:
+    /// a time before the newest call's counts as that call's, so the owner never does arithmetic on the rules' times.
+    public func goOffset(at time: TimeInterval) -> SIMD3<Double>? {
+        guard case .going? = engaged, let move else { return nil }
+        return move.linkOffset(at: max(time, now))
     }
 
     // MARK: Handling events
@@ -189,10 +215,10 @@ public struct InputArbiter: Sendable {
     /// that runs out at this very instant fires after the events, so a lift, a palm, a swipe or `holdsEnded` at the
     /// deadline still counts.
     ///
-    /// Between the events and the timers of this instant, a follow nobody holds is checked once (`gate`). No aid has a
+    /// Between the events and the timers of this instant, a move nobody holds is checked once (`gate`). No aid has a
     /// timer, so nothing before the events can start or end one, and a STOP among the events always comes ahead of
-    /// the checks' endings. The events keep their order under every configuration: a STOP ends the follow that exists
-    /// when it is applied, one latched earlier in the same call included, and nothing after it in the call starts one.
+    /// the checks' endings. The events keep their order under every configuration: a STOP ends the move that exists
+    /// when it is applied, one started earlier in the same call included, and nothing after it in the call starts one.
     public mutating func handle(_ events: [InputEvent], at time: TimeInterval, facts: InputFacts) -> [InputCommand] {
         out = []
         self.facts = facts
@@ -317,9 +343,10 @@ public struct InputArbiter: Sendable {
             cue(.dead)
             return
         }
-        // A key wins over an undecided touch, which dies silently (I-2.2, A-8, B-4).
+        // A key wins over an undecided touch, which dies silently (I-2.2, A-8, B-4); so does a touch that could only
+        // have been a tap.
         for (id, role) in touches {
-            if case .surface(var touch) = role, touch.phase == .waiting {
+            if case .surface(var touch) = role, touch.phase == .waiting || touch.phase == .tapOnly {
                 touch.phase = .dead(owesNO: false)
                 touches[id] = .surface(touch)
             }
@@ -363,6 +390,13 @@ public struct InputArbiter: Sendable {
             // The sample that lifts a contact counts like any other: a palm by it, still inside its window, was a palm
             // all along, so it neither opens Settings nor plays the NO it owed.
             _ = ignoredAsPalm(sample)
+            // A possible tap is judged on the whole touch: where the lift lands, and how wide it is.
+            if case .surface(var touch)? = touches[sample.id], touch.panel != nil {
+                let lift = SIMD2(sample.x, sample.y)
+                touch.farthestMm = max(touch.farthestMm, layout.millimetres(simd_length(lift - touch.down)))
+                touch.liftWide = sample.majorRadius >= constants.palmRadiusPt
+                touches[sample.id] = .surface(touch)
+            }
             touchEnded(sample.id, cancelled: sample.phase == .cancelled)
         }
     }
@@ -392,7 +426,7 @@ public struct InputArbiter: Sendable {
             }
             out.append(.emergencyStop)
             stoppedInCall = true
-            // The stop goes first; then a move nobody holds ends, one latched earlier in this call included. The
+            // The stop goes first; then a move nobody holds ends, one started earlier in this call included. The
             // session's ALARM is its cue.
             endLoose(.stop)
             if !facts.connectionUp { cue(.refused(.notStopped)) }
@@ -444,19 +478,27 @@ public struct InputArbiter: Sendable {
                 touches[s.id] = .ignored
                 return
             }
+            // With tap-to-go allowed and nothing engaged, a touch that begins inside the guide's view from above may be
+            // a tap. It keeps the view as it is now, so its tap is judged against what was drawn under it.
+            var panel: GoPanel?
+            if assist.goTo != nil, engaged == nil, let view = facts.goPanel, view.contains(x: s.x, y: s.y) {
+                panel = view
+            }
             let phase: SurfaceTouch.Phase
             switch scheme {
             case .screenTurns:
                 phase = engaged != nil ? .dead(owesNO: true) : .waiting
             case .keyTurns:
-                // The centre band never acts, so it never owes NO either.
+                // The centre band never acts, so it never owes NO either; inside the guide's view it can still be a
+                // tap.
                 if side == .centre {
-                    phase = .dead(owesNO: false)
+                    phase = panel != nil ? .tapOnly : .dead(owesNO: false)
                 } else {
                     phase = engaged != nil ? .dead(owesNO: true) : .waiting
                 }
             }
             var touch = SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase)
+            touch.panel = panel
             if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
                 // Anywhere on the surface, scheme B's centre band included, a thumb may latch the upper key's hold,
                 // unless a STOP came earlier in this call. Its phase stays as 1.0.1 has it.
@@ -486,6 +528,9 @@ public struct InputArbiter: Sendable {
         if ignoredAsPalm(s) { return }
         guard case .surface(var touch)? = touches[s.id] else { return }
         touch.at = SIMD2(s.x, s.y)
+        if touch.panel != nil {
+            touch.farthestMm = max(touch.farthestMm, layout.millimetres(simd_length(touch.at - touch.down)))
+        }
         touches[s.id] = .surface(touch)
         // The attempt is followed first, so a NO that falls due now is withheld if the slide is under way.
         if touch.latch != nil { followAttempt(s.id) }
@@ -501,6 +546,7 @@ public struct InputArbiter: Sendable {
             if touch.phase == .engaged, case .held(.touch(id), _)? = engaged { stopEngaged() }
             // Lifted without a latch: the NO it withheld plays now.
             if touch.latch?.withheldNO == true { cue(.dead) }
+            if !cancelled, let panel = touch.panel, isTap(touch) { tap(at: touch.down, on: panel) }
         case .band(let band):
             switch band.phase {
             case .pending, .live:
@@ -603,7 +649,7 @@ public struct InputArbiter: Sendable {
             case .unclear, .sideways: break
             }
             markDead(id)
-        case .dead(owesNO: false), .engaged:
+        case .dead(owesNO: false), .engaged, .tapOnly:
             break
         }
     }
@@ -618,6 +664,9 @@ public struct InputArbiter: Sendable {
             markDead(id)
             cue(.dead)
         case .dead(owesNO: true):
+            markDead(id)
+        case .tapOnly:
+            // Moved too far to be a tap, the only thing it could have been: dead and silent, as without the guide.
             markDead(id)
         case .dead(owesNO: false), .engaged:
             break
@@ -636,7 +685,7 @@ public struct InputArbiter: Sendable {
         case .dead(owesNO: true):
             oweNO(id)
             markDead(id)
-        case .dead(owesNO: false), .engaged:
+        case .dead(owesNO: false), .engaged, .tapOnly:
             break
         }
     }
@@ -687,7 +736,7 @@ public struct InputArbiter: Sendable {
                 let dwell = (long ? constants.openWhileGrippingMs : constants.gripDwellMs) / 1000
                 // Nothing completes a dwell before the palm window ends.
                 return (touch.downAt + max(dwell, window), .dwell)
-            case .dead(owesNO: false), .engaged:
+            case .dead(owesNO: false), .engaged, .tapOnly:
                 return nil
             }
         }
@@ -745,6 +794,11 @@ public struct InputArbiter: Sendable {
                     for (other, role) in touches {
                         if case .surface(var touch) = role, touch.phase == .waiting {
                             touch.phase = .dead(owesNO: true)
+                            touches[other] = .surface(touch)
+                        }
+                        // One that could only have been a tap is dead and silent, as it is without the guide.
+                        if case .surface(var touch) = role, touch.phase == .tapOnly {
+                            touch.phase = .dead(owesNO: false)
                             touches[other] = .surface(touch)
                         }
                         // So is another top band touch still in its palm window, which owes "Let go first." (I-3).
@@ -876,6 +930,7 @@ public struct InputArbiter: Sendable {
             switch role {
             case .surface(var touch):
                 touch.phase = .dead(owesNO: false)
+                touch.panel = nil
                 touches[id] = .surface(touch)
             case .band(var band):
                 band.phase = .dead(owes: nil)
@@ -897,7 +952,7 @@ public struct InputArbiter: Sendable {
 
     private mutating func cue(_ cue: InputCue) { out.append(.cue(cue)) }
 
-    // MARK: A move nobody holds (lock)
+    // MARK: A move nobody holds (lock, tap-to-go)
 
     /// How a move nobody holds ended, as the rules know it.
     private enum LooseEnd: Equatable {
@@ -907,6 +962,8 @@ public struct InputArbiter: Sendable {
         case stop
         /// Someone else has told it (`.announced`), or nothing moved (`.startRefused`).
         case silent
+        /// A move to a tapped point reached it, by a measured position.
+        case arrived
         case ended(DriveEnd)
     }
 
@@ -931,9 +988,10 @@ public struct InputArbiter: Sendable {
 
     /// Runs once per call, after the call's events. A variant 2 thumb latches here, never in a call that held a STOP;
     /// then a move nobody holds is checked, which an input in this call has already ended if it was going to. Posture,
-    /// tracking and the time limit cover a latched follow from its first moment.
+    /// tracking and the time limit cover a latched follow from its first moment. A move to a tapped point does not
+    /// watch the phone: it ends on measured positions (arrived, stopped short, no arm data) and then on its deadline.
     ///
-    /// The refusal backstop ends it for a refusal that means the session cannot run a hold (no link, stopped, slow
+    /// The refusal backstop ends either for a refusal that means the session cannot run a hold (no link, stopped, slow
     /// link, settings open); the session's own ending for those arrives in the same turn, so this is a last resort,
     /// heard as the unnamed ending. It never ends one on `.wait`: the server shows a success or is resetting, ends the
     /// hold itself, and the link reports it; a success is told by its sound and narration.
@@ -941,15 +999,31 @@ public struct InputArbiter: Sendable {
         if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
             latchBySlide()
         }
-        guard case .latched(let since)? = engaged else { return }
-        if let refusal = facts.refusal, refusal != .wait {
-            endLoose(.ended(.unnamed))
-        } else if facts.trackingRefusal != nil {
-            endLoose(.ended(.tracking))
-        } else if facts.translationRefusal != nil {
-            endLoose(.ended(.posture))
-        } else if now >= since + (assist.lock?.timeLimitS ?? 0) - Self.slack {
-            endLoose(.ended(.timeLimit))
+        let backstop = facts.refusal.map { $0 != .wait } ?? false
+        switch engaged {
+        case .latched(let since)?:
+            if backstop {
+                endLoose(.ended(.unnamed))
+            } else if facts.trackingRefusal != nil {
+                endLoose(.ended(.tracking))
+            } else if facts.translationRefusal != nil {
+                endLoose(.ended(.posture))
+            } else if now >= since + (assist.lock?.timeLimitS ?? 0) - Self.slack {
+                endLoose(.ended(.timeLimit))
+            }
+        case .going?:
+            guard !backstop else { return endLoose(.ended(.unnamed)) }
+            guard var current = move else { return }
+            let verdict = current.observe(facts.arm, at: now)
+            move = current
+            switch verdict {
+            case .arrived?: endLoose(.arrived)
+            case .stoppedShort?: endLoose(.ended(.stoppedShort))
+            case .noArmData?: endLoose(.ended(.noArmData))
+            case nil: if now >= current.deadline - Self.slack { endLoose(.ended(.timeLimit)) }
+            }
+        default:
+            break
         }
     }
 
@@ -1007,9 +1081,9 @@ public struct InputArbiter: Sendable {
 
     /// A move nobody holds begins: every input already down becomes dead and silent, as `endAllHolds` marks them but
     /// without a stop. Each surface touch, undecided or dead but still owing a NO, becomes dead owing nothing, and a
-    /// latch attempt's withheld NO is dropped; each top band or gear touch becomes dead owing nothing, so no countdown,
-    /// no Settings and no "Let go first."; each key down becomes dead. Their later moves, timers, lifts and releases
-    /// emit nothing. Only an input that goes down after the start can end the move.
+    /// latch attempt's withheld NO is dropped, as is a possible tap; each top band or gear touch becomes dead owing
+    /// nothing, so no countdown, no Settings and no "Let go first."; each key down becomes dead. Their later moves,
+    /// timers, lifts and releases emit nothing. Only an input that goes down after the start can end the move.
     private mutating func deadenInputsDown() {
         for key in keys.keys { keys[key] = .dead }
         for (id, role) in touches {
@@ -1017,6 +1091,7 @@ public struct InputArbiter: Sendable {
             case .surface(var touch):
                 touch.phase = .dead(owesNO: false)
                 touch.latch = nil
+                touch.panel = nil
                 touches[id] = .surface(touch)
             case .band(var band):
                 band.phase = .dead(owes: nil)
@@ -1032,9 +1107,11 @@ public struct InputArbiter: Sendable {
     private mutating func endLoose(_ how: LooseEnd) {
         guard engaged?.isLoose == true else { return }
         engaged = nil
+        move = nil
         out.append(.stopTranslation)
         switch how {
         case .byYou: cue(.drive(.stoppedByYou))
+        case .arrived: cue(.drive(.arrived))
         case .ended(let end): cue(.drive(.ended(end)))
         case .stop, .silent: break
         }
@@ -1052,5 +1129,55 @@ public struct InputArbiter: Sendable {
         case .slowLink: endLoose(.ended(.slowLink))
         }
         endAllHolds()
+    }
+
+    // MARK: A move to a tapped point (tap-to-go)
+
+    /// A tap: still undecided at its lift (scheme A `.waiting`; scheme B `.waiting` before its dwell completed, or
+    /// `.tapOnly`), nothing engaged now, its lift sample narrower than a palm, lifted at most `tapMaxS` after its
+    /// touch-down and never farther than `tapSlopMm` from it. A dwell that completed before the lift fired ahead of
+    /// the lift's events, so a lift past the dwell is a jaw move, as in 1.0.1. A palm inside its window was ignored
+    /// before it got here.
+    private func isTap(_ touch: SurfaceTouch) -> Bool {
+        (touch.phase == .waiting || touch.phase == .tapOnly) && engaged == nil && !touch.liftWide
+            && now - touch.downAt <= constants.tapMaxS + Self.slack
+            && touch.farthestMm <= constants.tapSlopMm + 1e-9
+    }
+
+    /// A tap at `point` on `panel`: refused with a cue, "Arrived." when the arm is there already, or a move that goes
+    /// there at the travel height. Neither the phone's tracking or posture nor where the arm stands refuses a tap: the
+    /// phone does not steer the move, and the move starts from wherever the arm is. A tap after a STOP earlier in this
+    /// call is refused as the robot being stopped, unless the facts, which are from before that STOP, already refuse
+    /// it.
+    private mutating func tap(at point: SIMD2<Double>, on panel: GoPanel) {
+        guard let rule = assist.goTo, engaged == nil else { return }
+        if let refusal = facts.refusal {
+            cue(.refused(refusal))
+            return
+        }
+        if stoppedInCall {
+            cue(.refused(.stopped))
+            return
+        }
+        // No slack: a place the arm is sent to must lie in the box itself, which also refuses a travel height outside
+        // it.
+        let target = panel.target(x: point.x, y: point.y, travelHeight: rule.travelHeightM)
+        guard panel.inBox(target) else {
+            cue(.refused(.outsideWorkArea))
+            return
+        }
+        guard let fix = facts.arm, fix.ageS <= GoMove.freshS else {
+            cue(.refused(.noArmData))
+            return
+        }
+        if simd_distance(fix.pinch, target) <= rule.arriveToleranceM {
+            cue(.drive(.arrived))
+            return
+        }
+        move = GoMove(start: fix.pinch, target: target, limits: rule, at: now)
+        engaged = .going(target: target, since: now)
+        deadenInputsDown()
+        out.append(.startTranslation)
+        startsThisCall.append(.going)
     }
 }
