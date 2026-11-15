@@ -3,10 +3,10 @@ import simd
 @testable import TeleopCore
 
 /// A going move's path and its verdicts: up or down first, then level, at the profile's speed; a leg over by time,
-/// never by comparing computed points; a level leg never below the travel height; a stall judged only from positions
-/// measured after the command reached the leg's end, after the last pause and after the start's grace, which runs from
-/// the later of the start and that pause's end; corrections that move the command, never the target, and on the way up
-/// or down only raise it.
+/// never by comparing computed points; no command below the travel height once the first leg is over, a correction at
+/// the end included; a stall judged only from positions measured after the command reached the leg's end, after the
+/// last pause and after the start's grace, which runs from the later of the start and that pause's end; corrections
+/// that move the command, never the target, and on the way up or down only raise it.
 final class GoMoveTests: XCTestCase {
     /// The SO-101 simulator's go numbers (the core tests cannot reach `RobotProfile`).
     private let limits = GoToLimits(
@@ -22,6 +22,13 @@ final class GoMoveTests: XCTestCase {
     }
 
     private func horizontal(_ v: SIMD3<Double>) -> SIMD2<Double> { SIMD2(v.x, v.y) }
+
+    /// The lowest height the move may command in its current stage. The first leg runs between the start and the
+    /// travel height, so it is never below the lower of the two; every stage after it, the corrections included, is
+    /// never below the travel height.
+    private func heightFloor(_ move: GoMove) -> Double {
+        move.stage == .vertical ? min(move.start.z, move.target.z) : move.target.z
+    }
 
     /// How a driven move ended.
     private enum End: Equatable {
@@ -44,7 +51,7 @@ final class GoMoveTests: XCTestCase {
     /// Calls `observe` at every gate step from `from` until it gives a verdict, the deadline passes (judged after the
     /// verdict, as the gate does) or `until`. The arm is measured `age` before each call, where the command was `delay`
     /// before that, moved by `arm` (a sag, a wall). Every step also checks that the command never outruns its speed and
-    /// that the level leg's command is never below the travel height.
+    /// that neither the command nor the end of its leg is below the travel height (`heightFloor`).
     private func drive(
         _ move: inout GoMove, from: TimeInterval = 0, until: TimeInterval = 60, age: Double = 0.1, delay: Double = 0.1,
         arm: (SIMD3<Double>) -> SIMD3<Double> = { $0 }, file: StaticString = #filePath, line: UInt = #line
@@ -71,11 +78,13 @@ final class GoMoveTests: XCTestCase {
                     "the command keeps to its speed, at \(now)", file: file, line: line)
             }
             previous = (now, offset)
-            if move.stage == .level {
-                XCTAssertGreaterThanOrEqual(
-                    move.commanded(at: now).z, move.target.z, "the level leg is never below the travel height, \(now)",
-                    file: file, line: line)
-            }
+            let floor = heightFloor(move)
+            XCTAssertGreaterThanOrEqual(
+                move.commanded(at: now).z, floor, "no command below the travel height, \(move.stage) at \(now)",
+                file: file, line: line)
+            XCTAssertGreaterThanOrEqual(
+                move.commanded(at: .infinity).z, floor, "no leg ends below the travel height, \(move.stage) at \(now)",
+                file: file, line: line)
             if let verdict {
                 run.end = .verdict(verdict)
                 return run
@@ -508,6 +517,67 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(horizontal(twice.commanded(at: 100)), horizontal(target))
     }
 
+    /// Something under the whole way holds the jaws 2 cm above the travel height, below a start 4 cm above it: the arm
+    /// comes down onto it, slides across on it and settles over the target, 2 cm too high. Neither correction presses
+    /// the command down into it: the command stays at the target, and the move stops short. With the obstacle 3.5 cm
+    /// up, past the correction reach, it stops short with no correction at all.
+    func testAnObstacleAboveTheTravelHeightIsNeverPressedInto() {
+        let start = SIMD3(0.0, -0.2, travel + 0.04)
+        let target = SIMD3(0.06, -0.15, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let run = drive(&move) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.02)) }
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertLessThan(run.at, move.deadline, "stopped short, not time is up")
+        XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .level, .correcting(.level)])
+        XCTAssertEqual(run.corrections.count, 2)
+        XCTAssertEqual(move.commanded(at: 100), target, "across by nothing, and not down")
+
+        var higher = GoMove(start: SIMD3(0.0, -0.2, travel + 0.05), target: target, limits: limits, at: 0)
+        let higherRun = drive(&higher) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.035)) }
+        XCTAssertEqual(higherRun.end, .verdict(.stoppedShort))
+        XCTAssertEqual(higherRun.corrections, [])
+        XCTAssertEqual(higher.commanded(at: 100), target)
+    }
+
+    /// Jaws that sag 9 mm are raised on the way up; then something under the target holds them 1.5 cm above the
+    /// travel height. The correction at the end would have gone down by that, but it stops at the raised height, not
+    /// at the travel height, and the move stops short.
+    func testACorrectionAtTheEndNeverGoesBelowTheRaise() {
+        let start = SIMD3(0.02, -0.2, travel - 0.03)
+        let target = SIMD3(0.06, -0.15, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let run = drive(&move) { command in
+            let sagged = SIMD3(command.x, command.y, max(start.z, command.z - 0.009))
+            guard simd_distance(self.horizontal(sagged), self.horizontal(target)) <= 0.01 else { return sagged }
+            return SIMD3(sagged.x, sagged.y, max(sagged.z, self.travel + 0.015))
+        }
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertEqual(
+            run.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level, .correcting(.level)])
+        let end = move.commanded(at: 100)
+        XCTAssertEqual(horizontal(end), horizontal(target))
+        XCTAssertEqual(end.z, travel + 0.009, accuracy: 1e-9, "the raise is kept")
+    }
+
+    /// Jaws that sag 9 mm, and further the further out they reach: raised 9 mm on the way up, they still hang 12.8 mm
+    /// low over the target. The correction at the end raises the command by that, and the arm arrives.
+    func testJawsThatHangLowAtTheEndAreRaisedThereAndArrive() {
+        let start = SIMD3(0.02, -0.2, travel - 0.03)
+        let target = SIMD3(0.06, -0.15, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        let run = drive(&move) { command in
+            let reach = simd_distance(self.horizontal(command), self.horizontal(start))
+            return SIMD3(command.x, command.y, max(start.z, command.z - 0.009 - 0.2 * reach))
+        }
+        XCTAssertEqual(run.end, .verdict(.arrived))
+        XCTAssertEqual(
+            run.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level, .correcting(.level)])
+        let end = move.commanded(at: 100)
+        XCTAssertEqual(horizontal(end), horizontal(target))
+        let hanging = 0.2 * simd_distance(horizontal(target), horizontal(start))
+        XCTAssertEqual(end.z, travel + 0.009 + hanging, accuracy: 1e-9, "raised on the way up, then at the end")
+    }
+
     func testSettledShortCorrectsUntilTheBudgetIsSpentThenStopsShort() {
         let start = SIMD3(-0.02, -0.22, travel)
         let target = SIMD3(0.02, -0.22, travel)
@@ -748,11 +818,12 @@ final class GoMoveTests: XCTestCase {
             }
             previous = offset
             if !turned { XCTAssertEqual(SIMD2(offset.x, offset.y), .zero, "nothing level before the corner, \(label)") }
-            if move.stage == .level {
-                let height = move.commanded(at: now).z
-                lowestLevel = min(lowestLevel ?? height, height)
-                XCTAssertGreaterThanOrEqual(height, target.z, "the level leg never below the travel height, \(label)")
-            }
+            let height = move.commanded(at: now).z
+            if move.stage == .level { lowestLevel = min(lowestLevel ?? height, height) }
+            let floor = heightFloor(move)
+            XCTAssertGreaterThanOrEqual(height, floor, "no command below the travel height, \(move.stage), \(label)")
+            XCTAssertGreaterThanOrEqual(
+                move.commanded(at: .infinity).z, floor, "no leg ends below the travel height, \(move.stage), \(label)")
             sent.append(move.commanded(at: now))
             let end: End?
             if let verdict {
@@ -860,6 +931,23 @@ final class GoMoveTests: XCTestCase {
         XCTAssertGreaterThan(count, 15)
     }
 
+    /// Something under the whole way, 1 to 5 cm above the travel height, below a start above it: the arm can never
+    /// come within the tolerance of the target, and no command, a correction at the end included, goes below the
+    /// travel height to push it there (`simulate` checks every call). The move stops short.
+    func testGeneratedGoesOntoAnObstacleAboveTheTravelHeightStopShort() {
+        var random = SplitMix64(seed: 0x0B_57AC)
+        for index in 0..<60 {
+            var go = randomGo(&random, index: index)
+            var model = randomModel(&random)
+            let short = random.uniform(0.010, 0.050)
+            go.start.z = travel + random.uniform(short + 0.002, 0.06)
+            let surface = travel + short
+            model.block = { SIMD3($0.x, $0.y, max($0.z, surface)) }
+            let outcome = simulate(from: go.start, to: go.target, model, "obstacle \(index)")
+            XCTAssertEqual(outcome.end, .verdict(.stoppedShort), "obstacle \(index): \(short) m up, \(model.tau) s lag")
+        }
+    }
+
     /// Positions stop arriving part way: the go ends "no arm data" no later than one gate step after the newest state
     /// is 2 s old, unless it arrived first.
     func testGeneratedGoesWhosePositionsStopEndWithNoArmData() {
@@ -878,8 +966,9 @@ final class GoMoveTests: XCTestCase {
     }
 
     /// A server that takes the start later than the grace, or holds the arm still for a while without saying so: the
-    /// arm stands above or below the travel height for longer than any rule expects, and still no level command runs
-    /// below the travel height (`simulate` checks every call), whatever the move then ends with.
+    /// arm stands above or below the travel height for longer than any rule expects, and still no command after the
+    /// first leg, a correction at the end included, runs below the travel height (`simulate` checks every call),
+    /// whatever the move then ends with.
     func testGeneratedGoesWithAnArmHeldStillNeverRunTheLevelLegLow() {
         var random = SplitMix64(seed: 0xF2_0237)
         var level = 0
