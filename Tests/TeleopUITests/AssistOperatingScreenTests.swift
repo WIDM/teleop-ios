@@ -14,6 +14,7 @@ final class AssistOperatingScreenTests: XCTestCase {
         "going": ("Going", "前往中"),
         "ready_aids": ("Ready", "就緒"),
         "lowest_aids": ("Ready", "就緒"),
+        "ended_time_limit": ("Stopped here", "停在這裡"),
     ]
 
     private struct Size {
@@ -84,6 +85,15 @@ final class AssistOperatingScreenTests: XCTestCase {
 
     func testTheGuideWithItsAids() {
         render("ready_aids")
+    }
+
+    /// A follow or a move nobody held that ended for a reason the operator did not give says why, in the words
+    /// spoken: here the time limit, "Stopped here" and "Time is up".
+    func testWhyAFollowOrAMoveEnded() {
+        render("ended_time_limit") { app, language in
+            let reason = language == "en" ? "Time is up" : "時間到了"
+            XCTAssertTrue(app.staticTexts[reason].exists, "\(language): why it ended")
+        }
     }
 
     /// The jaws back at the lowest height a stall reached, on something 3 cm above the table: the height says so in

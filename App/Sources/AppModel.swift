@@ -84,6 +84,9 @@ final class AppModel {
     @ObservationIgnored private var lastWelcomeSession: String?
     /// The newest refusal the operator heard, and when, for the one-second display.
     @ObservationIgnored private var lastRefusal: (refusal: Refusal, atMs: Int)?
+    /// The newest ending of a follow or a move nobody held that the operator did not cause, and when, shown as a
+    /// refusal is.
+    @ObservationIgnored private var lastEnded: (end: DriveEnd, atMs: Int)?
     /// The newest saved take, and when, for the two-second display.
     @ObservationIgnored private var lastSaved: (count: Int, atMs: Int)?
     /// Where the arm hold being started takes its motion from: the phone, a pad button, or a move to a point the
@@ -602,6 +605,8 @@ final class AppModel {
         cues.raise(event)
         switch event {
         case .refused(let refusal): lastRefusal = (refusal, nowMs())
+        // The operator's own ending and an arrival are not shown: the operator knows why.
+        case .drive(.ended(let end)): lastEnded = (end, nowMs())
         case .takeSaved(let count): lastSaved = (count, nowMs())
         default: return
         }
@@ -800,6 +805,7 @@ final class AppModel {
             facts.serverResetting = link.resetPending || serverState?.activity == .resetting
         }
         facts.lastRefusal = lastRefusal
+        facts.lastEnded = lastEnded
         facts.lastSaved = lastSaved
         facts.nowMs = nowMs()
         facts.turnLimit = profile.inputConstants.rollClampDeg

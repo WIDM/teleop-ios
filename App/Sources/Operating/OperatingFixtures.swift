@@ -41,6 +41,8 @@ enum OperatingFixtures {
         all["wait_resetting"] = display(.wait(.resetting), arm: hotel(), recorder: armed)
         all["camera_stopped"] = display(.trackingLost, arm: task(), recorder: armed)
         all["refused"] = display(.refused(.posture), arm: hotel(), recorder: armed)
+        // A follow or a move nobody held that ran out of time: why it ended, for a second.
+        all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: armed)
         all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)
         all["stopped"] = display(.stopped(cause: .button), arm: task(), recorder: off, exits: recordingExits)
         all["stopped_release"] = display(.stopped(cause: .behind), arm: hotel(), recorder: notRecording)

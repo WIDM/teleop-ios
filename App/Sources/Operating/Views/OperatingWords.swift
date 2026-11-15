@@ -72,6 +72,11 @@ enum OperatingWords {
                 colour: TeleopColors.stateAmber)
         case .refused(let refusal):
             return Look(word: reason(refusal), details: [], colour: TeleopColors.stateAmber)
+        case .ended(let end):
+            // The words the operator heard, "Stopped here" and then why, in the place and colour of a refusal.
+            let words = CueTable.row(for: .drive(.ended(end))).speech.map(spoken)
+            return Look(
+                word: words.first ?? "", details: Array(words.dropFirst()), colour: TeleopColors.stateAmber)
         case .slowLink(let ms):
             return Look(
                 word: L10n.string("state.slow_link"), details: [String(format: L10n.string("detail.latency"), ms)],
@@ -121,6 +126,13 @@ enum OperatingWords {
         case .outsideWorkArea: return L10n.string("refusal.outside_work_area")
         case .noArmData: return L10n.string("refusal.no_arm_data")
         }
+    }
+
+    /// One spoken phrase as the screen writes it: the same words, without the closing full stop.
+    private static func spoken(_ key: SpeechKey) -> String {
+        var text = SpeechText.string([Phrase(key)])
+        if text.hasSuffix(".") || text.hasSuffix("。") { text.removeLast() }
+        return text
     }
 
     static func cause(_ cause: EmergencyCause) -> String {

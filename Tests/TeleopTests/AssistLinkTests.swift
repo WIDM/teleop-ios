@@ -229,6 +229,7 @@ final class AssistLinkTests: XCTestCase {
             latch()
             cause(self)
             XCTAssertEqual(endings, [.ended(end)], what)
+            XCTAssertEqual(model.operating.state, .ended(end), "\(what): the screen says why")
             XCTAssertFalse(
                 heard.contains {
                     if case .letGo = $0 { return true }

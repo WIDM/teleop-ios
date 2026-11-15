@@ -22,6 +22,9 @@ enum OperatingState: Equatable, Sendable {
     case wait(WaitReason)
     case trackingLost  // the camera stopped: the keys and the phone's movement do nothing
     case refused(Refusal)  // shown for 1 s
+    /// A follow or a move nobody held ended for this reason, which the operator did not give. Shown as a refusal is,
+    /// for 1 s, in the words spoken.
+    case ended(DriveEnd)
     case slowLink(ms: Int)
     case stopped(cause: EmergencyCause?)
     case linkLost

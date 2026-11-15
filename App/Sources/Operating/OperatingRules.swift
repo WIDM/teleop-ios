@@ -34,6 +34,8 @@ struct OperatingFacts {
     var serverResetting = false
     /// The newest refusal the operator heard and the newest saved take, with when (ms on the model's clock).
     var lastRefusal: (refusal: Refusal, atMs: Int)?
+    /// The newest ending of a follow or a move nobody held that the operator heard and did not cause, with when.
+    var lastEnded: (end: DriveEnd, atMs: Int)?
     var lastSaved: (count: Int, atMs: Int)?
     var nowMs = 0
     /// The per-hold wrist clamps, degrees.
@@ -49,7 +51,8 @@ enum OperatingRules {
     static let savedShownMs = 2000
 
     /// The rows of §7.2 that version 1 has, highest first: the stop, the link, the camera, a take just saved, the
-    /// engaged hold, a refusal just heard, the server not ready, a slow link, ready. A STOP that reached no server is
+    /// engaged hold, a refusal just heard (or why a follow or a move nobody held just ended), the server not ready, a
+    /// slow link, ready. A STOP that reached no server is
     /// not shown as stopped: the robot is not (§2.8, J7). Until it goes out the screen shows the link as it does with no
     /// link up, also while Connect replaces a link that is up: never ready, a hold, a wait or a refusal.
     static func state(_ f: OperatingFacts) -> OperatingState {
@@ -61,7 +64,11 @@ enum OperatingRules {
         if f.cameraStopped { return .trackingLost }
         if let saved = f.lastSaved, f.nowMs - saved.atMs < savedShownMs { return .saved(count: saved.count) }
         if let held = f.engaged { return holding(held, f) }
-        if let refused = f.lastRefusal, f.nowMs - refused.atMs < refusalShownMs { return .refused(refused.refusal) }
+        // Why a follow or a move nobody held ended takes a refusal's place and time; of the two, the newer is shown.
+        let refused = f.lastRefusal.flatMap { f.nowMs - $0.atMs < refusalShownMs ? $0 : nil }
+        let ended = f.lastEnded.flatMap { f.nowMs - $0.atMs < refusalShownMs ? $0 : nil }
+        if let ended, ended.atMs > refused?.atMs ?? Int.min { return .ended(ended.end) }
+        if let refused { return .refused(refused.refusal) }
         if f.serverResetting { return .wait(.resetting) }
         if f.serverSaving { return .wait(.saving) }
         if f.commandsBlocked { return .slowLink(ms: f.latencyMs ?? 0) }
