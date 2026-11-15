@@ -46,7 +46,7 @@ final class DriveCueTests: XCTestCase {
             .posture: .posture, .tracking: .lostTracking, .timeLimit: .driveTimeUp, .appLeft: .driveAppLeft,
             .cameraStopped: .driveCamera, .leftScreen: .driveLeftScreen, .slowLink: .slowLink,
             .stoppedShort: .driveShort, .noArmData: .noArmData, .tooFast: .tooFast, .noAnswer: .noAnswer,
-            .linkHiccup: .linkHiccup, .serverRefused: .refusedMove, .serverBusy: .wait,
+            .linkHiccup: .linkHiccup, .serverRefused: .refusedMove, .serverBusy: .driveServerBusy,
         ]
         XCTAssertEqual(Set(reasons.keys).union([.unnamed]), Set(DriveEnd.allCases))
         for end in DriveEnd.allCases {
@@ -78,6 +78,27 @@ final class DriveCueTests: XCTestCase {
         XCTAssertEqual(text(.driveStoppedHere, "zh-Hant"), "停在這裡。")
         XCTAssertEqual(text(.stopped, "en"), "Stopped.")
         XCTAssertEqual(text(.stopped, "zh-Hant"), "已急停。")
+    }
+
+    /// "Stopped here. Wait." would sound as if the move goes on after a wait, so an ending for a busy server names it.
+    /// A press refused while the server is busy still says "Wait.".
+    func testABusyServerEndsAMoveWithItsOwnWords() throws {
+        XCTAssertEqual(CueTable.row(for: .drive(.ended(.serverBusy))).speech, [.driveStoppedHere, .driveServerBusy])
+        for row in driveRows {
+            XCTAssertFalse(row.speech.contains(.wait), "\(row.key)")
+        }
+        XCTAssertEqual(CueTable.row(for: .refused(.busy)).speech, [.wait])
+        XCTAssertEqual(CueTable.row(for: .refused(.notReady)).speech, [.wait])
+        let catalog = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Resources/Speech.xcstrings")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: catalog)) as? [String: Any])
+        let strings = try XCTUnwrap(json["strings"] as? [String: [String: Any]])
+        let localizations =
+            strings[SpeechKey.driveServerBusy.rawValue]?["localizations"] as? [String: [String: [String: String]]]
+        XCTAssertEqual(localizations?["en"]?["stringUnit"]?["value"], "The server was busy.")
+        XCTAssertEqual(localizations?["zh-Hant"]?["stringUnit"]?["value"], "伺服器正忙。")
     }
 
     func testTheNewRefusalsAreP4() {

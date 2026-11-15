@@ -70,6 +70,9 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case driveCamera = "say.drive.camera"
     case driveLeftScreen = "say.drive.left_screen"
     case driveShort = "say.drive.short"
+    /// Why a move nobody holds ended when the server was busy or not ready. Never `wait`, "Wait.", which after
+    /// "Stopped here." would sound as if the move goes on after a wait.
+    case driveServerBusy = "say.drive.server_busy"
     case noArmData = "say.reason.no_arm_data"
     case outside = "say.reason.outside"
     case lowest = "say.lowest"
@@ -254,7 +257,7 @@ public enum CueTable {
         case .noAnswer: return [.noAnswer]
         case .linkHiccup: return [.linkHiccup]
         case .serverRefused: return [.refusedMove]
-        case .serverBusy: return [.wait]
+        case .serverBusy: return [.driveServerBusy]
         }
     }
 

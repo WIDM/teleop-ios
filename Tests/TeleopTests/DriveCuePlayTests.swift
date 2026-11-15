@@ -45,6 +45,20 @@ final class DriveCuePlayTests: XCTestCase {
         XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .refused(.emergencyStop)), language: .en), "Stopped.")
     }
 
+    /// The endings an operator hears mid-task read as one plain sentence each, in both languages.
+    func testTheEndingsSayWhyInPlainWords() {
+        let said: [(DriveEnd, String, String)] = [
+            (.appLeft, "Stopped here. You left the app.", "停在這裡。你離開了程式。"),
+            (.stoppedShort, "Stopped here. Short of the target.", "停在這裡。沒走到目標。"),
+            (.serverBusy, "Stopped here. The server was busy.", "停在這裡。伺服器正忙。"),
+        ]
+        for (end, english, chinese) in said {
+            let phrases = CueTable.phrases(for: .drive(.ended(end)))
+            XCTAssertEqual(SpeechText.string(phrases, language: .en), english, "\(end)")
+            XCTAssertEqual(SpeechText.string(phrases, language: .zhHant), chinese, "\(end)")
+        }
+    }
+
     func testTheTapsRefusalsHaveTheirWords() {
         XCTAssertEqual(OperatingController.refusal(.outsideWorkArea), .outsideWorkArea)
         XCTAssertEqual(OperatingController.refusal(.noArmData), .noArmData)

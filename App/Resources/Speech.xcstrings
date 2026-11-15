@@ -119,13 +119,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The app was left."
+            "value" : "You left the app."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你離開了 App。"
+            "value" : "你離開了程式。"
           }
         }
       }
@@ -194,12 +194,28 @@
         }
       }
     },
+    "say.drive.server_busy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server was busy."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伺服器正忙。"
+          }
+        }
+      }
+    },
     "say.drive.short" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "It stopped short."
+            "value" : "Short of the target."
           }
         },
         "zh-Hant" : {
@@ -525,7 +541,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "太左邊了。"
+            "value" : "太靠左了。"
           }
         }
       }
@@ -541,7 +557,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "太右邊了。"
+            "value" : "太靠右了。"
           }
         }
       }

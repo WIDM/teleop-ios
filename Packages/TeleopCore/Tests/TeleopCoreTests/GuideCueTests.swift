@@ -18,6 +18,24 @@ final class GuideCueTests: XCTestCase {
         }
     }
 
+    /// The sideways sides as they are said in Traditional Chinese.
+    func testTheSidesReadNaturallyInChinese() throws {
+        let catalog = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Resources/Speech.xcstrings")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: catalog)) as? [String: Any])
+        let strings = try XCTUnwrap(json["strings"] as? [String: [String: Any]])
+        func text(_ key: SpeechKey, _ language: String) -> String? {
+            let localizations = strings[key.rawValue]?["localizations"] as? [String: [String: [String: String]]]
+            return localizations?[language]?["stringUnit"]?["value"]
+        }
+        XCTAssertEqual(text(.rangeLeft, "en"), "Too far left.")
+        XCTAssertEqual(text(.rangeLeft, "zh-Hant"), "太靠左了。")
+        XCTAssertEqual(text(.rangeRight, "en"), "Too far right.")
+        XCTAssertEqual(text(.rangeRight, "zh-Hant"), "太靠右了。")
+    }
+
     func testCantGoLowerIsSpokenAsBlockedIs() {
         let lowest = CueTable.row(for: .limit(.lowest)), blocked = CueTable.row(for: .limit(.blocked))
         XCTAssertEqual(lowest.speech, [.lowest])
