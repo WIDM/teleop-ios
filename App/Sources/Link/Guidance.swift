@@ -58,8 +58,9 @@ struct RobotProfile: Equatable {
                 // holding messages back for up to 1.8 s.
                 armDataTimeoutS: 2.0,
                 // A start the server takes late, or an arm that lags at first, is not a stall: no stall is judged
-                // from positions measured in the first 1.5 s unless the arm has already moved 2 mm. What would change
-                // it: how late a real arm starts to move after a start.
+                // from positions measured in the first 1.5 s, counted from the later of the start and the end of the
+                // last pause of the hold, unless the arm has already moved 2 mm. What would change it: how late a
+                // real arm starts to move after a start.
                 startGraceS: 1.5
             ),
             guide: .all
@@ -139,8 +140,8 @@ struct RobotProfile: Equatable {
         return millimetres / 1000
     }
 
-    /// The estimate may be off by more than half the on-target window across: the guide draws it approximate. Half,
-    /// because a lift needed the jaws within about 1 cm in the hand sessions and the window is 6 mm. The bound
+    /// The estimate may be off by more than half the grasp tolerance across: the guide draws it approximate. Half,
+    /// because a lift needed the jaws within about 1 cm in the hand sessions and the tolerance is 6 mm. The bound
     /// overestimates by centimetres, so it decides only this and never sizes anything.
     func estimateIsApproximate(gripper: SIMD3<Float>, flexDeg: Double?, rollDeg: Double?) -> Bool {
         guard let error = estimateError(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg) else { return true }
@@ -168,7 +169,7 @@ enum PinchSource: Equatable, Sendable {
     /// The server reported it (`tool_pos`). Never approximate.
     case reported
     /// The reported gripper point plus the profile's `toolOffset`. `approximate`: it may be off by more than half the
-    /// on-target window, so the guide draws it hollow, says so, and never says "On target".
+    /// grasp tolerance, so the guide draws it hollow, says so, and never says "On target".
     case estimated(approximate: Bool)
 
     var isApproximate: Bool { self == .estimated(approximate: true) }

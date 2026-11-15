@@ -52,7 +52,7 @@ struct GuidePicture: Equatable {
         case heightLowest(cm: Double)
         case jaws(percentOpen: Int)
         case wrist(turnDeg: Int?, tiltDeg: Int?)
-        /// The pinch point is an estimate that may be off by more than half the on-target window.
+        /// The pinch point is an estimate that may be off by more than half the profile's grasp tolerance.
         case approximate
         /// From the pinch point to the target: the distance across the table, and the height.
         case target(acrossCm: Double, height: Height)
@@ -96,7 +96,7 @@ struct GuidePicture: Equatable {
     let targetEdge: Double
     let goalEdge: Double
     let outside: Bool
-    /// The pinch point is drawn hollow: an estimate that may be off by more than half the on-target window.
+    /// The pinch point is drawn hollow: an estimate that may be off by more than half the profile's grasp tolerance.
     let approximate: Bool
     /// Never while `approximate`.
     let onTarget: Bool

@@ -50,7 +50,7 @@ enum OperatingFixtures {
         countdown.resetCountdown = 0.6
         all["rec_off_countdown"] = countdown
         all["outside"] = display(.ready, arm: outside(), recorder: notRecording)
-        // An estimated pinch point that may be off by more than half the on-target window: hollow, said so, and no
+        // An estimated pinch point that may be off by more than half the grasp tolerance: hollow, said so, and no
         // "On target" though it sits inside the window.
         all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: armed)
         all["approximate_hotel"] = display(

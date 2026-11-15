@@ -448,9 +448,10 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertNil(model.link.newestArmAgeMs)
     }
 
-    /// A move to a point is a hold on the pad's path: it needs no tracked pose to start, where a phone hold is refused,
-    /// and lost tracking does not end it. Nobody holds it, so the link tells its endings as the move's own. It streams
-    /// the offsets the input rules give, and with no move of theirs it sends none.
+    /// A move to a point is a hold on the pad's path. With no tracked pose, where a phone hold is refused, it starts,
+    /// marked as one nobody holds, with no refusal of its own. Twenty ticks without tracking neither end it nor send an
+    /// offset, since the input rules run no move to give one, and nothing ending is heard. Its end sends the stop and
+    /// clears the mark.
     func testAGoingHoldNeedsNoTrackedPose() {
         bringUp(lock: .off)
         position = nil

@@ -55,10 +55,11 @@ public struct GoPanel: Equatable, Sendable {
 public struct ArmFix: Equatable, Sendable {
     /// The measured pinch point of the newest state that carried a position, robot base frame, metres.
     public var pinch: SIMD3<Double>
-    /// How old that state is, seconds. A state without a position never makes a fix fresh.
+    /// How old that state is, seconds: the time since it arrived plus half the link's median round trip, because the
+    /// server measured it before sending it. A state without a position never makes a fix fresh.
     public var ageS: Double
-    /// The link is re-sending its start, or holding a start back behind a finishing hold: the arm may stand still for
-    /// a reason that says nothing about where it can go.
+    /// The link is re-sending its start, holding a start back behind a finishing hold, or holding the command at its
+    /// lead cap ahead of the arm: the arm may stand still for a reason that says nothing about where it can go.
     public var holdPaused: Bool
 
     public init(pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool) {

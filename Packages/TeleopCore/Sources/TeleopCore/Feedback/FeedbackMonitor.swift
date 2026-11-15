@@ -304,8 +304,9 @@ public struct FeedbackMonitor {
     /// The server ended a hold for a reason another cue already tells: a success, told by the recorder narration; an
     /// emergency-stop reason, told by the alarm; or `estop_active`, also told by the alarm. `startRefused` returns
     /// nothing for the first two and, before acceptance, `.refused(.emergencyStop)` for the third, which no drive
-    /// ending names. So a move nobody holds that the server ended for one of these was told, though nothing was
-    /// emitted for it.
+    /// ending names; after acceptance a stopped robot's answer comes back as a let-go, which the link drops for a move
+    /// nobody holds, since the alarm tells it. So a move nobody holds that the server ended for one of these was told,
+    /// though nothing was emitted for it.
     public static func isToldElsewhere(_ reason: String) -> Bool {
         reason == TeleopLink.successReason || emergencyStopReasons.contains(reason) || reason == "estop_active"
     }
