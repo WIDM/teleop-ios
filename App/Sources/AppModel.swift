@@ -66,7 +66,8 @@ final class AppModel {
     private var handSetting: Hand
     private var taskAidSetting: Bool
     private var surfaceLayout: SurfaceLayout?
-    @ObservationIgnored let profile = RobotProfile.so101Simulator
+    /// The robot. Tests pass another to run a robot that allows other aids or none.
+    @ObservationIgnored let profile: RobotProfile
     /// When the guide's "On target" is felt.
     @ObservationIgnored private var onTargetCue: OnTargetCue
     /// A reset's answer came from a server that reports no episode, or a new server run said welcome; the next `state`
@@ -136,6 +137,7 @@ final class AppModel {
     ///     `-quietCues YES`, which stay silent.
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
     ///   - clientName: how the app names itself to the server; the bundle's version and build unless a test passes one.
+    ///   - profile: the robot; everything that needs one, the link included, uses this one.
     init(
         start: Route = .s2,
         haptics: HapticsPlaying? = nil,
@@ -147,8 +149,10 @@ final class AppModel {
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
         inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-        clientName: String = LiveLinkController.clientName()
+        clientName: String = LiveLinkController.clientName(),
+        profile: RobotProfile = .so101Simulator
     ) {
+        self.profile = profile
         var state = FakeTeleopState()
         state.liveLink = liveLink
         // Loaded in practice too, so leaving practice connects to it.
@@ -184,7 +188,7 @@ final class AppModel {
         self.nowMs = nowMs
         link = LiveLinkController(
             makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
-            clientName: clientName
+            gripperLimits: profile.gripperLimits, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         cues.currentHold = { [weak self] in self?.currentHold }

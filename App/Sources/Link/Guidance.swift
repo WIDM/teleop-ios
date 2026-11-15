@@ -32,7 +32,31 @@ struct RobotProfile: Equatable {
     static let so101Simulator = RobotProfile(
         name: "SO-101 (S4 simulator)",
         toolOffset: SIMD3(0.007, -0.036, -0.088),
-        baseInWorld: SIMD3(0, 0, 0.05)
+        baseInWorld: SIMD3(0, 0, 0.05),
+        assist: AssistProfile(
+            // 30 s from the latch. What would change it: how long latched runs last in the hand sessions; a safety
+            // review.
+            lock: LockLimits(timeLimitS: 30),
+            goTo: GoToLimits(
+                // 5 cm over the table: a held 2.5 cm object's bottom is then 3.75 cm up, and the pinch point at
+                // 0.09 m in the base frame is inside the box's 0.152 m top.
+                travelHeightM: 0.05,
+                // The pad's coarse speed, already proven through the lead cap; near the measured median following
+                // speed (0.034 m/s) and under the simulator's own cap on a moving setpoint (about 0.077 m/s).
+                speedMps: 0.04,
+                // Under the blocked rule's 10 mm; the grasp window's height.
+                arriveToleranceM: 0.008,
+                corrections: 1,
+                correctionReachM: 0.03,
+                settleS: 0.6,
+                timeFactor: 1.5,
+                allowanceS: 3.0,
+                // The listening connection reports about every 0.2 s; an ordinary wireless network was measured
+                // holding messages back for up to 1.8 s.
+                armDataTimeoutS: 2.0
+            ),
+            guide: .all
+        )
     )
 
     /// How close the pinch point must be to an object's centre, across the table and in height, for closing
@@ -63,6 +87,14 @@ struct RobotProfile: Equatable {
     /// angle; so a second close is refused until they have opened. True for this simulator. A robot that must squeeze
     /// harder to hold would set it false.
     var recloseLoosensGrip = true
+    /// Which hands-free aids this robot allows, with their numbers. A robot allows lock exactly when `assist.lock` is
+    /// set, and cannot allow it without saying how long a follow nobody holds may run. `.none` allows none of them and
+    /// needs no code path of its own.
+    var assist: AssistProfile = .none
+    /// A wider window for the guide's "On target" and its cue (across, height; metres), used when the guide's aids ask
+    /// for it. Nil: the grasp tolerance. `graspTolerance` keeps its other jobs (the level word, the approximate
+    /// threshold, parity with the server model).
+    var onTargetWindow: SIMD2<Float>? = nil
 
     var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
 
