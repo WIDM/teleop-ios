@@ -70,7 +70,7 @@ final class AppModel {
     private var surfaceLayout: SurfaceLayout?
     /// The robot. Tests pass another to run a robot that allows other aids or none.
     @ObservationIgnored let profile: RobotProfile
-    /// When the guide's "On target" is felt.
+    /// When the guide's "On target" is felt, in the window the guide draws it with.
     @ObservationIgnored private var onTargetCue: OnTargetCue
     /// A reset's answer came from a server that reports no episode, or a new server run said welcome; the next `state`
     /// from after it arms the on-target cue again.
@@ -180,8 +180,14 @@ final class AppModel {
     private func assistDidChange() {
         controller.assistChanged(assist)
         guideAidsChanged()
+        // A cue keeps the window it was made with: a new window takes a new cue, armed as after a scene reset.
+        let window = onTargetWindow
+        if window != onTargetCue.window { onTargetCue = OnTargetCue(window: window) }
         refreshOperating()
     }
+
+    /// The window "On target" is judged in now, by the guide and its cue alike.
+    private var onTargetWindow: SIMD2<Double> { GuidePicture.onTargetWindow(profile, aids: assist.guide) }
 
     /// Hands the link the guide's aids it runs, with the work box in gripper-link space: the profile keeps the box for
     /// the pinch point, the server keeps the gripper link in it, and the guide draws ring and box moved by the same
@@ -243,10 +249,13 @@ final class AppModel {
         modeSetting = mode
         handSetting = hand
         taskAidSetting = taskAid
-        assistSetting = assistOn ?? Self.savedBool(Self.assistKey, default: true, defaults)
-        lockChoiceSetting =
+        let masterOn = assistOn ?? Self.savedBool(Self.assistKey, default: true, defaults)
+        let chosenLock =
             lockChoice ?? defaults.string(forKey: Self.lockChoiceKey).flatMap(LockChoice.init(rawValue:)) ?? .off
-        onTargetCue = OnTargetCue(window: SIMD2(profile.graspTolerance))
+        assistSetting = masterOn
+        lockChoiceSetting = chosenLock
+        let resolved = Assist.resolve(masterOn: masterOn, lockChoice: chosenLock, profile: profile.assist)
+        onTargetCue = OnTargetCue(window: GuidePicture.onTargetWindow(profile, aids: resolved.guide))
         self.fixture = fixture
         operating =
             fixture

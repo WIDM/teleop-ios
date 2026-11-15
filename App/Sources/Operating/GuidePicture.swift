@@ -7,7 +7,7 @@ import TeleopCore
 /// The base form uses only what any arm reports: the pinch point inside the workspace box, seen from above and from
 /// behind, its height above the table, how far the jaws are open, the wrist's turn and tilt when reported, and where
 /// the arm is being asked to go during a move. Only when the server reports task objects does it add a target and a
-/// goal as plain shapes, the gap from the pinch point to the target, "on target" inside the profile's tolerance, and
+/// goal as plain shapes, the gap from the pinch point to the target, "on target" inside the on-target window, and
 /// "holding" while the jaws grip. A pinch point the profile can only estimate roughly is drawn hollow, says so, and is
 /// never "on target". The guide's aids, each only when it is on, add: the side the commanded place is outside the work
 /// area on, the lowest height a downward stall reached (a line from behind, and "lowest" on the height while the pinch
@@ -159,6 +159,8 @@ struct GuidePicture: Equatable {
         }
 
         let tolerance = SIMD2<Double>(profile.graspTolerance)
+        // Only "On target" takes the wider window; the level word keeps the grasp tolerance.
+        let window = Self.onTargetWindow(profile, aids: aids)
         func gap(to thing: SIMD3<Float>) -> SIMD2<Double> {
             let t = Self.operatorPoint(thing)
             return SIMD2(simd_length(SIMD2(pinchPoint.x - t.x, pinchPoint.y - t.y)), pinchPoint.z - t.z)
@@ -168,7 +170,7 @@ struct GuidePicture: Equatable {
             let rise = gap.y
             let height: Height =
                 abs(rise) <= tolerance.y ? .level : (rise > 0 ? .above(cm: rise * 100) : .below(cm: -rise * 100))
-            return (gap.x, height, OnTargetCue.inside(gap, window: tolerance))
+            return (gap.x, height, OnTargetCue.inside(gap, window: window))
         }
 
         targetGap = reading.target.map(gap(to:))
@@ -213,6 +215,16 @@ struct GuidePicture: Equatable {
         if aids?.workAreaWords == true, let side = reading.commandOutside { lines.append(.commandOutside(side)) }
         if outside { lines.append(.outside) }
         self.lines = lines
+    }
+
+    /// The window "On target" is judged in, across the table and in height, metres: the profile's wider window when the
+    /// guide's aids ask for it and the profile gives one, else the grasp tolerance, as in version 1.0.1. The on-target
+    /// cue is made with the same window, so what is felt is what is drawn.
+    static func onTargetWindow(_ profile: RobotProfile, aids: GuideAids?) -> SIMD2<Double> {
+        guard aids?.widerOnTarget == true, let window = profile.onTargetWindow else {
+            return SIMD2<Double>(profile.graspTolerance)
+        }
+        return SIMD2<Double>(window)
     }
 
     /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by §3.3's
