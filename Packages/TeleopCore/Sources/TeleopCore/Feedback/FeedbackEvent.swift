@@ -38,6 +38,8 @@ public enum Limit: String, CaseIterable, Sendable {
     case empty
     /// Close pressed again while the jaws hold something.
     case alreadyGripping
+    /// The arm stopped against a downward command. Played in place of `.blocked` with the guide's aids on.
+    case lowest
 }
 
 /// Why the app or the server ended a hold the operator still holds (E3).
@@ -174,6 +176,9 @@ public enum FeedbackEvent: Equatable, Sendable {
     case notReset
     /// A move nobody holds latched, arrived or ended.
     case drive(DriveCue)
+    /// The position the phone commands left the work area on this side, in the operator's words. A case of its own,
+    /// not a `Limit`, because a `Limit` carries no side.
+    case commandOutside(OperatorDirection)
 
     /// The table row this event plays.
     public var key: CueKey {
@@ -200,6 +205,7 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .notRecording: return .notRecording
         case .notReset: return .notReset
         case .drive(let cue): return .drive(cue)
+        case .commandOutside(let side): return .commandOutside(side)
         }
     }
 
@@ -237,6 +243,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case notRecording
     case notReset
     case drive(DriveCue)
+    case commandOutside(OperatorDirection)
 
     /// Every key. Built from `Kind`, whose cases the compiler lists, so a key cannot be left out by hand: a new case
     /// here does not compile until `kind` names its kind, and a new kind does not compile until `keys(of:)` lists
@@ -247,7 +254,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     enum Kind: CaseIterable {
         case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
-        case ready, recordingSession, notRecording, notReset, drive
+        case ready, recordingSession, notRecording, notReset, drive, commandOutside
     }
 
     var kind: Kind {
@@ -274,6 +281,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .notRecording: return .notRecording
         case .notReset: return .notReset
         case .drive: return .drive
+        case .commandOutside: return .commandOutside
         }
     }
 
@@ -304,6 +312,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .notRecording: return [.notRecording]
         case .notReset: return [.notReset]
         case .drive: return DriveCue.allCases.map(CueKey.drive)
+        case .commandOutside: return OperatorDirection.allCases.map(CueKey.commandOutside)
         }
     }
 }

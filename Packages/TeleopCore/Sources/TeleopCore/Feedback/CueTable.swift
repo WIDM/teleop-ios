@@ -72,6 +72,13 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case driveShort = "say.drive.short"
     case noArmData = "say.reason.no_arm_data"
     case outside = "say.reason.outside"
+    case lowest = "say.lowest"
+    case rangeForward = "say.range.forward"
+    case rangeBack = "say.range.back"
+    case rangeLeft = "say.range.left"
+    case rangeRight = "say.range.right"
+    case rangeUp = "say.range.up"
+    case rangeDown = "say.range.down"
 
     /// The phrase has one `%d`, filled from the event's number.
     public var takesNumber: Bool {
@@ -139,6 +146,17 @@ public enum CueTable {
         CueRow(.limit(.blocked), .end, say: [.blocked], .p4),
         CueRow(.limit(.empty), .end, say: [.empty], .p4),
         CueRow(.limit(.alreadyGripping), .end, say: [.alreadyGripping], .p4),
+        // A stall against a downward command, in place of "Blocked." and spoken as it is.
+        CueRow(.limit(.lowest), .end, say: [.lowest], .p4),
+
+        // The commanded position crossed out of the work area: END, and the side when the voice is free. The line
+        // under the guide is the channel that stays.
+        CueRow(.commandOutside(.forward), .end, say: [.rangeForward], .p4),
+        CueRow(.commandOutside(.back), .end, say: [.rangeBack], .p4),
+        CueRow(.commandOutside(.left), .end, say: [.rangeLeft], .p4),
+        CueRow(.commandOutside(.right), .end, say: [.rangeRight], .p4),
+        CueRow(.commandOutside(.up), .end, say: [.rangeUp], .p4),
+        CueRow(.commandOutside(.down), .end, say: [.rangeDown], .p4),
 
         CueRow(.contact, .grip),
 

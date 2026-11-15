@@ -386,6 +386,22 @@
         }
       }
     },
+    "say.lowest" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't go lower."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下不去了。"
+          }
+        }
+      }
+    },
     "say.not_recording" : {
       "localizations" : {
         "en" : {
@@ -446,6 +462,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "斷線期間：存了 %d 筆。"
+          }
+        }
+      }
+    },
+    "say.range.back" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too far back."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太後面了。"
+          }
+        }
+      }
+    },
+    "say.range.down" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too low."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太低了。"
+          }
+        }
+      }
+    },
+    "say.range.forward" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too far forward."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太前面了。"
+          }
+        }
+      }
+    },
+    "say.range.left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too far left."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太左邊了。"
+          }
+        }
+      }
+    },
+    "say.range.right" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too far right."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太右邊了。"
+          }
+        }
+      }
+    },
+    "say.range.up" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too high."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太高了。"
           }
         }
       }

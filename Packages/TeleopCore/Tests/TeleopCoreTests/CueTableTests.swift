@@ -19,7 +19,7 @@ final class CueTableTests: XCTestCase {
             XCTAssertFalse(keys.isEmpty, "\(kind)")
             for key in keys { XCTAssertEqual(key.kind, kind, "\(key)") }
         }
-        XCTAssertEqual(CueKey.allCases.count, 13 + 6 + 5 + 10 + 2 + 15 + 1 + 18)
+        XCTAssertEqual(CueKey.allCases.count, 13 + 7 + 5 + 10 + 2 + 15 + 1 + 18 + 6)
     }
 
     func testEveryEventIsFeltOrHeard() {
