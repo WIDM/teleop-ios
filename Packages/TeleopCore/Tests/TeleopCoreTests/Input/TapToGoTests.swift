@@ -77,7 +77,7 @@ final class TapToGoTests: XCTestCase {
                 "\(across), \(down)")
             XCTAssertNil(rig.arbiter.engagement)
         }
-        // The box as drawn, moved by the measured offset: a place inside the profile's box but outside the drawn one.
+        // The box as drawn, moved by the reading's box shift: a place in the profile's box but outside the drawn one.
         var shifted = aided()
         shifted.facts.goPanel = Rig.panel(shift: SIMD3(0, 0, 0.1))
         XCTAssertLessThan(Rig.travelZ, Rig.boxLow.z + 0.1)
@@ -143,6 +143,22 @@ final class TapToGoTests: XCTestCase {
         rig.move(1, to: point + SIMD2(0, 2.9 * mm), after: 0.03)
         rig.move(1, to: point, after: 0.03)
         XCTAssertEqual(rig.lift(1, after: 0.03), [.startTranslation])
+    }
+
+    /// A tap goes to the place under the finger where it came down, not where its last sample was: a thumb that drifted
+    /// 2 mm before it lifted, still a tap, sends the arm to its touch-down point.
+    func testATapGoesToItsTouchDownPointNotItsLastSample() {
+        let drifted = point + SIMD2(0, 2 * Rig.pointsPerMm)
+        for scheme in [InputScheme.screenTurns, .keyTurns] {
+            var rig = aided(scheme)
+            rig.touchDown(1, at: point, after: 0.1)
+            rig.move(1, to: drifted, after: 0.03)
+            XCTAssertEqual(rig.lift(1, after: 0.03), [.startTranslation], "\(scheme): still a tap")
+            XCTAssertEqual(rig.arbiter.engagement, .going(target: Rig.target(of: point), since: rig.time), "\(scheme)")
+            XCTAssertGreaterThan(
+                simd_distance(Rig.target(of: drifted), Rig.target(of: point)), 0.002,
+                "the drifted point asks for another place")
+        }
     }
 
     /// The lift sample counts too: a lift that lands 4 mm away is no tap, although no move came before it.
