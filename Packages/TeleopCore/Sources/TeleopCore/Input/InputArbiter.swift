@@ -476,12 +476,11 @@ public struct InputArbiter: Sendable {
     private func screenTurnsOutcome(_ touch: SurfaceTouch) -> ScreenTurnsOutcome? {
         let angles = attitude.map { touch.mapper.angles($0) } ?? .zero
         if let axis = touch.mapper.dominantAxis(angles) { return .wrist(axis) }
-        let d = touch.at - touch.down
-        let dx = layout.millimetres(d.x), dy = layout.millimetres(d.y)
-        guard reachedSlide(dx, dy) else { return nil }
-        // Screen y grows downward, so up the glass is negative.
-        guard dy < 0, abs(dy) > abs(dx) else { return .sideways }
-        return touch.mapper.reachedLockAngle(angles) ? .unclear : .open
+        switch ThumbSlide.judge(from: touch.down, to: touch.at, layout: layout, constants: constants) {
+        case .short: return nil
+        case .sideways: return .sideways
+        case .up: return touch.mapper.reachedLockAngle(angles) ? .unclear : .open
+        }
     }
 
     private mutating func judgeScreenTurns(_ id: Int) {
@@ -510,11 +509,6 @@ public struct InputArbiter: Sendable {
         case .dead(owesNO: false), .engaged:
             break
         }
-    }
-
-    /// Travel from touch-down, measured as in A-4: the larger of the two components, in millimetres.
-    private func reachedSlide(_ dx: Double, _ dy: Double) -> Bool {
-        max(abs(dx), abs(dy)) >= constants.openSlideMm - 1e-9
     }
 
     /// B-3m: moving 10 mm within the dwell makes the touch a swipe. Unlike A-4, the rule names no measure, so it is
