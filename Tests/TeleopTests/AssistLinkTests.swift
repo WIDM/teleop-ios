@@ -34,9 +34,11 @@ private final class LooseLinkTransport: LinkTransport {
 /// streaming the phone after the key is released. Every way the link ends it is heard once, as the follow's own
 /// ending ("Stopped here." and why), and the input rules then add nothing; a refusal the alarm tells is told by the
 /// alarm alone. A slow link is named by the input rules, never by a refusal. A hold someone holds is told as in
-/// version 1.0.1.
+/// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold.
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
+    /// The listening connection's socket, once the link opened it.
+    private var observer: LooseLinkTransport?
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
@@ -64,6 +66,7 @@ final class AssistLinkTests: XCTestCase {
         L10n.language = savedLanguage
         model = nil
         transport = nil
+        observer = nil
         super.tearDown()
     }
 
@@ -74,6 +77,7 @@ final class AssistLinkTests: XCTestCase {
         clock = 10_000
         felt = SpyHaptics()
         speech = SpySpeech()
+        observer = nil
         model = AppModel(
             start: .p4, haptics: felt, sounds: SpySounds(), speech: speech,
             pose: { [unowned self] in position.map { TestPose.portrait(at: $0) } },
@@ -83,7 +87,11 @@ final class AssistLinkTests: XCTestCase {
                 transport = made
                 return made
             },
-            makeObserverTransport: { _ in LooseLinkTransport() },
+            makeObserverTransport: { [unowned self] _ in
+                let made = LooseLinkTransport()
+                observer = made
+                return made
+            },
             nowMs: { [unowned self] in clock },
             inputClock: { [unowned self] in Double(clock) / 1000 },
             clientName: "teleop-ios/1.0.0 (7)",
@@ -347,6 +355,108 @@ final class AssistLinkTests: XCTestCase {
                 XCTAssertFalse(model.link.holdIsLoose, "\(what), lock \(lock)")
             }
         }
+    }
+
+    /// The link pauses the hold while a start waits behind a finishing hold, while the command is held at the lead cap
+    /// and while it re-sends the start: the arm may stand still then for a reason that says nothing about where it can
+    /// go.
+    func testHoldPausedDuringAResyncAndAHeldBackStart() {
+        bringUp(lock: .off)
+        XCTAssertFalse(model.link.holdPaused, "no hold")
+        // The jaws close and are let go of: the arm's start waits on the wire for the server to finish them.
+        model.send(.gripperStart(.closed))
+        clock += 20
+        model.send(.gripperEnd)
+        let jaws = lastSeq(of: "gripper_jog_start")
+        model.send(.holdArmStart)
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertFalse(transport.types.contains("pose_start"), "the start waits")
+        XCTAssertTrue(model.link.holdPaused, "a start held back")
+        transport.server("ack", seq: jaws, ["seq": jaws, "status": "ok", "reason": "gripper_jog_stopped"])
+        XCTAssertEqual(transport.types.last, "pose_start")
+        XCTAssertFalse(model.link.holdPaused, "the start went out")
+
+        // The hand runs 20 cm ahead: the command is held at the cap, and after 1.5 s the start is re-sent.
+        sweepRight()
+        XCTAssertTrue(model.link.holdPaused, "the command held at the lead cap")
+        run(ticks: 50)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the re-sent start began")
+        XCTAssertTrue(model.link.holdPaused, "re-sending the start")
+        let start = lastSeq(of: "pose_start")
+        transport.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "pose_stopped"])
+        XCTAssertTrue(model.link.holdPaused, "the old hold finished, the arm's position not yet known")
+        transport.server("state", ["estop": false, "ee_pos": [-0.03, 0.0, 0.1]])
+        XCTAssertEqual(transport.types.last, "pose_start", "started again from where the arm got")
+        XCTAssertFalse(model.link.holdPaused, "the start went out again")
+        tick()
+        XCTAssertTrue(model.link.holdPaused, "the hand still more than the cap ahead")
+        model.send(.holdArmEnd)
+        XCTAssertFalse(model.link.holdPaused, "no hold")
+    }
+
+    /// A hand more than the lead cap ahead of the arm has its command held at the cap, so the arm is held short: the
+    /// hold counts as paused until the command is within the cap again.
+    func testHoldPausedWhileTheCommandIsHeldAtTheLeadCap() {
+        bringUp(lock: .off)
+        transport.server("state", ["estop": false, "gripper": "closed", "ee_pos": [0.0, 0.0, 0.1]])
+        model.send(.holdArmStart)
+        for x: Float in [0.02, 0.04, 0.06] {
+            position = SIMD3(x, 0, 0)
+            tick()
+        }
+        XCTAssertEqual(transport.types.last, "pose_update")
+        XCTAssertFalse(model.link.holdPaused, "6 cm ahead: within the cap")
+        for x: Float in [0.08, 0.1] {
+            position = SIMD3(x, 0, 0)
+            tick()
+        }
+        XCTAssertTrue(model.link.holdPaused, "10 cm ahead: held at the cap")
+        for x: Float in [0.085, 0.07] {
+            position = SIMD3(x, 0, 0)
+            tick()
+        }
+        XCTAssertFalse(model.link.holdPaused, "7 cm ahead: within the cap again")
+        XCTAssertTrue(model.session.state.armMoving)
+    }
+
+    /// The newest position either connection reported, and how old it is: since it arrived, plus half the median
+    /// round trip, because the server measured it before sending it. A state with no position leaves it as it was,
+    /// and closing the link forgets it.
+    func testTheNewestArmIsTheNewestStateWithAPosition() {
+        bringUp(lock: .off)
+        XCTAssertNil(model.link.newestArmState, "no position reported yet")
+        XCTAssertNil(model.link.newestArmAgeMs)
+        transport.server("state", ["estop": false, "gripper": "closed", "ee_pos": [0.02, -0.14, 0.16]])
+        let arrived = clock
+        clock += 50
+        XCTAssertEqual(model.link.newestArmState?.endEffector, SIMD3(0.02, -0.14, 0.16))
+        XCTAssertEqual(model.link.newestArmAgeMs, 50, "no round trip measured yet")
+        transport.server("state", ["estop": false, "gripper": "closed"])
+        XCTAssertEqual(model.link.newestArmState?.endEffector, SIMD3(0.02, -0.14, 0.16), "a state with no position")
+        XCTAssertEqual(model.link.newestArmAgeMs, 50, "counted from the state that carried it")
+        // Round trips of 100, 60 and 80 ms: the median is 80, half of it 40.
+        for ms in [100, 60, 80] { answerTheNextProbe(after: ms) }
+        XCTAssertEqual(model.link.newestArmAgeMs, clock - arrived + 40)
+
+        observer?.server("welcome", ["session": "run-1"])
+        observer?.server("state", ["estop": false, "gripper": "closed", "ee_pos": [0.03, -0.15, 0.12]])
+        XCTAssertEqual(model.link.newestArmState?.endEffector, SIMD3(0.03, -0.15, 0.12), "the listening connection's")
+        XCTAssertEqual(model.link.newestArmAgeMs, 40)
+
+        model.link.closeQuietly()
+        XCTAssertNil(model.link.newestArmState, "a closed link measures nothing")
+        XCTAssertNil(model.link.newestArmAgeMs)
+    }
+
+    /// Ticks until the link sends its next probe, then the server answers it `ms` later.
+    private func answerTheNextProbe(after ms: Int, line: UInt = #line) {
+        let before = transport.sent.count
+        for _ in 0..<60 where !transport.types.dropFirst(before).contains("test") { tick() }
+        guard let probe = transport.sent.dropFirst(before).last(where: { $0["type"] as? String == "test" }) else {
+            return XCTFail("no probe", line: line)
+        }
+        clock += ms
+        transport.server("test", seq: probe["seq"] as! Int)
     }
 
     /// The arm reported at the origin, then the hand 20 cm to the right in a third of a second: more than one server

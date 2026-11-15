@@ -90,7 +90,27 @@ private struct OperatingSurface: View {
                 )
             }
         }
+        // Tells the model where the guide's view from above is drawn, in this view's coordinates, which are the
+        // screen's and those of the touches. It draws nothing, takes no touch and changes no layout.
+        .overlayPreferenceValue(GuidePanelBounds.self) { panel in
+            GeometryReader { proxy in
+                let frame = panel.map { proxy[$0] }
+                Color.clear
+                    .onAppear { model.guidePanelChanged(Self.rect(frame)) }
+                    .onChange(of: frame) { _, new in model.guidePanelChanged(Self.rect(new)) }
+                    .onDisappear { model.guidePanelChanged(nil) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .frame(width: layout.width, height: layout.height, alignment: .topLeading)
+    }
+
+    static func rect(_ frame: CGRect?) -> SurfaceLayout.Rect? {
+        frame.map {
+            SurfaceLayout.Rect(
+                x: Double($0.minX), y: Double($0.minY), width: Double($0.width), height: Double($0.height))
+        }
     }
 }
 

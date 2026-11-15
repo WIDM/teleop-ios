@@ -19,6 +19,7 @@ struct GuideView: View {
                 caption("guide.from_above")
                 GuideAbove(picture: picture)
                     .frame(width: width, height: width / picture.aboveAspect)
+                    .anchorPreference(key: GuidePanelBounds.self, value: .bounds) { $0 }
                 caption("guide.from_behind")
                 GuideBehind(picture: picture)
                     .frame(width: width, height: width / picture.behindAspect)
@@ -88,6 +89,16 @@ struct GuideView: View {
         case .commandOutside: return "readout.command_outside"
         case .outside: return "readout.outside"
         }
+    }
+}
+
+/// Where the view from above is laid out, as an anchor the operating screen resolves in its own coordinates, which
+/// touches arrive in. SwiftUI's own layout is the one source of that rectangle; nothing computes it again.
+struct GuidePanelBounds: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 

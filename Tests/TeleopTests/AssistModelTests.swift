@@ -2,11 +2,31 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
+/// A socket that lets the test speak for the server and keeps nothing the app sends.
+private final class FactsTestTransport: LinkTransport {
+    var onText: ((String) -> Void)?
+    var onClose: (() -> Void)?
+
+    func open() {}
+    func close() {}
+    func send(_ text: String) {}
+
+    func server(_ type: String, _ payload: [String: Any] = [:]) {
+        let message: [String: Any] = ["v": 1, "type": type, "ts": 0, "seq": 0, "payload": payload]
+        onText?(String(data: try! JSONSerialization.data(withJSONObject: message), encoding: .utf8)!)
+    }
+}
+
 /// The aids' settings: the master switch and the lock choice. How they are read at launch, kept across launches,
-/// refused while something is engaged, recorded in the developer log and handed to the input rules, and that turning
-/// them changes nothing the input rules are told about the moment.
+/// refused while something is engaged, recorded in the developer log and handed to the input rules; and what the input
+/// rules are told about the moment with tap-to-go allowed, and with the switch off.
 final class AssistModelTests: XCTestCase {
     private var savedMode: String?
+    private var clock = 10_000
+    private var transport: FactsTestTransport!
+
+    /// About where the reference phone draws the guide's view from above.
+    private static let panel = SurfaceLayout.Rect(x: 118, y: 262, width: 166, height: 166)
 
     override func setUp() {
         super.setUp()
@@ -20,7 +40,31 @@ final class AssistModelTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
+        transport = nil
         super.tearDown()
+    }
+
+    /// Standby on the real server with the link up and the arm reported, the aids given to the model without saving
+    /// them.
+    private func liveModel(profile: RobotProfile = .so101Simulator, assistOn: Bool) -> AppModel {
+        clock = 10_000
+        let model = AppModel(
+            start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(), pose: { TestPose.portrait },
+            liveLink: true,
+            makeTransport: { [unowned self] _ in
+                let made = FactsTestTransport()
+                transport = made
+                return made
+            },
+            makeObserverTransport: { _ in FactsTestTransport() },
+            nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
+            clientName: "teleop-ios/1.0.0 (7)", profile: profile, assistOn: assistOn, lockChoice: .off)
+        model.session.state.serverAddress = "100.64.0.1:8765"
+        model.connect()
+        transport.server("welcome")
+        transport.server("state", ["estop": false, "gripper": "open", "ee_pos": [0.02, -0.14, 0.16]])
+        XCTAssertTrue(model.session.state.connected)
+        return model
     }
 
     /// A launch argument arrives as the string "NO" or "YES", which a cast to Bool misses; the switch reads it. The
@@ -141,7 +185,8 @@ final class AssistModelTests: XCTestCase {
         XCTAssertEqual(model.debugLog.count, count, "no change, no line")
     }
 
-    /// The switch changes nothing the input rules are told about the moment.
+    /// The switch changes nothing the input rules are told about the moment, beyond the arm tap-to-go needs: with it
+    /// off they are told no arm and no panel, as in version 1.0.1.
     func testOffLeavesTheFactsAsOneZeroOne() {
         let model = AppModel(start: .p4, pose: { TestPose.portrait }, liveLink: false, assistOn: true)
         model.connect()
@@ -150,5 +195,58 @@ final class AssistModelTests: XCTestCase {
         XCTAssertEqual(model.inputFacts(), on)
         model.lockChoice = .pressPress
         XCTAssertEqual(model.inputFacts(), on)
+
+        // The arm measured and the panel reported: off, the rules are told neither, and nothing else changes.
+        let live = liveModel(assistOn: true)
+        live.guidePanelChanged(Self.panel)
+        var onFacts = live.inputFacts()
+        XCTAssertNotNil(onFacts.arm, "on, the measured arm is told")
+        live.assistOn = false
+        let offFacts = live.inputFacts()
+        XCTAssertNil(offFacts.arm, "off, no arm")
+        XCTAssertNil(offFacts.goPanel, "off, no panel")
+        onFacts.arm = nil
+        XCTAssertEqual(offFacts, onFacts)
+    }
+
+    /// With tap-to-go allowed the input rules are told where the arm was last measured: the pinch point of the newest
+    /// position reported, how old it is, and whether the link is pausing the hold. The panel the screen reports is
+    /// kept, and not told yet. A robot that allows no tap-to-go is told no arm.
+    func testTheFactsCarryTheMeasuredArmWhenTapToGoIsAllowed() throws {
+        let model = liveModel(assistOn: true)
+        XCTAssertNotNil(model.assist.goTo)
+        clock += 40
+        var arm = try XCTUnwrap(model.inputFacts().arm)
+        let estimated = model.profile.pinchPoint(
+            gripper: SIMD3<Float>(SIMD3<Double>(0.02, -0.14, 0.16)), tool: nil, flexDeg: nil, rollDeg: nil)
+        XCTAssertEqual(arm.pinch, SIMD3<Double>(estimated.point), "the gripper point plus the tool offset")
+        XCTAssertEqual(arm.ageS, 0.04, accuracy: 1e-9)
+        XCTAssertFalse(arm.holdPaused)
+        transport.server(
+            "state",
+            ["estop": false, "gripper": "open", "ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08]])
+        arm = try XCTUnwrap(model.inputFacts().arm)
+        XCTAssertEqual(arm.pinch, SIMD3<Double>(SIMD3<Float>(SIMD3<Double>(0.03, -0.17, 0.08))), "the tool point")
+        XCTAssertEqual(arm.ageS, 0, accuracy: 1e-9, "measured just now")
+
+        // The jaws close and are let go of, so the arm's start waits behind them: the link pauses the hold.
+        model.send(.gripperStart(.closed))
+        clock += 20
+        model.send(.gripperEnd)
+        model.send(.holdArmStart)
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertTrue(model.link.holdPaused)
+        XCTAssertEqual(model.inputFacts().arm?.holdPaused, true)
+        model.send(.holdArmEnd)
+
+        model.guidePanelChanged(Self.panel)
+        XCTAssertEqual(model.guidePanelRect, Self.panel, "the panel the screen reports is kept")
+        XCTAssertNil(model.inputFacts().goPanel, "and not told to the input rules")
+        model.guidePanelChanged(nil)
+        XCTAssertNil(model.guidePanelRect)
+
+        var noTaps = RobotProfile.so101Simulator
+        noTaps.assist.goTo = nil
+        XCTAssertNil(liveModel(profile: noTaps, assistOn: true).inputFacts().arm, "a robot without tap-to-go")
     }
 }

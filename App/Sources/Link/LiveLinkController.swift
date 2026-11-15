@@ -129,6 +129,16 @@ final class LiveLinkController {
     var holdIsLoose = false
     /// How the operator was told of the last ending this link caused of a hold nobody held, until AppModel reads it.
     private var looseEnding: Interruption?
+    /// The newest `state` from either connection that carried an arm position. A state without one never makes the
+    /// measured arm newer.
+    private(set) var newestArmState: ServerState?
+    /// When `newestArmState` arrived.
+    private var newestArmAtMs: Int?
+    /// The newest round trips, as many as the feedback monitor's acceptance time is the median of: half the median is
+    /// how long a state took to get here after the server measured it.
+    private var roundTrips: [Int] = []
+    /// The last command sent was held at the lead cap: the arm is held short of what the hand asks for.
+    private var leadCapped = false
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -175,6 +185,17 @@ final class LiveLinkController {
     /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
     /// control connection was welcomed, for the guide's lowest line; nil before one and with that rule off.
     var lowestSeen: Double? { monitor.lowestSeen }
+    /// How old the arm position in `newestArmState` is, milliseconds: the time since it arrived, plus half the median
+    /// round trip, because the server measured it before sending it. Nil before the first.
+    var newestArmAgeMs: Int? {
+        guard let arrived = newestArmAtMs else { return nil }
+        let median = roundTrips.isEmpty ? 0 : roundTrips.sorted()[roundTrips.count / 2]
+        return nowMs() - arrived + median / 2
+    }
+    /// The link is pausing the translation hold: a start waits behind a finishing hold, the start is being re-sent, or
+    /// the command is held at the lead cap. The arm may stand still then for a reason that says nothing about where it
+    /// can go.
+    var holdPaused: Bool { resync != nil || link?.startHeldBack == true || leadCapped }
 
     /// The guide's aids this link runs; nil is version 1.0.1. `gripperBox`: the work box in gripper-link space, robot
     /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
@@ -278,6 +299,9 @@ final class LiveLinkController {
         lastTickAtMs = nil
         holdIsLoose = false
         looseEnding = nil
+        newestArmState = nil
+        newestArmAtMs = nil
+        leadCapped = false
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -344,6 +368,7 @@ final class LiveLinkController {
         commandedArm = nil
         resync = nil
         holdIsLoose = false
+        leadCapped = false
         onCatchingUp?(false)
     }
 
@@ -358,6 +383,8 @@ final class LiveLinkController {
     private func beginResync() {
         link?.poseStop()
         resync = (nowMs(), false)
+        // No command goes out until the start is re-sent, so none is held at the cap; the re-sent start is the pause.
+        leadCapped = false
     }
 
     /// The old server hold has finished and the server has said where the arm is: start the next one from there.
@@ -523,6 +550,7 @@ final class LiveLinkController {
         let remaining = wanted - armProgress
         let distance = simd_length(remaining)
         let catchingUp = distance > Self.maxLeadMeters
+        leadCapped = catchingUp
         let delta = catchingUp ? remaining / distance * Self.maxLeadMeters : remaining
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         syncStart()
@@ -624,6 +652,10 @@ final class LiveLinkController {
             }
         case .latency(let ms):
             monitor.roundTrip(ms: ms)
+            roundTrips.append(ms)
+            if roundTrips.count > FeedbackMonitor.roundTripWindow {
+                roundTrips.removeFirst(roundTrips.count - FeedbackMonitor.roundTripWindow)
+            }
             onAction?(.linkLatency(ms: ms))
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
@@ -682,6 +714,10 @@ final class LiveLinkController {
         if let serverMs { newestStateServerMs = serverMs }
         newestState = state
         newestStateAtMs = nowMs()
+        if state.endEffector != nil {
+            newestArmState = state
+            newestArmAtMs = nowMs()
+        }
         var events = monitor.observe(state, at: nowMs())
         // The server clamps at the face, the work-area rule only past its slack, so pushed slowly the clamp comes
         // first. With the commanded point past a face the rule watches, the clamp is that crossing: the rule tells it

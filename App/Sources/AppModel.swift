@@ -88,6 +88,9 @@ final class AppModel {
     @ObservationIgnored private var lastSaved: (count: Int, atMs: Int)?
     /// The arm hold being started comes from a button, not the phone.
     @ObservationIgnored private var pendingButtonHold = false
+    /// Where the guide's view from above is drawn, in the operating screen's coordinates, which touches arrive in, as
+    /// the screen reported it; nil while it is not drawn. Not observed: the screen reports it while laying out.
+    @ObservationIgnored private(set) var guidePanelRect: SurfaceLayout.Rect?
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
 
     static let controlModeKey = "controlMode"
@@ -356,6 +359,12 @@ final class AppModel {
         refreshOperating()
     }
 
+    /// The operating screen: where the guide's view from above is drawn, or nil when it is not.
+    func guidePanelChanged(_ rect: SurfaceLayout.Rect?) {
+        guard rect != guidePanelRect else { return }
+        guidePanelRect = rect
+    }
+
     /// One raw touch on the operating screen, with `UITouch.timestamp`.
     func touch(_ sample: TouchSample, at time: TimeInterval) {
         controller.touch(sample, at: time)
@@ -457,7 +466,7 @@ final class AppModel {
         } else if notReady {
             resetRefusal = .wait
         }
-        return InputFacts(
+        var facts = InputFacts(
             refusal: refusal,
             trackingRefusal: controller.isCameraStopped || camera == nil ? .notTracking : nil,
             translationRefusal: PhonePosture.of(camera) == .tilted ? .posture : nil,
@@ -468,6 +477,21 @@ final class AppModel {
             ),
             connectionUp: !s.liveLink || link.isUp || link.observerUp
         )
+        // Tap-to-go starts from where the arm was measured; without it the facts are version 1.0.1's.
+        if assist.goTo != nil { facts.arm = armFix }
+        return facts
+    }
+
+    /// Where the arm was last measured, for tap-to-go: the pinch point of the newest position either connection
+    /// reported, how old it is, and whether the link is pausing the hold. Nil before the server has reported one.
+    private var armFix: ArmFix? {
+        guard let state = link.newestArmState, let gripper = state.endEffector, let ageMs = link.newestArmAgeMs else {
+            return nil
+        }
+        let pinch = profile.pinchPoint(
+            gripper: SIMD3<Float>(gripper), tool: state.toolPoint.map { SIMD3<Float>($0) },
+            flexDeg: state.wristFlexDeg, rollDeg: state.wristRollDeg)
+        return ArmFix(pinch: SIMD3<Double>(pinch.point), ageS: Double(ageMs) / 1000, holdPaused: link.holdPaused)
     }
 
     /// The controller handled an input; what the screen draws may have changed.
