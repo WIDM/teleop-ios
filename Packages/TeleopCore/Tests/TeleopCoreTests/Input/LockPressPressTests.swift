@@ -217,7 +217,7 @@ final class LockPressPressTests: XCTestCase {
         XCTAssertEqual(off.arbiter.startsThisCall, [], "only translation starts are recorded")
     }
 
-    /// S10: the latching key's release does nothing, and the follow's limit is the next thing to tick for.
+    /// The latching key's release does nothing, and the follow's limit is the next thing to tick for.
     func testTheLatchingKeysReleaseDoesNothing() {
         var rig = Rig(.keyTurns, assist: Rig.lockPressPress(limit: 5))
         rig.press(.upper, after: 0.1)

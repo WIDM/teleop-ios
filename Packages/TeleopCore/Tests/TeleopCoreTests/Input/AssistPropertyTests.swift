@@ -5,8 +5,8 @@ import XCTest
 /// Generated interleavings with the aids. `InputArbiterPropertyTests` keeps asserting the 1.0.1 promises on `.off`
 /// from its own unchanged file; this one generates the aided configurations (one case in five is `.off`, so every new
 /// statement also holds on 1.0.1), restates the 1.0.1 promises where they still hold, checks the new ones after every
-/// step, and compares every case with an `.off` twin up to the first new gesture. A failure names the statement by
-/// its id.
+/// step, and compares every case with an `.off` twin up to the first new gesture. A failure says which rule broke, in
+/// plain words, then what happened and where.
 final class AssistPropertyTests: XCTestCase {
     static let cases = 12_000
 
@@ -68,21 +68,23 @@ final class AssistPropertyTests: XCTestCase {
 
     // MARK: One case
 
-    /// The first broken promise of one case, or nil. The statements are tests.md (a) and (b), under their ids.
+    /// The first broken promise of one case, or nil.
     private func run(_ scenario: AssistScenario, totals: inout Totals) -> String? {
         let base = scenario.base
         var arbiter = InputArbiter(
             scheme: base.scheme, hand: base.hand, layout: ArbiterRig.layout, assist: scenario.assist)
         let variant = scenario.assist.lock?.variant
-        // P-ON: the same events on 1.0.1, until the first new gesture. After a NO withheld by a slide (variant 2) it
-        // goes on until the latch, the two then differing only in when NOs play: `withheld` counts the NOs owed.
+        // An aid changes nothing until it acts: the same events on 1.0.1, until the first new gesture. After a NO
+        // withheld by a slide (variant 2) it goes on until the latch, the two then differing only in when NOs play:
+        // `withheld` counts the NOs owed.
         var twin: InputArbiter? = InputArbiter(scheme: base.scheme, hand: base.hand, layout: ArbiterRig.layout)
         var withheld: Int?
-        // P6, P16: every control-surface touch down, as the generator moved it.
+        // Every control-surface touch down, as the generator moved it, for the latch by a slide and withheld NOs.
         var thumbs: [Int: Thumb] = [:]
         // When the upper key's translation hold began, while it runs.
         var heldUpSince: TimeInterval?
-        // O9: the same events with every sample of a touch that began in the bottom safe area turned into a tick.
+        // A touch from the bottom safe area does nothing: the same events with every sample of a touch that began
+        // there turned into a tick.
         var strip: InputArbiter? = scenario.safeAreaTouches.isEmpty ? nil : arbiter
         if scenario.assist == .off { totals.offCases += 1 }
 
@@ -90,7 +92,7 @@ final class AssistPropertyTests: XCTestCase {
         var countdown = false
         var down = Set<HeldInput>()
         var everDead = Set<HeldInput>()
-        // P9 and P17: inputs that ended a move nobody holds, or were down when one began, until released.
+        // Inputs that ended a move nobody holds, or were down when one began, until released: dead and silent.
         var silenced = Set<HeldInput>()
         var lastHeld: [HeldInput: InputPhase] = [:]
         var sawWaitWhileLoose = false
@@ -101,7 +103,8 @@ final class AssistPropertyTests: XCTestCase {
             let engagementBefore = arbiter.engagement
             let limitBefore = arbiter.assist.lock?.timeLimitS ?? 0
             let downBefore = down
-            // The arbiter as it was, kept only for the steps P9, P14 and P17 replay another way.
+            // The arbiter as it was, kept only for the steps replayed another way: without the events of dead and
+            // silent inputs, or with every hold ending for no named reason.
             let silencedEvents =
                 silenced.isEmpty ? [] : step.events.indices.filter { Self.isEvent(step.events[$0], of: silenced) }
             var replaysUnnamed = false
@@ -148,7 +151,7 @@ final class AssistPropertyTests: XCTestCase {
                 heldUpSince = nil
             }
 
-            // O9
+            // A touch from the bottom safe area does nothing.
             // The twins are run in place: the arbiter is a large value, and copying it every step costs more than the
             // checks.
             if strip != nil {
@@ -158,12 +161,15 @@ final class AssistPropertyTests: XCTestCase {
                 }
                 let otherCommands = strip!.handle(events, at: step.time, facts: facts)
                 if otherCommands != commands {
-                    return "O9: \(commands), without the strip's touches \(otherCommands) \(at())"
+                    return "a touch from the bottom safe area does nothing: \(commands), without it "
+                        + "\(otherCommands) \(at())"
                 }
-                if strip!.held != held { return "O9: a touch from the bottom safe area is held \(at())" }
+                if strip!.held != held {
+                    return "a touch from the bottom safe area does nothing: it is held \(at())"
+                }
             }
 
-            // P-ON, and P16 while the twin lasts
+            // An aid changes nothing until it acts; while the twin lasts, also when a withheld NO plays
             if twin != nil {
                 var events = step.events
                 for (i, event) in events.enumerated() {
@@ -177,26 +183,31 @@ final class AssistPropertyTests: XCTestCase {
                 if withheld == nil, offCommands == commands, offHeld == held {
                     // Still 1.0.1.
                 } else if scenario.assist == .off {
-                    return "P-ON: .off gave \(commands), 1.0.1 \(offCommands) \(at())"
+                    return "an aid changes nothing until it acts: .off gave \(commands), 1.0.1 \(offCommands) \(at())"
                 } else if variant == .holdThenSlide, sameButNOs {
-                    // (3), then P16: the two differ only in when a NO plays. Each withheld NO plays exactly once
+                    // A withheld NO: the two differ only in when a NO plays. Each withheld NO plays exactly once
                     // later, and never while its thumb still slides mostly up.
-                    if withheld == nil, offNOs - onNOs > 1 { return "P-ON: \(offNOs - onNOs) NOs withheld \(at())" }
+                    if withheld == nil, offNOs - onNOs > 1 {
+                        return "an aid changes nothing until it acts: \(offNOs - onNOs) NOs withheld \(at())"
+                    }
                     let owed = (withheld ?? 0) + offNOs - onNOs
-                    if owed < 0 { return "P16: a NO played that was never withheld: \(commands) \(at())" }
+                    if owed < 0 {
+                        return "a withheld NO plays once, later: a NO played that was never withheld: \(commands) "
+                            + "\(at())"
+                    }
                     if onNOs > offNOs, !Self.mayPlayAWithheldNO(step.events, facts: facts, thumbs: thumbs) {
-                        return "P16: a withheld NO played while its thumb still slides up \(at())"
+                        return "a withheld NO plays once, later: it played while its thumb still slides up \(at())"
                     }
                     if offNOs > onNOs { totals.withheldNOs += offNOs - onNOs }
                     withheld = owed
                 } else {
-                    // The first new gesture, from the closed list.
+                    // The first new gesture, which must be one of the few an aid may make.
                     var fits = false
                     switch variant {
                     case .pressPress?:
                         fits = withheld == nil && Self.isPressGesture(on: commands, off: offCommands)
                     case .holdThenSlide?:
-                        // (2) A latch by a slide: the latch cue, and the latching thumb's NO, if it was owed one,
+                        // A latch by a slide: the latch cue, and the latching thumb's NO, if it was owed one,
                         // dropped, never played.
                         let others = commands.filter { $0 != .cue(.drive(.latched)) }
                         fits =
@@ -205,13 +216,17 @@ final class AssistPropertyTests: XCTestCase {
                     case nil:
                         break
                     }
-                    if !fits { return "P-ON: first difference \(commands), off \(offCommands) \(at())" }
+                    if !fits {
+                        return "an aid changes nothing until it acts: first difference \(commands), off \(offCommands) "
+                            + "\(at())"
+                    }
                     for input in Set(held.keys).union(offHeld.keys) where held[input] != offHeld[input] {
                         let upper = input == .key(.upper) && offHeld[input] == .engaged(.translation)
                         let downAtTheStart = latchedHere && downBefore.contains(input)
                         if held[input] != .dead || !(upper || downAtTheStart) {
-                            return "P-ON: \(input) is \(String(describing: held[input])), off "
-                                + "\(String(describing: offHeld[input])) \(at())"
+                            return "an aid changes nothing until it acts: \(input) is "
+                                + "\(String(describing: held[input])), off \(String(describing: offHeld[input])) "
+                                + "\(at())"
                         }
                     }
                     twin = nil
@@ -219,7 +234,8 @@ final class AssistPropertyTests: XCTestCase {
                 }
             }
 
-            // O2, O3, O4, O10, and every start with one stop (O7, to the end)
+            // No start during the countdown or with nothing down; a start engages one live input that is down; wrist
+            // updates and countdown events in order; and every start has one stop, to the end
             var startedHere: HoldKind?
             var stoppedAfterStart = false
             var translationStarts = 0
@@ -230,23 +246,31 @@ final class AssistPropertyTests: XCTestCase {
                 switch command {
                 case .startTranslation, .startGripper, .startWrist:
                     let kind = Self.kind(of: command)
-                    if let open { return "\(command) while \(open) is engaged \(at())" }
-                    if countdown { return "O2: \(command) during the reset countdown \(at())" }
-                    if downBefore.isEmpty, down.isEmpty { return "O3: \(command) with no input down \(at())" }
+                    if let open { return "one hold at a time: \(command) while \(open) is engaged \(at())" }
+                    if countdown { return "no start during the reset countdown: \(command) \(at())" }
+                    if downBefore.isEmpty, down.isEmpty { return "no start with no input down: \(command) \(at())" }
                     open = kind
                     startedHere = kind
                 case .stopTranslation, .stopGripper, .stopWrist:
-                    guard let current = open else { return "O7: \(command) with nothing engaged \(at())" }
-                    if !Self.stop(command, ends: current) { return "O7: \(command) ends \(current) \(at())" }
+                    guard let current = open else {
+                        return "every start has one stop: \(command) with nothing engaged \(at())"
+                    }
+                    if !Self.stop(command, ends: current) {
+                        return "every start has one stop: \(command) ends \(current) \(at())"
+                    }
                     if startedHere != nil { stoppedAfterStart = true }
                     open = nil
                 case .wristUpdate:
-                    if open != .wrist { return "O10: wrist update with \(String(describing: open)) engaged \(at())" }
+                    if open != .wrist {
+                        return "wrist updates only during a wrist hold: \(String(describing: open)) engaged \(at())"
+                    }
                 case .resetCountdownStarted:
-                    if open != nil || countdown { return "O10: countdown while engaged \(at())" }
+                    if open != nil || countdown {
+                        return "countdown events in order: a countdown while engaged \(at())"
+                    }
                     countdown = true
                 case .resetCountdownCancelled, .fireReset:
-                    if !countdown { return "O10: \(command) without a countdown \(at())" }
+                    if !countdown { return "countdown events in order: \(command) without a countdown \(at())" }
                     countdown = false
                 case .cue, .emergencyStop, .openSettings:
                     break
@@ -255,13 +279,18 @@ final class AssistPropertyTests: XCTestCase {
             if let started = startedHere, !stoppedAfterStart, case .held(let input, _)? = engagement {
                 let engaged = held.filter { $0.value == .engaged(started) }
                 if engaged.count != 1 || engaged.first?.key != input {
-                    return "O4: \(started) started but \(engaged.count) inputs report it \(at())"
+                    return "a start engages one live input that is down: \(started) started but \(engaged.count) "
+                        + "inputs report it \(at())"
                 }
-                if !down.contains(input) { return "O4: \(input) engaged but not down \(at())" }
-                if everDead.contains(input) { return "O4: dead \(input) woke as \(started) \(at())" }
+                if !down.contains(input) {
+                    return "a start engages one live input that is down: \(input) engaged but not down \(at())"
+                }
+                if everDead.contains(input) {
+                    return "a start engages one live input that is down: dead \(input) woke as \(started) \(at())"
+                }
             }
 
-            // P1, P2, P3
+            // One thing engaged at a time, the engagement and its input agree, and no input is engaged while loose
             var engagedInputs: [(input: HeldInput, phase: InputPhase)] = []
             for (input, phase) in held {
                 switch phase {
@@ -271,36 +300,46 @@ final class AssistPropertyTests: XCTestCase {
             }
             let loose = engagement?.isLoose == true
             let count = engagedInputs.count + (loose ? 1 : 0)
-            if count > 1 { return "P1: \(count) things engaged \(at())" }
-            if (engagement == nil) != (count == 0) { return "P1: engagement \(String(describing: engagement)) \(at())" }
+            if count > 1 { return "one thing engaged at a time: \(count) things engaged \(at())" }
+            if (engagement == nil) != (count == 0) {
+                return "one thing engaged at a time: engagement \(String(describing: engagement)) \(at())"
+            }
             switch engagement {
             case .held(let input, let kind)?:
                 if held[input] != .engaged(kind) || !down.contains(input) {
-                    return "P2: \(input) is \(String(describing: held[input])) for \(kind) \(at())"
+                    return "the engagement and its input agree: \(input) is \(String(describing: held[input])) for "
+                        + "\(kind) \(at())"
                 }
             case .countdown(let touch)?:
-                if held[.touch(touch)] != .countingDown { return "P2: the countdown's touch is not counting \(at())" }
+                if held[.touch(touch)] != .countingDown {
+                    return "the engagement and its input agree: the countdown's touch is not counting \(at())"
+                }
             case .latched?:
-                if !engagedInputs.isEmpty { return "P3: \(engagedInputs) while latched \(at())" }
+                if !engagedInputs.isEmpty {
+                    return "no input engaged during a move nobody holds: \(engagedInputs) while latched \(at())"
+                }
             case nil:
                 break
             }
             for (input, phase) in engagedInputs {
                 if case .engaged(let kind) = phase, engagement != .held(input, kind) {
-                    return "P2: \(input) reports \(kind), engagement \(String(describing: engagement)) \(at())"
+                    return "the engagement and its input agree: \(input) reports \(kind), engagement "
+                        + "\(String(describing: engagement)) \(at())"
                 }
             }
 
-            // P4
+            // An aid acts only when it is on
             if arbiter.assist.lock == nil, scenario.assist.lock == nil {
-                if loose { return "P4: \(String(describing: engagement)) without lock \(at())" }
-                if !drives.isEmpty { return "P4: \(drives) without lock \(at())" }
+                if loose {
+                    return "an aid acts only when it is on: \(String(describing: engagement)) without lock \(at())"
+                }
+                if !drives.isEmpty { return "an aid acts only when it is on: \(drives) without lock \(at())" }
             }
             if commands.contains(.cue(.refused(.outsideWorkArea))) || commands.contains(.cue(.refused(.noArmData))) {
-                return "P4: a tap's refusal without tap-to-go \(at())"
+                return "an aid acts only when it is on: a tap's refusal without tap-to-go \(at())"
             }
 
-            // P5
+            // A follow latches only by a press or by a slide
             if case .latched(let since)? = engagement, engagementBefore?.isLoose != true {
                 var idle = engagementBefore == nil
                 if case .countdown? = engagementBefore { idle = true }
@@ -315,20 +354,23 @@ final class AssistPropertyTests: XCTestCase {
                     && arbiter.assist.lock?.variant == .holdThenSlide && translationStarts == 0
                     && translationStops == 0 && latches == 1
                 guard byPress || bySlide, since == step.time else {
-                    return "P5: latched from \(String(describing: engagementBefore)) with \(commands) \(at())"
+                    return "a follow latches only by a press or by a slide: latched from "
+                        + "\(String(describing: engagementBefore)) with \(commands) \(at())"
                 }
-                // P6
+                // A latch by a slide needs a thumb new to the hold that slid deliberately up and played no NO
                 if bySlide {
                     let latching = thumbs.filter { held[.touch($0.key)] != nil }
                     guard latching.count == 1, let (id, thumb) = latching.first else {
-                        return "P6: \(latching.count) thumbs down at a latch by a slide \(at())"
+                        return "a latch by a slide needs a deliberate slide up: \(latching.count) thumbs down at it "
+                            + "\(at())"
                     }
                     let slide = ThumbSlide.judge(
                         from: thumb.down, to: thumb.at, layout: ArbiterRig.layout, constants: .appendixA)
                     let began = heldUpBefore.map { thumb.inHeldUp && thumb.downAt >= $0 } ?? false
                     let windowOver = step.time >= thumb.downAt + arbiter.constants.palmWindowMs / 1000 - 1e-9
                     if !began || !windowOver || slide != .up || thumb.sideways || thumb.playedNO {
-                        return "P6: touch \(id) latched: \(thumb), \(slide) \(at())"
+                        return "a latch by a slide needs a deliberate slide up: touch \(id) latched: \(thumb), "
+                            + "\(slide) \(at())"
                     }
                     totals.slideLatches += 1
                     if arbiter.scheme == .keyTurns,
@@ -339,28 +381,38 @@ final class AssistPropertyTests: XCTestCase {
                 }
             }
             if !(engagementBefore?.isLoose == true), drives.contains(where: { $0 != .latched }) || drives.count > 1 {
-                return "P8: \(drives) with nothing loose before \(at())"
+                return "with nothing loose before, the only drive cue is one latch: \(drives) \(at())"
             }
 
-            // P8
+            // A move nobody holds ends once, with the cue of what ended it (its door)
             if case .latched(let since)? = engagementBefore {
                 let door =
                     Self.eventDoor(step.events[...])
                     ?? Self.gateDoor(facts: facts, since: since, limit: limitBefore, time: step.time)
                 if loose {
-                    if let door { return "P8: \(door) did not end it \(at())" }
-                    if engagement != engagementBefore { return "P8: became \(String(describing: engagement)) \(at())" }
+                    if let door { return "a move nobody holds ends once, with its cue: \(door) did not end it \(at())" }
+                    if engagement != engagementBefore {
+                        return "a move nobody holds ends once, with its cue: became \(String(describing: engagement)) "
+                            + "\(at())"
+                    }
                     if commands.contains(.stopTranslation) || !drives.isEmpty {
-                        return "P8: \(commands) and still loose \(at())"
+                        return "a move nobody holds ends once, with its cue: \(commands) and still loose \(at())"
                     }
                     if facts.refusal == .wait { sawWaitWhileLoose = true }
                 } else {
-                    guard let door else { return "P8: it ended with no door: \(commands) \(at())" }
-                    if translationStops != 1 { return "P8: \(translationStops) stops \(at())" }
-                    if drives != door { return "P8: \(drives), its door gives \(door) \(at())" }
+                    guard let door else {
+                        return "a move nobody holds ends once, with its cue: it ended with no door: \(commands) \(at())"
+                    }
+                    if translationStops != 1 {
+                        return "a move nobody holds ends once, with its cue: \(translationStops) stops \(at())"
+                    }
+                    if drives != door {
+                        return "a move nobody holds ends once, with its cue: \(drives), its door gives \(door) \(at())"
+                    }
                     let stopAt = commands.firstIndex(of: .stopTranslation)!
                     if let cue = door.first, commands.dropFirst(stopAt + 1).first != .cue(.drive(cue)) {
-                        return "P8: \(cue) does not follow the stop: \(commands) \(at())"
+                        return "a move nobody holds ends once, with its cue: \(cue) does not follow the stop: "
+                            + "\(commands) \(at())"
                     }
                 }
                 for case .holdsEnded(let reason) in step.events {
@@ -372,61 +424,67 @@ final class AssistPropertyTests: XCTestCase {
                 if drive == .ended(.timeLimit) { totals.lockLimits += 1 }
             }
 
-            // P10
+            // A STOP ends what exists
             if let stopEvent = step.events.firstIndex(where: Self.isStop) {
-                if loose { return "P10: still loose after a STOP \(at())" }
-                guard let e = commands.firstIndex(of: .emergencyStop) else { return "P10: no STOP sent \(at())" }
+                if loose { return "a STOP ends what exists: still loose after it \(at())" }
+                guard let e = commands.firstIndex(of: .emergencyStop) else {
+                    return "a STOP ends what exists: no STOP sent \(at())"
+                }
                 let after = commands[(e + 1)...]
                 if after.contains(where: { if case .cue(.drive) = $0 { return true } else { return false } }) {
-                    return "P10: a drive cue after the STOP: \(commands) \(at())"
+                    return "a STOP ends what exists: a drive cue after the STOP: \(commands) \(at())"
                 }
                 let beforeStop = ArbiterRig.drives(Array(commands[..<e]))
                 if beforeStop.contains(where: { if case .ended = $0 { return true } else { return false } }) {
-                    return "P10: an ending ahead of the STOP: \(commands) \(at())"
+                    return "a STOP ends what exists: an ending ahead of the STOP: \(commands) \(at())"
                 }
                 let endedBefore = Self.eventDoor(step.events[..<stopEvent]) != nil
                 let latchedBefore = beforeStop.contains(.latched)
                 let looseAtStop = (engagementBefore?.isLoose == true && !endedBefore) || latchedBefore
                 if looseAtStop != after.contains(.stopTranslation) {
-                    return "P10: loose at the STOP \(looseAtStop), \(commands) \(at())"
+                    return "a STOP ends what exists: loose at the STOP \(looseAtStop), \(commands) \(at())"
                 }
                 if looseAtStop { totals.stopsWhileLoose += 1 }
                 if latchedBefore { totals.stopsAfterALatchInTheStep += 1 }
             }
 
-            // P11, P12
+            // A follow ends at its time limit, and when a fact refuses it
             if case .latched(let since)? = engagement {
                 let limit = arbiter.assist.lock?.timeLimitS ?? 0
-                if step.time >= since + limit - 1e-9 { return "P11: latched past its limit \(at())" }
+                if step.time >= since + limit - 1e-9 {
+                    return "a follow ends at its time limit: latched past it \(at())"
+                }
                 if facts.trackingRefusal != nil || facts.translationRefusal != nil
                     || (facts.refusal != nil && facts.refusal != .wait)
                 {
-                    return "P12: latched with \(facts) \(at())"
+                    return "a follow ends when a fact refuses it: latched with \(facts) \(at())"
                 }
             }
 
-            // P14
+            // Every reason ends a held hold or the countdown the same way
             if replaysUnnamed, var unnamed = before {
                 let expected = unnamed.handle([.endAllHolds], at: step.time, facts: facts)
                 if expected != commands || unnamed.held != held || unnamed.engagement != engagement {
-                    return "P14: \(step.events) gave \(commands), unnamed \(expected) \(at())"
+                    return "every reason ends a held hold the same way: \(step.events) gave \(commands), unnamed "
+                        + "\(expected) \(at())"
                 }
             }
 
-            // P18
+            // Each start is recorded once
             let recorded = arbiter.startsThisCall
             if recorded.count != translationStarts || recorded.contains(where: { $0 != .phone }) {
-                return "P18: \(recorded) for \(commands) \(at())"
+                return "each start is recorded once: \(recorded) for \(commands) \(at())"
             }
 
-            // P9, P17: what silenced inputs may not do. First by the events of those inputs, against the same step
-            // with those events taken out; then, in a step with only silenced inputs held, by their timers too.
+            // Dead and silent inputs stay so: what they may not do. First by the events of those inputs, against the
+            // same step with those events taken out; then, in a step with only silenced inputs held, by their timers
+            // too.
             if !silencedEvents.isEmpty, var without = before {
                 var events = step.events
                 for i in silencedEvents { events[i] = .tick }
                 let expected = Self.forbidden(without.handle(events, at: step.time, facts: facts))
                 for (kind, n) in Self.forbidden(commands) where n > expected[kind, default: 0] {
-                    return "P9/P17: an input dead and silent gave \(kind) \(at())"
+                    return "dead and silent inputs stay so: one gave \(kind) \(at())"
                 }
             }
             if !silenced.isEmpty, !commands.isEmpty {
@@ -441,25 +499,30 @@ final class AssistPropertyTests: XCTestCase {
                 if !fresh, !quiet.isEmpty, quiet.isSubset(of: silenced),
                     let kind = Self.forbidden(commands).keys.first
                 {
-                    return "P9/P17: \(kind) with only dead and silent inputs held \(at())"
+                    return "dead and silent inputs stay so: \(kind) with only those held \(at())"
                 }
             }
             if engagementBefore?.isLoose == true, !loose, let ender = Self.inputDoor(step.events) {
-                if startedHere != nil { return "P9: the input that ended it started \(commands) \(at())" }
+                if startedHere != nil {
+                    return "the input that ends a move nobody holds starts nothing: \(commands) \(at())"
+                }
                 if down.contains(ender) { silenced.insert(ender) }
             }
             if latchedHere {
                 for (input, phase) in held {
-                    if phase != .dead { return "P17: \(input) is \(phase) as the follow begins \(at())" }
+                    if phase != .dead {
+                        return "inputs down when a follow begins are dead: \(input) is \(phase) \(at())"
+                    }
                     silenced.insert(input)
                     if input != .key(.upper) { totals.inputsHeldAcrossALooseStart += 1 }
                 }
             }
             for input in silenced where held[input] != nil && held[input] != .dead {
-                return "P9/P17: \(input) is \(held[input]!) \(at())"
+                return "dead and silent inputs stay so: \(input) is \(held[input]!) \(at())"
             }
 
-            // Who played a NO, for P6: with no new input in the step and one thumb held, the NO is that thumb's.
+            // Who played a NO, for the latch by a slide: with no new input in the step and one thumb held, the NO is
+            // that thumb's.
             if !commands.isEmpty, commands.contains(.cue(.dead)) {
                 let fresh = step.events.contains {
                     switch $0 {
@@ -475,24 +538,28 @@ final class AssistPropertyTests: XCTestCase {
                 thumbs = thumbs.filter { down.contains(.touch($0.key)) }
             }
 
-            // O5, O6
+            // A dead input stays dead; a released input is not held
             for input in everDead where held[input] != nil && held[input] != .dead {
-                return "O5: dead \(input) is \(held[input]!) \(at())"
+                return "a dead input stays dead: \(input) is \(held[input]!) \(at())"
             }
             for (input, phase) in held where phase == .dead { everDead.insert(input) }
             // Released inputs leave both sets.
             if !everDead.isEmpty { everDead = everDead.filter { down.contains($0) } }
             if !silenced.isEmpty { silenced = silenced.filter { down.contains($0) } }
-            if held.keys.contains(where: { !down.contains($0) }) { return "O6: a released input is still held \(at())" }
+            if held.keys.contains(where: { !down.contains($0) }) {
+                return "a released input is not held: one still is \(at())"
+            }
             lastHeld = held
         }
         if sawWaitWhileLoose { totals.casesWithWaitWhileLoose += 1 }
-        // P16: every NO withheld has played by the end.
-        if let withheld, withheld != 0 { return "P16: \(withheld) NOs withheld never played" }
-        // O7, O8
-        if let open { return "O7: \(open) never stopped" }
-        if countdown { return "O7: the countdown never ended" }
-        if !arbiter.held.isEmpty { return "O8: inputs still held after every release: \(arbiter.held)" }
+        // Every NO withheld has played by the end.
+        if let withheld, withheld != 0 { return "a withheld NO plays once, later: \(withheld) never played" }
+        // Every start stopped, and nothing held after every release
+        if let open { return "every start has one stop: \(open) never stopped" }
+        if countdown { return "countdown events in order: the countdown never ended" }
+        if !arbiter.held.isEmpty {
+            return "nothing held after every release: inputs still held: \(arbiter.held)"
+        }
         return nil
     }
 
@@ -506,7 +573,7 @@ final class AssistPropertyTests: XCTestCase {
         commands.filter { $0 != .cue(.dead) }
     }
 
-    /// P16: a step in which a withheld NO may play. The thumb lifts, or its slide stops being mostly up or turns out
+    /// A step in which a withheld NO may play. The thumb lifts, or its slide stops being mostly up or turns out
     /// sideways; the upper key's hold ends; a STOP ends every latch attempt; or a fact refuses translation, so the
     /// thumb's slide cannot latch.
     private static func mayPlayAWithheldNO(_ events: [InputEvent], facts: InputFacts, thumbs: [Int: Thumb]) -> Bool {
@@ -530,11 +597,11 @@ final class AssistPropertyTests: XCTestCase {
         return false
     }
 
-    /// P-ON's closed list for variant 1: at the first step where the aided arbiter and its `.off` twin differ, the
-    /// aided commands are the twin's with exactly one new gesture.
+    /// The first differences variant 1 may make: at the first step where the aided arbiter and its `.off` twin differ,
+    /// the aided commands are the twin's with exactly one new gesture.
     private static func isPressGesture(on: [InputCommand], off: [InputCommand]) -> Bool {
         guard let start = off.firstIndex(of: .startTranslation) else { return false }
-        // (1) A variant 1 latch: the latch cue right after its start, and, when a STOP comes later in the step, the
+        // A variant 1 latch: the latch cue right after its start, and, when a STOP comes later in the step, the
         // stop of what it latched right after the STOP.
         var latch = off
         latch.insert(.cue(.drive(.latched)), at: start + 1)
@@ -543,7 +610,7 @@ final class AssistPropertyTests: XCTestCase {
             latch.insert(.stopTranslation, at: stop + 1)
             if latch == on { return true }
         }
-        // (5) A variant 1 press after a STOP in the same step: refused as the robot being stopped.
+        // A variant 1 press after a STOP in the same step: refused as the robot being stopped.
         var refused = off
         refused[start] = .cue(.refused(.stopped))
         return off[..<start].contains(.emergencyStop) && refused == on

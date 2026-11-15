@@ -272,6 +272,7 @@ final class LooseEndingsTests: XCTestCase {
         rig.send(.becameActive, after: 0.2)
         rig.touchDown(1, at: Rig.middle, after: 0.2)
         rig.touchDown(2, at: Rig.gear, after: 0.2)
+        let gearDown = rig.time
         rig.touchDown(3, at: Rig.topBand, after: 0.05)
         XCTAssertEqual(rig.press(.upper, after: 0.02), [.startTranslation, .cue(.drive(.latched))])
         for input in [HeldInput.touch(1), .touch(2), .touch(3), .key(.upper)] {
@@ -279,8 +280,12 @@ final class LooseEndingsTests: XCTestCase {
         }
         XCTAssertEqual(rig.slide(1, mm: 12, degrees: 90), [], "the thumb slid up")
         XCTAssertEqual(rig.rotate(turn: 8), [], "the phone turned")
+        // A gear touch lifted inside its tap time is a tap: 1.0.1 opens Settings for it with nothing engaged, and says
+        // "Let go first." with something engaged. This one, dead since the follow began, does neither.
+        XCTAssertEqual(
+            rig.lift(2, after: 0.05), [], "the gear lifted inside its tap time: no Settings, no \"Let go first.\"")
+        XCTAssertLessThan(rig.time - gearDown, rig.arbiter.constants.gearTapS, "the gear's lift is a tap")
         XCTAssertEqual(rig.wait(0.2), [], "the band's palm window passed")
-        XCTAssertEqual(rig.lift(2, after: 0.05), [], "the gear lifted inside a tap")
         XCTAssertEqual(rig.lift(3, after: 0.05), [], "the band lifted")
         XCTAssertEqual(rig.release(.lower, after: 0.05), [], "the stale key released")
         XCTAssertEqual(rig.lift(1, after: 0.05), [], "the thumb lifted")
