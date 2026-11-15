@@ -239,6 +239,35 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertEqual(heard, [.emergencyStop(.other, takeDiscarded: false)])
     }
 
+    /// The same answers on a hold someone holds are told as in version 1.0.1, whatever lock is chosen: before GO the
+    /// refusal's "Stopped." and then the alarm; after GO the late rejection's let-go and then the alarm.
+    func testAStoppedRobotsAnswerToAHeldHoldIsOneZeroOne() {
+        let scripts: [(String, Int, [CueKey])] = [
+            ("before GO", 0, [.refused(.emergencyStop), .emergencyStop(.other, takeDiscarded: false)]),
+            ("after GO", 10, [.holdLive, .letGo(.lateRejection), .emergencyStop(.other, takeDiscarded: false)]),
+        ]
+        // A hold, the server's refusal for a stopped robot, then its stop state.
+        let refusedForAStop: (AssistLinkTests, Int) -> Void = { test, ticks in
+            test.model.send(.holdArmStart)
+            test.run(ticks: ticks)
+            test.serverAnswers("rejected", "estop_active")
+            test.transport.server("state", ["estop": true, "gripper": "closed"])
+        }
+        for (what, ticks, cues) in scripts {
+            bringUp(assistOn: false, lock: .off)
+            refusedForAStop(self, ticks)
+            XCTAssertEqual(heard, cues, "\(what), the aids off")
+            let messages = transport.lines, words = speech.spoken
+            for lock in LockChoice.allCases {
+                bringUp(assistOn: true, lock: lock)
+                refusedForAStop(self, ticks)
+                XCTAssertEqual(heard, cues, "\(what), lock \(lock)")
+                XCTAssertEqual(transport.lines, messages, "\(what), lock \(lock)")
+                XCTAssertEqual(speech.spoken, words, "\(what), lock \(lock)")
+            }
+        }
+    }
+
     /// A slow link ends a follow from the input rules, which name it, once. No ending the link causes is a slow link:
     /// the link's let-gos and every answer the server can give a running hold are named above, and a refusal that names
     /// a slow link comes only from a press the session refused, which a running hold never is.

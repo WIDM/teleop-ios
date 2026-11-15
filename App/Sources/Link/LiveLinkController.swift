@@ -744,19 +744,23 @@ final class LiveLinkController {
     /// of `emit`, keeping its own order of `holdEnded` and the action. For a hold someone holds it is `emit`. For one
     /// nobody holds it also records whether the operator has been told: a let-go or a refusal became the move's ending,
     /// or became nothing because another cue tells it (a stopped robot: the alarm), or the server's reason is told
-    /// elsewhere (a success by its narration, an emergency stop by the alarm). Anything else is recorded as unnamed, so
-    /// the input rules say "Stopped here.".
+    /// elsewhere (a success by its narration, an emergency stop or a stopped robot by the alarm). A reason told
+    /// elsewhere gives the move no ending of its own, before or after the hold was accepted, so the one cue is the
+    /// other one. Anything else is recorded as unnamed, so the input rules say "Stopped here.".
     private func endedTranslation(_ events: [FeedbackEvent], serverReason: String? = nil) {
         guard holdIsLoose else { return emit(events) }
-        let converted = events.contains { event in
-            switch event {
-            case .letGo, .refused: return true
-            default: return false
-            }
-        }
+        let converted = events.contains(where: Self.endsTheHold)
         let toldElsewhere = serverReason.map(FeedbackMonitor.isToldElsewhere) ?? false
-        emit(events)
+        emit(toldElsewhere ? events.filter { !Self.endsTheHold($0) } : events)
         looseEnding = converted || toldElsewhere ? .announced : .unnamed
+    }
+
+    /// A let-go or a refusal: what the link says when a hold it ran has ended.
+    private static func endsTheHold(_ event: FeedbackEvent) -> Bool {
+        switch event {
+        case .letGo, .refused: return true
+        default: return false
+        }
     }
 
     // MARK: Listening connection

@@ -107,6 +107,17 @@ final class LooseEndingHeardTests: XCTestCase {
                 test.serverAnswers("rejected", "estop_active")
                 test.transport.server("state", ["estop": true, "gripper": "closed"])
             },
+            // The refusal can come after the hold was taken as accepted (a link with jitter): the alarm alone tells it.
+            Row(name: "a stopped robot after GO, then its stop state") { test in
+                test.run(ticks: 10)
+                XCTAssertEqual(test.model.cueLog.last?.event, .holdLive, "\(test.model.lockChoice): accepted")
+                let accepted = test.model.cueLog.count
+                test.serverAnswers("rejected", "estop_active")
+                test.transport.server("state", ["estop": true, "gripper": "closed"])
+                XCTAssertEqual(
+                    test.model.cueLog.dropFirst(accepted).map(\.event), [.emergencyStop(.other, takeDiscarded: false)],
+                    "\(test.model.lockChoice): the alarm and nothing else")
+            },
             Row(name: "an emergency-stop reason, then the stop state") { test in
                 test.run(ticks: 10)
                 test.serverAnswers("rejected", "estop")
