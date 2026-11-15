@@ -46,14 +46,21 @@ struct RobotProfile: Equatable {
                 speedMps: 0.04,
                 // Under the blocked rule's 10 mm; the grasp window's height.
                 arriveToleranceM: 0.008,
-                corrections: 1,
+                // One may go to holding the travel height, one to the end.
+                corrections: 2,
                 correctionReachM: 0.03,
                 settleS: 0.6,
                 timeFactor: 1.5,
+                // At least 3 s, and with the factor it leaves room for one re-sent start (the link's resync timeout)
+                // on the longest path in the box: a profile test pins both.
                 allowanceS: 3.0,
                 // The listening connection reports about every 0.2 s; an ordinary wireless network was measured
                 // holding messages back for up to 1.8 s.
-                armDataTimeoutS: 2.0
+                armDataTimeoutS: 2.0,
+                // A start the server takes late, or an arm that lags at first, is not a stall: no stall is judged
+                // from positions measured in the first 1.5 s unless the arm has already moved 2 mm. What would change
+                // it: how late a real arm starts to move after a start.
+                startGraceS: 1.5
             ),
             guide: .all
         )

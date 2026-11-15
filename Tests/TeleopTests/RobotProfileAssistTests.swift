@@ -39,6 +39,28 @@ final class RobotProfileAssistTests: XCTestCase {
         XCTAssertLessThan(goTo.arriveToleranceM, FeedbackMonitor.blockedShortMeters)
     }
 
+    /// A going move ends "time is up" this long after its path's own time, times the factor: room for an arm that lags
+    /// behind the command and for a start the server takes late, so that a move nothing blocks arrives before it.
+    func testTheGoAllowanceIsAtLeastThreeSeconds() throws {
+        let goTo = try XCTUnwrap(profile.assist.goTo)
+        XCTAssertGreaterThanOrEqual(goTo.allowanceS, 3)
+    }
+
+    /// The longest path a move can take in the box: from the farther of the box's floor and top to the travel height,
+    /// then across the box's diagonal. Its time limit, less its time at the profile's speed, leaves room for one
+    /// re-sent start: the link waits up to its resync timeout for the stopped hold's last answer before it starts
+    /// again.
+    func testTheGoLimitLeavesRoomForOneResentStart() throws {
+        let goTo = try XCTUnwrap(profile.assist.goTo)
+        let low = SIMD3<Double>(profile.workspaceMin), high = SIMD3<Double>(profile.workspaceMax)
+        let travel = Double(profile.tableHeight) + goTo.travelHeightM
+        let path = max(travel - low.z, high.z - travel) + simd_length(SIMD2(high.x - low.x, high.y - low.y))
+        let atSpeed = path / goTo.speedMps
+        // The deadline of a going move: the path's length over the speed, times the factor, plus the allowance.
+        let limit = atSpeed * goTo.timeFactor + goTo.allowanceS
+        XCTAssertGreaterThanOrEqual(limit - atSpeed, Double(LiveLinkController.resyncTimeoutMs) / 1000)
+    }
+
     /// The SO-101 allows every aid, with numbers the configuration accepts: lock for 30 s once the operator chooses a
     /// variant, taps, and all of the guide's additions. Its on-target window stays the grasp tolerance until chosen.
     func testTheSO101AllowsEveryAid() {

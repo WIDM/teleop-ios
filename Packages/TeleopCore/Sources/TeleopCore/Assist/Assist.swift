@@ -21,8 +21,9 @@ public struct Assist: Equatable, Sendable {
 
     /// The only way the app builds one. The master switch off gives `.off` whatever else is passed. With it on, each
     /// aid comes from the robot's share, lock only when the operator also chose a variant. A member whose numbers are
-    /// unusable (not finite, not positive) is left out here, so the rules trust what they get. Whether the travel height
-    /// lies inside the box is judged per tap, where the box is known.
+    /// unusable (not finite, or below their bound: above zero for most, not negative for the correction reach, the
+    /// allowance, the start grace and the number of corrections) is left out here, so the rules trust what they get.
+    /// Whether the travel height lies inside the box is judged per tap, where the box is known.
     ///
     /// There is no mode parameter: in buttons mode no key reaches the input rules and no guide is drawn, so nothing can
     /// latch or be tapped there.
@@ -107,7 +108,8 @@ public struct GoToLimits: Equatable, Sendable {
     /// A fresh measured pinch point this close to the target is "arrived"; this close to the travel height starts the
     /// level leg. Metres.
     public var arriveToleranceM: Double
-    /// How many times a move that settled short may aim again by the remainder.
+    /// How many times a move that settled short may aim again by the remainder: on the vertical leg only the commanded
+    /// height moves, on the level leg the leg's end.
     public var corrections: Int
     /// A remainder longer than this is not corrected: the move ends "stopped short". Metres.
     public var correctionReachM: Double
@@ -118,10 +120,14 @@ public struct GoToLimits: Equatable, Sendable {
     public var allowanceS: Double
     /// No measured position younger than this ends the move ("No arm data."), seconds.
     public var armDataTimeoutS: Double
+    /// After the start, a stall is judged only from positions measured this long after it, unless the arm has already
+    /// been seen the feedback monitor's moved distance (2 mm) from where it started: a start the server takes late, or
+    /// an arm that lags at first, is not a stall. Seconds; 0 is no grace.
+    public var startGraceS: Double
 
     public init(
         travelHeightM: Double, speedMps: Double, arriveToleranceM: Double, corrections: Int, correctionReachM: Double,
-        settleS: Double, timeFactor: Double, allowanceS: Double, armDataTimeoutS: Double
+        settleS: Double, timeFactor: Double, allowanceS: Double, armDataTimeoutS: Double, startGraceS: Double = 0
     ) {
         self.travelHeightM = travelHeightM
         self.speedMps = speedMps
@@ -132,15 +138,16 @@ public struct GoToLimits: Equatable, Sendable {
         self.timeFactor = timeFactor
         self.allowanceS = allowanceS
         self.armDataTimeoutS = armDataTimeoutS
+        self.startGraceS = startGraceS
     }
 
     /// A going move must always end by itself, so the numbers its path, its deadline and its watch on the arm data are
     /// built from have to make sense: a zero speed never arrives and a zero timeout ends every move at once. Zero
-    /// corrections, a zero reach for one and a zero allowance past the path's own time are accepted: they only make a
-    /// move end sooner.
+    /// corrections, a zero reach for one, a zero allowance past the path's own time and no start grace are accepted:
+    /// they only make a move end sooner.
     var isUsable: Bool {
         let positive = [travelHeightM, speedMps, arriveToleranceM, settleS, armDataTimeoutS, timeFactor]
-        let notNegative = [correctionReachM, allowanceS]
+        let notNegative = [correctionReachM, allowanceS, startGraceS]
         return positive.allSatisfy { $0.isFinite && $0 > 0 } && notNegative.allSatisfy { $0.isFinite && $0 >= 0 }
             && corrections >= 0
     }

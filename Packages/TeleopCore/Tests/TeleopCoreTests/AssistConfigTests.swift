@@ -137,6 +137,22 @@ final class AssistConfigTests: XCTestCase {
         XCTAssertEqual(InputArbiter(scheme: .keyTurns, hand: .left, layout: ArbiterRig.layout).assist, .off)
     }
 
+    /// A grace that is negative or not a finite number of seconds drops tap-to-go; no grace, and a grace of some
+    /// seconds, are kept. A configuration that leaves the grace out has none.
+    func testAStartGraceThatIsNegativeOrNotFiniteDropsTapToGo() {
+        XCTAssertEqual(goLimits.startGraceS, 0)
+        for bad in [-0.1, .nan, .infinity, -.infinity] as [Double] {
+            var limits = goLimits
+            limits.startGraceS = bad
+            assertGoTo(limits, isKept: false, "start grace \(bad)")
+        }
+        for good in [0, 1.5] as [Double] {
+            var limits = goLimits
+            limits.startGraceS = good
+            assertGoTo(limits, isKept: true, "start grace \(good)")
+        }
+    }
+
     /// Resolves a robot that allows everything with these go-to numbers; only `goTo` may depend on them.
     private func assertGoTo(
         _ limits: GoToLimits, isKept: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line
