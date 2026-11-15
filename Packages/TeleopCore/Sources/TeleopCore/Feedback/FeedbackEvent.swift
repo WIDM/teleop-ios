@@ -19,6 +19,10 @@ public enum Refusal: String, CaseIterable, Sendable {
     case deadInput
     /// The server refused the start for a reason the operator cannot act on (a validation code).
     case serverRefused
+    /// A tap asked for a point outside the work box.
+    case outsideWorkArea
+    /// A tap found no measured arm position fresh enough to start from.
+    case noArmData
 }
 
 /// As far as it goes (E4).
@@ -62,6 +66,72 @@ public enum EmergencyCause: String, CaseIterable, Sendable {
     case onConnect
 }
 
+/// Why a move nobody holds ended, as the operator hears it after "Stopped here.". One case per reason the operator can
+/// act on or should know; the reason phrases are the existing ones where one exists.
+public enum DriveEnd: Hashable, Sendable, CaseIterable {
+    /// No one named it: "Stopped here." alone.
+    case unnamed
+    case posture
+    case tracking
+    case timeLimit
+    case appLeft
+    case cameraStopped
+    case leftScreen
+    case slowLink
+    /// A going move settled short of its target after its corrections.
+    case stoppedShort
+    /// A going move heard no measured position for the profile's timeout.
+    case noArmData
+    case tooFast
+    case noAnswer
+    case linkHiccup
+    case serverRefused
+    case serverBusy
+
+    /// How the link's own let-go reasons are told for a move nobody holds. A total switch: a new `LetGoReason` does not
+    /// compile until it names its ending.
+    public init(byLink reason: LetGoReason) {
+        switch reason {
+        case .tooFast: self = .tooFast
+        case .tracking: self = .tracking
+        case .noAnswer: self = .noAnswer
+        case .watchdog: self = .linkHiccup
+        case .lateRejection: self = .serverRefused
+        }
+    }
+
+    /// How a refusal of a move nobody holds is told; nil when another cue tells it: `estop_active`, which the monitor
+    /// turns into `.emergencyStop`, is told by the alarm, so whoever converts a refusal to nil records the ending as
+    /// told. A total switch. Refusals no server sends for a running hold read as unnamed.
+    public init?(refused refusal: Refusal) {
+        switch refusal {
+        case .busy, .notReady: self = .serverBusy
+        case .serverRefused: self = .serverRefused
+        case .emergencyStop: return nil
+        case .noLink, .notStopped, .slowLink, .notTracking, .posture, .letGoFirst, .deadInput, .outsideWorkArea,
+            .noArmData:
+            self = .unnamed
+        }
+    }
+}
+
+/// What a move nobody holds tells the operator: that it latched, arrived, or ended and why. Every one is queued speech
+/// with a haptic, so it is never dropped.
+public enum DriveCue: Hashable, Sendable {
+    /// A follow nobody holds began. Its own haptic, so it is never taken for GO.
+    case latched
+    /// A going move's measured pinch point reached the target.
+    case arrived
+    /// The operator's own key press or touch ended it.
+    case stoppedByYou
+    /// Anything else ended it.
+    case ended(DriveEnd)
+
+    public static var allCases: [DriveCue] {
+        [.latched, .arrived, .stoppedByYou] + DriveEnd.allCases.map(DriveCue.ended)
+    }
+}
+
 /// Everything the operator can perceive in version 1. Each one is felt, heard or both, as `CueTable` says.
 public enum FeedbackEvent: Equatable, Sendable {
     /// E1: the start went out and no refusal came within the acceptance time. `hold` names the operator's hold.
@@ -102,6 +172,8 @@ public enum FeedbackEvent: Equatable, Sendable {
     case notRecording
     /// E20: the server could not take the reset.
     case notReset
+    /// A move nobody holds latched, arrived or ended.
+    case drive(DriveCue)
 
     /// The table row this event plays.
     public var key: CueKey {
@@ -127,6 +199,7 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .recordingSession: return .recordingSession
         case .notRecording: return .notRecording
         case .notReset: return .notReset
+        case .drive(let cue): return .drive(cue)
         }
     }
 
@@ -163,6 +236,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case recordingSession
     case notRecording
     case notReset
+    case drive(DriveCue)
 
     /// Every key. Built from `Kind`, whose cases the compiler lists, so a key cannot be left out by hand: a new case
     /// here does not compile until `kind` names its kind, and a new kind does not compile until `keys(of:)` lists
@@ -173,7 +247,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     enum Kind: CaseIterable {
         case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
-        case ready, recordingSession, notRecording, notReset
+        case ready, recordingSession, notRecording, notReset, drive
     }
 
     var kind: Kind {
@@ -199,6 +273,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .recordingSession: return .recordingSession
         case .notRecording: return .notRecording
         case .notReset: return .notReset
+        case .drive: return .drive
         }
     }
 
@@ -228,6 +303,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .recordingSession: return [.recordingSession]
         case .notRecording: return [.notRecording]
         case .notReset: return [.notReset]
+        case .drive: return DriveCue.allCases.map(CueKey.drive)
         }
     }
 }

@@ -1233,6 +1233,22 @@
         }
       }
     },
+    "refusal.no_arm_data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No arm data"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收不到手臂資料"
+          }
+        }
+      }
+    },
     "refusal.no_link": {
       "localizations": {
         "en": {
@@ -1277,6 +1293,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "追蹤不到手機"
+          }
+        }
+      }
+    },
+    "refusal.outside_work_area": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outside the work area"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超出工作範圍"
           }
         }
       }

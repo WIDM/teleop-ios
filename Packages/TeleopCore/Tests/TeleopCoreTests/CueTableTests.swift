@@ -19,7 +19,7 @@ final class CueTableTests: XCTestCase {
             XCTAssertFalse(keys.isEmpty, "\(kind)")
             for key in keys { XCTAssertEqual(key.kind, kind, "\(key)") }
         }
-        XCTAssertEqual(CueKey.allCases.count, 11 + 6 + 5 + 10 + 2 + 15 + 1)
+        XCTAssertEqual(CueKey.allCases.count, 13 + 6 + 5 + 10 + 2 + 15 + 1 + 18)
     }
 
     func testEveryEventIsFeltOrHeard() {
@@ -111,7 +111,7 @@ final class CueTableTests: XCTestCase {
     /// C-F2: no two event patterns share their count of pulses and their sequence of long and short.
     func testTheSevenPatternsDifferInRhythm() {
         let rhythms = Haptic.allCases.map(\.rhythm)
-        XCTAssertEqual(Haptic.allCases.count, 7)
+        XCTAssertEqual(Haptic.allCases.count, 8)
         XCTAssertEqual(Set(rhythms.map { $0.map { $0 ? "L" : "s" }.joined() }).count, Haptic.allCases.count)
         XCTAssertEqual(Haptic.go.rhythm, [false])
         XCTAssertEqual(Haptic.onTarget.rhythm, [false, true], "a tick, then a long one")
@@ -130,7 +130,7 @@ final class CueTableTests: XCTestCase {
     }
 
     func testPriorityOrder() {
-        let order: [Haptic] = [.alarm, .letGo, .no, .grip, .end, .onTarget, .go]
+        let order: [Haptic] = [.alarm, .letGo, .no, .latch, .grip, .end, .onTarget, .go]
         XCTAssertEqual(Haptic.allCases.sorted { $0.priority > $1.priority }, order)
     }
 

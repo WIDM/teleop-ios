@@ -114,6 +114,134 @@
         }
       }
     },
+    "say.drive.app_left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app was left."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你離開了 App。"
+          }
+        }
+      }
+    },
+    "say.drive.arrived" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrived."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到了。"
+          }
+        }
+      }
+    },
+    "say.drive.camera" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The camera stopped."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相機停了。"
+          }
+        }
+      }
+    },
+    "say.drive.left_screen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You left the screen."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你離開了操作畫面。"
+          }
+        }
+      }
+    },
+    "say.drive.locked" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locked on."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已鎖定。"
+          }
+        }
+      }
+    },
+    "say.drive.short" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It stopped short."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒走到目標。"
+          }
+        }
+      }
+    },
+    "say.drive.stopped_here" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopped here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停在這裡。"
+          }
+        }
+      }
+    },
+    "say.drive.time_up" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time is up."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間到了。"
+          }
+        }
+      }
+    },
     "say.empty" : {
       "localizations" : {
         "en" : {
@@ -338,6 +466,22 @@
         }
       }
     },
+    "say.reason.no_arm_data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No arm data."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收不到手臂資料。"
+          }
+        }
+      }
+    },
     "say.reason.no_link" : {
       "localizations" : {
         "en" : {
@@ -382,6 +526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追蹤不到手機。"
+          }
+        }
+      }
+    },
+    "say.reason.outside" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outside the work area."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超出工作範圍。"
           }
         }
       }

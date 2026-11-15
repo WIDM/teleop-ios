@@ -101,6 +101,11 @@ public enum InputRefusal: Equatable, Sendable {
     case letGoFirst
     /// `say.reason.not_stopped`: STOP with neither connection up. Decided here.
     case notStopped
+    /// `say.reason.outside`: the tapped point is outside the work box as the guide draws it, with no slack. Decided
+    /// here.
+    case outsideWorkArea
+    /// `say.reason.no_arm_data`: no measured arm position fresh enough to start a move from. Decided here.
+    case noArmData
 }
 
 /// What the rest of the app tells the arbiter on every call.
@@ -155,6 +160,8 @@ public enum InputCue: Equatable, Sendable {
     case limit
     /// END and "Already gripping." (A-2g, B-3c).
     case alreadyGripping
+    /// A move nobody holds latched, arrived or ended: the feedback layer plays `FeedbackEvent.drive(_)`.
+    case drive(DriveCue)
 }
 
 public enum InputCommand: Equatable, Sendable {

@@ -60,6 +60,18 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case blocked = "say.blocked"
     case empty = "say.empty"
     case alreadyGripping = "say.already_gripping"
+    case driveLocked = "say.drive.locked"
+    case driveArrived = "say.drive.arrived"
+    /// "Stopped here.": a move that ended. Never `stopped`, "Stopped.", which refuses a press while the robot is in
+    /// emergency stop, so a refused input and an ended move never share a word.
+    case driveStoppedHere = "say.drive.stopped_here"
+    case driveTimeUp = "say.drive.time_up"
+    case driveAppLeft = "say.drive.app_left"
+    case driveCamera = "say.drive.camera"
+    case driveLeftScreen = "say.drive.left_screen"
+    case driveShort = "say.drive.short"
+    case noArmData = "say.reason.no_arm_data"
+    case outside = "say.reason.outside"
 
     /// The phrase has one `%d`, filled from the event's number.
     public var takesNumber: Bool {
@@ -118,6 +130,8 @@ public enum CueTable {
         CueRow(.refused(.letGoFirst), .no, say: [.letGoFirst], .p4),
         CueRow(.refused(.deadInput), .no),
         CueRow(.refused(.serverRefused), .no),
+        CueRow(.refused(.outsideWorkArea), .no, say: [.outside], .p4),
+        CueRow(.refused(.noArmData), .no, say: [.noArmData], .p4),
 
         CueRow(.limit(.workspace), .end),
         CueRow(.limit(.wrist), .end),
@@ -175,7 +189,56 @@ public enum CueTable {
         CueRow(.recordingSession, say: [.recordingSession, .savedCount], .p2),
         CueRow(.notRecording, say: [.notRecording], .p2),
         CueRow(.notReset, say: [.notReset], .p2),
+
+        // A move nobody holds never starts or ends in silence: each of these is queued, never dropped, and felt.
+        // Latching has its own pattern, so it is never taken for GO.
+        CueRow(.drive(.latched), .latch, say: [.driveLocked], .p2),
+        CueRow(.drive(.arrived), .end, say: [.driveArrived], .p2),
+        CueRow(.drive(.stoppedByYou), .end, say: [.driveStoppedHere], .p2),
+        ending(.unnamed),
+        ending(.posture),
+        ending(.tracking),
+        ending(.timeLimit),
+        ending(.appLeft),
+        ending(.cameraStopped),
+        ending(.leftScreen),
+        ending(.slowLink),
+        ending(.stoppedShort),
+        ending(.noArmData),
+        ending(.tooFast),
+        ending(.noAnswer),
+        ending(.linkHiccup),
+        ending(.serverRefused),
+        ending(.serverBusy),
     ]
+
+    /// An ending the operator did not cause says "Stopped here." and then why, or "Stopped here." alone when nobody
+    /// named the reason.
+    private static func ending(_ end: DriveEnd) -> CueRow {
+        CueRow(.drive(.ended(end)), .letGo, say: [.driveStoppedHere] + reason(end), .p2)
+    }
+
+    /// What follows "Stopped here.": the existing reason phrase where one exists. A total switch, so a new ending does
+    /// not compile without its words.
+    private static func reason(_ end: DriveEnd) -> [SpeechKey] {
+        switch end {
+        case .unnamed: return []
+        case .posture: return [.posture]
+        case .tracking: return [.lostTracking]
+        case .timeLimit: return [.driveTimeUp]
+        case .appLeft: return [.driveAppLeft]
+        case .cameraStopped: return [.driveCamera]
+        case .leftScreen: return [.driveLeftScreen]
+        case .slowLink: return [.slowLink]
+        case .stoppedShort: return [.driveShort]
+        case .noArmData: return [.noArmData]
+        case .tooFast: return [.tooFast]
+        case .noAnswer: return [.noAnswer]
+        case .linkHiccup: return [.linkHiccup]
+        case .serverRefused: return [.refusedMove]
+        case .serverBusy: return [.wait]
+        }
+    }
 
     private static let byKey: [CueKey: CueRow] = Dictionary(
         rows.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })

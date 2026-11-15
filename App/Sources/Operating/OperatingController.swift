@@ -341,6 +341,7 @@ final class OperatingController {
         case .refused(let refusal): model.raise(.refused(Self.refusal(refusal)))
         case .limit: model.raise(.limit(.wrist))
         case .alreadyGripping: model.raise(.limit(.alreadyGripping))
+        case .drive(let drive): model.raise(.drive(drive))
         }
     }
 
@@ -399,6 +400,8 @@ final class OperatingController {
         case .letGoFirst: return .letGoFirst
         case .notStopped: return .notStopped
         case .settingsOpen, .tooHot, .resetFirst: return .deadInput
+        case .outsideWorkArea: return .outsideWorkArea
+        case .noArmData: return .noArmData
         }
     }
 }

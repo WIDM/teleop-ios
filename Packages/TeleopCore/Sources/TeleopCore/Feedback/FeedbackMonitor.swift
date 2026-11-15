@@ -242,6 +242,15 @@ public struct FeedbackMonitor {
         "pose_wrist_invalid_input", "pose_wrist_nonfinite_state",
     ]
 
+    /// The server ended a hold for a reason another cue already tells: a success, told by the recorder narration; an
+    /// emergency-stop reason, told by the alarm; or `estop_active`, also told by the alarm. `startRefused` returns
+    /// nothing for the first two and, before acceptance, `.refused(.emergencyStop)` for the third, which no drive
+    /// ending names. So a move nobody holds that the server ended for one of these was told, though nothing was
+    /// emitted for it.
+    public static func isToldElsewhere(_ reason: String) -> Bool {
+        reason == TeleopLink.successReason || emergencyStopReasons.contains(reason) || reason == "estop_active"
+    }
+
     /// The commanded point is far ahead and the measured arm has stood still for the whole window.
     private static func isBlocked(_ hold: Engaged, at now: Int) -> Bool {
         guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < freshStateMs,
