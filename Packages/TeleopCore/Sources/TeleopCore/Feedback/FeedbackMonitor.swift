@@ -22,6 +22,8 @@ public struct GripperLimits: Equatable, Sendable {
 /// - GRIP on contact while closing, or in the states that follow letting go of a close; from then on the jaws count
 ///   as gripping until an open, a scene reset or a new server run.
 /// - Nothing for a hold the server ends with a success, and nothing judged while the success shows.
+/// - With `reportsLowest` (the guide's aids), END for an arm that cannot go lower: the blocked rule's stall with the
+///   commanded point at least 10 mm below and mostly below, in place of blocked.
 public struct FeedbackMonitor {
     public static let acceptMinMs = 100
     public static let acceptMaxMs = 300
@@ -33,8 +35,23 @@ public struct FeedbackMonitor {
     public static let blockedShortMeters = 0.010
     public static let blockedMovedMeters = 0.002
     public static let blockedWindowMs = 1000
+    /// The lowest rule's quicker stall, back near the lowest height already found: sent at least this much lower, and
+    /// moved less than this in this long.
+    public static let lowestQuickShortMeters = 0.005
+    public static let lowestQuickMovedMeters = 0.001
+    public static let lowestQuickMs = 300
 
     public let limits: GripperLimits
+    /// With the guide's aids on: a stall against a downward command is `.limit(.lowest)` in place of
+    /// `.limit(.blocked)`, not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets the
+    /// clamp label, just when the operator needs to hear it), and told once per approach. False is version 1.0.1, and
+    /// forgets `lowestSeen`.
+    public var reportsLowest = false {
+        didSet { if !reportsLowest { lowestSeen = nil } }
+    }
+    /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
+    /// control connection was welcomed; a lower stall replaces it. Nil before one, and with `reportsLowest` off.
+    public private(set) var lowestSeen: Double?
 
     /// The operator's hold from its first start until it ends. A hold the app restarts on its own stays the same hold.
     private struct Engaged {
@@ -50,6 +67,9 @@ public struct FeedbackMonitor {
         var empty = false
         var fullyOpen = false
         var blocked = false
+        /// The height the arm last stood at against a downward command, told, in this approach; nil while the lowest
+        /// cue is armed.
+        var lowestAt: Double?
         /// Where the app is sending the arm, robot base frame.
         var target: SIMD3<Double>?
         var samples: [(atMs: Int, position: SIMD3<Double>)] = []
@@ -189,7 +209,18 @@ public struct FeedbackMonitor {
                 current.samples.append((now, position))
                 current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
             }
-            if !current.blocked, !current.clamped, Self.isBlocked(current, at: now) {
+            if let at = current.lowestAt, let newest = current.samples.last,
+                newest.position.z >= at + Self.blockedShortMeters
+            {
+                current.lowestAt = nil
+            }
+            if reportsLowest, let height = lowestStall(current, at: now) {
+                lowestSeen = min(lowestSeen ?? height, height)
+                if current.lowestAt == nil {
+                    current.lowestAt = height
+                    events.append(.limit(.lowest))
+                }
+            } else if !current.blocked, !current.clamped, Self.isBlocked(current, at: now) {
                 current.blocked = true
                 events.append(.limit(.blocked))
             }
@@ -223,6 +254,7 @@ public struct FeedbackMonitor {
         if session != self.session { gripping = false }
         self.session = session
         releasedClose = false
+        lowestSeen = nil
     }
 
     /// The server reset the scene: the jaws hold nothing.
@@ -259,6 +291,26 @@ public struct FeedbackMonitor {
         else { return false }
         let window = hold.samples.filter { $0.atMs >= oldest.atMs }
         return window.allSatisfy { length($0.position - oldest.position) < blockedMovedMeters }
+    }
+
+    /// The height a fresh measured arm stands at against a downward command, if it does: the commanded point is below
+    /// it and that is the largest part of the gap, and either the blocked rule's stall holds with it at least 10 mm
+    /// below, or, back within 2 mm of `lowestSeen`, it is at least 5 mm below and the arm moved under 1 mm in 0.3 s.
+    private func lowestStall(_ hold: Engaged, at now: Int) -> Double? {
+        guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < Self.freshStateMs else {
+            return nil
+        }
+        let gap = target - newest.position
+        let below = -gap.z
+        guard below >= abs(gap.x), below >= abs(gap.y) else { return nil }
+        let height = newest.position.z
+        if below >= Self.blockedShortMeters, Self.isBlocked(hold, at: now) { return height }
+        guard let lowestSeen, abs(height - lowestSeen) <= Self.blockedMovedMeters, below >= Self.lowestQuickShortMeters,
+            let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= Self.lowestQuickMs })
+        else { return nil }
+        let window = hold.samples.filter { $0.atMs >= oldest.atMs }
+        return window.allSatisfy { Self.length($0.position - oldest.position) < Self.lowestQuickMovedMeters }
+            ? height : nil
     }
 
     private static func length(_ vector: SIMD3<Double>) -> Double { (vector * vector).sum().squareRoot() }

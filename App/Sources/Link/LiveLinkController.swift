@@ -166,6 +166,9 @@ final class LiveLinkController {
     /// The side the commanded point is outside the work area on, for the guide's line; nil while inside, with the rule
     /// off, and whenever no translation is being commanded, so the line never shows the last hold's side.
     var commandOutside: OperatorDirection? { commandedArm == nil ? nil : workAreaCue?.outside }
+    /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
+    /// control connection was welcomed, for the guide's lowest line; nil before one and with that rule off.
+    var lowestSeen: Double? { monitor.lowestSeen }
 
     /// The guide's aids this link runs; nil is version 1.0.1. `gripperBox`: the work box in gripper-link space, robot
     /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
@@ -177,6 +180,7 @@ final class LiveLinkController {
             aids?.workAreaWords == true
             ? WorkAreaCue(low: gripperBox.low, high: gripperBox.high, sides: sides) : nil
         workAreaToldThisHold = false
+        monitor.reportsLowest = aids?.lowestCue == true
     }
 
     /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.

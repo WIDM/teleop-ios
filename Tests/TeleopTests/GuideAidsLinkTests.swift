@@ -1,5 +1,7 @@
 import simd
 import TeleopCore
+import TeleopServerHost
+import TeleopServerModel
 import XCTest
 @testable import Teleop
 
@@ -26,7 +28,8 @@ private final class AidsTestTransport: LinkTransport {
 /// The guide's aids that the link runs, against a scripted server: the work-area rule tells every time the commanded
 /// point leaves the work box, on which side, and the server's clamp END for that hold is then left out; a floor the
 /// table stops the arm before is not told; the side is read only while a translation is commanded; the switch reaches
-/// the link. With the aids off the cues are version 1.0.1's.
+/// the link. Against the server model, an arm that cannot go lower says so. With the aids off the cues are version
+/// 1.0.1's.
 final class GuideAidsLinkTests: XCTestCase {
     private var transport: AidsTestTransport!
     private var position: SIMD3<Float>? = .zero
@@ -282,6 +285,55 @@ final class GuideAidsLinkTests: XCTestCase {
         XCTAssertEqual(told.compactMap { $0 }.count, 9, "from 12 mm on, 2.35 mm past the face and more")
         XCTAssertEqual(Set(told.compactMap { $0 }), [.right])
         XCTAssertEqual(sidesTold, [.right])
+    }
+
+    private func wait(_ seconds: TimeInterval, until done: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            if done() { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        return done()
+    }
+
+    /// Against the server model over a real socket: from the reset pose the jaws reach the table a little under 3 cm
+    /// down. The hand asks for 5 cm down, and the arm stands on the table. With the aids on that is "Can't go lower."
+    /// and the lowest height is where it stands; with them off it is version 1.0.1's "Blocked." and no height.
+    func testAgainstTheServerModelsTableTheArmCannotGoLower() throws {
+        for aids in [true, false] {
+            let server = LocalTeleopServer()
+            try server.start()
+            defer { server.stop() }
+            var hand = SIMD3<Float>.zero
+            let model = AppModel(
+                start: .s1, haptics: NoHaptics(), pose: { TestPose.portrait(at: hand) }, liveLink: true,
+                assistOn: aids, lockChoice: .off)
+            model.session.state.serverAddress = server.address
+            model.connect()
+            XCTAssertTrue(wait(3, until: { model.session.state.connected }), "aids \(aids)")
+            // During a hold only the listening connection hears where the arm is.
+            XCTAssertTrue(wait(3, until: { model.link.observerUp }), "aids \(aids)")
+            model.send(.holdArmStart)
+            // 5 cm down (ARKit up is +y) over 0.75 s.
+            for step in 1...25 {
+                hand = SIMD3(0, -0.002 * Float(step), 0)
+                _ = wait(0.03, until: { false })
+            }
+            let heard: CueKey = aids ? .limit(.lowest) : .limit(.blocked)
+            let notHeard: CueKey = aids ? .limit(.blocked) : .limit(.lowest)
+            XCTAssertTrue(
+                wait(5, until: { model.cueLog.contains { $0.event == heard } }),
+                "aids \(aids): \(model.cueLog.map(\.event))")
+            XCTAssertFalse(model.cueLog.contains { $0.event == notHeard }, "aids \(aids)")
+            XCTAssertEqual(model.cueLog.filter { $0.event == heard }.count, 1, "aids \(aids)")
+            if aids {
+                let lowest = try XCTUnwrap(model.link.lowestSeen)
+                XCTAssertEqual(lowest, server.inspect { $0.world.arm.z }, accuracy: 0.002, "where the arm stands")
+            } else {
+                XCTAssertNil(model.link.lowestSeen)
+            }
+            model.send(.holdArmEnd)
+        }
     }
 
     /// The model hands the link its aids at launch and at every change of the switch.
