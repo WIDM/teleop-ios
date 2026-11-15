@@ -417,6 +417,8 @@ public struct FeedbackMonitor {
     private static func isStill(_ window: [Sample], within meters: Double) -> Bool {
         let pinchHeights = window.compactMap { $0.pinch?.z }
         let heights = pinchHeights.count == window.count ? pinchHeights : window.map(\.position.z)
+        // Every height is measured against the window's first sample: of several that arrived in its first
+        // millisecond, the one that arrived first.
         guard let oldest = heights.first else { return false }
         return heights.allSatisfy { abs($0 - oldest) < meters }
     }

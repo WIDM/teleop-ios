@@ -559,4 +559,103 @@ final class FeedbackMonitorLowestTests: XCTestCase {
             + states(at: every(from: 3800, through: 5000), arm: { _ in onTable }, gap: { _ in SIMD3(0.02, 0, 0) })
         XCTAssertEqual(told(inputs), [lowest(at: 1200), blocked(at: 4800)])
     }
+
+    // The tests below stand the gripper link at height zero, so a height or a depth at the edge of one of the rule's
+    // numbers is that number exactly, with nothing lost to rounding.
+
+    /// Within 2 mm of the lowest height found includes 2 mm itself: back exactly 2 mm above it, the quicker stall is
+    /// told within 0.4 s; 2.1 mm above, only the full second tells it.
+    func testBackExactlyTwoMillimetresFromTheLowestHeightIsAQuickerStall() {
+        for (above, toldByMs) in [(0.002, 400), (0.0021, 1000)] {
+            let back = atZero + up(above)
+            let inputs: [Input] =
+                [.press(atMs: 0)]
+                + states(at: every(from: 200, through: 1600), arm: { _ in atZero }, gap: { _ in down(0.012) })
+                + [.release, .press(atMs: 2000)]
+                + states(at: every(from: 2200, through: 3400), arm: { _ in back }, gap: { _ in down(0.012) })
+            XCTAssertEqual(told(inputs), [lowest(at: 1200), lowest(at: 2200 + toldByMs)], "\(above)")
+        }
+    }
+
+    /// Still means every height less than its number from the window's first state, never equal to it. Wavering
+    /// exactly 2 mm, the full stall is never still and nothing is told; wavering 1.9 mm is told after a second. Back at
+    /// the lowest height found and wavering exactly 1 mm, the quicker stall is not still and only the full second tells
+    /// it; wavering 0.9 mm is told within 0.4 s.
+    func testAHeightExactlyItsNumberFromTheWindowsFirstStateIsNotStill() {
+        let base = atZero
+        for (waver, heard) in [(0.002, [Heard]()), (0.0019, [lowest(at: 1200)])] {
+            let arm = { (t: Int) in base + SIMD3(0, 0, (t / 200) % 2 == 0 ? waver : 0) }
+            let inputs: [Input] =
+                [.press(atMs: 0)] + states(at: every(from: 200, through: 2000), arm: arm, gap: { _ in down(0.012) })
+            XCTAssertEqual(told(inputs), heard, "full, \(waver)")
+        }
+        for (waver, toldByMs) in [(0.001, 1000), (0.0009, 400)] {
+            let arm = { (t: Int) in base + SIMD3(0, 0, (t / 200) % 2 == 0 ? waver : 0) }
+            let inputs: [Input] =
+                [.press(atMs: 0)]
+                + states(at: every(from: 200, through: 1600), arm: { _ in base }, gap: { _ in down(0.012) })
+                + [.release, .press(atMs: 2000)]
+                + states(at: every(from: 2200, through: 3400), arm: arm, gap: { _ in down(0.012) })
+            XCTAssertEqual(told(inputs), [lowest(at: 1200), lowest(at: 2200 + toldByMs)], "quicker, \(waver)")
+        }
+    }
+
+    /// "Blocked." is silent while a state of its second was commanded at least 10 mm lower, exactly 10 mm included:
+    /// held level against something 20 mm to the side, with one state at 600 ms commanded exactly 10 mm lower, it waits
+    /// until that state has left its second; a state commanded 9.9 mm lower does not hold it back.
+    func testAStateCommandedExactlyTenMillimetresLowerKeepsBlockedSilent() {
+        for (depth, heard) in [(0.010, [blocked(at: 1800)]), (0.0099, [blocked(at: 1200)])] {
+            let inputs: [Input] =
+                [.press(atMs: 0)]
+                + states(
+                    at: every(from: 200, through: 2000), arm: { _ in atZero },
+                    gap: { t in t == 600 ? down(depth) : SIMD3(0.02, 0, 0) })
+            XCTAssertEqual(told(inputs), heard, "\(depth)")
+        }
+    }
+
+    /// With the rule on, as in version 1.0.1, a clamp earlier in the hold keeps "Blocked." silent: after a clamp, held
+    /// level against something 20 mm to the side, only the clamp's own cue comes.
+    func testAClampEarlierInTheHoldKeepsBlockedSilent() {
+        let inputs: [Input] =
+            [.press(atMs: 0)]
+            + every(from: 200, through: 2000).flatMap { t -> [Input] in
+                let activity: ServerActivity = t == 400 ? .poseClamped : .poseTracking
+                return [
+                    .command(atZero + SIMD3(0.02, 0, 0)),
+                    .state(atMs: t, ServerState(activity: activity, endEffector: atZero)),
+                ]
+            }
+        let heard = told(inputs)
+        XCTAssertEqual(heard, [Heard(atMs: 400, event: .limit(.workspace))])
+        XCTAssertEqual(heard, run101(inputs), "version 1.0.1's events")
+    }
+
+    /// A resync's restart keeps the states already judged: a second of states asked 12 mm lower with a resync in its
+    /// middle is told on time. With the rule off it is version 1.0.1's "Blocked.", on time as well.
+    func testAStallWhoseSecondSpansAResyncIsToldOnTime() {
+        let inputs: [Input] =
+            [.press(atMs: 0)]
+            + states(at: every(from: 200, through: 600), arm: { _ in atZero }, gap: { _ in down(0.012) })
+            + [.resync(atMs: 700)]
+            + states(at: every(from: 800, through: 1600), arm: { _ in atZero }, gap: { _ in down(0.012) })
+        XCTAssertEqual(told(inputs), [lowest(at: 1200)])
+        XCTAssertEqual(run(inputs, lowest: false).heard, [blocked(at: 1200)], "the rule off")
+    }
+
+    /// A state keeps how far below it the command was when it arrived and is never judged again against a later
+    /// command. After a second of states, the first asked 12 mm lower and the rest 6 mm, the command moves to 12 mm
+    /// lower and a state without the gripper link's position comes at 1300 ms: nothing is told; the next state with a
+    /// position, at 1400 ms, is told. The first state's ask keeps "Blocked." silent at 1300 ms as well.
+    func testAStateIsNeverJudgedAgainAgainstALaterCommand() {
+        let noPosition = ServerState(activity: .poseTracking, endEffector: nil)
+        let inputs: [Input] =
+            [.press(atMs: 0)]
+            + states(
+                at: every(from: 200, through: 1200), arm: { _ in atZero },
+                gap: { t in down(t == 200 ? 0.012 : 0.006) })
+            + [.command(atZero + down(0.012)), .state(atMs: 1300, noPosition)]
+            + states(at: [1400], arm: { _ in atZero }, gap: { _ in down(0.012) })
+        XCTAssertEqual(told(inputs), [lowest(at: 1400)])
+    }
 }
