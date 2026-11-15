@@ -220,6 +220,15 @@ final class LockHoldSlideTests: XCTestCase {
         XCTAssertEqual(rig.wait(0.1), [])
         XCTAssertEqual(rig.arbiter.engagement, .held(.key(.upper), .translation))
         XCTAssertEqual(rig.send(.holdsEnded(.announced), after: 0.05), [.stopTranslation], "the NO played once")
+
+        // With no connection up, the STOP's own refusal comes first, then the NO the attempt was holding back.
+        var unlinked = holding(.screenTurns)
+        unlinked.facts.connectionUp = false
+        unlinked.touchDown(1, at: Rig.middle, after: 0.1)
+        unlinked.wait(0.1)
+        unlinked.slide(1, mm: 9, degrees: 90)
+        XCTAssertEqual(
+            unlinked.batch([up, stop], after: 0.01), [.emergencyStop, .cue(.refused(.notStopped)), .cue(.dead)])
     }
 
     /// A thumb that lands after a STOP in the same call is no latch attempt: it is 1.0.1's thumb, and its slide up in

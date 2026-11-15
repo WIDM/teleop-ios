@@ -56,6 +56,8 @@ final class AssistPropertyTests: XCTestCase {
     /// A control-surface touch as the generator moved it.
     struct Thumb {
         var downAt: TimeInterval
+        /// The step it went down in.
+        var downStep: Int
         var down: SIMD2<Double>
         var at: SIMD2<Double>
         /// It went down while the upper key held the arm.
@@ -96,8 +98,10 @@ final class AssistPropertyTests: XCTestCase {
         var silenced = Set<HeldInput>()
         var lastHeld: [HeldInput: InputPhase] = [:]
         var sawWaitWhileLoose = false
+        // The last step that held an accepted STOP touch-down.
+        var lastStopStep: Int?
 
-        for step in scenario.steps {
+        for (index, step) in scenario.steps.enumerated() {
             func at() -> String { "at \(step.time), \(step.events)" }
             let facts = scenario.facts(at: step.time)
             let engagementBefore = arbiter.engagement
@@ -127,7 +131,8 @@ final class AssistPropertyTests: XCTestCase {
                 switch s.phase {
                 case .began where ArbiterRig.layout.zone(x: s.x, y: s.y) == .controlSurface:
                     let inHeldUp = engagementBefore == .held(.key(.upper), .translation)
-                    thumbs[s.id] = Thumb(downAt: step.time, down: point, at: point, inHeldUp: inHeldUp)
+                    thumbs[s.id] = Thumb(
+                        downAt: step.time, downStep: index, down: point, at: point, inHeldUp: inHeldUp)
                 case .moved:
                     guard var thumb = thumbs[s.id] else { break }
                     thumb.at = point
@@ -140,6 +145,7 @@ final class AssistPropertyTests: XCTestCase {
                 }
             }
             let commands = arbiter.handle(step.events, at: step.time, facts: facts)
+            if step.events.contains(where: Self.isStop) { lastStopStep = index }
             let held = arbiter.held
             let engagement = arbiter.engagement
             let drives = commands.isEmpty ? [] : ArbiterRig.drives(commands)
@@ -371,6 +377,11 @@ final class AssistPropertyTests: XCTestCase {
                     if !began || !windowOver || slide != .up || thumb.sideways || thumb.playedNO {
                         return "a latch by a slide needs a deliberate slide up: touch \(id) latched: \(thumb), "
                             + "\(slide) \(at())"
+                    }
+                    // A STOP ends every latch attempt, and a thumb that lands after it in the same step makes none.
+                    if let lastStopStep, thumb.downStep <= lastStopStep {
+                        return "a STOP ends every latch attempt: touch \(id) went down in step \(thumb.downStep), "
+                            + "the last STOP was in step \(lastStopStep) \(at())"
                     }
                     totals.slideLatches += 1
                     if arbiter.scheme == .keyTurns,
