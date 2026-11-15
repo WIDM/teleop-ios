@@ -1,0 +1,41 @@
+name: git-hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Check PR title, body, branch and commits
+        if: github.event_name == 'pull_request'
+        env:
+          HYGIENE_PR_TITLE: ${{ github.event.pull_request.title }}
+          HYGIENE_PR_BODY: ${{ github.event.pull_request.body }}
+          HYGIENE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HYGIENE_RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check-git-hygiene.py --from-env
+      - name: Check pushed branch and commits
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          HYGIENE_BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            git fetch --no-tags origin "$DEFAULT_BRANCH"
+            base=$(git merge-base "origin/$DEFAULT_BRANCH" "$AFTER")
+          else
+            base="$BEFORE"
+          fi
+          HYGIENE_RANGE="$base..$AFTER" python3 scripts/check-git-hygiene.py --from-env
