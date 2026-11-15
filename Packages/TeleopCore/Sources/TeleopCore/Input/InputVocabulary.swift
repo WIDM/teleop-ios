@@ -51,17 +51,18 @@ public enum InputEvent: Equatable, Sendable {
     /// Lets the timers run out on time: the palm window, the scheme B dwell, the reset countdown. Send ticks at
     /// least at 30 Hz, or at `nextDeadline`.
     case tick
-    /// Every hold ends and every input held now is dead until released (I-11, H4): the app left the active state,
-    /// a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or the server
-    /// ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the call can
-    /// return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare.
-    case endAllHolds
+    /// Every hold ends and every input held now is dead until released (I-11, H4), for `reason`: the app left the
+    /// active state, a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or
+    /// the server ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the
+    /// call can return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare. For
+    /// a hold tied to an input and for the countdown every reason does the same.
+    case holdsEnded(Interruption)
     /// The app is active again after leaving the active state (I-11, J8). It got no key-up or touch-up while away, so
     /// every touch held before is forgotten (its later samples are ignored), and a key held before no longer counts
     /// as down; its next `began` is taken as that key still held from before, so it is dead (NO) until its `ended`.
-    /// Send `endAllHolds` on leaving and this on return.
+    /// Send `holdsEnded(.appLeft)` on leaving and this on return.
     case becameActive
-    /// A scheme or Hand change. Ends every hold first, as `endAllHolds`.
+    /// A scheme or Hand change. Ends every hold first, as `holdsEnded` does.
     case modeChanged(InputScheme, Hand)
     /// The server reset the scene (`ok scene_reset`, an `episode` change or a new `welcome.session`). On an
     /// unknown server the tilt window counts commanded tilt from here.
@@ -69,6 +70,9 @@ public enum InputEvent: Equatable, Sendable {
     /// The engaged wrist hold's `orient_start` went on the wire now. If it waited behind a finishing hold, the
     /// rotation made meanwhile is dropped (I-8.1), and the call returns the target to stream from now on.
     case wristStartSent
+
+    /// Every hold ends with no reason named. A path that knows why should say so with `holdsEnded(_:)`.
+    public static let endAllHolds = InputEvent.holdsEnded(.unnamed)
 }
 
 /// Why a press does nothing, as the operator will hear it (E2).

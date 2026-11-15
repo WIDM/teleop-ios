@@ -32,7 +32,11 @@ final class OperatingController {
     private var padTouches: Set<Int> = []
     private var wasOnOperatingScreen: Bool
     private var wasStopped: Bool
+    private var wasConnected: Bool
+    private var wasBlocked: Bool
     private var cameraStopped = false
+    /// The reason given with the newest `holdsEnded` fed to the input rules.
+    private(set) var lastInterruption: Interruption?
     private var queue: [Step] = []
     private var running = false
     private var timer: Timer?
@@ -58,6 +62,8 @@ final class OperatingController {
         )
         wasOnOperatingScreen = Self.operatingRoutes.contains(model.session.route)
         wasStopped = model.session.state.emergencyStop
+        wasConnected = model.session.state.connected
+        wasBlocked = model.session.state.commandsBlocked
     }
 
     deinit { timer?.invalidate() }
@@ -125,7 +131,7 @@ final class OperatingController {
     /// it stays dead until released.
     func activeChanged(_ active: Bool) {
         if !active { enqueue(.endButtonHold) }
-        feed([active ? .becameActive : .endAllHolds], at: now())
+        feed([active ? .becameActive : .holdsEnded(.appLeft)], at: now())
     }
 
     /// ARKit stopped or restarted the camera: holds end, and inputs held across it stay dead.
@@ -133,7 +139,7 @@ final class OperatingController {
         guard interrupted != cameraStopped else { return }
         cameraStopped = interrupted
         if interrupted { enqueue(.endButtonHold) }
-        feed([interrupted ? .endAllHolds : .becameActive], at: now())
+        feed([interrupted ? .holdsEnded(.cameraStopped) : .becameActive], at: now())
     }
 
     var isCameraStopped: Bool { cameraStopped }
@@ -148,9 +154,10 @@ final class OperatingController {
         feed([.wristStartSent], at: now())
     }
 
-    /// The session changed. A hold the server, the link, STOP or a screen ended is ended in the rules too, and
-    /// leaving the operating screen ends every hold.
-    func sessionChanged() {
+    /// The session changed. A hold the server, the link, STOP or a screen ended is ended in the rules too, with the
+    /// reason as far as it is known, and leaving the operating screen ends every hold. `told`: what the model knows of
+    /// this change that the session does not show, such as a start it carried that the session or the link refused.
+    func sessionChanged(told: Interruption? = nil) {
         let onScreen = Self.operatingRoutes.contains(model.session.route)
         let left = wasOnOperatingScreen && !onScreen
         wasOnOperatingScreen = onScreen
@@ -159,6 +166,12 @@ final class OperatingController {
         let stopped = model.session.state.emergencyStop
         let newlyStopped = stopped && !wasStopped
         wasStopped = stopped
+        let connected = model.session.state.connected
+        let lostLink = wasConnected && !connected
+        wasConnected = connected
+        let blocked = model.session.state.commandsBlocked
+        let newlyBlocked = blocked && !wasBlocked
+        wasBlocked = blocked
         if let held = buttons.engaged {
             if !Self.holds(held, model.session.state) {
                 buttons.holdEnded()
@@ -166,9 +179,13 @@ final class OperatingController {
                 enqueue(.endButtonHold)
             }
         }
-        if left || newlyStopped || (arbiter.engagedHold.map { !Self.holds($0, model.session.state) } ?? false) {
-            feed([.endAllHolds], at: now())
-        }
+        let holdGone = arbiter.engagedHold.map { !Self.holds($0, model.session.state) } ?? false
+        guard left || newlyStopped || holdGone else { return }
+        // The stop's ALARM and the lost link's sound and words have played. Otherwise the reason is never assumed to
+        // have been told: one nobody names is heard as unnamed.
+        let reason: Interruption =
+            newlyStopped || lostLink ? .announced : told ?? (newlyBlocked ? .slowLink : left ? .leftScreen : .unnamed)
+        feed([.holdsEnded(reason)], at: now())
     }
 
     // MARK: Reading the state
@@ -202,6 +219,7 @@ final class OperatingController {
     // MARK: Carrying out
 
     private func feed(_ events: [InputEvent], at time: TimeInterval) {
+        for case .holdsEnded(let reason) in events { lastInterruption = reason }
         enqueue(.events(events, time))
     }
 

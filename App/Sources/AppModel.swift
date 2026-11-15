@@ -739,7 +739,9 @@ final class AppModel {
             raise(.holdLive(hold: demoHold))
         }
         refreshRecorder()
-        controller.sessionChanged()
+        // A start the session ignored, or the link could not start, was refused: the operator has heard why.
+        let told: Interruption? = action == .holdArmStart && !session.state.armMoving ? .startRefused : nil
+        controller.sessionChanged(told: told)
     }
 
     /// The session asks for its own haptic commands; the operator feels and hears the events they stand for.

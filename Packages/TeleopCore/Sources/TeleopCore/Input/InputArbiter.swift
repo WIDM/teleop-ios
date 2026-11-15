@@ -19,7 +19,7 @@ public struct InputArbiter: Sendable {
     /// Keys that were down when the app left the active state; whether they still are is unknown (I-11).
     private var staleKeys: Set<InputKey> = []
     private var touches: [Int: TouchRole] = [:]
-    private var engaged: Engaged?
+    private var engaged: Engagement?
     /// The engaged wrist hold's mapper.
     private var wrist: RotationMapper?
     private var lastWristTarget = WristTarget.identity
@@ -33,12 +33,6 @@ public struct InputArbiter: Sendable {
     private var out: [InputCommand] = []
 
     private enum KeyState: Equatable, Sendable { case engaged, dead }
-
-    private enum Engaged: Equatable, Sendable {
-        case hold(HeldInput, HoldKind)
-        /// The reset countdown of this top band touch.
-        case countdown(Int)
-    }
 
     private enum TouchRole: Equatable, Sendable {
         /// Filtered out, in the gap or in the bottom safe area: never acts, never cues.
@@ -99,7 +93,7 @@ public struct InputArbiter: Sendable {
     public var held: [HeldInput: InputPhase] {
         var result: [HeldInput: InputPhase] = [:]
         for (key, state) in keys {
-            if state == .engaged, case .hold(.key(key), let kind)? = engaged {
+            if state == .engaged, case .held(.key(key), let kind)? = engaged {
                 result[.key(key)] = .engaged(kind)
             } else {
                 result[.key(key)] = .dead
@@ -120,7 +114,7 @@ public struct InputArbiter: Sendable {
                 case .waiting: result[.touch(id)] = .waiting
                 case .dead: result[.touch(id)] = .dead
                 case .engaged:
-                    if case .hold(.touch(id), let kind)? = engaged { result[.touch(id)] = .engaged(kind) }
+                    if case .held(.touch(id), let kind)? = engaged { result[.touch(id)] = .engaged(kind) }
                 }
             }
         }
@@ -132,10 +126,10 @@ public struct InputArbiter: Sendable {
     /// a `resetCountdownStarted` and `fireReset` read in the same step came from.
     public private(set) var countdownTouchID: Int?
 
-    public var engagedHold: HoldKind? {
-        if case .hold(_, let kind)? = engaged { return kind }
-        return nil
-    }
+    /// What is engaged now: a hold and the input it is tied to, or the countdown.
+    public var engagement: Engagement? { engaged }
+
+    public var engagedHold: HoldKind? { engaged?.holdKind }
 
     /// A volume key or a control-surface touch is down, whatever it is doing (§0.2; the voice gate V-2).
     public var isHoldingAnInput: Bool {
@@ -153,7 +147,7 @@ public struct InputArbiter: Sendable {
 
     /// Events that happened at the same instant, applied in the order given, except that an attitude sample is judged
     /// before the touch moves given ahead of it (A-6t). Timers that ran out before this instant fire first; a timer
-    /// that runs out at this very instant fires after the events, so a lift, a palm, a swipe or `endAllHolds` at the
+    /// that runs out at this very instant fires after the events, so a lift, a palm, a swipe or `holdsEnded` at the
     /// deadline still counts.
     public mutating func handle(_ events: [InputEvent], at time: TimeInterval, facts: InputFacts) -> [InputCommand] {
         out = []
@@ -208,7 +202,8 @@ public struct InputArbiter: Sendable {
         case .touch(let sample): touch(sample)
         case .attitude(let q): attitudeSample(q)
         case .tick: break
-        case .endAllHolds: endAllHolds()
+        // Whatever the reason, every hold tied to an input and the countdown end alike.
+        case .holdsEnded: endAllHolds()
         case .becameActive: becameActive()
         case .modeChanged(let newScheme, let newHand):
             endAllHolds()
@@ -225,7 +220,7 @@ public struct InputArbiter: Sendable {
                     ))
             }
         case .wristStartSent:
-            guard case .hold(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
+            guard case .held(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
             // The target streamed from now on drops the rotation made while the start waited.
             let target = mapper.startSent(attitude: q, at: now)
             wrist = mapper
@@ -281,7 +276,7 @@ public struct InputArbiter: Sendable {
         }
         guard let state = keys.removeValue(forKey: key) else { return }
         keyEndedAt[key] = now
-        if state == .engaged, case .hold(.key(key), _)? = engaged { stopEngaged() }
+        if state == .engaged, case .held(.key(key), _)? = engaged { stopEngaged() }
     }
 
     // MARK: Touches (§2.2)
@@ -400,7 +395,7 @@ public struct InputArbiter: Sendable {
         case .ignored, .stop:
             break
         case .surface(let touch):
-            if touch.phase == .engaged, case .hold(.touch(id), _)? = engaged { stopEngaged() }
+            if touch.phase == .engaged, case .held(.touch(id), _)? = engaged { stopEngaged() }
         case .band(let band):
             switch band.phase {
             case .pending, .live:
@@ -441,7 +436,7 @@ public struct InputArbiter: Sendable {
                 touches[id] = .surface(touch)
             }
         }
-        if case .hold(_, .wrist)? = engaged, var mapper = wrist {
+        if case .held(_, .wrist)? = engaged, var mapper = wrist {
             let result: (target: WristTarget, limitReached: Bool)
             if mapper.axis == nil, let axis = mapper.dominantAxis(mapper.angles(q)) {
                 result = mapper.lock(axis, range: limits(axis), attitude: q, at: now)
@@ -630,7 +625,7 @@ public struct InputArbiter: Sendable {
                     cue(.refused(refusal))
                 } else {
                     band.phase = .counting
-                    engaged = .countdown(id)
+                    engaged = .countdown(touch: id)
                     countdownTouchID = id
                     out.append(.resetCountdownStarted)
                     // A control-surface touch still undecided was down when the countdown began, so it is dead
@@ -686,7 +681,7 @@ public struct InputArbiter: Sendable {
             cue(.alreadyGripping)
             return false
         }
-        engaged = .hold(input, kind)
+        engaged = .held(input, kind)
         // A top band touch still in its palm window was down when this hold began: it never starts the countdown,
         // and plays NO + "Let go first." when its window ends, as it would with the hold still engaged then.
         for (id, role) in touches {
@@ -736,7 +731,7 @@ public struct InputArbiter: Sendable {
 
     /// Sends the stop for the engaged hold (I-1).
     private mutating func stopEngaged() {
-        guard case .hold(_, let kind)? = engaged else { return }
+        guard case .held(_, let kind)? = engaged else { return }
         engaged = nil
         switch kind {
         case .translation:
