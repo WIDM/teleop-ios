@@ -153,7 +153,7 @@ struct SettingsScreen: View {
         Section {
             Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
                 .accessibilityIdentifier("settings.assist")
-            if model.profile.assist.lock != nil {
+            if model.offersLock {
                 Picker(selection: $model.lockChoice) {
                     Text("settings.lock_off").tag(LockChoice.off)
                     Text("settings.lock_press_press").tag(LockChoice.pressPress)

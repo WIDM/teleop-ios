@@ -107,12 +107,25 @@ final class AssistSettingsTests: XCTestCase {
         }
     }
 
-    /// The picker's row names the choice it shows after its own name ("Lock, Off").
+    /// The choice the picker's row shows: its value when it has one, else the end of its label, which names the choice
+    /// after the row's own name ("Lock, Off" here). The separator differs between languages, and a system may expose
+    /// the choice as the value instead, so neither is assumed.
     private func expectChoice(_ picker: XCUIElement, _ choice: String, line: UInt = #line) {
-        let predicate = NSPredicate(format: "label ENDSWITH %@", ", " + choice)
+        let predicate = NSPredicate { object, _ in
+            guard let element = object as? XCUIElement else { return false }
+            return Self.shows(value: element.value, label: element.label, choice)
+        }
         let found = XCTWaiter().wait(
             for: [XCTNSPredicateExpectation(predicate: predicate, object: picker)], timeout: 5)
-        XCTAssertEqual(found, .completed, "\(picker) reads \(picker.label), not the choice \(choice)", line: line)
+        let value = String(describing: picker.value)
+        XCTAssertEqual(
+            found, .completed, "\(picker) has value \(value) and label \(picker.label), not the choice \(choice)",
+            line: line)
+    }
+
+    private static func shows(value: Any?, label: String, _ choice: String) -> Bool {
+        if let value = value as? String, !value.isEmpty { return value == choice }
+        return label.hasSuffix(choice) && label.count > choice.count
     }
 
     private func expectValue(_ element: XCUIElement, _ value: String, line: UInt = #line) {

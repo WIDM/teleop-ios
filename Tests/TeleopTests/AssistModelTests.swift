@@ -67,6 +67,22 @@ final class AssistModelTests: XCTestCase {
         XCTAssertEqual(after.lockChoice, .pressPress, "giving them saves nothing")
     }
 
+    /// Settings offers lock only for a robot that allows it, which says how long a latched follow may run. With the
+    /// master switch off the row is still offered, disabled, so the choice stays in view.
+    func testTheLockRowIsOfferedOnlyWhenTheProfileAllowsLock() {
+        for on in [true, false] {
+            let simulator = AppModel(start: .p4, liveLink: false, assistOn: on, lockChoice: .off)
+            XCTAssertNotNil(simulator.profile.assist.lock)
+            XCTAssertTrue(simulator.offersLock, "the simulator's robot allows lock, switch \(on)")
+
+            var noAids = RobotProfile.so101Simulator
+            noAids.assist = .none
+            let other = AppModel(start: .p4, liveLink: false, profile: noAids, assistOn: on, lockChoice: .pressPress)
+            XCTAssertFalse(other.offersLock, "a robot that allows no aids, switch \(on)")
+            XCTAssertNil(other.assist.lock, "and no lock is in force, whatever was chosen")
+        }
+    }
+
     /// Like the mode, neither setting changes while anything is engaged: the change is refused with "Let go first."
     func testASettingsChangeWhileEngagedIsRefused() {
         let model = AppModel(
