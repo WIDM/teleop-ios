@@ -4,7 +4,7 @@
 public struct TeleopNavigator: Equatable, Sendable {
     public private(set) var stack: [Route]
 
-    public init(start: Route = .p1) {
+    public init(start: Route = .s2) {
         stack = [start]
     }
 

@@ -8,6 +8,12 @@
             "state": "translated",
             "value": "Teleop"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teleop"
+          }
         }
       }
     },
@@ -18,15 +24,27 @@
             "state": "translated",
             "value": "The camera tracks the phone pose and detects volume-key hold and release."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相機用來追蹤手機姿態，並偵測按住與放開音量鍵。"
+          }
         }
       }
     },
-    "NSMotionUsageDescription": {
+    "NSLocalNetworkUsageDescription": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Motion sensors map phone rotation to wrist orientation."
+            "value": "The app connects to the teleop server on your network."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 需要連到你網路上的遙操作伺服器。"
           }
         }
       }

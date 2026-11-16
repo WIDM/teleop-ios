@@ -1,105 +1,91 @@
-public enum TeleopMode: Sendable { case onSite, cloud }
 public enum ArmSide: Sendable { case left, right }
 public enum GripperState: Sendable { case open, closed }
-
-/// Fake UI state only; no networking.
+/// UI state. Fake by default; with `liveLink` set, `connected`, latency and E-stop follow the server.
 public struct FakeTeleopState: Equatable, Sendable {
-    public var mode: TeleopMode = .onSite
     public var connected = false
-    public var heartbeatOk = true
-    public var physicalEstopOk = true
-    public var latencyMs = 80
+    /// Live link only: the last measured round trip. Nil until the first sample on a connection and after a reset.
+    public var latencyMs: Int?
     public var commandsBlocked = false
     public var gripper: GripperState = .open
     public var arm: ArmSide = .left
-    public var serverAddress = "192.168.x.x:8765"
+    public var serverAddress = ""
     public var tutorialDone = false
     public var emergencyStop = false
-    public var isRecording = false
-    public var recordingElapsedSec = 0
+    /// A scene reset was asked for while E-stopped, and no STOP has come since: the server's confirmation of it
+    /// (`sceneResetDone`) releases the stop (§6.5). A reset asked for before a STOP never does.
+    public var resetClearsStop = false
     public var developerMode = false
     public var sensitivity = 1.0
-    public private(set) var deadbandDegrees = 2.0
     public private(set) var smoothing = 0.3
-    /// True while the arm hold (vol+ or the on-screen hold area) is pressed.
+    /// True while the arm hold (a key, a touch or a pad button) is held.
     public var armMoving = false
+    /// Direction the gripper is travelling while its control is held; nil when still.
+    public var gripperMoving: GripperState?
+    /// True while a wrist hold that takes its angle from the phone's rotation is engaged.
+    public var wristMoving = false
     public var serverInputError = false
+    /// Live link only: a working link dropped. S1 says so until the next connection or a Disconnect.
+    public var connectionLost = false
+    /// True when a real server drives the link. Then only `linkUp` marks the session connected.
+    public var liveLink = false
 
     public init() {}
 
-    public static let highLatencyMs = 420
-    public static let normalLatencyMs = 80
-    public static let amberLatencyMs = 150
-    public static let deadbandRange = 0.0...10.0
+    /// Round trip at or above this blocks commands.
+    public static let blockLatencyMs = 400
     public static let smoothingRange = 0.0...1.0
-
-    public var latencyIsAmber: Bool {
-        commandsBlocked || latencyMs >= Self.amberLatencyMs
-    }
-
-    public mutating func selectCloud() { mode = .cloud }
-    public mutating func selectOnSite() { mode = .onSite }
 
     public mutating func markConnected() {
         connected = true
-        latencyMs = Self.normalLatencyMs
+        connectionLost = false
+        latencyMs = nil
         commandsBlocked = false
     }
 
     public mutating func markDisconnected() {
+        // The answer to a reset asked for on this connection cannot come on the next one.
+        resetClearsStop = false
         connected = false
-        heartbeatOk = false
+        armMoving = false
+        gripperMoving = nil
+        wristMoving = false
     }
 
-    public mutating func simulateCloudPass() {
-        heartbeatOk = true
-        physicalEstopOk = true
-        markConnected()
-    }
-
-    public mutating func simulateCloudFail() {
-        heartbeatOk = false
-        physicalEstopOk = true
-        connected = true
-    }
-
-    public mutating func simulateHighLatency() {
-        latencyMs = Self.highLatencyMs
-        commandsBlocked = true
-    }
-
-    public mutating func simulateNormalLatency() {
-        latencyMs = Self.normalLatencyMs
+    public mutating func clearLatency() {
+        latencyMs = nil
         commandsBlocked = false
     }
 
-    public mutating func setDeadband(degrees: Double) {
-        deadbandDegrees = min(max(degrees, Self.deadbandRange.lowerBound), Self.deadbandRange.upperBound)
+    /// The link is dropped and nothing keeps moving, as when Settings switches between the demo and a real server.
+    public mutating func leaveSession() {
+        armMoving = false
+        gripperMoving = nil
+        wristMoving = false
+        connected = false
+        connectionLost = false
+        clearLatency()
+    }
+
+    /// Reset scene: arm stopped, gripper back to open, latency block cleared.
+    public mutating func resetScene() {
+        armMoving = false
+        gripperMoving = nil
+        wristMoving = false
+        gripper = .open
+        clearLatency()
     }
 
     public mutating func setSmoothing(_ value: Double) {
         smoothing = min(max(value, Self.smoothingRange.lowerBound), Self.smoothingRange.upperBound)
     }
 
-    public mutating func toggleGripper() {
-        gripper = gripper == .open ? .closed : .open
+    /// The gripper starts travelling toward `target` and keeps going until `stopGripper`.
+    public mutating func moveGripper(toward target: GripperState) {
+        gripperMoving = target
+        gripper = target
     }
 
-    public mutating func startRecording() {
-        isRecording = true
-        recordingElapsedSec = 0
-    }
+    public mutating func stopGripper() { gripperMoving = nil }
 
-    public mutating func stopRecording() { isRecording = false }
-
-    public mutating func tickRecording() {
-        if isRecording { recordingElapsedSec += 1 }
-    }
-
-    /// mm:ss, zero padded (visual-spec v1.1).
-    public var recordingTimeLabel: String {
-        let minutes = recordingElapsedSec / 60
-        let seconds = recordingElapsedSec % 60
-        return (minutes < 10 ? "0" : "") + String(minutes) + ":" + (seconds < 10 ? "0" : "") + String(seconds)
-    }
+    public mutating func stopWrist() { wristMoving = false }
 }

@@ -1,35 +1,67 @@
-# iOS app v1 skeleton (App/ + Packages/ layout): status
+# Status
 
-## Done
+What the app does, what is known not to work, and what version 1 leaves out. How each part works is in
+`docs/ARCHITECTURE.md`; how it is tested is in `docs/TESTING.md`.
 
-All 20 routes have a SwiftUI screen: P1, P2, P3, P4, P5, P6, P7, T1, T2, T3, S1, S2, S3a, S3b, S3m, S4, S5, S5a, S6, S7.
+## Works, and the default tests cover it
 
-- S1 to P5 flow finished first: screens, nav rules, `TeleopSession` actions and 11 flow tests (chip -> P5, Change server -> S1, Connect/Back/chip -> P5, Disconnect -> S7, Reconnect/Back to connect -> S1, every step is a declared forward edge).
-- `TeleopCore`: 49 XCTest cases pass on Linux with Swift 6.0.3 and 6.4.2 (`TEST-RESULT.txt`).
-- 4 haptic patterns (1, 2, 3 short; long repeating) defined in Core, played by Core Haptics (`HapticsController`); STOP starts the loop, release cancels it, gripper toggle plays 1 or 2 short.
-- Strings: 105 keys in `Localizable.xcstrings`, English only, `scripts/check-strings.py` passes. Camera and motion usage text in `InfoPlist.xcstrings`.
-- Colours follow visual-spec v1.14: STOP solid red with yellow border; recording `#0F172A` with blinking white dot; error cards amber border; red only on STOP, e-stop, S7 lost connection.
-- STOP release (S4) and Discard (S3b) need a 1 second hold, with a fill bar.
-- `.github/workflows/ios.yml`: string check, core tests, XcodeGen, `xcodebuild test` on an iPhone simulator, screenshots of P1 to P5/S1/S7 from the UI test (exported from the xcresult), artifacts: xcodebuild log, screenshots, xcresult.
+- The operating screen in all three control modes (screen turns, key turns, buttons), driven through the input
+  rules. A scripted pick-and-place in each mode, through raw inputs only, passes against the server model in every
+  default run.
+- The link: two connections, holds, final acks, resets, the emergency stop and its two ways out, and a STOP pressed
+  before the server's welcome or lost with the link before the server confirmed it. The server model it is tested against is
+  checked against 18 recordings of the real server.
+- The guide, in the phone modes on a real server: the arm from above and from behind, and the target and goal
+  when the server reports them. The jaw marker is the server's `tool_pos` when it sends one, otherwise an estimate
+  drawn as a hollow ring where it may be off. The phone plays the on-target haptic once per approach.
+- The recorder: the REC line, Settings → Recording, and the spoken news of each take.
+- A vibration, a sound or a spoken phrase for every feedback event (`CueTable`); every string in English and
+  Traditional Chinese.
+- Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
+- Every operating state drawn in both languages at two screen heights.
 
-## Not done
+## Only a person can check
 
-- Icons are SF Symbols, not Material Symbols Rounded.
-- No Liquid Glass (target is iOS 17); solid surfaces only.
-- Hold-to-release shows a fill bar, not the ring from visual-spec.
-- No swipe-back gesture; navigation is a custom stack driven by `BackStackRules`.
-- P7 uses the system keyboard, not the shared mock keyboard component.
-- Left/right arm switch, cloud banner and latency dot from visual-spec v1.5 are not in the Android reference, so not built.
-- Camera and motion permissions are declared but not requested; S2 only describes them.
-- Figma could not be read (MCP needs authorization); screens follow the PNG shots and the Android code.
+The tests cannot press the volume keys, move a real phone, touch the glass with a real thumb, or feel and hear the
+cues. Those, and everything against the real server in Isaac Sim (the `Live` test plan), need a person with a
+phone.
 
-## Only verifiable on a Mac
+Measured with a person's hand on an iPhone 17: the phone reports how wide a touch is in steps of about 12 pt. In its
+first 100 ms a thumb pad pressed, held or slid on the glass was at most 85 pt wide, a tap 24 to 61 pt, and the base
+of the hand pressed on the glass 97 pt or more. The rule that ignores a palm everywhere but on the STOP band
+(`InputConstants.palmRadiusPt`, 91 pt) sits between them. On the same phone every swipe home began in the lowest
+34 pt, under the home indicator. The STOP band ends above that strip and a touch that begins in the strip does
+nothing, so none of those swipes stops the robot. One press aimed at scheme B's lower left corner landed on the STOP
+band; scheme B's words sit halfway up the screen, away from the band. Not yet checked on a phone: other hands, the
+12 pt edge rule, a swipe home that begins above the home indicator, and how often a press on scheme B's halves lands
+on the STOP band with the words halfway up.
 
-- The SwiftUI target has never been compiled: Linux has no SwiftUI. Only syntax parsing (`swiftc -parse`) was run on every app and test file. Expect small type-check fixes on first build.
-- `xcodegen generate` and Xcode build.
-- `TeleopTests`, `TeleopUITests` and the screenshot export step in CI.
-- Layout on the 402x874 frame; keyboard behaviour on P7; hold gestures.
-- Core Haptics feel on a real iPhone (the simulator has no haptic engine).
+## Known not to work
 
-## Note on the shared directory
+- The app does not reconnect by itself after a lost link: the operating screen shows "Link lost" with "Connect again
+  in Settings", and the operator connects again from Settings → Server. On `p4_standby` and `p6_high_latency` a lost
+  link opens Connect instead.
+- A failed connection gets no specific reason. On Connect, a refused connection, a timeout and an unreadable
+  address all read "Could not connect to that address."; the operating screen says only "Not connected".
+- Practice shows no guide: the practice link has no arm to report.
+- A touch 91 pt wide or wider when it lands or in its first 100 ms, about 30 mm across, is taken for a palm and
+  ignored without a sound: a thumb laid flat on the glass can be that wide. The STOP band is the exception: any
+  touch there stops the robot.
+- A press on the strip below the STOP band, where the home indicator sits, does not stop the robot.
+- A whole press, move and release that falls inside one stall of the network plays the start's tick, moves the arm
+  a few millimetres at most (the held messages reach the server together), and ends without a word: a start gets
+  no acknowledgement of its own.
+- For a moment after a stall the screen can say Slow link, because the probes sent during the stall come back
+  late, and a press in that moment is refused with "Slow link.".
+- A server that has gone silent is noticed after 3 s, but only after tens of seconds while the app's own main
+  thread stalls on every tick: each late tick counts as the app not running, not as silence.
+- Nothing ends the holds when the phone overheats.
+- Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
+  the value the profile keeps until a check on the live robot sets it.
 
+## Left out of version 1
+
+- Voice commands.
+- Wrist buttons in buttons mode.
+- Distribution through TestFlight is not set up yet. The repository has what an upload needs; the steps only the
+  Apple account holder can take are in `docs/RELEASING.md`.
