@@ -36,7 +36,8 @@ private final class LooseLinkTransport: LinkTransport {
 /// alarm alone. A slow link is named by the input rules, never by a refusal. A hold someone holds is told as in
 /// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold. A move
 /// to a point tapped on the guide streams the input rules' offsets through the lead cap and re-sends its start as a
-/// pad hold does.
+/// pad hold does, and the limits it meets are told by its ending alone: neither a side nor the server's clamp is heard
+/// while it goes, and the guide shows no side for it, where a latched follow, which the phone steers, is told its side.
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
     /// The listening connection's socket, once the link opened it.
@@ -519,17 +520,18 @@ final class AssistLinkTests: XCTestCase {
         transport.server("state", ["estop": false, "gripper": "closed", "ee_pos": [gripper.x, gripper.y, gripper.z]])
     }
 
-    /// Standby with no lock, the arm reported at `goStart`, the guide drawn and its view from above reported; a tap
-    /// over `goTarget`, and the input rules' next look at the arm, still at the travel height, which turns the move
-    /// toward the target. The move runs, nobody holds it, and nothing has been heard.
-    private func tapAMove(line: UInt = #line) {
+    /// Standby with no lock, the arm reported at `start` (`goStart` when nil), the guide drawn and its view from above
+    /// reported; a tap over `target` (`goTarget` when nil), and the input rules' next look at the arm, still at the
+    /// travel height, which turns the move toward the target. The move runs, nobody holds it, and nothing has been
+    /// heard.
+    private func tapAMove(from start: SIMD3<Double>? = nil, to target: SIMD3<Double>? = nil, line: UInt = #line) {
         bringUp(lock: .off)
         model.taskAid = true
         model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
-        reportArm(atPinch: goStart)
+        reportArm(atPinch: start ?? goStart)
         model.guidePanelChanged(Self.panel)
         guard let panel = model.inputFacts().goPanel else { return XCTFail("no panel reaches the rules", line: line) }
-        let point = panel.point(over: goTarget)
+        let point = panel.point(over: target ?? goTarget)
         clock += 50
         model.touch(TouchSample(id: 1, phase: .began, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
         clock += 50
@@ -606,6 +608,70 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertNotNil(model.controller.loose, "the move goes on")
         XCTAssertTrue(model.link.holdIsLoose, "nobody holds it")
         XCTAssertEqual(endings, [])
+    }
+
+    /// Against a server that keeps the gripper link within 4 cm of where it stood, a tap 5.5 cm to the operator's left,
+    /// 2 cm inside the work box's left face: the server takes the hold, holds the arm 1.5 cm short and says it clamped
+    /// it, and the move corrects as often as the profile allows and stops short. The operator steered nothing, so the
+    /// limit is told once, by the move's ending: GO, then the ending, nothing between, and the guide shows no side.
+    func testAMoveCutShortByASmallerServerBoxIsToldByItsEndingAlone() {
+        // Left is +X in the robot base.
+        let start = SIMD3<Double>(0.032617, -0.18, 0.09)
+        tapAMove(from: start, to: start + SIMD3(0.055, 0, 0))
+        let gripperStart = start - SIMD3<Double>(model.profile.toolOffset)
+        let serverEdge = gripperStart.x + 0.04
+        var sideShown = false
+        for _ in 0..<300 where model.session.state.armMoving {
+            run(ticks: 1)
+            let commanded = model.link.commandedArm.map { SIMD3<Double>($0) } ?? gripperStart
+            let arm = SIMD3(min(commanded.x, serverEdge), commanded.y, commanded.z)
+            let label = commanded.x > serverEdge ? "pose_clamped" : "pose_tracking"
+            transport.server(
+                "state", ["estop": false, "gripper": "closed", "ik": label, "ee_pos": [arm.x, arm.y, arm.z]])
+            sideShown = sideShown || model.link.commandOutside != nil
+            model.controller.tick()
+        }
+        XCTAssertFalse(model.session.state.armMoving, "the move ended")
+        XCTAssertEqual(heard, [.holdLive, .drive(.ended(.stoppedShort))], "GO, the ending, nothing between")
+        XCTAssertFalse(sideShown, "the guide showed no side")
+    }
+
+    /// The arm stands 1 cm past the work box's forward face (a server whose box is larger lets it) and the tap is
+    /// inside the box: the move's first commands are past that face, and still no side is told or shown, since the
+    /// operator steers nothing. The move goes on.
+    func testAMoveThatBeginsPastAFaceTellsNoSide() throws {
+        let profile = RobotProfile.so101Simulator
+        // Forward is −Y in the robot base.
+        let start = SIMD3<Double>(0.027617, Double(profile.workspaceMin.y) - 0.01, 0.09)
+        tapAMove(from: start, to: SIMD3(start.x, -0.2, start.z))
+        let face = Double(profile.workspaceMin.y - profile.toolOffset.y)
+        var past = false
+        for _ in 0..<6 {
+            run(ticks: 1)
+            let commanded = try XCTUnwrap(model.link.commandedArm)
+            past = past || Double(commanded.y) < face - WorkAreaCue.slackMeters
+            XCTAssertNil(model.link.commandOutside, "no side shown")
+            model.controller.tick()
+        }
+        XCTAssertTrue(past, "the command was past the forward face by more than the rule's slack")
+        XCTAssertEqual(heard, [], "no side told")
+        XCTAssertTrue(model.session.state.armMoving, "the move goes on")
+    }
+
+    /// A follow latched by a press is steered by the phone: past the work box's forward face it is told its side, and
+    /// the guide shows it, as a held hold is.
+    func testALatchedFollowPastAFaceIsStillToldItsSide() {
+        bringUp(lock: .pressPress)
+        // 1 cm inside the forward face; forward is −Y in the robot base.
+        reportArm(atPinch: SIMD3(0.027617, Double(model.profile.workspaceMin.y) + 0.01, 0.09))
+        latch()
+        // 3 cm forward (ARKit forward is −z), a centimetre a tick: 2 cm past the face.
+        for step in 1...3 {
+            position = SIMD3(0, 0, -0.01 * Float(step))
+            tick()
+        }
+        XCTAssertEqual(model.link.commandOutside, .forward, "the guide shows the side")
+        XCTAssertEqual(heard, [.commandOutside(.forward)], "told its side")
     }
 
     /// Ticks until the link sends its next probe, then the server answers it `ms` later.

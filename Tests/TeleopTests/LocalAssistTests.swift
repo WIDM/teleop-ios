@@ -428,7 +428,8 @@ final class LocalAssistTests: XCTestCase {
 
     /// Against a server that keeps the arm within 4 cm of its start, half of the profile's box, the hand taps a point
     /// 6 cm forward of the jaws, inside the box the guide draws. The server holds the arm 2 cm short; the move corrects
-    /// at least once and at most as often as the profile allows, ends, and is heard once as stopped short.
+    /// at least once and at most as often as the profile allows, ends, and is heard once as stopped short. The
+    /// operator steered nothing, so the server's clamp is told by that ending alone: GO, then the ending.
     private func aMoveTheServerCutsShortEndsOnce(_ mode: ControlMode) throws {
         let serverBox = 0.04
         try start(mode, lock: .off, path: StallingPath(), serverBox: serverBox)
@@ -456,12 +457,8 @@ final class LocalAssistTests: XCTestCase {
         let jaws = arm + server.config.toolOffset
         XCTAssertGreaterThan(simd_distance(jaws, target), goTo.arriveToleranceM, "\(mode): short of the target")
         hand.pump(0.5)
-        // On the way the operator also hears the server's clamp, which the app did not foresee since its box is the
-        // profile's. No side: the corrections end inside the profile's box, so the command never leaves it.
-        XCTAssertEqual(
-            cues(since: mark), [.holdLive, .limit(.workspace), .drive(.ended(.stoppedShort))], "\(mode): nothing more")
+        XCTAssertEqual(cues(since: mark), [.holdLive, .drive(.ended(.stoppedShort))], "\(mode): nothing more")
         assertOneHold("\(mode)", wireSince: wire)
-        print("STOPPED SHORT (\(mode.rawValue)): \(corrections) corrections")
     }
 
     func testAMoveTheServerCutsShortIsHeardOnceSchemeA() throws {

@@ -977,9 +977,11 @@ final class AppModel {
                 if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) { buttonHoldNotStarted() }
             case .going:
                 // A move to a point the operator tapped: a hold on the pad's path, with the input rules' offsets.
-                // Nobody holds it, so the link tells the endings it causes as the move's own.
+                // Nobody holds it, so the link tells the endings it causes as the move's own; nobody steers it, so the
+                // link leaves a limit it meets to that ending.
                 if link.startButtonHold({ [weak self] in self?.controller.goOffset() }) {
                     link.holdIsLoose = true
+                    link.holdIsGoing = true
                 } else {
                     buttonHoldNotStarted()
                 }

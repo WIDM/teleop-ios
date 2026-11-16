@@ -127,6 +127,10 @@ final class LiveLinkController {
     /// cleared when the hold ends here and when the link closes. While it is set, the endings this link causes are told
     /// as the move's own endings, which are queued and never dropped.
     var holdIsLoose = false
+    /// The running translation hold is a move to a point the operator tapped, which he does not steer. Set by AppModel
+    /// with `holdIsLoose`; cleared with it. A limit such a move meets is told once, by the move's own ending: neither
+    /// the work-area rule nor the server's clamp END plays during it, and the guide shows no side for it.
+    var holdIsGoing = false
     /// How the operator was told of the last ending this link caused of a hold nobody held, until AppModel reads it.
     private var looseEnding: Interruption?
     /// The newest `state` from either connection that carried an arm position. A state without one never makes the
@@ -180,8 +184,9 @@ final class LiveLinkController {
     var objectPosition: SIMD3<Float>? { Self.vector(link?.lastObject) }
     var goalPosition: SIMD3<Float>? { Self.vector(link?.lastGoal) }
     /// The side the commanded point is outside the work area on, for the guide's line; nil while inside, with the rule
-    /// off, and whenever no translation is being commanded, so the line never shows the last hold's side.
-    var commandOutside: OperatorDirection? { commandedArm == nil ? nil : workAreaCue?.outside }
+    /// off, and whenever no translation is being commanded, so the line never shows the last hold's side. Nil during a
+    /// move to a tapped point, which the rule does not watch.
+    var commandOutside: OperatorDirection? { commandedArm == nil || holdIsGoing ? nil : workAreaCue?.outside }
     /// The lowest gripper-link height, robot base frame, at which the arm stood against a downward command since the
     /// control connection was welcomed, for the guide's lowest line; nil before one and with that rule off.
     var lowestSeen: Double? { monitor.lowestSeen }
@@ -302,6 +307,7 @@ final class LiveLinkController {
         leadBound = WristLeadBound()
         lastTickAtMs = nil
         holdIsLoose = false
+        holdIsGoing = false
         looseEnding = nil
         newestArmState = nil
         newestArmAtMs = nil
@@ -372,6 +378,7 @@ final class LiveLinkController {
         commandedArm = nil
         resync = nil
         holdIsLoose = false
+        holdIsGoing = false
         leadCapped = false
         onCatchingUp?(false)
     }
@@ -563,7 +570,8 @@ final class LiveLinkController {
             commandedArm = target
             let point = SIMD3(Double(target.x), Double(target.y), Double(target.z))
             monitor.commanded(point)
-            if let side = workAreaCue?.commanded(point, at: now) {
+            // A move to a tapped point is not fed to the work-area rule: its ending tells a limit it meets.
+            if !holdIsGoing, let side = workAreaCue?.commanded(point, at: now) {
                 workAreaToldThisHold = true
                 emit([.commandOutside(side)])
             }
@@ -723,6 +731,9 @@ final class LiveLinkController {
             newestArmAtMs = nowMs()
         }
         var events = monitor.observe(state, at: nowMs())
+        // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
+        // ending, so the server's clamp of it plays no END and tells no side.
+        if holdIsGoing { events.removeAll { $0 == .limit(.workspace) } }
         // The server clamps at the face, the work-area rule only past its slack, so pushed slowly the clamp comes
         // first. With the commanded point past a face the rule watches, the clamp is that crossing: the rule tells it
         // now, in place of the server's END.
