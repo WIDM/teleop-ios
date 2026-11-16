@@ -442,7 +442,7 @@ final class LocalAssistTests: XCTestCase {
         // Forward is −Y in the robot base. In scheme B this tap lands in the centre band, the arrival's on a half.
         let target = SIMD3(pinch.x, pinch.y - 0.06, travelHeight(goTo))
         let mark = model.cueLog.count, wire = sentOnTheWire.count
-        legs = CommandLegs(rest: goTo.settleS * 0.75)
+        legs = CommandLegs(rest: goTo.settleS * 0.75, clock: { Date().timeIntervalSinceReferenceDate })
         watchTheMove()
         try hand.tapGuide(over: target)
         guard case .going = model.operating.state else {
@@ -700,29 +700,43 @@ final class LocalAssistTests: XCTestCase {
 /// The legs a going move's command walked, read from the offsets the link is asked to send, sampled on every turn of
 /// the run loop. Once a leg's command reaches the leg's end it stays there exactly, so an offset that has not changed
 /// for `rest` is a command standing still. A correction begins only after the arm has settled short, which takes the
-/// profile's settle time, so it always sets off from such a stand.
+/// profile's settle time, so it always sets off from such a stand. A stand is measured from the first sample that
+/// showed the offset to the last one that still showed it: the command moves on its own clock, so a turn of the run
+/// loop that comes late (a stall of the test host's main thread) says nothing about whether it stood still meanwhile.
 private final class CommandLegs {
     private let rest: TimeInterval
+    private let clock: () -> TimeInterval
     private var last: SIMD3<Double>?
-    private var changedAt = Date()
+    /// When the offset `last` was first sampled, and when it was sampled last.
+    private var changedAt: TimeInterval = 0
+    private var lastSampledAt: TimeInterval = 0
     /// Each time the command set off after standing still: where it stood, measured from where the move began, and
     /// which way it went, robot base frame.
     private(set) var setOffs: [(from: SIMD3<Double>, way: SIMD3<Double>)] = []
 
-    /// - Parameter rest: how long an unchanged offset must last to count as standing still; under the settle time.
-    init(rest: TimeInterval) { self.rest = rest }
+    /// - Parameters:
+    ///   - rest: how long an unchanged offset must last to count as standing still; under the settle time.
+    ///   - clock: the time now, seconds.
+    init(rest: TimeInterval, clock: @escaping () -> TimeInterval) {
+        self.rest = rest
+        self.clock = clock
+    }
 
     func sample(_ offset: SIMD3<Double>?) {
-        defer { last = offset }
+        let now = clock()
+        defer {
+            last = offset
+            lastSampledAt = now
+        }
         guard let offset, let last else {
-            changedAt = Date()
+            changedAt = now
             return
         }
         guard offset != last else { return }
-        if Date().timeIntervalSince(changedAt) >= rest {
+        if lastSampledAt - changedAt >= rest {
             setOffs.append((OperatorFrame.base(fromLink: last), OperatorFrame.base(fromLink: offset - last)))
         }
-        changedAt = Date()
+        changedAt = now
     }
 
     /// The set-offs that were corrections: every one but the level leg leaving the corner above the start, where the
@@ -733,6 +747,75 @@ private final class CommandLegs {
             let level = abs(stand.way.z) < simd_length(SIMD2(stand.way.x, stand.way.y))
             return !(atTheCorner && level)
         }.count
+    }
+}
+
+/// The helper that counts a going move's corrections from outside, on a clock it is handed: it counts a stand of the
+/// command only between samples that show it, so a gap in sampling, such as a stall of the test host's main thread
+/// while the command moves, is never taken for one.
+final class CommandLegsTests: XCTestCase {
+    /// The settle time of the simulator's profile, three quarters of it, as the local runs use.
+    private let rest = 0.6 * 0.75
+    private let speed = 0.04
+    private var now: TimeInterval = 0
+
+    /// The command, robot base frame, `t` seconds into a move: a 6 cm level leg forward from where the move began, a
+    /// stand of `stand` seconds at its end, a 2 cm correction further forward, and a stand at the end of that.
+    private func command(at t: TimeInterval, stand: TimeInterval) -> SIMD3<Double> {
+        let leg = 0.06 / speed
+        let forward: Double
+        if t < leg {
+            forward = speed * t
+        } else if t < leg + stand {
+            forward = 0.06
+        } else {
+            forward = 0.06 + min(0.02, speed * (t - leg - stand))
+        }
+        return SIMD3(0, -forward, 0)
+    }
+
+    /// Samples the command every 4 ms for 3.5 s plus `stand`, but none in `gap`, and returns the corrections counted.
+    private func corrections(stand: TimeInterval, gap: ClosedRange<TimeInterval>? = nil) -> Int {
+        now = 0
+        let legs = CommandLegs(rest: rest, clock: { [unowned self] in now })
+        var t = 0.0
+        while t <= 3.5 + stand {
+            now = t
+            if gap?.contains(t) != true { legs.sample(OperatorFrame.link(fromBase: command(at: t, stand: stand))) }
+            t += 0.004
+        }
+        return legs.corrections
+    }
+
+    /// The leg's stand and the correction from it: one correction, sampled throughout or not while the command stands.
+    func testARealStandIsAStand() {
+        XCTAssertEqual(corrections(stand: 0.7), 1, "sampled throughout")
+        XCTAssertEqual(corrections(stand: 0.7, gap: 1.7...2.0), 1, "with 0.3 s of the stand not sampled")
+    }
+
+    /// A gap in sampling of 0.46 s, longer than `rest`, while the command moves along the leg is not a stand.
+    func testAGapInSamplingWhileTheCommandMovesIsNotAStand() {
+        XCTAssertEqual(corrections(stand: 0.7, gap: 0.1...0.56), 1)
+        XCTAssertEqual(corrections(stand: 0.7, gap: 2.25...2.71), 1, "nor one in the correction")
+    }
+
+    /// The stand counts from the first sample that shows the offset to the last one that still shows it: exactly
+    /// `rest` between them is a stand, a sample interval less is not.
+    func testAStandIsMeasuredBetweenTheSamplesThatShowIt() {
+        for (lasted, counted) in [(rest, 1), (rest - 0.004, 0)] {
+            now = 0
+            let legs = CommandLegs(rest: rest, clock: { [unowned self] in now })
+            let start = OperatorFrame.link(fromBase: SIMD3(0.01, -0.02, 0))
+            let moved = OperatorFrame.link(fromBase: SIMD3(0.01, -0.03, 0))
+            legs.sample(OperatorFrame.link(fromBase: SIMD3(0.01, -0.01, 0)))
+            now = 0.1
+            legs.sample(start)
+            now = 0.1 + lasted
+            legs.sample(start)
+            now = 0.1 + lasted + 0.3
+            legs.sample(moved)
+            XCTAssertEqual(legs.corrections, counted, "\(lasted) s")
+        }
     }
 }
 
