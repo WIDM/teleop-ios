@@ -36,9 +36,9 @@ private final class LooseLinkTransport: LinkTransport {
 /// alarm alone. A slow link is named by the input rules, never by a refusal. A hold someone holds is told as in
 /// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold. A move
 /// to a point tapped on the guide streams the input rules' offsets through the lead cap and re-sends its start as a
-/// pad hold does, and the limits it meets are told by its ending alone: neither a side, the server's clamp nor
-/// "Blocked." is heard while it goes, and the guide shows no side for it, where a latched follow, which the phone
-/// steers, is told its side, the server's clamp and "Blocked.".
+/// pad hold does, and the limits it meets are told by its ending alone: neither a side, the server's clamp, "Blocked."
+/// nor "Can't go lower." is heard while it goes, and the guide shows no side for it, where a latched follow, which the
+/// phone steers, is told its side, the server's clamp, "Blocked." and "Can't go lower.".
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
     /// The listening connection's socket, once the link opened it.
@@ -779,6 +779,57 @@ final class AssistLinkTests: XCTestCase {
             all(pinch .>= profile.workspaceMin) && all(pinch .<= profile.workspaceMax),
             "the commanded point is inside the profile's box")
         XCTAssertEqual(heard, [.holdLive, .limit(.workspace)])
+        XCTAssertEqual(model.controller.arbiter.engagement, .latched(since: 10.1), "the follow goes on")
+    }
+
+    /// A tap sends the jaws straight down from 6 cm above the travel height, and something stands in the way 3 cm above
+    /// it: the server tracks the move, and the arm stands on that thing until the move stops short. The operator
+    /// steered nothing, so the limit is told once, by the move's ending: GO, then the ending, nothing between. The
+    /// height the arm stood at is kept as after a told "Can't go lower.", so the guide draws its lowest line there.
+    func testAMoveDownOntoSomethingAboveTheTravelHeightIsToldByItsEndingAlone() throws {
+        let start = SIMD3<Double>(0.027617, -0.18, 0.15)
+        tapAMove(from: start, to: SIMD3(start.x, start.y, goTarget.z))
+        let gripperStart = start - SIMD3<Double>(model.profile.toolOffset)
+        let obstacle = gripperStart.z - 0.03
+        for _ in 0..<300 where model.session.state.armMoving {
+            run(ticks: 1)
+            let commanded = model.link.commandedArm.map { SIMD3<Double>($0) } ?? gripperStart
+            let arm = SIMD3(commanded.x, commanded.y, max(commanded.z, obstacle))
+            transport.server(
+                "state", ["estop": false, "gripper": "closed", "ik": "pose_tracking", "ee_pos": [arm.x, arm.y, arm.z]])
+            model.controller.tick()
+        }
+        XCTAssertFalse(model.session.state.armMoving, "the move ended")
+        XCTAssertEqual(heard, [.holdLive, .drive(.ended(.stoppedShort))], "GO, the ending, nothing between")
+        let lowest = try XCTUnwrap(model.link.lowestSeen, "the height the arm stood at is kept")
+        XCTAssertEqual(lowest, obstacle, accuracy: 0.001, "where the arm stood")
+        XCTAssertNotNil(model.operating.guide?.lowestY, "the guide draws its lowest line")
+    }
+
+    /// A follow latched by a press is steered by the phone. With the jaws on the table and the hand 6 cm down, the arm
+    /// stands on the table, and the follow is told "Can't go lower." once, as a held hold is; the follow goes on.
+    func testALatchedFollowPushedIntoTheTableStillHearsItCannotGoLower() {
+        bringUp(lock: .pressPress)
+        let onTheTable = SIMD3<Double>(0.027617, -0.18, Double(model.profile.tableHeight))
+        reportArm(atPinch: onTheTable)
+        latch()
+        // A centimetre a tick; ARKit up is +y.
+        for step in 1...6 {
+            position = SIMD3(0, -0.01 * Float(step), 0)
+            tick()
+        }
+        // A state every 198 ms for about 2 s, the arm where it stands.
+        let gripper = onTheTable - SIMD3<Double>(model.profile.toolOffset)
+        for _ in 0..<10 {
+            transport.server(
+                "state",
+                [
+                    "estop": false, "gripper": "closed", "ik": "pose_tracking",
+                    "ee_pos": [gripper.x, gripper.y, gripper.z],
+                ])
+            run(ticks: 6)
+        }
+        XCTAssertEqual(heard, [.holdLive, .limit(.lowest)], "GO, then the cue, once")
         XCTAssertEqual(model.controller.arbiter.engagement, .latched(since: 10.1), "the follow goes on")
     }
 
