@@ -1516,6 +1516,9 @@ struct GoTrack {
     let start: SIMD3<Double>
     let target: SIMD3<Double>
     let since: TimeInterval
+    /// The work box of the panel its tap was judged on, corners sorted.
+    let boxLow: SIMD3<Double>
+    let boxHigh: SIMD3<Double>
     /// Its deadline when it began. A correction only moves it later.
     let firstDeadline: TimeInterval
     /// The last step whose fix said the link was pausing the hold.
@@ -1527,10 +1530,14 @@ struct GoTrack {
     /// The offset after each step the move went on in.
     var offsets: [(at: TimeInterval, offset: SIMD3<Double>)] = []
 
-    init(start: SIMD3<Double>, target: SIMD3<Double>, since: TimeInterval, limits: GoToLimits) {
+    init(
+        start: SIMD3<Double>, target: SIMD3<Double>, since: TimeInterval, limits: GoToLimits, on panel: GoPanel
+    ) {
         self.start = start
         self.target = target
         self.since = since
+        boxLow = panel.boxLow
+        boxHigh = panel.boxHigh
         let path = abs(target.z - start.z) + simd_length(SIMD2(target.x - start.x, target.y - start.y))
         firstDeadline = since + path / limits.speedMps * limits.timeFactor + limits.allowanceS
     }
@@ -1547,9 +1554,10 @@ struct GoTrack {
 
 /// The statements about moves to a tapped point, checked after every step of a case with tap-to-go: how a move
 /// starts (only from a tap), how it runs (at its speed, level only once a fresh position has reached the travel
-/// height, never past its deadline, its arm data or a refusal that means the session cannot run a hold), and how it
-/// ends in the checks after the events (arrived on a fresh position at the target; stopped short only after the arm
-/// settled with the command at its leg's end, after the last pause and after the start's grace; no arm data; time).
+/// height, never outside the work box it was given, never past its deadline, its arm data or a refusal that means the
+/// session cannot run a hold), and how it ends in the checks after the events (arrived on a fresh position at the
+/// target; stopped short only after the arm settled with the command at its leg's end, after the last pause and after
+/// the start's grace; no arm data; time).
 struct GoWatch {
     static let freshS = Double(FeedbackMonitor.freshStateMs) / 1000
 
@@ -1641,7 +1649,7 @@ struct GoWatch {
         if goal != target(of: tap) || since != s.time {
             return "\(label): it goes to \(goal) since \(since), the tap asks for \(target(of: tap))"
         }
-        var track = GoTrack(start: fix.pinch, target: goal, since: since, limits: limits)
+        var track = GoTrack(start: fix.pinch, target: goal, since: since, limits: limits, on: tap.panel!)
         track.saw(fix, at: s.time, limits: limits)
         if let failure = path(&track, s) { return failure }
         self.track = track
@@ -1714,7 +1722,9 @@ struct GoWatch {
         return nil
     }
 
-    /// A move to a point keeps to its speed, and goes level only once a fresh position has reached the travel height.
+    /// A move to a point keeps to its speed, goes level only once a fresh position has reached the travel height, and
+    /// commands no point outside the work box its tap was judged against. A move that starts outside that box (the arm
+    /// stood there, or the panel changed since the last move) commands nothing farther out on any axis than its start.
     private func path(_ track: inout GoTrack, _ s: Step) -> String? {
         guard let offset = s.offset else { return "a move to a point streams its offset while it goes: none" }
         if let last = track.offsets.last,
@@ -1724,6 +1734,13 @@ struct GoWatch {
         }
         if !track.travelHeightSeen, offset.x != 0 || offset.y != 0 {
             return "a move to a point goes level only once a fresh position reached the travel height: \(offset)"
+        }
+        let point = track.start + OperatorFrame.base(fromLink: offset)
+        let low = simd_min(track.boxLow, track.start) - 1e-9
+        let high = simd_max(track.boxHigh, track.start) + 1e-9
+        if any(point .< low) || any(point .> high) {
+            return "a move to a point commands no point outside the work box it was given: \(point) is outside "
+                + "\(track.boxLow) to \(track.boxHigh), the move began at \(track.start)"
         }
         track.offsets.append((s.time, offset))
         return nil

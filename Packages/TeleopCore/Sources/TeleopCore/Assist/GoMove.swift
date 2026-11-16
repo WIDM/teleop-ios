@@ -15,6 +15,9 @@ import simd
 /// on descending as it moves. A correction on the way up or down only ever raises the command, so the level leg's
 /// command is the travel height plus that raise, never lower, and a correction at the end may take back a raise but
 /// never goes below the travel height: once the command has reached the travel height, no commanded point is below it.
+/// In the same way no correction takes the command out of the work box the move was given, the box the tapped point
+/// was judged against: every correction ends inside it, so a move that starts inside the box commands nothing outside
+/// it. An arm held short near a face settles short again, and the move stops short.
 /// The move ends on measured positions too: the server drops the remaining lead at a stop, so the stop must wait for
 /// the arm, never for the command.
 struct GoMove: Equatable, Sendable {
@@ -41,6 +44,10 @@ struct GoMove: Equatable, Sendable {
     /// The tapped point at the travel height. Corrections never move it, and arrival is judged against it.
     let target: SIMD3<Double>
     let limits: GoToLimits
+    /// The work box the tapped point was judged against, robot base frame, pinch point, metres, corners sorted. No
+    /// correction ends outside it.
+    let boxLow: SIMD3<Double>
+    let boxHigh: SIMD3<Double>
     /// The tap, on the input rules' clock.
     let startedAt: TimeInterval
     private(set) var stage: Stage
@@ -67,10 +74,17 @@ struct GoMove: Equatable, Sendable {
     }
 
     /// - start: the measured pinch point at the tap. - target: the tapped point at the travel height. - now: the tap.
-    init(start: SIMD3<Double>, target: SIMD3<Double>, limits: GoToLimits, at now: TimeInterval) {
+    /// - boxLow, boxHigh: opposite corners of the work box the target was judged against, either order. Left out,
+    ///   nothing but the travel height bounds a correction.
+    init(
+        start: SIMD3<Double>, target: SIMD3<Double>, limits: GoToLimits, at now: TimeInterval,
+        boxLow: SIMD3<Double> = SIMD3(repeating: -.infinity), boxHigh: SIMD3<Double> = SIMD3(repeating: .infinity)
+    ) {
         self.start = start
         self.target = target
         self.limits = limits
+        self.boxLow = simd_min(boxLow, boxHigh)
+        self.boxHigh = simd_max(boxLow, boxHigh)
         startedAt = now
         stage = .vertical
         correctionsLeft = limits.corrections
@@ -145,9 +159,12 @@ struct GoMove: Equatable, Sendable {
             let missing = target.z - fix.pinch.z
             guard correctionsLeft > 0, missing <= limits.correctionReachM else { return .stoppedShort }
             correctionsLeft -= 1
-            heightAim += missing
+            // Never above the box's top: the raise is what the box leaves room for, and the level leg keeps that
+            // much. The time limit grows by the whole height missing, as it does at the end.
+            let raise = max(0, min(missing, boxHigh.z - legTo.z))
+            heightAim += raise
             deadline += missing / limits.speedMps * limits.timeFactor + limits.settleS
-            begin(.correcting(.vertical), to: legTo + SIMD3(0, 0, missing), at: now)
+            begin(.correcting(.vertical), to: legTo + SIMD3(0, 0, raise), at: now)
         } else {
             let remainder = target - fix.pinch
             guard correctionsLeft > 0, simd_length(remainder) <= limits.correctionReachM else { return .stoppedShort }
@@ -156,9 +173,12 @@ struct GoMove: Equatable, Sendable {
             // The end moves by all that is missing: across, up if the jaws hang low, and down by a raise that was
             // false (the server held the arm below the travel height without saying so, and the move took it for
             // sagging jaws). Never below the travel height itself: an arm resting on something above it would
-            // otherwise have the command pressed down into it at the target. Such an arm settles short again and
-            // stops short. The time limit grows by the whole remainder, even when this floor shortens the leg.
-            var end = legTo + remainder
+            // otherwise have the command pressed down into it at the target. Nor outside the box, where the target
+            // lies: near a face, an arm held short (by a server whose box is smaller, or by something in the way)
+            // would otherwise have the command sent past the face, farther with each correction. Either arm settles
+            // short again and stops short. The time limit grows by the whole remainder, even when the floor or the
+            // box shortens the leg.
+            var end = simd_clamp(legTo + remainder, boxLow, boxHigh)
             end.z = max(end.z, target.z)
             begin(.correcting(.level), to: end, at: now)
         }

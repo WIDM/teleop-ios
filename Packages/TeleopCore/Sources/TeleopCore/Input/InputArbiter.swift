@@ -1174,7 +1174,9 @@ public struct InputArbiter: Sendable {
             cue(.drive(.arrived))
             return
         }
-        move = GoMove(start: fix.pinch, target: target, limits: rule, at: now)
+        // The box the target was judged against also bounds every correction of the move.
+        move = GoMove(
+            start: fix.pinch, target: target, limits: rule, at: now, boxLow: panel.boxLow, boxHigh: panel.boxHigh)
         engaged = .going(target: target, since: now)
         deadenInputsDown()
         out.append(.startTranslation)

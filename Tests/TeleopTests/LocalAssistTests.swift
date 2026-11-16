@@ -457,12 +457,9 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertGreaterThan(simd_distance(jaws, target), goTo.arriveToleranceM, "\(mode): short of the target")
         hand.pump(0.5)
         // On the way the operator also hears the server's clamp, which the app did not foresee since its box is the
-        // profile's, and then the side the command went out of the profile's box when the corrections took it past
-        // the forward face (6 cm, then 2 cm twice).
+        // profile's. No side: the corrections end inside the profile's box, so the command never leaves it.
         XCTAssertEqual(
-            cues(since: mark),
-            [.holdLive, .limit(.workspace), .commandOutside(.forward), .drive(.ended(.stoppedShort))],
-            "\(mode): nothing more")
+            cues(since: mark), [.holdLive, .limit(.workspace), .drive(.ended(.stoppedShort))], "\(mode): nothing more")
         assertOneHold("\(mode)", wireSince: wire)
         print("STOPPED SHORT (\(mode.rawValue)): \(corrections) corrections")
     }

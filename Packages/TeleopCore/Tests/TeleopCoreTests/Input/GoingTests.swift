@@ -71,7 +71,7 @@ final class GoingTests: XCTestCase {
     }
 
     /// An arm held 2 cm short by something in its way: the move aims again by what is missing, twice, then stops
-    /// short.
+    /// short. The target lies between 2 and 4 cm inside a face of the work box, so the second aim stops at that face.
     func testItStopsShortAfterItsCorrections() {
         var rig = going()
         let wall = target.x - 0.02
@@ -81,8 +81,11 @@ final class GoingTests: XCTestCase {
             return SIMD3(min(commanded.x, wall), commanded.y, commanded.z)
         }
         XCTAssertEqual(end?.commands, ended(.stoppedShort))
-        // Each correction moved the end by the 2 cm still missing: twice past the target, then the budget was spent.
-        XCTAssertEqual(farthestCommanded, target.x + 0.04, accuracy: 1e-9)
+        XCTAssertGreaterThan(Rig.boxHigh.x, target.x + 0.02, "the first aim ends inside the box")
+        XCTAssertLessThan(Rig.boxHigh.x, target.x + 0.04, "the second would end past its face")
+        // The first correction moved the end by the 2 cm still missing; the second, which would have moved it 2 cm
+        // more, ended on the box's face. Then the budget was spent.
+        XCTAssertEqual(farthestCommanded, Rig.boxHigh.x, accuracy: 1e-9)
     }
 
     /// The arm standing still for 1.4 s after the tap, the command long at the corner: no stall is judged before the

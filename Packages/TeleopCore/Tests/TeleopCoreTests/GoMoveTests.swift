@@ -6,7 +6,8 @@ import simd
 /// never by comparing computed points; no command below the travel height once the first leg is over, a correction at
 /// the end included; a stall judged only from positions measured after the command reached the leg's end, after the
 /// last pause and after the start's grace, which runs from the later of the start and that pause's end; corrections
-/// that move the command, never the target, and on the way up or down only raise it.
+/// that move the command, never the target, on the way up or down only raise it, and never end outside the work box
+/// the move was given.
 final class GoMoveTests: XCTestCase {
     /// The SO-101 simulator's go numbers (the core tests cannot reach `RobotProfile`).
     private let limits = GoToLimits(
@@ -657,6 +658,51 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(verticalRun.end, .verdict(.stoppedShort))
         XCTAssertEqual(verticalRun.corrections, [])
         XCTAssertEqual(verticalRun.stages.map { $0.stage }, [.vertical])
+    }
+
+    /// How far `point` lies outside the box from `low` to `high` on its farthest axis, metres; zero or less inside.
+    private func past(_ point: SIMD3<Double>, _ low: SIMD3<Double>, _ high: SIMD3<Double>) -> Double {
+        max((point - high).max(), (low - point).max())
+    }
+
+    /// A target 1 cm inside a face of the work box the move was given, and an arm held 2 cm short of it, as by a server
+    /// whose box is smaller: each correction at the end would send the command another 2 cm on, out past the face.
+    /// Every correction ends on the face instead, the arm settles short again, and once the profile's corrections are
+    /// spent the move stops short. Under the box's top a raise on the way up stops at the top in the same way: jaws
+    /// that hang 2 cm low get 5 mm of it, then nothing, and the move stops short.
+    func testACorrectionNeverTakesTheCommandOutOfTheBox() {
+        let low = SIMD3(-0.05, -0.26, -0.01)
+        let high = SIMD3(0.11, -0.1, travel + 0.06)
+        let start = SIMD3(0.04, -0.2, travel)
+        let target = SIMD3(high.x - 0.01, start.y, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
+        var farthest = -Double.infinity
+        let run = drive(&move) { command in
+            farthest = max(farthest, self.past(command, low, high))
+            return SIMD3(min(command.x, target.x - 0.02), command.y, command.z)
+        }
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertLessThan(run.at, move.deadline, "stopped short, not time is up")
+        XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .level, .correcting(.level)])
+        XCTAssertEqual(run.corrections.count, limits.corrections, "at most the profile's corrections")
+        XCTAssertLessThanOrEqual(farthest, 1e-12, "no commanded point outside the box")
+        XCTAssertEqual(move.commanded(at: 100), SIMD3(high.x, start.y, travel), "the last correction ends on the face")
+
+        let top = SIMD3(high.x, high.y, travel + 0.005)
+        let below = SIMD3(0.02, -0.2, travel - 0.03)
+        var up = GoMove(
+            start: below, target: SIMD3(0.06, -0.15, travel), limits: limits, at: 0, boxLow: low, boxHigh: top)
+        var highest = -Double.infinity
+        let upRun = drive(&up) { command in
+            highest = max(highest, self.past(command, low, top))
+            return SIMD3(command.x, command.y, max(below.z, command.z - 0.02))
+        }
+        XCTAssertEqual(upRun.end, .verdict(.stoppedShort))
+        XCTAssertLessThan(upRun.at, up.deadline, "stopped short, not time is up")
+        XCTAssertEqual(upRun.stages.map { $0.stage }, [.vertical, .correcting(.vertical)])
+        XCTAssertEqual(upRun.corrections.count, limits.corrections, "at most the profile's corrections")
+        XCTAssertLessThanOrEqual(highest, 1e-12, "no commanded point above the box's top")
+        XCTAssertEqual(up.commanded(at: 100), SIMD3(below.x, below.y, top.z), "raised to the top and no higher")
     }
 
     // MARK: - Arm data, the deadline, the frame
