@@ -28,8 +28,9 @@ private final class AidsTestTransport: LinkTransport {
 /// The guide's aids that the link runs, against a scripted server: the work-area rule tells every time the commanded
 /// point leaves the work box, on which side, and the server's clamp END for that hold is then left out; a floor the
 /// table stops the arm before is not told, and a push into the table is told by the lowest rule alone; the side is read
-/// only while a translation is commanded; the switch reaches the link. Against the server model, an arm that cannot go
-/// lower says so. With the aids off the cues are version 1.0.1's.
+/// only while a translation is commanded; a start the link re-sends inside one press is not a new press; the switch
+/// reaches the link. Against the server model, an arm that cannot go lower says so. With the aids off the cues are
+/// version 1.0.1's.
 final class GuideAidsLinkTests: XCTestCase {
     private var transport: AidsTestTransport!
     private var position: SIMD3<Float>? = .zero
@@ -412,6 +413,58 @@ final class GuideAidsLinkTests: XCTestCase {
         handForward(3)
         XCTAssertEqual(model.link.commandOutside, .forward)
         XCTAssertEqual(sidesTold, [.forward, .forward], "told again in the new hold")
+    }
+
+    /// Inside one press the link ends the server hold and re-sends the start to learn where the arm got to. That
+    /// restart is not a new press: the side already told is not told again while the commanded point stays past its
+    /// face, and the 1.5 s the rule keeps between two cues of one press still holds back a crossing of another side
+    /// right after the restart; that side is told on the first tick after those 1.5 s.
+    func testAResyncInsideAPressKeepsTheGap() throws {
+        let box = gripperBox()
+        // 1 cm inside the right face (base −x) and 7.5 cm inside the forward face (base −y).
+        let start = SIMD3(box.low.x + 0.01, box.low.y + 0.075, resetPose.z)
+        bringUp(aids: true, arm: start)
+        model.send(.holdArmStart)
+        // The hand rests until late in the server hold, then goes 10 cm forward, a centimetre a tick (ARKit forward is
+        // −z). A server hold asks for at most 8 cm, which takes the commanded point 5 mm past the forward face.
+        run(ticks: 36)
+        var forwardToldAt: Int?
+        for step in 1...10 {
+            position = SIMD3(0, 0, -0.01 * Float(step))
+            tick()
+            if forwardToldAt == nil, !sidesTold.isEmpty { forwardToldAt = clock }
+        }
+        XCTAssertEqual(sidesTold, [.forward])
+        let toldAt = try XCTUnwrap(forwardToldAt)
+        // 1.5 s into the server hold, with the hand asking for more than it may, the link ends that hold.
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the link asks where the arm got to")
+        XCTAssertTrue(model.session.state.armMoving, "the operator still holds")
+        // The server reports the arm at the face, and the link re-sends the start for the last 2.5 cm, past it.
+        serverFinishesHold(armAt: SIMD3(start.x, box.low.y, start.z))
+        XCTAssertEqual(transport.types.last, "pose_start", "the start is re-sent")
+        tick()
+        XCTAssertEqual(model.link.commandOutside, .forward, "still past the forward face")
+        XCTAssertEqual(sidesTold, [.forward], "the restart is not a new press: forward is not told again")
+        // Right after the restart the hand goes 5 cm right (the operator's right is base −x), a centimetre a tick: the
+        // commanded point ends 4 cm past the right face, farther than it is past the forward one.
+        for step in 1...5 {
+            position = SIMD3(0.01 * Float(step), 0, -0.1)
+            tick()
+        }
+        XCTAssertEqual(model.link.commandOutside, .right, "the line shows the new side at once")
+        XCTAssertLessThan(clock - toldAt, WorkAreaCue.minimumGapMs)
+        XCTAssertEqual(sidesTold, [.forward], "held back by the gap since the forward cue")
+        var rightToldAt: Int?
+        while rightToldAt == nil, clock - toldAt < 2 * WorkAreaCue.minimumGapMs {
+            run(ticks: 1)
+            if sidesTold.count > 1 { rightToldAt = clock }
+        }
+        XCTAssertEqual(sidesTold, [.forward, .right])
+        let rightAt = try XCTUnwrap(rightToldAt)
+        XCTAssertGreaterThanOrEqual(rightAt - toldAt, WorkAreaCue.minimumGapMs, "not before the gap is over")
+        XCTAssertLessThan(rightAt - toldAt, WorkAreaCue.minimumGapMs + 33, "on the first tick after it")
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "one press, one re-sent start")
+        XCTAssertTrue(model.session.state.armMoving, "the operator still holds")
     }
 
     /// The guide draws the commanded ring at the commanded gripper-link point plus the measured offset, and the box at
