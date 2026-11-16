@@ -10,30 +10,53 @@ import XCTest
 /// then a slide: a thumb slid up the glass while the upper key is held latches the follow, in scheme A, in scheme B's
 /// centre band and on a half slowly, and a thumb that does not slide changes nothing. Every ending of a latched follow
 /// stops the server's hold and is heard exactly once. A tap on the guide's view from above sends the jaws to that point
-/// at the travel height, in both schemes, and "Arrived." is heard once.
+/// at the travel height, in both schemes, and "Arrived." is heard once; a tap in the view's margin is refused and
+/// starts nothing; a move the server's box cuts short corrects at most as often as the profile allows and is heard once
+/// as stopped short; a stalled network path ends a move once as no arm data; an object held in the jaws goes with
+/// them; and a touch during a move stops it and then starts nothing while that thumb stays down. One move is one hold
+/// for the session and on the wire.
 final class LocalAssistTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var hand: ScriptedOperator!
+    private var path: StallingPath?
     private var savedTaskAid: Any?
     private var model: AppModel { hand.model }
+    /// What the hand has seen of the session's arm hold since `watchTheMove()`: how often it started and ended.
+    private var holdStarts = 0
+    private var holdEnds = 0
+    private var wasMoving = false
+    /// The legs the move's command walked, when a test watches them.
+    private var legs: CommandLegs?
 
     /// The task aid is put back as it was. Both of the aids' settings are removed, never put back: a launch argument
     /// shadows the saved value, so a value read here and written back could be the argument's, saved for good.
     override func tearDown() {
+        hand?.watch = nil
         hand?.finish()
         hand = nil
         server?.stop()
         server = nil
+        path = nil
+        legs = nil
         UserDefaults.standard.set(savedTaskAid, forKey: AppModel.taskAidKey)
         UserDefaults.standard.removeObject(forKey: AppModel.assistKey)
         UserDefaults.standard.removeObject(forKey: AppModel.lockChoiceKey)
         super.tearDown()
     }
 
-    /// - Parameter path: the network path under both of the app's sockets; none when nil.
-    private func start(_ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil) throws {
-        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, reportsToolPoint: true))
+    /// - Parameters:
+    ///   - path: the network path under both of the app's sockets, which also records what the app sends; none when
+    ///     nil.
+    ///   - serverBox: how far either way of the arm's start the server keeps the arm, metres; the server model's own
+    ///     box when nil.
+    private func start(
+        _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil
+    ) throws {
+        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: true)
+        if let serverBox { config.workspaceHalfSize = serverBox }
+        server = LocalTeleopServer(config: config)
         try server.start()
+        self.path = path
         hand = ScriptedOperator(
             address: server.address, mode: mode, smoothing: 0.3, pace: 0.3, makeTransport: path.map { $0.transport })
         savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
@@ -56,6 +79,9 @@ final class LocalAssistTests: XCTestCase {
     private func endings(since mark: Int) -> [CueKey] {
         model.cueLog.dropFirst(mark).map(\.event).filter(LooseEndingHeardTests.isEndingCue)
     }
+
+    /// Everything heard since `mark`, in order.
+    private func cues(since mark: Int) -> [CueKey] { model.cueLog.dropFirst(mark).map(\.event) }
 
     /// The follow latched: the session's hold runs, the screen says so, the latch was heard, and no NO with it.
     private func assertLatched(_ what: String, since mark: Int, line: UInt = #line) {
@@ -286,16 +312,54 @@ final class LocalAssistTests: XCTestCase {
 
     // MARK: A tap on the guide
 
+    /// From now on, on every turn of the run loop, counts the session's arm hold starting and ending, and samples the
+    /// move's command into `legs` when it is set.
+    private func watchTheMove() {
+        holdStarts = 0
+        holdEnds = 0
+        wasMoving = model.session.state.armMoving
+        hand.watch = { [unowned self] in
+            let moving = model.session.state.armMoving
+            if moving != wasMoving {
+                if moving { holdStarts += 1 } else { holdEnds += 1 }
+                wasMoving = moving
+            }
+            legs?.sample(model.controller.goOffset())
+        }
+    }
+
+    /// The type of every message the app sent on its control connection, the first one the path carries.
+    private var sentOnTheWire: [String] { path?.sent[1] ?? [] }
+
+    /// One move is one hold: the session's arm hold started once and ended once (a re-sent start stays inside the
+    /// link), the wire carried a pose start before any other pose message and ended with a pose stop, and nothing
+    /// streamed after that stop.
+    private func assertOneHold(_ what: String, wireSince mark: Int, line: UInt = #line) {
+        XCTAssertEqual(holdStarts, 1, "\(what): the session's hold started once", line: line)
+        XCTAssertEqual(holdEnds, 1, "\(what): and ended once", line: line)
+        let wire = Array(sentOnTheWire.dropFirst(mark))
+        XCTAssertEqual(wire.first { $0.hasPrefix("pose_") }, "pose_start", "\(what): \(wire)", line: line)
+        guard let stop = wire.lastIndex(of: "pose_stop") else {
+            return XCTFail("\(what): no pose stop on the wire: \(wire)", line: line)
+        }
+        let after = wire[stop...].filter { $0 == "pose_update" || $0 == "pose_start" }
+        XCTAssertEqual(after, [], "\(what): nothing streamed after the stop", line: line)
+    }
+
+    /// The travel height in the robot base frame: every tapped point is sent there.
+    private func travelHeight(_ goTo: GoToLimits) -> Double { Double(model.profile.tableHeight) + goTo.travelHeightM }
+
     /// The hand taps the view from above over a point 4 cm to the side of and 3 cm beyond the jaws: the screen says
     /// "Going", the arm goes to the travel height and across, the move ends within the profile's tolerance of the
     /// tapped point at that height, the server's hold ends with it, and "Arrived." is the one ending heard.
     private func aTapGoesThere(_ mode: ControlMode) throws {
-        try start(mode, lock: .off)
+        try start(mode, lock: .off, path: StallingPath())
         hand.reportGuidePanel()
         let goTo = try XCTUnwrap(model.assist.goTo)
         let pinch = try hand.measuredPinch()
-        let target = SIMD3(pinch.x + 0.04, pinch.y - 0.03, Double(model.profile.tableHeight) + goTo.travelHeightM)
-        let mark = model.cueLog.count
+        let target = SIMD3(pinch.x + 0.04, pinch.y - 0.03, travelHeight(goTo))
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        watchTheMove()
         try hand.tapGuide(over: target)
         guard case .going = model.operating.state else {
             return XCTFail("\(mode): the screen shows \(model.operating.state)")
@@ -308,7 +372,8 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertLessThanOrEqual(
             simd_distance(jaws, target), goTo.arriveToleranceM, "\(mode): the jaws at the tapped point, \(jaws)")
         hand.pump(0.5)
-        XCTAssertEqual(endings(since: mark), [.drive(.arrived)], "\(mode): nothing more")
+        XCTAssertEqual(cues(since: mark), [.holdLive, .drive(.arrived)], "\(mode): GO, the arrival, nothing more")
+        assertOneHold("\(mode)", wireSince: wire)
     }
 
     func testATapOnTheGuideGoesThereSchemeA() throws {
@@ -317,6 +382,226 @@ final class LocalAssistTests: XCTestCase {
 
     func testATapOnTheGuideGoesThereSchemeB() throws {
         try aTapGoesThere(.keyTurns)
+    }
+
+    /// The hand taps the view from above half way across its margin, on the operator's right of the work box: the
+    /// point is in the drawn view but outside the box, so the tap is refused with NO and "Outside the work area.",
+    /// heard once, and nothing starts, in the session or on the wire.
+    private func aTapInTheMarginIsRefused(_ mode: ControlMode) throws {
+        try start(mode, lock: .off, path: StallingPath())
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let panel = try XCTUnwrap(model.inputFacts().goPanel)
+        let span = panel.boxHigh - panel.boxLow
+        let margin = max(span.x, span.y) * GuideProjection.marginShare
+        // Right is −X in the robot base.
+        let outside = SIMD3(
+            panel.boxLow.x - margin / 2, (panel.boxLow.y + panel.boxHigh.y) / 2, travelHeight(goTo))
+        let point = panel.point(over: outside)
+        XCTAssertTrue(panel.contains(x: point.x, y: point.y), "\(mode): the point is in the drawn view")
+        XCTAssertFalse(
+            panel.inBox(panel.target(x: point.x, y: point.y, travelHeight: goTo.travelHeightM)),
+            "\(mode): and outside the box")
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        watchTheMove()
+        try hand.tapGuide(over: outside)
+        hand.pump(2)
+        let heard = Array(model.cueLog.dropFirst(mark))
+        XCTAssertEqual(heard.map(\.event), [.refused(.outsideWorkArea)], "\(mode): heard once")
+        XCTAssertEqual(heard.first?.haptic, .no, "\(mode)")
+        XCTAssertEqual(heard.first?.speech, [.outside], "\(mode): Outside the work area.")
+        XCTAssertEqual(heard.first?.dropped, false, "\(mode)")
+        XCTAssertEqual(holdStarts, 0, "\(mode): the session started no hold")
+        XCTAssertNil(model.controller.loose, "\(mode)")
+        let sent = Array(sentOnTheWire.dropFirst(wire))
+        XCTAssertFalse(sent.contains("pose_start"), "\(mode): no pose start on the wire: \(sent)")
+        XCTAssertFalse(serverHolds, "\(mode): the server holds nothing")
+    }
+
+    func testATapInTheGuidesMarginIsRefusedSchemeA() throws {
+        try aTapInTheMarginIsRefused(.screenTurns)
+    }
+
+    func testATapInTheGuidesMarginIsRefusedSchemeB() throws {
+        try aTapInTheMarginIsRefused(.keyTurns)
+    }
+
+    /// Against a server that keeps the arm within 4 cm of its start, half of the profile's box, the hand taps a point
+    /// 6 cm forward of the jaws, inside the box the guide draws. The server holds the arm 2 cm short; the move corrects
+    /// at least once and at most as often as the profile allows, ends, and is heard once as stopped short.
+    private func aMoveTheServerCutsShortEndsOnce(_ mode: ControlMode) throws {
+        let serverBox = 0.04
+        try start(mode, lock: .off, path: StallingPath(), serverBox: serverBox)
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let pinch = try hand.measuredPinch()
+        // Forward is −Y in the robot base. In scheme B this tap lands in the centre band, the arrival's on a half.
+        let target = SIMD3(pinch.x, pinch.y - 0.06, travelHeight(goTo))
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        legs = CommandLegs(rest: goTo.settleS * 0.75)
+        watchTheMove()
+        try hand.tapGuide(over: target)
+        guard case .going = model.operating.state else {
+            return XCTFail("\(mode): the screen shows \(model.operating.state)")
+        }
+        XCTAssertTrue(hand.wait(20, until: { !model.session.state.armMoving }), "\(mode): the move ended")
+        XCTAssertEqual(endings(since: mark), [.drive(.ended(.stoppedShort))], "\(mode)")
+        XCTAssertNil(model.controller.loose, "\(mode)")
+        let corrections = legs?.corrections ?? 0
+        XCTAssertGreaterThan(corrections, 0, "\(mode): 2 cm is within a correction's reach")
+        XCTAssertLessThanOrEqual(corrections, goTo.corrections, "\(mode): at most the profile's corrections")
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
+        let (arm, armStart) = server.inspect { ($0.world.arm, $0.config.armStart) }
+        XCTAssertEqual(arm.y, armStart.y - serverBox, accuracy: 0.003, "\(mode): the server held the arm at its box")
+        let jaws = arm + server.config.toolOffset
+        XCTAssertGreaterThan(simd_distance(jaws, target), goTo.arriveToleranceM, "\(mode): short of the target")
+        hand.pump(0.5)
+        // On the way the operator also hears the server's clamp, which the app did not foresee since its box is the
+        // profile's, and then the side the command went out of the profile's box when the corrections took it past
+        // the forward face (6 cm, then 2 cm twice).
+        XCTAssertEqual(
+            cues(since: mark),
+            [.holdLive, .limit(.workspace), .commandOutside(.forward), .drive(.ended(.stoppedShort))],
+            "\(mode): nothing more")
+        assertOneHold("\(mode)", wireSince: wire)
+        print("STOPPED SHORT (\(mode.rawValue)): \(corrections) corrections")
+    }
+
+    func testAMoveTheServerCutsShortIsHeardOnceSchemeA() throws {
+        try aMoveTheServerCutsShortEndsOnce(.screenTurns)
+    }
+
+    func testAMoveTheServerCutsShortIsHeardOnceSchemeB() throws {
+        try aMoveTheServerCutsShortEndsOnce(.keyTurns)
+    }
+
+    /// The network path stalls for 2.5 s while the arm is on its way: longer than a move waits for arm data, shorter
+    /// than the link waits before it gives up. The move ends on its own during the stall, it is heard once as no arm
+    /// data, with no link hiccup and no lost link after it, and the link stays.
+    private func aStallDuringAMoveEndsItOnce(_ mode: ControlMode) throws {
+        let path = StallingPath()
+        try start(mode, lock: .off, path: path)
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let pinch = try hand.measuredPinch()
+        let target = SIMD3(pinch.x - 0.05, pinch.y - 0.03, travelHeight(goTo))
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        watchTheMove()
+        try hand.tapGuide(over: target)
+        XCTAssertTrue(hand.wait(2, until: { serverHolds }), "\(mode): the server's hold runs")
+        hand.pump(0.5)
+        XCTAssertTrue(model.session.state.armMoving, "\(mode): on its way")
+        path.stall()
+        _ = hand.wait(2.5, until: { false })
+        let endedDuringTheStall = !model.session.state.armMoving
+        path.resume()
+        XCTAssertTrue(endedDuringTheStall, "\(mode): the move ended on its own, with no arm data")
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
+        hand.pump(2)
+        XCTAssertEqual(endings(since: mark), [.drive(.ended(.noArmData))], "\(mode)")
+        XCTAssertEqual(
+            cues(since: mark), [.holdLive, .drive(.ended(.noArmData))], "\(mode): no link hiccup or lost link after it")
+        XCTAssertTrue(model.session.state.connected, "\(mode): the stall cost the move, not the link")
+        XCTAssertNil(model.controller.loose, "\(mode)")
+        assertOneHold("\(mode)", wireSince: wire)
+    }
+
+    func testAStallDuringAMoveIsHeardOnceAsNoArmDataSchemeA() throws {
+        try aStallDuringAMoveEndsItOnce(.screenTurns)
+    }
+
+    func testAStallDuringAMoveIsHeardOnceAsNoArmDataSchemeB() throws {
+        try aStallDuringAMoveEndsItOnce(.keyTurns)
+    }
+
+    /// The hand takes hold of the task object and lifts it 3 cm as the pick-and-place does, then taps the view from
+    /// above over the goal: the jaws arrive at the tapped point at the travel height, "Arrived." is heard once, and the
+    /// object the server reports went with them, still held well above where it rested.
+    func testATapCarriesTheHeldObjectWithTheJaws() throws {
+        try start(.screenTurns, lock: .off, path: StallingPath())
+        let rested = try XCTUnwrap(model.link.objectPosition, "the local server reported no task object")
+        let goal = try XCTUnwrap(model.link.goalPosition, "the local server reported no goal")
+        guard hand.graspAndLift() else { return }
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let overGoal = SIMD3<Double>(model.profile.inBase(world: goal))
+        let target = SIMD3(overGoal.x, overGoal.y, travelHeight(goTo))
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        watchTheMove()
+        try hand.tapGuide(over: target)
+        guard case .going = model.operating.state else {
+            return XCTFail("the screen shows \(model.operating.state)")
+        }
+        XCTAssertTrue(hand.wait(15, until: { !model.session.state.armMoving }), "the move ended")
+        XCTAssertEqual(endings(since: mark), [.drive(.arrived)])
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "the server's hold ended")
+        let jaws = server.inspect { $0.world.arm + $0.config.toolOffset }
+        XCTAssertLessThanOrEqual(
+            simd_distance(jaws, target), goTo.arriveToleranceM, "the jaws at the tapped point, \(jaws)")
+        hand.pump(2)
+        let object = try XCTUnwrap(model.link.objectPosition, "the object's position")
+        let held = SIMD3<Double>(model.profile.inBase(world: object))
+        XCTAssertLessThan(
+            simd_distance(SIMD2(held.x, held.y), SIMD2(jaws.x, jaws.y)), 0.01, "the object went with the jaws: \(held)")
+        XCTAssertGreaterThan(object.z - rested.z, 0.015, "still held above where it rested")
+        XCTAssertTrue(model.gripping, "the jaws still hold it")
+        XCTAssertEqual(cues(since: mark), [.holdLive, .drive(.arrived)], "GO, the arrival, nothing more")
+        assertOneHold("a carried go", wireSince: wire)
+    }
+
+    /// The hand taps for a move and touches the glass while the arm is on its way: the touch stops it at once, heard
+    /// once as stopped by the operator. While that thumb stays down it rests past scheme B's dwell, the phone turns,
+    /// and the thumb slides up the glass, any of which would turn the wrist or move the jaws from rest; nothing
+    /// starts, in the session or on the wire.
+    private func aTouchDuringAMoveStopsItAndStartsNothing(_ mode: ControlMode) throws {
+        try start(mode, lock: .off, path: StallingPath())
+        hand.reportGuidePanel()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let pinch = try hand.measuredPinch()
+        let target = SIMD3(pinch.x + 0.05, pinch.y + 0.03, travelHeight(goTo))
+        let wire = sentOnTheWire.count
+        watchTheMove()
+        try hand.tapGuide(over: target)
+        XCTAssertTrue(hand.wait(2, until: { serverHolds }), "\(mode): the server's hold runs")
+        hand.pump(0.5)
+        XCTAssertTrue(model.session.state.armMoving, "\(mode): on its way")
+        let mark = model.cueLog.count, touchWire = sentOnTheWire.count
+        // In scheme B a thumb resting on a half moves the jaws once its dwell is over.
+        let thumb = mode == .keyTurns ? hand.half(.near) : hand.surfaceCentre
+        let id = hand.touchDown(x: thumb.x, y: thumb.y)
+        XCTAssertFalse(model.session.state.armMoving, "\(mode): the touch stops it at once")
+        XCTAssertNil(model.controller.loose, "\(mode)")
+        var started = Set<String>()
+        let watchHolds = hand.watch
+        hand.watch = { [unowned self] in
+            watchHolds?()
+            if model.session.state.wristMoving { started.insert("wrist") }
+            if let jaws = model.session.state.gripperMoving { started.insert("jaws \(jaws)") }
+        }
+        hand.pump(1)
+        hand.turnPhone(.turn, to: 30, in: 0.5)
+        hand.pump(1)
+        hand.slideUp(id, from: thumb, millimetres: 12, in: 0.25)
+        hand.pump(1)
+        hand.touchUp(id, x: thumb.x, y: thumb.y - 12 * hand.layout.pointsPerMm)
+        hand.rotation = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
+        hand.pump(1)
+        XCTAssertEqual(started, [], "\(mode): the thumb started nothing while it stayed down")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.drive(.stoppedByYou)], "\(mode): heard once")
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
+        let afterTouch = Array(sentOnTheWire.dropFirst(touchWire))
+        XCTAssertFalse(
+            afterTouch.contains { $0 == "orient_start" || $0 == "gripper_jog_start" },
+            "\(mode): no wrist or jaw start on the wire: \(afterTouch)")
+        assertOneHold("\(mode)", wireSince: wire)
+    }
+
+    func testATouchDuringAMoveStopsItAndStartsNothingSchemeA() throws {
+        try aTouchDuringAMoveStopsItAndStartsNothing(.screenTurns)
+    }
+
+    func testATouchDuringAMoveStopsItAndStartsNothingSchemeB() throws {
+        try aTouchDuringAMoveStopsItAndStartsNothing(.keyTurns)
     }
 
     /// A thumb comes down at `point`, rests longer than a reset takes, and lifts: the touch that ends a follow is dead
@@ -328,5 +613,44 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertFalse(model.session.state.wristMoving, "no wrist hold")
         XCTAssertNil(model.session.state.gripperMoving, "no jaw hold")
         hand.touchUp(id, x: point.x, y: point.y)
+    }
+}
+
+/// The legs a going move's command walked, read from the offsets the link is asked to send, sampled on every turn of
+/// the run loop. Once a leg's command reaches the leg's end it stays there exactly, so an offset that has not changed
+/// for `rest` is a command standing still. A correction begins only after the arm has settled short, which takes the
+/// profile's settle time, so it always sets off from such a stand.
+private final class CommandLegs {
+    private let rest: TimeInterval
+    private var last: SIMD3<Double>?
+    private var changedAt = Date()
+    /// Each time the command set off after standing still: where it stood, measured from where the move began, and
+    /// which way it went, robot base frame.
+    private(set) var setOffs: [(from: SIMD3<Double>, way: SIMD3<Double>)] = []
+
+    /// - Parameter rest: how long an unchanged offset must last to count as standing still; under the settle time.
+    init(rest: TimeInterval) { self.rest = rest }
+
+    func sample(_ offset: SIMD3<Double>?) {
+        defer { last = offset }
+        guard let offset, let last else {
+            changedAt = Date()
+            return
+        }
+        guard offset != last else { return }
+        if Date().timeIntervalSince(changedAt) >= rest {
+            setOffs.append((OperatorFrame.base(fromLink: last), OperatorFrame.base(fromLink: offset - last)))
+        }
+        changedAt = Date()
+    }
+
+    /// The set-offs that were corrections: every one but the level leg leaving the corner above the start, where the
+    /// command may wait for the arm to reach the travel height.
+    var corrections: Int {
+        setOffs.filter { stand in
+            let atTheCorner = abs(stand.from.x) < 0.0005 && abs(stand.from.y) < 0.0005
+            let level = abs(stand.way.z) < simd_length(SIMD2(stand.way.x, stand.way.y))
+            return !(atTheCorner && level)
+        }.count
     }
 }

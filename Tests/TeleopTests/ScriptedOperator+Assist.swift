@@ -3,9 +3,9 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
-/// The gestures of lock and the tap on the guide, made with the hand's raw inputs only, like everything else the
-/// scripted hand does. For the tap the hand also plays the operating screen's part, which no view plays in the
-/// unit-test host: it reports where the guide's view from above is drawn.
+/// The gestures of lock and the tap on the guide, and the grasp before a carried move, made with the hand's raw inputs
+/// only, like everything else the scripted hand does. For the tap the hand also plays the operating screen's part,
+/// which no view plays in the unit-test host: it reports where the guide's view from above is drawn.
 extension ScriptedOperator {
     /// About where the reference phone draws the guide's view from above. The input rules use only what is reported;
     /// `GuidePanelTapUITests` checks the drawn rectangle on a device.
@@ -33,6 +33,37 @@ extension ScriptedOperator {
             gripper: SIMD3<Float>(gripper), tool: state.toolPoint.map { SIMD3<Float>($0) }, flexDeg: state.wristFlexDeg,
             rollDeg: state.wristRollDeg)
         return SIMD3<Double>(pinch.point)
+    }
+
+    /// Opens the jaws, takes hold of the task object where the server reports it and lifts it 3 cm, with the scheme's
+    /// own inputs, as `pickAndPlace` does before it carries the object. False, after failing the test, when no object
+    /// is reported, the arm does not reach the grasp point, the jaws do not close on the object or it does not rise.
+    func graspAndLift(file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        let lift = SIMD3<Float>(0, 0, 0.03)
+        gripper(.open, seconds: 5)
+        guard let object = model.link.objectPosition else {
+            XCTFail("\(mode): no task object reported", file: file, line: line)
+            return false
+        }
+        // Where the reported gripper point has to be for the jaws to pinch the object's centre.
+        let grasp = model.profile.inBase(world: object) - model.profile.toolOffset
+        moveArm(to: grasp + lift, "above the grasp point")
+        guard moveArm(to: grasp, "grasp point", maxHolds: 3) else {
+            XCTFail("\(mode): the arm could not reach the grasp point", file: file, line: line)
+            return false
+        }
+        gripper(.closed, seconds: 15)
+        guard model.gripping else {
+            XCTFail("\(mode): the jaws did not close on the object", file: file, line: line)
+            return false
+        }
+        moveArm(to: grasp + lift, "lift 3 cm", maxHolds: 2)
+        pump(1.0)
+        guard let raised = model.link.objectPosition, raised.z - object.z > 0.015 else {
+            XCTFail("\(mode): the object was not lifted", file: file, line: line)
+            return false
+        }
+        return true
     }
 
     /// Lock as a press then a press: a press and release of the upper key; the follow stays latched.
