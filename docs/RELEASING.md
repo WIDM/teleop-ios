@@ -13,8 +13,8 @@ Two numbers live in `project.yml`, under `settings.base`, and nowhere else:
   of the same version apart. It goes up by one with every version and never goes back: App Store Connect refuses
   an upload whose build number is not higher than every build already uploaded for that version.
 
-`CHANGELOG.md` states the rule for the version number in 0.x: `0.x.0` adds or changes behaviour, `0.x.y` only
-fixes. It has no rule yet for versions after 1.0.0; the first version after it is the moment to write one there.
+`CHANGELOG.md` states the rule for the version number: `0.x.0` and from 1.0.0 on `1.x.0` add or change behaviour,
+`0.x.y` and `1.x.y` only fix.
 
 `App/Info.plist` reads both numbers from the build settings (`$(MARKETING_VERSION)`, `$(CURRENT_PROJECT_VERSION)`).
 After changing either, regenerate the Xcode project, which is not committed, and check what it carries:
@@ -139,4 +139,4 @@ What only the holder of the Apple developer account can do, in order:
    it speaks plain `ws://` because the teleoperation server uses unencrypted WebSocket on a private network. The
    first build for outside testers goes to beta review. A build expires after 90 days.
 6. Later uploads: each needs a build number higher than any already uploaded for that version. A second upload of
-   1.0.0 needs build 14; otherwise ship it as 1.0.1.
+   1.0.1 needs build 15; otherwise ship it as the next version.

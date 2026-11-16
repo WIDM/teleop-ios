@@ -56,6 +56,15 @@ on the STOP band with the words halfway up.
 - A server that has gone silent is noticed after 3 s, but only after tens of seconds while the app's own main
   thread stalls on every tick: each late tick counts as the app not running, not as silence.
 - Nothing ends the holds when the phone overheats.
+- A reset waiting behind a finishing hold goes out as soon as that hold's final acknowledgement arrives, even when
+  the acknowledgement is a refusal because the server has just stopped (`TeleopLink`, the `ack` case). That reset
+  would then release the new stop. The 2 s countdown hides this today: the final acknowledgement arrives long before
+  the reset is due.
+- "Release, keep scene" (practice, or a server with no recorder) has no rule like the reset's: a stop that begins
+  during its 1 s hold is released with the one before it (`AppModel`, `releaseStop`).
+- With a server that reports no gripper position (`ee_pos`), a long arm hold asks for 8 cm more at every resync,
+  because the app cannot see how far the arm got: the arm can be asked to go further than the hand moved. The lab
+  servers report `ee_pos`.
 - Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
   the value the profile keeps until a check on the live robot sets it.
 

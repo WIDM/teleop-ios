@@ -1,8 +1,9 @@
 # App checks
 
 Helper scripts for checking the app outside `xcodebuild test`: they run the core tests and fetch a CI run's
-artifacts into one evidence folder outside the repository, and compare screenshots with the Mockup v2 frames in
-Figma. The feature notes in `features/` say how to check three behaviours a person relies on, and which
+artifacts into one evidence folder outside the repository. `figma-compare.py` and `frames.tsv` compare screenshots
+with the Mockup v2 frames, which show the screens from before 1.0.0; the frames of the current screens (Mockup v3)
+are listed in `docs/figma/mockup-v3-frames.tsv`, and `docs/parity.md` says how they differ from the app. The feature notes in `features/` say how to check three behaviours a person relies on, and which
 tests cover them. The test suites themselves, and what each layer can and cannot catch, are in `docs/TESTING.md`.
 
 ## Set up
