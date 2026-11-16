@@ -191,6 +191,7 @@ final class AppModel {
     private func assistDidChange() {
         controller.assistChanged(assist)
         guideAidsChanged()
+        link.anyAidOn = assist != .off
         // A cue keeps the window it was made with: a new window takes a new cue, armed as after a scene reset.
         let window = onTargetWindow
         if window != onTargetCue.window { onTargetCue = OnTargetCue(window: window) }
@@ -313,6 +314,7 @@ final class AppModel {
             model: self, mode: mode, hand: hand, constants: profile.inputConstants, assist: assist, now: inputClock
         )
         guideAidsChanged()
+        link.anyAidOn = assist != .off
         // UI tests only: `-startConnected YES` marks the link live without navigating,
         // so the launch route stays put and control input is accepted.
         if UserDefaults.standard.bool(forKey: "startConnected") { session.state.markConnected() }

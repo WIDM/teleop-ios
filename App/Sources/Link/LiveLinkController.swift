@@ -132,6 +132,13 @@ final class LiveLinkController {
     /// the work-area rule, the server's clamp END, "Blocked." nor "Can't go lower." plays during it, and the guide
     /// shows no side for it.
     var holdIsGoing = false
+    /// Some aid is on: the model sets it from the aids it resolved, and the link does not learn which. With it set, a
+    /// translation hold starts from the newest arm position either connection has reported when its start goes on the
+    /// wire, not from the control connection's at the press: that connection hears nothing during a hold, so a press
+    /// made before the last hold's answer would start from where that hold started, and the commanded point the guide's
+    /// rules judge, and the target after the next resync, would be off by that hold's whole travel. Off is version
+    /// 1.0.1.
+    var anyAidOn = false
     /// How the operator was told of the last ending this link caused of a hold nobody held, until AppModel reads it.
     private var looseEnding: Interruption?
     /// The newest `state` from either connection that carried an arm position. A state without one never makes the
@@ -349,7 +356,8 @@ final class LiveLinkController {
         armProgress = .zero
         resync = nil
         segmentStartedMs = nowMs()
-        armAtSegmentStart = Self.vector(link.lastEndEffector)
+        // With an aid on the start point is taken when the start goes on the wire, which may be later.
+        if !anyAidOn { armAtSegmentStart = Self.vector(link.lastEndEffector) }
         translationStarted()
         return true
     }
@@ -369,7 +377,8 @@ final class LiveLinkController {
         armProgress = .zero
         resync = nil
         segmentStartedMs = nowMs()
-        armAtSegmentStart = Self.vector(link.lastEndEffector)
+        // With an aid on the start point is taken when the start goes on the wire, which may be later.
+        if !anyAidOn { armAtSegmentStart = Self.vector(link.lastEndEffector) }
         translationStarted()
         return true
     }
@@ -815,10 +824,15 @@ final class LiveLinkController {
         if answered || nowMs() - stop.sentAtMs >= TeleopLink.finishWaitMs { stopUnanswered = nil }
     }
 
-    /// Tells the monitor about a start that has just gone on the wire.
+    /// Tells the monitor about a start that has just gone on the wire and, with an aid on, takes a translation hold's
+    /// start point then.
     private func syncStart() {
         guard let start = link?.lastStart, start.seq != announcedStart else { return }
         announcedStart = start.seq
+        // A resync's restart takes its start point from the answer it waited for, as it always has.
+        if anyAidOn, start.kind == .pose, !restarting {
+            armAtSegmentStart = newestArmState?.endEffector.map { SIMD3<Float>($0) }
+        }
         monitor.startSent(start.kind, restart: restarting, at: start.atMs)
         restarting = false
         noteGripping()

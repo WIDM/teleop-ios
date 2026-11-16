@@ -532,6 +532,122 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertTrue(model.link.armHeardAfterLastStop, "a closed link waits for nothing")
     }
 
+    // MARK: Where a server hold starts
+
+    /// The gripper link where the profile puts the pinch point at `pinch`, robot base frame.
+    private func gripper(atPinch pinch: SIMD3<Double>) -> SIMD3<Double> {
+        pinch - SIMD3<Double>(model.profile.toolOffset)
+    }
+
+    private func state(_ gripper: SIMD3<Double>) -> [String: Any] {
+        ["estop": false, "gripper": "closed", "ee_pos": [gripper.x, gripper.y, gripper.z]]
+    }
+
+    /// The sides the work-area rule told since the hold began.
+    private var sidesTold: [OperatorDirection] {
+        heard.compactMap {
+            guard case .commandOutside(let side) = $0 else { return nil }
+            return side
+        }
+    }
+
+    /// From `first`, a phone hold takes the arm `back` metres toward the operator (base +Y; negative is forward), the
+    /// listening connection reporting it there, and is let go of. Before the server answers that stop the hand presses
+    /// again, and the new start waits on the phone. Then the server answers: the stop's own ack and a state, the final
+    /// ack, which puts the waiting start on the wire, and a state. Returns where the arm stands.
+    private func quickSecondPress(from first: SIMD3<Double>, back: Double) -> SIMD3<Double> {
+        transport.server("state", state(first))
+        observer?.server("welcome", ["session": "run-1"])
+        observer?.server("state", state(first))
+        model.send(.holdArmStart)
+        let steps = Int((abs(back) * 100).rounded())
+        for step in 1...steps {
+            position = SIMD3(0, 0, Float(back) * Float(step) / Float(steps))
+            tick()
+        }
+        let there = first + SIMD3(0, back, 0)
+        observer?.server("state", state(there))
+        model.send(.holdArmEnd)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop")
+        clock += 50
+        model.send(.holdArmStart)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the new start waits for the final ack")
+        let stop = lastSeq(of: "pose_stop")
+        transport.server("ack", seq: stop, ["seq": stop, "status": "ok", "reason": "pose_stop_requested"])
+        transport.server("state", state(there))
+        serverAnswers("ok", "pose_stopped")
+        XCTAssertEqual(transport.types.last, "pose_start", "the waiting start went out")
+        transport.server("state", state(there))
+        return there
+    }
+
+    /// The hand goes `forward` metres from where it was pressed (ARKit forward is −z), a centimetre a tick.
+    private func handForward(_ forward: Double, from start: Float) {
+        let steps = Int((forward * 100).rounded())
+        for step in 1...steps {
+            position = SIMD3(0, 0, start - Float(forward) * Float(step) / Float(steps))
+            tick()
+        }
+        tick()
+    }
+
+    /// With the aids on, a server hold starts from the newest arm position reported when its start goes on the wire.
+    /// A hold takes the arm 6 cm back from 2 cm inside the work box's forward face; a quick second press waits for the
+    /// stop's final ack, and the hand then goes 3 cm forward. The commanded point fed to the rules is where the arm
+    /// stands plus the offset sent, 5 cm inside the face: no side. The control connection, which hears nothing during
+    /// a hold, last said the arm was at the first hold's start; from there the point would be 1 cm past the face. The
+    /// hand then goes 7 cm more, more than one server hold may ask for: the link ends that hold to learn where the arm
+    /// got to, the server reports it 8 cm on from where it stood, and after the re-sent start the commanded point is
+    /// what the hand asks for from where the second hold started, 2 cm past the face, which is told: the server's
+    /// target does not jump. With the aids off the fed point is version 1.0.1's, from the control connection's
+    /// position at the press, before the re-sent start and after it.
+    func testWithTheAidsOnAHoldStartsFromTheArmReportedWhenItsStartGoesOut() throws {
+        for aids in [true, false] {
+            bringUp(assistOn: aids, lock: .off)
+            let face = Double(model.profile.workspaceMin.y - model.profile.toolOffset.y)
+            let first = gripper(atPinch: SIMD3(0.027617, Double(model.profile.workspaceMin.y) + 0.02, 0.09))
+            XCTAssertEqual(first.y, face + 0.02, accuracy: 1e-6)
+            let there = quickSecondPress(from: first, back: 0.06)
+            let startedFrom = aids ? there : first
+            handForward(0.03, from: 0.06)
+            let fed = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm, "aids \(aids)"))
+            XCTAssertEqual(fed.y, startedFrom.y - 0.03, accuracy: 1e-4, "aids \(aids): the start point plus the offset")
+            XCTAssertEqual(fed.x, startedFrom.x, accuracy: 1e-4, "aids \(aids)")
+            XCTAssertEqual(fed.z, startedFrom.z, accuracy: 1e-4, "aids \(aids)")
+            XCTAssertEqual(sidesTold, [], "aids \(aids): inside the box")
+
+            handForward(0.07, from: 0.03)
+            for _ in 0..<60 where transport.types.last(where: { $0 != "test" }) != "pose_stop" { run(ticks: 1) }
+            XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "aids \(aids): the link asks")
+            let lead = Double(LiveLinkController.maxLeadMeters)
+            let capped = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm, "aids \(aids)"))
+            XCTAssertEqual(capped.y, startedFrom.y - lead, accuracy: 1e-4, "aids \(aids): held at the cap")
+            // The server moved the arm by the capped offset from where it really stood when it took the start.
+            serverAnswers("ok", "pose_stopped")
+            transport.server("state", state(there - SIMD3(0, lead, 0)))
+            XCTAssertEqual(transport.types.last, "pose_start", "aids \(aids): the start is re-sent")
+            tick()
+            let resumed = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm, "aids \(aids)"))
+            XCTAssertEqual(resumed.y, startedFrom.y - 0.10, accuracy: 1e-4, "aids \(aids): no jump at the restart")
+            XCTAssertEqual(sidesTold, aids ? [.forward] : [], "aids \(aids)")
+            XCTAssertTrue(model.session.state.armMoving, "aids \(aids)")
+        }
+    }
+
+    /// The other way round: a hold takes the arm 6 cm forward to 1 cm inside the forward face, and after a quick second
+    /// press the hand goes 3 cm forward. With the aids on the commanded point is 2 cm past the face, and that is told;
+    /// from the control connection's position at the press it would be 5 cm inside, and nothing would be.
+    func testWithTheAidsOnAQuickSecondPressPastAFaceIsTold() throws {
+        bringUp(lock: .off)
+        let first = gripper(atPinch: SIMD3(0.027617, Double(model.profile.workspaceMin.y) + 0.07, 0.09))
+        let there = quickSecondPress(from: first, back: -0.06)
+        handForward(0.03, from: -0.06)
+        let fed = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm))
+        XCTAssertEqual(fed.y, there.y - 0.03, accuracy: 1e-4, "where the arm stands plus the offset")
+        XCTAssertEqual(model.link.commandOutside, .forward)
+        XCTAssertEqual(sidesTold, [.forward])
+    }
+
     /// A move to a point is a hold on the pad's path. With no tracked pose, where a phone hold is refused, it starts,
     /// marked as one nobody holds, with no refusal of its own. Twenty ticks without tracking neither end it nor send an
     /// offset, since the input rules run no move to give one, and nothing ending is heard. Its end sends the stop and
