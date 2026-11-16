@@ -1,11 +1,14 @@
 import SwiftUI
 import TeleopCore
 
-/// Settings (§7.3), version 1 rows only, with a STOP band pinned to the bottom edge.
+/// Settings (§7.3), version 1 rows only, with a STOP band pinned to the bottom edge. The hands-free aids have a page of
+/// their own, opened from the header, which takes the form's place under the same header and above the same band.
 struct SettingsScreen: View {
     @Bindable var model: AppModel
     /// Five taps on the version show the developer log.
     @State private var versionTaps = 0
+    /// The aids' page is showing instead of the form. Settings opens on the form every time.
+    @State private var showsAids = false
 
     /// Settings → Control → Smoothing: Off, Low and High (§7.3).
     static let smoothingSteps: [(key: LocalizedStringKey, value: Double)] = [
@@ -17,31 +20,73 @@ struct SettingsScreen: View {
         VStack(spacing: 0) {
             PracticeBanner(practice: practice)
             if case .stopped = model.operating.state { stoppedBand }
-            HStack {
-                Text("settings.title").font(.system(size: 20, weight: .bold))
-                Spacer()
-                Button {
-                    model.send(.settingsDone)
-                } label: {
-                    Text("common.done")
+            header
+                .padding(.horizontal, TeleopMetrics.margin)
+            if showsAids {
+                aidsPage
+            } else {
+                // The form's last screenful must hold the rows from Recording to the version, as in version 1.0.1, so
+                // nothing is added to the form: the aids' settings, a later aid's included, go on their own page.
+                Form {
+                    control
+                    taskAid
+                    recording
+                    server
+                    practiceSection
+                    tutorial
+                    language
+                    about
+                    if versionTaps >= 5 { developer }
                 }
-                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
-                .accessibilityIdentifier("settings.done")
-            }
-            .padding(.horizontal, TeleopMetrics.margin)
-            Form {
-                control
-                taskAid
-                assistSection
-                recording
-                server
-                practiceSection
-                tutorial
-                language
-                about
-                if versionTaps >= 5 { developer }
             }
             StopBand { model.send(.stop) }
+        }
+    }
+
+    /// The title and Done, with the way to the aids' page beside Done; on that page, the way back to the form in the
+    /// title's place and the page's own title in the middle. Done leaves Settings from either.
+    private var header: some View {
+        HStack {
+            if showsAids {
+                Button {
+                    showsAids = false
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").fontWeight(.semibold)
+                        Text("settings.title")
+                    }
+                }
+                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+                .accessibilityLabel(Text("settings.title"))
+                .accessibilityIdentifier("settings.aids_back")
+            } else {
+                Text("settings.title").font(.system(size: 20, weight: .bold))
+            }
+            Spacer()
+            if !showsAids {
+                Button {
+                    showsAids = true
+                } label: {
+                    Text("settings.assist")
+                }
+                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+                .accessibilityIdentifier("settings.aids")
+            }
+            Button {
+                model.send(.settingsDone)
+            } label: {
+                Text("common.done")
+            }
+            .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+            .accessibilityIdentifier("settings.done")
+        }
+        .overlay {
+            if showsAids {
+                Text("settings.assist")
+                    .font(.system(size: 20, weight: .bold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("settings.aids_title")
+            }
         }
     }
 
@@ -145,29 +190,30 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The aids' master switch, and lock when the robot allows it. Off makes the operating screen, its cues and its
-    /// guide those of version 1.0.1, so the lock row is disabled while the switch is off. It sits above Recording, not
-    /// at the end of the form: the UI tests reach the rows from Recording down with two swipes to the bottom, and a
-    /// section after About would push Recording out of their reach.
-    private var assistSection: some View {
-        Section {
-            Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
-                .accessibilityIdentifier("settings.assist")
-            if model.offersLock {
-                Picker(selection: $model.lockChoice) {
-                    Text("settings.lock_off").tag(LockChoice.off)
-                    Text("settings.lock_press_press").tag(LockChoice.pressPress)
-                    Text("settings.lock_hold_slide").tag(LockChoice.holdThenSlide)
-                } label: {
-                    Text("settings.lock")
+    /// The aids' page: their master switch, and lock when the robot allows it, each choice a row of its own so its
+    /// sentence is shown whole. Off makes the operating screen, its cues and its guide those of version 1.0.1, so the
+    /// lock choice is disabled while the switch is off; the page stays reachable then, since the switch is turned on
+    /// here again.
+    private var aidsPage: some View {
+        Form {
+            Section {
+                Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
+                    .accessibilityIdentifier("settings.assist")
+                if model.offersLock {
+                    Picker(selection: $model.lockChoice) {
+                        Text("settings.lock_off").tag(LockChoice.off)
+                        Text("settings.lock_press_press").tag(LockChoice.pressPress)
+                        Text("settings.lock_hold_slide").tag(LockChoice.holdThenSlide)
+                    } label: {
+                        Text("settings.lock")
+                    }
+                    .pickerStyle(.inline)
+                    .disabled(!model.assistOn)
+                    .accessibilityIdentifier("settings.lock")
                 }
-                .disabled(!model.assistOn)
-                .accessibilityIdentifier("settings.lock")
+            } footer: {
+                Text("settings.assist_help")
             }
-        } header: {
-            Text("settings.assist")
-        } footer: {
-            Text("settings.assist_help")
         }
     }
 
