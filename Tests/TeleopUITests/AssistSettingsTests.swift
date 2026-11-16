@@ -324,23 +324,24 @@ final class AssistSettingsTests: XCTestCase {
         return app
     }
 
-    /// The aids' page, reached through the button beside Done; the button's words and the page's title are checked on
-    /// the way.
+    /// The aids' page, reached through the button beside Done; the button's words, the page's title and what VoiceOver
+    /// calls the way back are checked on the way.
     private func openAidsPage(assist: String, lock: String, language: String, height: Height) -> XCUIApplication {
         let app = openSettings(assist: assist, lock: lock, language: language, extra: height.arguments)
-        let aids = Self.words[language]!.aids
+        let words = Self.words[language]!
         let button = app.element("settings.aids")
-        XCTAssertEqual(button.label, aids, "\(language): the button's words")
+        XCTAssertEqual(button.label, words.aids, "\(language): the button's words")
         button.tap()
         expect(app, "settings.assist")
-        XCTAssertEqual(app.element("settings.aids_title").label, aids, "\(language): the page's title")
+        XCTAssertEqual(app.element("settings.aids_title").label, words.aids, "\(language): the page's title")
+        XCTAssertEqual(app.element("settings.aids_back").label, words.back, "\(language): the way back, to VoiceOver")
         return app
     }
 
-    /// Lock's choices on the aids' page: under lock's header, which is no choice itself, one row per choice in order,
-    /// each found by its identifier, labelled with its whole sentence and lying on the screen above the STOP band; the
-    /// chosen one selected and the others not; all of them enabled, or none. Then their pixels: no sentence is cut,
-    /// and the chosen row alone shows the mark.
+    /// Lock's choices on the aids' page: under lock's header, which is no choice itself and lies in no row, one row
+    /// per choice in order, each found by its identifier, labelled with its whole sentence and lying on the screen
+    /// above the STOP band; the chosen one selected and the others not; all of them enabled, or none. Then their
+    /// pixels: no sentence is cut, and the chosen row alone shows the mark.
     private func expectLockRows(
         _ app: XCUIApplication, chosen: String, enabled: Bool, language: String, screen: CGRect?, what: String,
         line: UInt = #line
@@ -351,6 +352,10 @@ final class AssistSettingsTests: XCTestCase {
         XCTAssertEqual(
             app.buttons.matching(NSPredicate(format: "label ==[c] %@", words.lock)).count, 0,
             "\(what): lock's header is not a choice", line: line)
+        // A row that only says the word would read as a fourth choice: the word is the section's header, drawn on the
+        // page's background, where each choice is drawn on a row of its own.
+        expectOnThePagesBackground(
+            header, notOn: app.buttons[Self.choices[0].identifier], what: "\(what), \(words.lock)", line: line)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settings.lock'"))
         XCTAssertEqual(choices.count, Self.choices.count, "\(what): one row per choice", line: line)
         let screen = screen ?? app.windows.firstMatch.frame
@@ -371,6 +376,32 @@ final class AssistSettingsTests: XCTestCase {
         let rows = Self.choices.map { app.buttons[$0.identifier].frame }
         let marked = Self.choices.map { $0.value == chosen }
         expectDrawnWhole(rows: rows, sentences: words.choices, marked: marked, what: what, line: line)
+    }
+
+    /// `element` is drawn on the page's background and not on a row: read at the middle of its frame's top edge, the
+    /// screenshot shows the colour of the page's margin beside it, and not the colour `row` shows at the middle of its
+    /// own top edge. The screenshot is taken again until both hold, as the page may still be drawing.
+    private func expectOnThePagesBackground(_ element: XCUIElement, notOn row: XCUIElement, what: String, line: UInt) {
+        let frame = element.frame
+        let rowFrame = row.frame
+        let same = { (a: (r: Int, g: Int, b: Int), b: (r: Int, g: Int, b: Int)) -> Bool in
+            max(abs(a.r - b.r), abs(a.g - b.g), abs(a.b - b.b)) <= 4
+        }
+        var seen: (behind: (r: Int, g: Int, b: Int), page: (r: Int, g: Int, b: Int), row: (r: Int, g: Int, b: Int))
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            let picture = Picture(XCUIScreen.main.screenshot().image)
+            seen = (
+                picture.colour(at: CGPoint(x: frame.midX, y: frame.minY + 2)),
+                picture.colour(at: CGPoint(x: frame.minX / 2, y: frame.midY)),
+                picture.colour(at: CGPoint(x: rowFrame.midX, y: rowFrame.minY + 2))
+            )
+        } while !(same(seen.behind, seen.page) && !same(seen.behind, seen.row)) && Date() < deadline
+        XCTAssertTrue(
+            same(seen.behind, seen.page), "\(what) \(frame): drawn on \(seen.behind), the page is \(seen.page)",
+            line: line)
+        XCTAssertFalse(
+            same(seen.behind, seen.row), "\(what) \(frame): drawn on \(seen.behind), as a row is", line: line)
     }
 
     /// How far a row's drawing reaches, read from a screenshot: the runs of inked columns across it.
@@ -560,6 +591,11 @@ extension Picture {
         }
         if let start = first { runs.append((CGFloat(start) / scale, CGFloat(last + 1) / scale)) }
         return runs
+    }
+
+    /// The colour at `point`, in points.
+    fileprivate func colour(at point: CGPoint) -> (r: Int, g: Int, b: Int) {
+        pixel(column: Int(point.x * scale), row: Int(point.y * scale))
     }
 
     private func pixel(column: Int, row: Int) -> (r: Int, g: Int, b: Int) {
