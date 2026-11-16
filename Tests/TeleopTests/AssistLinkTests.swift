@@ -460,9 +460,10 @@ final class AssistLinkTests: XCTestCase {
     }
 
     /// A tap waits for an arm position the server sent after it finished the last hold this phone ended, and the input
-    /// rules are told so with the arm's fix. After a hold is let go of, neither a listening connection's state nor the
-    /// control connection's state after the stop's own ack counts; the control connection's state after the final ack
-    /// does. With no answer, any position counts once the link's wait for one has run out. The jaws and the wrist count
+    /// rules are told so with the arm's fix. After a hold is let go of, a listening connection's state does not count,
+    /// before the final ack or after it, since it may have been measured before the stop, and neither does the control
+    /// connection's state after the stop's own ack; the control connection's state after the final ack does. With no
+    /// answer, any position counts once the link's wait for one has run out. The jaws and the wrist count
     /// as holds too; after an emergency stop a control connection's state the server wrote before reading it does not
     /// count, one written after does; a closed link waits for nothing.
     func testATapWaitsForAnArmPositionFromAfterTheLastStop() {
@@ -487,6 +488,8 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertTrue(waits(), "after the stop's own ack the hold has not finished")
         serverAnswers("ok", "pose_stopped")
         XCTAssertTrue(waits(), "the final ack carries no position")
+        observer?.server("state", arm)
+        XCTAssertTrue(waits(), "a listening connection's state after the final ack may still be from before the stop")
         transport.server("state", arm)
         XCTAssertFalse(waits(), "the control connection's state after the final ack")
 
@@ -648,6 +651,40 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertEqual(fed.y, there.y - 0.03, accuracy: 1e-4, "where the arm stands plus the offset")
         XCTAssertEqual(model.link.commandOutside, .forward)
         XCTAssertEqual(sidesTold, [.forward])
+    }
+
+    /// With the aids on, a start held back behind a stop whose answer never comes goes out once the link's wait for
+    /// that answer has run out, and the hold starts from where the listening connection last reported the arm: a hold
+    /// takes the arm 6 cm forward, the listening connection reports it there, the control connection last reported it
+    /// where that hold began. After a quick second press and the wait, the hand goes 3 cm forward, and the commanded
+    /// point fed to the rules is the listening connection's position plus that offset.
+    func testWithTheAidsOnAStartAfterTheLinksWaitStartsFromTheListeningPosition() throws {
+        bringUp(lock: .off)
+        let first = gripper(atPinch: SIMD3(0.027617, Double(model.profile.workspaceMin.y) + 0.07, 0.09))
+        transport.server("state", state(first))
+        observer?.server("welcome", ["session": "run-1"])
+        observer?.server("state", state(first))
+        model.send(.holdArmStart)
+        for step in 1...6 {
+            position = SIMD3(0, 0, Float(-0.06) * Float(step) / 6)
+            tick()
+        }
+        let there = first + SIMD3(0, -0.06, 0)
+        observer?.server("state", state(there))
+        model.send(.holdArmEnd)
+        clock += 50
+        model.send(.holdArmStart)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the new start waits")
+        for _ in 0..<40 where transport.types.last(where: { $0 != "test" }) == "pose_stop" {
+            run(ticks: 1)
+            observer?.server("state", state(there))
+        }
+        XCTAssertNotEqual(transport.types.last { $0 != "test" }, "pose_stop", "the start went out after the wait")
+        handForward(0.03, from: -0.06)
+        let fed = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm))
+        XCTAssertEqual(fed.y, there.y - 0.03, accuracy: 1e-4, "where the listening connection reported the arm")
+        XCTAssertEqual(fed.x, there.x, accuracy: 1e-4)
+        XCTAssertEqual(fed.z, there.z, accuracy: 1e-4)
     }
 
     /// A move to a point is a hold on the pad's path. With no tracked pose, where a phone hold is refused, it starts,

@@ -638,8 +638,10 @@ final class LocalAssistTests: XCTestCase {
 
     /// The hand lets go of a hold with the arm on its way, the network path stalls right after the stop, and the hand
     /// taps the guide at once: the newest reading is from before the stop, and the server would start the move from
-    /// wherever the arm stood when it finished, so the tap is refused with "Wait." and nothing goes on the wire. The
-    /// path comes back with the stop's answer, and the same tap then goes and arrives at the tapped point.
+    /// wherever the arm stood when it finished, so the tap is refused with "Wait." and nothing goes on the wire. Once
+    /// the server has finished the hold, its answer held back on the way, the path comes back with that answer, which
+    /// ends the wait before the link's own wait for it would have; the same tap then goes and arrives at the tapped
+    /// point.
     func testATapBeforeTheStopsAnswerWaitsAndGoesOnceItCame() throws {
         let path = StallingPath()
         try start(.screenTurns, lock: .off, path: path)
@@ -650,16 +652,20 @@ final class LocalAssistTests: XCTestCase {
         // Right is −X and forward −Y in the robot base: 3 cm right of and 3 cm forward of where the jaws began.
         let target = SIMD3(pinch.x - 0.03, pinch.y - 0.03, travelHeight(goTo))
         holdAndLetGoOnTheWay { path.stall(after: "pose_stop") }
+        let stopped = Date()
         let mark = model.cueLog.count, wire = sentOnTheWire.count
         try hand.tapGuide(over: target)
         XCTAssertEqual(cues(since: mark), [.refused(.notReady)], "refused once")
         XCTAssertEqual(model.cueLog.dropFirst(mark).first?.speech, [.wait], "as Wait.")
         XCTAssertNil(model.controller.loose)
-        _ = hand.wait(0.25, until: { false })
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "the server finished the hold")
         XCTAssertFalse(sentOnTheWire.dropFirst(wire).contains("pose_start"), "nothing went on the wire")
         XCTAssertTrue(tapWaits, "the answer is held back")
         path.resume()
-        XCTAssertFalse(tapWaits, "the stop's answer itself ends the wait")
+        XCTAssertTrue(hand.wait(2, until: { !tapWaits }), "the stop's answer ends the wait")
+        XCTAssertLessThan(
+            Date().timeIntervalSince(stopped), Double(TeleopLink.finishWaitMs) / 1000,
+            "the answer ended it, before the link's own wait for it would have")
         try assertATapGoesThere(target)
     }
 
@@ -756,8 +762,9 @@ private final class CommandLegs {
 /// command only between samples that show it, so a gap in sampling, such as a stall of the test host's main thread
 /// while the command moves, is never taken for one.
 final class CommandLegsTests: XCTestCase {
-    /// The settle time of the simulator's profile, three quarters of it, as the local runs use.
-    private let rest = 0.6 * 0.75
+    /// The settle time of the simulator's profile, three quarters of it, as the local runs use. A profile without
+    /// tap-to-go has none, and every count below then fails.
+    private let rest = (RobotProfile.so101Simulator.assist.goTo?.settleS ?? .nan) * 0.75
     private let speed = 0.04
     private var now: TimeInterval = 0
 

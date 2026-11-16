@@ -358,6 +358,34 @@ final class GuideAidsLinkTests: XCTestCase {
         }
     }
 
+    /// The arm stands on the table and the hand goes 10 cm down, farther than the command may lead the arm: the link
+    /// holds the command at that lead, and ends and re-sends the server hold to learn where the arm got to, the server
+    /// answering each time with the arm still on the table, a state every 198 ms meanwhile. The push is still told by
+    /// "Can't go lower.", once: only the pause of a re-sent start keeps the lowest rule from judging, not a command
+    /// held at the lead, which is exactly a push into something.
+    func testAPushIntoTheTableWithTheHandPastTheLeadIsStillTold() {
+        bringUp(aids: true, arm: onTheTable)
+        model.send(.holdArmStart)
+        for step in 1...10 {
+            position = SIMD3(0, -0.01 * Float(step), 0)
+            tick()
+        }
+        XCTAssertTrue(model.catchingUp, "the command is held at the lead")
+        var resyncs = 0
+        for _ in 0..<15 {
+            run(ticks: 6)
+            if transport.types.last(where: { $0 != "test" }) == "pose_stop" {
+                serverFinishesHold(armAt: onTheTable)
+                resyncs += 1
+            }
+            transport.server("state", state(onTheTable, ik: "pose_tracking"))
+        }
+        XCTAssertGreaterThan(resyncs, 0, "the link ended the server hold to learn where the arm got to")
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertEqual(limits, [.limit(.lowest)])
+        XCTAssertEqual(speech.spoken, ["Can't go lower."])
+    }
+
     /// With the aids off the same pushes give version 1.0.1's cues: the server's clamp END, and "Blocked." first when
     /// the arm has stood still for a second before the clamp came.
     func testWithTheAidsOffAPushIntoTheTableGivesTheCuesOfOneZeroOne() {
