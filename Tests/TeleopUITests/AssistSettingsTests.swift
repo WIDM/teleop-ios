@@ -89,8 +89,8 @@ final class AssistSettingsTests: XCTestCase {
     }
 
     /// The tutorial's last page says a tap on the guide's view from above sends the jaws there, in the phone modes with
-    /// the switch on and the task aid on, in both languages; with the switch off, with the task aid off (no guide is
-    /// drawn to tap) or in buttons mode it has no such line.
+    /// the switch on and the task aid on, in both languages, and the page scrolls to the whole line; with the switch
+    /// off, with the task aid off (no guide is drawn to tap) or in buttons mode it has no such line.
     func testTheTutorialTeachesTheTap() {
         // The app reads the task aid as a saved Bool, which a launch argument gives only in property-list form; a
         // plain NO would be read as no saved value, which is on.
@@ -116,6 +116,10 @@ final class AssistSettingsTests: XCTestCase {
                 let shown = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", line)).firstMatch
                 XCTAssertTrue(shown.waitForExistence(timeout: 5), "\(what): the tap line")
                 XCTAssertEqual(tapLines.count, 1, what)
+                let page = app.scrollViews.firstMatch
+                let inView = { shown.frame.minY >= page.frame.minY && shown.frame.maxY <= page.frame.maxY }
+                scrollPage(page, until: inView)
+                XCTAssertTrue(inView(), "\(what): the whole line in view, \(shown.frame) in \(page.frame)")
                 attachScreenshot("tutorial-tap-\(one.mode)-\(one.language)")
             } else {
                 XCTAssertEqual(tapLines.count, 0, "\(what): no tap line")
@@ -126,8 +130,8 @@ final class AssistSettingsTests: XCTestCase {
 
     /// The tutorial's line about the guide also says that the guide's Forward and Up arrows are true for the picture,
     /// not for the hand, when the aids draw them, in both languages; at the smaller phone's height the page scrolls to
-    /// the whole line, as it does to its last lines. With the switch off the guide has no arrows, and the line says
-    /// only what the on-target cue means.
+    /// the whole line, as it does to its last lines. With the switch off the guide has no arrows, and with the task aid
+    /// off or in buttons mode no guide is drawn: the line then says only what the on-target cue means.
     func testTheTutorialSaysTheGuidesArrowsAreThePictures() {
         let cases: [(language: String, sentence: String)] = [
             ("en", "The guide's Forward and Up arrows are true for the picture, not for your hand."),
@@ -155,16 +159,25 @@ final class AssistSettingsTests: XCTestCase {
                 app.terminate()
             }
         }
-        let off = XCUIApplication.teleop(["-startRoute", "t3_tutorial", "-assist", "NO", "-lockVariant", "off"])
-        off.launch()
-        expect(off, "tutorial.title")
-        let line = off.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'When the guide shows a target'"))
-            .firstMatch
-        XCTAssertTrue(line.waitForExistence(timeout: 5), "switch off: the guide's line")
-        XCTAssertEqual(
-            line.label,
-            "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close.",
-            "switch off: nothing about arrows")
+        let onTargetOnly =
+            "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close."
+        // The task aid is read as a saved Bool, which a launch argument gives only in property-list form.
+        let noArrows: [(what: String, arguments: [String])] = [
+            ("switch off", ["-assist", "NO"]),
+            ("task aid off", ["-assist", "YES", "-taskAid", "<false/>"]),
+            ("buttons mode", ["-assist", "YES", "-controlMode", "buttons"]),
+        ]
+        for one in noArrows {
+            let app = XCUIApplication.teleop(["-startRoute", "t3_tutorial", "-lockVariant", "off"] + one.arguments)
+            app.launch()
+            expect(app, "tutorial.title")
+            let line = app.staticTexts.containing(
+                NSPredicate(format: "label BEGINSWITH 'When the guide shows a target'")
+            ).firstMatch
+            XCTAssertTrue(line.waitForExistence(timeout: 5), "\(one.what): the guide's line")
+            XCTAssertEqual(line.label, onTargetOnly, "\(one.what): nothing about arrows")
+            app.terminate()
+        }
     }
 
     /// Scrolls `page` up 100 points at a time, with no fling, until `done`.
