@@ -178,8 +178,8 @@ final class AppModel {
         }
     }
 
-    /// Settings offers the lock row: the robot allows lock. Shown with the master switch off too, disabled, so the
-    /// choice can be seen and kept.
+    /// The aids' page in Settings offers lock's choices, each a row under lock's header: the robot allows lock. They
+    /// are shown with the master switch off too, disabled, so the choice can be seen and kept.
     var offersLock: Bool { profile.assist.lock != nil }
 
     /// The one configuration of the aids, resolved from the two settings and the robot. Derived, never stored, so it

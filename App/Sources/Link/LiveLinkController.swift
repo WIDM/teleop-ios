@@ -798,8 +798,9 @@ final class LiveLinkController {
         {
             events.removeAll { $0 == .limit(.workspace) }
         }
-        // The work-area rule already told this hold's crossing; the server's clamp of it would be a second buzz. A
-        // clamp past no face of the profile's box (a server whose box differs from the profile's) still plays.
+        // Once the work-area rule has told a side in this hold, the server's clamp END is not played again until the
+        // operator's next hold: the clamp of the crossing told would be a second buzz. A clamp past no face of the
+        // profile's box (a server whose box differs from the profile's) is dropped then too.
         if workAreaToldThisHold { events.removeAll { $0 == .limit(.workspace) } }
         emit(events)
         noteGripping()
