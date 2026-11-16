@@ -44,7 +44,7 @@ public struct World: Equatable, Sendable {
     }
 
     /// Where the jaws pinch, base frame.
-    func pinch(_ config: ServerModelConfig) -> SIMD3<Double> { arm + config.toolOffset }
+    func pinch(_ config: ServerModelConfig) -> SIMD3<Double> { config.toolTurn?.pinch(arm) ?? arm + config.toolOffset }
 
     func cubeInBase(_ config: ServerModelConfig) -> SIMD3<Double> { cube - config.baseInWorld }
 
@@ -52,9 +52,17 @@ public struct World: Equatable, Sendable {
     mutating func moveArm(toward target: SIMD3<Double>, maxStep: Double, _ config: ServerModelConfig) {
         var next = arm + limited(target - arm, to: maxStep)
         let tableTop = config.tableTopWorld - config.baseInWorld.z
-        var lowest = tableTop - config.toolOffset.z + config.jawReachBelowPinch
-        if holdingCube {
-            lowest = max(lowest, tableTop - config.toolOffset.z - gripOffset.z + config.cubeSize / 2)
+        var lowest: Double
+        if let turn = config.toolTurn {
+            // The pinch point's lowest height, and the height of the reported point that puts it there at this place.
+            var pinchFloor = tableTop + config.jawReachBelowPinch
+            if holdingCube { pinchFloor = max(pinchFloor, tableTop - gripOffset.z + config.cubeSize / 2) }
+            lowest = turn.armHeight(over: SIMD2(next.x, next.y), pinchAt: pinchFloor)
+        } else {
+            lowest = tableTop - config.toolOffset.z + config.jawReachBelowPinch
+            if holdingCube {
+                lowest = max(lowest, tableTop - config.toolOffset.z - gripOffset.z + config.cubeSize / 2)
+            }
         }
         if let obstacleUnderArm { lowest = max(lowest, obstacleUnderArm) }
         next.z = max(next.z, lowest)

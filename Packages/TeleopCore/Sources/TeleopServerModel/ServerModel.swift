@@ -26,6 +26,9 @@ public final class ServerModel {
     /// What `state` says now.
     public internal(set) var state: JSONValue = .object([])
     public internal(set) var episode = 0
+    /// `state` carries the tool point: `config.reportsToolPoint` at first. Turned off during a run, the next position
+    /// goes out without it, as from a server that has stopped reporting one.
+    public var reportsToolPoint: Bool
 
     var connections: [Int: Connection] = [:]
     private var nextConnection = 1
@@ -64,6 +67,7 @@ public final class ServerModel {
 
     public init(config: ServerModelConfig = .s4Simulator, startTime: Double = 0) {
         self.config = config
+        reportsToolPoint = config.reportsToolPoint
         time = startTime
         nextStepTime = startTime + 1 / config.stepsPerSecond
         world = World(config)
@@ -189,9 +193,13 @@ public final class ServerModel {
 
     func update(_ fields: KeyValuePairs<String, JSONValue>) {
         for (key, value) in fields { state = state.setting(key, value) }
-        // Every `ee_pos` is the world's arm, so the pinch point goes with it.
-        if config.reportsToolPoint, fields.contains(where: { $0.key == "ee_pos" }) {
+        // Every `ee_pos` is the world's arm, so the pinch point goes with it, or leaves `state` once it is no longer
+        // reported.
+        guard fields.contains(where: { $0.key == "ee_pos" }) else { return }
+        if reportsToolPoint {
             state = state.setting("tool_pos", .numbers(world.pinch(config)))
+        } else if let members = state.members, members.contains(where: { $0.key == "tool_pos" }) {
+            state = .object(members.filter { $0.key != "tool_pos" })
         }
     }
 
