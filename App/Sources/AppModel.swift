@@ -508,8 +508,10 @@ final class AppModel {
     }
 
     /// Where the arm was last measured, for tap-to-go: the pinch point of the newest position either connection
-    /// reported, how old it is, whether the link is pausing the hold, and whether a position from after the server
-    /// finished the last hold this phone ended has been heard. Nil before the server has reported one.
+    /// reported, how old it is, whether the link is pausing the hold, whether a position from after the server
+    /// finished the last hold this phone ended has been heard, and the gripper link of the same position with whether
+    /// the server reported the pinch point there, so that a move can follow how the pinch point turns about the
+    /// gripper link. Nil before the server has reported one.
     private var armFix: ArmFix? {
         guard let state = link.newestArmState, let gripper = state.endEffector, let ageMs = link.newestArmAgeMs else {
             return nil
@@ -519,7 +521,7 @@ final class AppModel {
             flexDeg: state.wristFlexDeg, rollDeg: state.wristRollDeg)
         return ArmFix(
             pinch: SIMD3<Double>(pinch.point), ageS: Double(ageMs) / 1000, holdPaused: link.holdPaused,
-            heardAfterLastStop: link.armHeardAfterLastStop)
+            heardAfterLastStop: link.armHeardAfterLastStop, gripper: gripper, pinchReported: pinch.source == .reported)
     }
 
     /// The controller handled an input; what the screen draws may have changed.

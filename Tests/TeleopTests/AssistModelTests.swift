@@ -1,3 +1,4 @@
+import simd
 import TeleopCore
 import XCTest
 @testable import Teleop
@@ -256,6 +257,48 @@ final class AssistModelTests: XCTestCase {
         var noTaps = RobotProfile.so101Simulator
         noTaps.assist.goTo = nil
         XCTAssertNil(liveModel(profile: noTaps, assistOn: true).inputFacts().arm, "a robot without tap-to-go")
+    }
+
+    /// A move follows how the pinch point turns about the gripper link only from a reading that reported the pinch
+    /// point. The input rules are told the gripper link of the same state as the pinch point, and whether the server
+    /// reported the pinch point there: a state with a tool point did; one without, or with one that is no usable point,
+    /// did not, and its pinch point is the gripper link plus the profile's tool offset. With the switch off they are
+    /// told no arm, as in version 1.0.1.
+    func testTheFactsSayWhetherThePinchPointWasReportedBesideTheGripperLink() throws {
+        let model = liveModel(assistOn: true)
+        func estimate(_ gripper: SIMD3<Double>) -> SIMD3<Double> {
+            SIMD3<Double>(
+                model.profile.pinchPoint(gripper: SIMD3<Float>(gripper), tool: nil, flexDeg: nil, rollDeg: nil).point)
+        }
+        func assertGripper(_ arm: ArmFix, _ gripper: SIMD3<Double>, _ what: String, line: UInt = #line) {
+            XCTAssertLessThan(
+                simd_distance(arm.gripper ?? SIMD3(repeating: .infinity), gripper), 1e-12,
+                "\(what): the gripper link of that state", line: line)
+        }
+        var arm = try XCTUnwrap(model.inputFacts().arm)
+        XCTAssertFalse(arm.pinchReported, "no tool point")
+        assertGripper(arm, SIMD3(0.02, -0.14, 0.16), "no tool point")
+        XCTAssertEqual(arm.pinch, estimate(SIMD3(0.02, -0.14, 0.16)), "no tool point")
+
+        transport.server(
+            "state",
+            ["estop": false, "gripper": "open", "ee_pos": [0.021, -0.141, 0.161], "tool_pos": [0.03, -0.17, 0.08]])
+        arm = try XCTUnwrap(model.inputFacts().arm)
+        XCTAssertTrue(arm.pinchReported, "a tool point")
+        assertGripper(arm, SIMD3(0.021, -0.141, 0.161), "a tool point")
+        XCTAssertEqual(arm.pinch, SIMD3<Double>(SIMD3<Float>(SIMD3<Double>(0.03, -0.17, 0.08))), "a tool point")
+
+        // A tool point no `Float` can hold cannot be drawn or moved to: it counts as not reported.
+        transport.server(
+            "state",
+            ["estop": false, "gripper": "open", "ee_pos": [0.022, -0.142, 0.162], "tool_pos": [1e39, -0.17, 0.08]])
+        arm = try XCTUnwrap(model.inputFacts().arm)
+        XCTAssertFalse(arm.pinchReported, "a tool point that is no usable point")
+        assertGripper(arm, SIMD3(0.022, -0.142, 0.162), "a tool point that is no usable point")
+        XCTAssertEqual(arm.pinch, estimate(SIMD3(0.022, -0.142, 0.162)), "a tool point that is no usable point")
+
+        model.assistOn = false
+        XCTAssertNil(model.inputFacts().arm, "off, no arm")
     }
 
     /// The panel reaches the input rules only while the guide is drawn: a phone mode, the task aid on, an arm reading

@@ -431,8 +431,10 @@ final class LocalAssistTests: XCTestCase {
 
     /// Against a server that keeps the arm within 4 cm of its start, half of the profile's box, the hand taps a point
     /// 6 cm forward of the jaws, inside the box the guide draws. The server holds the arm 2 cm short; the move corrects
-    /// at least once and at most as often as the profile allows, ends, and is heard once as stopped short. The
-    /// operator steered nothing, so the server's clamp is told by that ending alone: GO, then the ending.
+    /// at most as often as the profile allows, ends, and is heard once as stopped short. The server reports the pinch
+    /// point, so the move follows it, and a fresh reading about 2 cm (two and a half arrive tolerances) from where the
+    /// leg went ends a following move stopped short: it may stop short before any correction. The operator steered
+    /// nothing, so the server's clamp is told by that ending alone: GO, then the ending.
     private func aMoveTheServerCutsShortEndsOnce(_ mode: ControlMode) throws {
         let serverBox = 0.04
         try start(mode, lock: .off, path: StallingPath(), serverBox: serverBox)
@@ -452,7 +454,6 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertEqual(endings(since: mark), [.drive(.ended(.stoppedShort))], "\(mode)")
         XCTAssertNil(model.controller.loose, "\(mode)")
         let corrections = legs?.corrections ?? 0
-        XCTAssertGreaterThan(corrections, 0, "\(mode): 2 cm is within a correction's reach")
         XCTAssertLessThanOrEqual(corrections, goTo.corrections, "\(mode): at most the profile's corrections")
         XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
         let (arm, armStart) = server.inspect { ($0.world.arm, $0.config.armStart) }
