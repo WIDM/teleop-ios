@@ -457,6 +457,81 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertNil(model.link.newestArmAgeMs)
     }
 
+    /// A tap waits for an arm position the server sent after it finished the last hold this phone ended, and the input
+    /// rules are told so with the arm's fix. After a hold is let go of, neither a listening connection's state nor the
+    /// control connection's state after the stop's own ack counts; the control connection's state after the final ack
+    /// does. With no answer, any position counts once the link's wait for one has run out. The jaws and the wrist count
+    /// as holds too; after an emergency stop a control connection's state the server wrote before reading it does not
+    /// count, one written after does; a closed link waits for nothing.
+    func testATapWaitsForAnArmPositionFromAfterTheLastStop() {
+        bringUp(lock: .off)
+        observer?.server("welcome", ["session": "run-1"])
+        let arm: [String: Any] = ["estop": false, "gripper": "closed", "ee_pos": [0.02, -0.14, 0.16]]
+        let stoppedArm: [String: Any] = ["estop": true, "gripper": "closed", "ee_pos": [0.02, -0.14, 0.16]]
+        transport.server("state", arm)
+        let waits = { [unowned self] in model.inputFacts().arm?.heardAfterLastStop == false }
+        XCTAssertEqual(model.inputFacts().arm?.heardAfterLastStop, true, "no stop yet")
+
+        model.send(.holdArmStart)
+        tick()
+        model.send(.holdArmEnd)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop")
+        XCTAssertTrue(waits(), "the stop's answer not heard yet")
+        observer?.server("state", arm)
+        XCTAssertTrue(waits(), "a listening connection's state may have been measured before the stop")
+        let stop = lastSeq(of: "pose_stop")
+        transport.server("ack", seq: stop, ["seq": stop, "status": "ok", "reason": "pose_stop_requested"])
+        transport.server("state", arm)
+        XCTAssertTrue(waits(), "after the stop's own ack the hold has not finished")
+        serverAnswers("ok", "pose_stopped")
+        XCTAssertTrue(waits(), "the final ack carries no position")
+        transport.server("state", arm)
+        XCTAssertFalse(waits(), "the control connection's state after the final ack")
+
+        model.send(.holdArmStart)
+        tick()
+        model.send(.holdArmEnd)
+        let stoppedAt = clock
+        XCTAssertTrue(waits(), "a second hold let go of")
+        clock = stoppedAt + TeleopLink.finishWaitMs - 1
+        observer?.server("state", arm)
+        XCTAssertTrue(waits(), "no answer, and the link's wait not over")
+        clock += 1
+        observer?.server("state", arm)
+        XCTAssertFalse(waits(), "the link's wait for the answer is over")
+
+        model.send(.gripperStart(.closed))
+        clock += 20
+        model.send(.gripperEnd)
+        XCTAssertTrue(waits(), "the jaws let go of")
+        let jaws = lastSeq(of: "gripper_jog_start")
+        transport.server("ack", seq: jaws, ["seq": jaws, "status": "ok", "reason": "gripper_jog_stopped"])
+        transport.server("state", arm)
+        XCTAssertFalse(waits(), "the jaws' final ack, then a state")
+
+        XCTAssertTrue(model.link.startWristHold())
+        clock += 20
+        model.link.stopWristHold()
+        XCTAssertTrue(waits(), "the wrist let go of")
+        let wrist = lastSeq(of: "orient_start")
+        transport.server("ack", seq: wrist, ["seq": wrist, "status": "ok", "reason": "orient_stopped"])
+        transport.server("state", arm)
+        XCTAssertFalse(waits(), "the wrist's final ack, then a state")
+
+        model.send(.stop)
+        XCTAssertTrue(waits(), "an emergency stop")
+        let estop = lastSeq(of: "estop")
+        transport.server("state", seq: estop - 1, stoppedArm)
+        XCTAssertTrue(waits(), "written before the server read the stop")
+        transport.server("state", seq: estop, stoppedArm)
+        XCTAssertFalse(waits(), "written after it")
+
+        model.send(.stop)
+        XCTAssertFalse(model.link.armHeardAfterLastStop, "STOP again")
+        model.link.closeQuietly()
+        XCTAssertTrue(model.link.armHeardAfterLastStop, "a closed link waits for nothing")
+    }
+
     /// A move to a point is a hold on the pad's path. With no tracked pose, where a phone hold is refused, it starts,
     /// marked as one nobody holds, with no refusal of its own. Twenty ticks without tracking neither end it nor send an
     /// offset, since the input rules run no move to give one, and nothing ending is heard. Its end sends the stop and

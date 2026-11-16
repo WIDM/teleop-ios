@@ -108,4 +108,49 @@ final class TeleopLinkHeldBackTests: XCTestCase {
         link.transportClosed()
         XCTAssertFalse(link.startHeldBack, "the socket is gone")
     }
+
+    /// The control a stop ended stays unfinished until its final ack: not the stop's own ack, which comes first. A
+    /// start held back for it that goes out after the wait ends it too, and a stop of a start that never went out sends
+    /// nothing and leaves the stop before it as it was. The jaws' and the wrist's stops count like the arm's.
+    func testUnfinishedStopIsTheStoppedControlUntilItsFinalAck() throws {
+        bringUp()
+        XCTAssertNil(link.unfinishedStop)
+        link.poseStart(params)
+        let first = seq(ofLast: "pose_start")
+        XCTAssertNil(link.unfinishedStop, "a running hold is not stopped")
+        clock += 500
+        link.poseStop()
+        let stopped = try XCTUnwrap(link.unfinishedStop)
+        XCTAssertEqual(stopped.start, first)
+        XCTAssertEqual(stopped.sentAtMs, clock)
+        let stop = seq(ofLast: "pose_stop")
+        server("ack", seq: stop, ["seq": stop, "status": "ok", "reason": "pose_stop_requested"])
+        XCTAssertEqual(link.unfinishedStop?.start, first, "the stop's own ack: not finished yet")
+        finish(first)
+        XCTAssertNil(link.unfinishedStop, "the final ack")
+
+        link.poseStart(params)
+        let second = seq(ofLast: "pose_start")
+        link.poseStop()
+        link.poseStart(params)
+        link.poseStop()
+        XCTAssertEqual(link.unfinishedStop?.start, second, "a start that never went out stops nothing")
+        link.poseStart(params)
+        clock += TeleopLink.finishWaitMs
+        link.service()
+        XCTAssertEqual(types.last, "pose_start", "the wait is over")
+        XCTAssertNil(link.unfinishedStop, "the start waiting for it went out")
+        link.poseStop()
+
+        for kind in ["gripper_jog_start", "orient_start"] {
+            setUp()
+            bringUp()
+            if kind == "gripper_jog_start" { link.gripperJogStart(.closed) } else { link.orientStart() }
+            let start = seq(ofLast: kind)
+            if kind == "gripper_jog_start" { link.gripperJogStop() } else { link.orientStop() }
+            XCTAssertEqual(link.unfinishedStop?.start, start, kind)
+            finish(start)
+            XCTAssertNil(link.unfinishedStop, kind)
+        }
+    }
 }

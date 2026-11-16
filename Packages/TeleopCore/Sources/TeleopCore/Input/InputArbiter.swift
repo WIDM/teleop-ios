@@ -1170,6 +1170,13 @@ public struct InputArbiter: Sendable {
             cue(.refused(.noArmData))
             return
         }
+        // The move's path starts at this reading and the server starts it from where the arm stands when it takes the
+        // start: a reading that may be from before the last stop's answer could shift the whole path. Last of the
+        // refusals, since waiting helps none of those above.
+        guard fix.heardAfterLastStop else {
+            cue(.refused(.wait))
+            return
+        }
         if simd_distance(fix.pinch, target) <= rule.arriveToleranceM {
             cue(.drive(.arrived))
             return

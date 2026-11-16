@@ -218,6 +218,11 @@ public final class TeleopLink {
     /// final ack, or `finishWaitMs`). The arm cannot have moved for that start yet.
     public var startHeldBack: Bool { heldBack != nil }
 
+    /// The control a stop sent here ended, while the server has not said it finished: the seq of its start and when
+    /// the stop went out. Cleared by that control's final ack, and when a start or a scene reset waiting for it goes
+    /// out after `finishWaitMs`. Nil when no stop is waiting for its answer.
+    public var unfinishedStop: (start: Int, sentAtMs: Int)? { stopping.map { ($0.seq, $0.sentAtMs) } }
+
     /// True while a scene reset is waiting to go out or for its answer. Every start is refused meanwhile: a reset
     /// must never go out behind a start (a start held back for the same final ack would go first), and the server
     /// takes none while it resets. One the server never answered stops counting after a while.

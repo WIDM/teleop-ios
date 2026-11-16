@@ -144,6 +144,11 @@ final class LiveLinkController {
     private var roundTrips: [Int] = []
     /// The last command sent was held at the lead cap: the arm is held short of what the hand asks for.
     private var leadCapped = false
+    /// The last stop this phone sent whose answer has not been heard: the seq of the start it ended (nil for an
+    /// emergency stop) and when it went out. Nil once an arm position the server sent after that answer has come.
+    private var stopUnanswered: (start: Int?, sentAtMs: Int)?
+    /// The start whose stop was noted last, so one stop still waiting for its answer is noted once.
+    private var lastNotedStop: Int?
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -206,6 +211,16 @@ final class LiveLinkController {
     /// the command is held at the lead cap. The arm may stand still then for a reason that says nothing about where it
     /// can go.
     var holdPaused: Bool { resync != nil || link?.startHeldBack == true || leadCapped }
+    /// An arm position has been heard that the server sent after it finished the last hold this phone ended: one the
+    /// operator let go of, one the link stopped to learn where the arm got to, or any hold an emergency stop ended. A
+    /// tap waits for it, because a move's path starts at the newest reading and the server starts it from where the arm
+    /// stands when it takes the start. True again at the first state with a position on the control connection after
+    /// that hold's final ack (the server sends one there right after it, and nothing it sent before can arrive after it
+    /// on that connection), or, after an emergency stop, at the first one there that the server wrote after reading the
+    /// stop; at any position from either connection once `TeleopLink.finishWaitMs` has passed since the stop, so a lost
+    /// answer never leaves taps waiting; and when the link closes. Before that wait a state from the listening
+    /// connection never counts: it may have been measured before the stop and still arrive after the answer.
+    var armHeardAfterLastStop: Bool { stopUnanswered == nil }
 
     /// The guide's aids this link runs; nil is version 1.0.1. `gripperBox`: the work box in gripper-link space, robot
     /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
@@ -313,6 +328,8 @@ final class LiveLinkController {
         newestArmState = nil
         newestArmAtMs = nil
         leadCapped = false
+        stopUnanswered = nil
+        lastNotedStop = nil
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
@@ -322,6 +339,7 @@ final class LiveLinkController {
     func startHold(_ params: PoseParams) -> Bool {
         guard let link, let start = pose() else { return false }
         guard link.poseStart(params) else { return false }
+        noteStopSent()
         syncStart()
         holdStart = Self.position(start)
         lastSample = (Self.position(start), nowMs())
@@ -342,6 +360,7 @@ final class LiveLinkController {
         guard let link else { return false }
         let params = PoseParams(gain: 1, smoothing: 0)
         guard link.poseStart(params) else { return false }
+        noteStopSent()
         syncStart()
         holdStart = nil
         lastSample = nil
@@ -364,6 +383,7 @@ final class LiveLinkController {
 
     func endHold() {
         link?.poseStop()
+        noteStopSent()
         monitor.released(.pose)
         holdEnded()
     }
@@ -394,6 +414,7 @@ final class LiveLinkController {
     /// Ends the server hold without ending the operator's, to find out where the arm is.
     private func beginResync() {
         link?.poseStop()
+        noteStopSent()
         monitor.resyncBegan()
         resync = (nowMs(), false)
         // No command goes out until the start is re-sent, so none is held at the cap; the re-sent start is the pause.
@@ -433,6 +454,7 @@ final class LiveLinkController {
         let reached = link?.welcomed == true || observerUp
         link?.estop()
         if observerUp { observer?.estop() }
+        stopUnanswered = (nil, nowMs())
         monitor.released()
         endWristTarget()
         holdEnded()
@@ -460,18 +482,21 @@ final class LiveLinkController {
     @discardableResult
     func startGripper(_ target: GripperState) -> Bool {
         guard let link, link.gripperJogStart(target) else { return false }
+        noteStopSent()
         syncStart()
         return true
     }
 
     func stopGripper() {
         link?.gripperJogStop()
+        noteStopSent()
         monitor.released(.gripper(.open))
     }
 
     /// A wrist hold whose angle comes from `setWristTarget`. False when the move could not start.
     func startWristHold() -> Bool {
         guard let link, link.orientStart() else { return false }
+        noteStopSent()
         wristTarget = .identity
         syncStart()
         return true
@@ -485,6 +510,7 @@ final class LiveLinkController {
 
     func stopWristHold() {
         link?.orientStop()
+        noteStopSent()
         monitor.released(.wrist)
         endWristTarget()
     }
@@ -634,7 +660,7 @@ final class LiveLinkController {
         guard let event = received else { return }
         switch event {
         case .up, .state:
-            if let state = link.lastState { stateArrived(state, serverMs: link.lastStateServerMs) }
+            if let state = link.lastState { stateArrived(state, serverMs: link.lastStateServerMs, onControl: true) }
         default:
             break
         }
@@ -723,7 +749,7 @@ final class LiveLinkController {
         onStopSeen?()
     }
 
-    private func stateArrived(_ state: ServerState, serverMs: Int?) {
+    private func stateArrived(_ state: ServerState, serverMs: Int?, onControl: Bool) {
         if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
         if let serverMs { newestStateServerMs = serverMs }
         newestState = state
@@ -731,6 +757,7 @@ final class LiveLinkController {
         if state.endEffector != nil {
             newestArmState = state
             newestArmAtMs = nowMs()
+            armHeard(onControl: onControl)
         }
         var events = monitor.observe(state, at: nowMs())
         // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
@@ -768,6 +795,24 @@ final class LiveLinkController {
         emit(events)
         noteGripping()
         onState?(state)
+    }
+
+    /// A stop may have just gone on the wire: until the server's answer to it has been heard, a tap waits.
+    private func noteStopSent() {
+        guard let stop = link?.unfinishedStop, stop.start != lastNotedStop else { return }
+        lastNotedStop = stop.start
+        stopUnanswered = (stop.start, stop.sentAtMs)
+    }
+
+    /// A state with an arm position was handed on. It ends the wait for the last stop's answer when it came on the
+    /// control connection after that answer, or once the link's own wait for the answer has run out.
+    private func armHeard(onControl: Bool) {
+        guard let stop = stopUnanswered else { return }
+        var answered = false
+        if onControl, let link {
+            answered = stop.start.map { link.unfinishedStop?.start != $0 } ?? link.estopConfirmed
+        }
+        if answered || nowMs() - stop.sentAtMs >= TeleopLink.finishWaitMs { stopUnanswered = nil }
     }
 
     /// Tells the monitor about a start that has just gone on the wire.
@@ -867,7 +912,9 @@ final class LiveLinkController {
         }
         switch event {
         case .up, .state:
-            if let state = observer.lastState { stateArrived(state, serverMs: observer.lastStateServerMs) }
+            if let state = observer.lastState {
+                stateArrived(state, serverMs: observer.lastStateServerMs, onControl: false)
+            }
         default:
             break
         }

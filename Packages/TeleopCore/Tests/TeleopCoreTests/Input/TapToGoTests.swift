@@ -109,6 +109,71 @@ final class TapToGoTests: XCTestCase {
         XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.startTranslation], "0.4 s old is still fresh")
     }
 
+    /// A move's offsets are measured from the reading at the tap, and the server applies them from where the arm stands
+    /// when it takes the start. A reading that may be from before the server finished the last hold this phone ended
+    /// refuses the tap as "Wait.", and nothing starts; once one from after it has come, the same tap goes.
+    func testATapFromAReadingBeforeTheLastStopsAnswerWaits() {
+        for scheme in [InputScheme.screenTurns, .keyTurns] {
+            var rig = aided(scheme)
+            rig.facts.arm?.heardAfterLastStop = false
+            XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.cue(.refused(.wait))], "\(scheme)")
+            XCTAssertNil(rig.arbiter.engagement, "\(scheme)")
+            XCTAssertEqual(rig.arbiter.startsThisCall, [], "\(scheme)")
+            rig.facts.arm?.heardAfterLastStop = true
+            XCTAssertEqual(rig.tap(2, at: point, after: 0.5), [.startTranslation], "\(scheme)")
+            XCTAssertTrue(rig.isGoing, "\(scheme)")
+        }
+    }
+
+    /// Waiting is the last refusal: a reason waiting would not help is told in its place. The facts' own refusal, a
+    /// STOP earlier in the call, a place outside the box and a missing or old reading each keep their own answer; only
+    /// the check that the arm is there already comes after it, so a tap on the arm itself waits too.
+    func testWaitingForAReadingAfterTheStopIsTheLastRefusal() {
+        var refused = aided()
+        refused.facts.refusal = .slowLink
+        refused.facts.arm?.heardAfterLastStop = false
+        XCTAssertEqual(refused.tap(1, at: point, after: 0.1), [.cue(.refused(.slowLink))])
+
+        var stopped = aided()
+        stopped.facts.arm?.heardAfterLastStop = false
+        stopped.touchDown(1, at: point, after: 0.1)
+        let stop = stopped.sample(2, .began, Rig.bottomBand, radius: 8)
+        let lift = stopped.sample(1, .ended, point, radius: 8)
+        XCTAssertEqual(stopped.batch([stop, lift], after: 0.08), [.emergencyStop, .cue(.refused(.stopped))])
+
+        var outside = aided()
+        outside.facts.arm?.heardAfterLastStop = false
+        XCTAssertEqual(
+            outside.tap(1, at: Rig.inPanel(0.05, 0.5), after: 0.1), [.cue(.refused(.outsideWorkArea))], "outside")
+
+        var old = aided()
+        old.facts = Rig.goFacts(arm: arm, ageS: 0.41)
+        old.facts.arm?.heardAfterLastStop = false
+        XCTAssertEqual(old.tap(1, at: point, after: 0.1), [.cue(.refused(.noArmData))], "an old reading")
+
+        var there = aided()
+        there.facts = Rig.goFacts(arm: Rig.target(of: point))
+        there.facts.arm?.heardAfterLastStop = false
+        XCTAssertEqual(there.tap(1, at: point, after: 0.1), [.cue(.refused(.wait))], "on the arm itself")
+        for rig in [refused, stopped, outside, old, there] {
+            XCTAssertNil(rig.arbiter.engagement)
+            XCTAssertEqual(rig.arbiter.startsThisCall, [])
+        }
+    }
+
+    /// A running move never reads it: a reading from before a stop the link sent while the move ran, such as the
+    /// link's own pause to learn where the arm got to, ends nothing, and the move arrives on its readings as before.
+    func testAMoveThatGoesDoesNotWaitForAReadingAfterAStop() {
+        var rig = aided()
+        XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.startTranslation])
+        let target = Rig.target(of: point)
+        rig.facts.arm = ArmFix(pinch: arm, ageS: 0.1, holdPaused: false, heardAfterLastStop: false)
+        XCTAssertEqual(rig.wait(1.0 / 30), [])
+        XCTAssertTrue(rig.isGoing)
+        rig.facts.arm = ArmFix(pinch: target, ageS: 0.1, holdPaused: false, heardAfterLastStop: false)
+        XCTAssertEqual(rig.wait(1.0 / 30), [.stopTranslation, .cue(.drive(.arrived))])
+    }
+
     /// The arm within 8 mm of the place tapped: "Arrived.", and nothing moves.
     func testATapOnTheArmItselfSaysArrivedAndMovesNothing() {
         let target = Rig.target(of: point)

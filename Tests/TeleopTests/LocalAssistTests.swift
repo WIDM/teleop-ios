@@ -49,8 +49,10 @@ final class LocalAssistTests: XCTestCase {
     ///     nil.
     ///   - serverBox: how far either way of the arm's start the server keeps the arm, metres; the server model's own
     ///     box when nil.
+    ///   - transport: both of the app's sockets, in place of `path`'s.
     private func start(
-        _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil
+        _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil,
+        transport: ((URL) -> LinkTransport)? = nil
     ) throws {
         var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: true)
         if let serverBox { config.workspaceHalfSize = serverBox }
@@ -58,7 +60,8 @@ final class LocalAssistTests: XCTestCase {
         try server.start()
         self.path = path
         hand = ScriptedOperator(
-            address: server.address, mode: mode, smoothing: 0.3, pace: 0.3, makeTransport: path.map { $0.transport })
+            address: server.address, mode: mode, smoothing: 0.3, pace: 0.3,
+            makeTransport: transport ?? path.map { $0.transport })
         savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
         hand.model.taskAid = true
         // Through the setters, which set the model's own value whatever a launch argument says.
@@ -598,6 +601,90 @@ final class LocalAssistTests: XCTestCase {
         try aTouchDuringAMoveStopsItAndStartsNothing(.keyTurns)
     }
 
+    // MARK: A tap right after a hold
+
+    /// The rules are told that the newest reading may be from before the server finished the last hold.
+    private var tapWaits: Bool { model.inputFacts().arm?.heardAfterLastStop == false }
+
+    /// The upper key holds the arm while the phone goes 6 cm to the operator's right in 0.2 s, quicker than the arm
+    /// follows, and is let go of with the arm still on its way; `beforeTheStop` runs just before the stop goes out.
+    private func holdAndLetGoOnTheWay(_ beforeTheStop: () -> Void) {
+        hand.press(.upper)
+        XCTAssertTrue(hand.wait(2, until: { serverHolds }), "the server's hold runs")
+        hand.move(to: SIMD3(0.06, 0, 0), in: 0.2)
+        beforeTheStop()
+        hand.release(.upper)
+        XCTAssertFalse(model.session.state.armMoving, "let go of")
+    }
+
+    /// A tap over `target` starts a move that goes there: "Arrived." is the one ending, and the jaws end within the
+    /// profile's tolerance of the point.
+    private func assertATapGoesThere(_ target: SIMD3<Double>, line: UInt = #line) throws {
+        let goTo = try XCTUnwrap(model.assist.goTo, line: line)
+        let mark = model.cueLog.count
+        try hand.tapGuide(over: target)
+        guard case .going = model.operating.state else {
+            return XCTFail("the screen shows \(model.operating.state)", line: line)
+        }
+        XCTAssertTrue(hand.wait(15, until: { !model.session.state.armMoving }), "the move ended", line: line)
+        XCTAssertEqual(endings(since: mark), [.drive(.arrived)], line: line)
+        XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "the server's hold ended", line: line)
+        let jaws = server.inspect { $0.world.arm + $0.config.toolOffset }
+        XCTAssertLessThanOrEqual(
+            simd_distance(jaws, target), goTo.arriveToleranceM, "the jaws at the tapped point, \(jaws)", line: line)
+    }
+
+    /// The hand lets go of a hold with the arm on its way, the network path stalls right after the stop, and the hand
+    /// taps the guide at once: the newest reading is from before the stop, and the server would start the move from
+    /// wherever the arm stood when it finished, so the tap is refused with "Wait." and nothing goes on the wire. The
+    /// path comes back with the stop's answer, and the same tap then goes and arrives at the tapped point.
+    func testATapBeforeTheStopsAnswerWaitsAndGoesOnceItCame() throws {
+        let path = StallingPath()
+        try start(.screenTurns, lock: .off, path: path)
+        XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection is up")
+        hand.reportGuidePanel()
+        let pinch = try hand.measuredPinch()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        // Right is −X and forward −Y in the robot base: 3 cm right of and 3 cm forward of where the jaws began.
+        let target = SIMD3(pinch.x - 0.03, pinch.y - 0.03, travelHeight(goTo))
+        holdAndLetGoOnTheWay { path.stall(after: "pose_stop") }
+        let mark = model.cueLog.count, wire = sentOnTheWire.count
+        try hand.tapGuide(over: target)
+        XCTAssertEqual(cues(since: mark), [.refused(.notReady)], "refused once")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).first?.speech, [.wait], "as Wait.")
+        XCTAssertNil(model.controller.loose)
+        _ = hand.wait(0.25, until: { false })
+        XCTAssertFalse(sentOnTheWire.dropFirst(wire).contains("pose_start"), "nothing went on the wire")
+        XCTAssertTrue(tapWaits, "the answer is held back")
+        path.resume()
+        XCTAssertFalse(tapWaits, "the stop's answer itself ends the wait")
+        try assertATapGoesThere(target)
+    }
+
+    /// The same, with the stop's answer lost on the control connection while the listening connection goes on
+    /// reporting: the tap waits no longer than the link waits for a final answer, and then goes and arrives.
+    func testATapWaitsNoLongerThanTheLinkWaitsForALostAnswer() throws {
+        let path = StopAnswerLosingPath()
+        try start(.screenTurns, lock: .off, transport: path.transport)
+        XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection is up")
+        hand.reportGuidePanel()
+        let pinch = try hand.measuredPinch()
+        let goTo = try XCTUnwrap(model.assist.goTo)
+        let target = SIMD3(pinch.x - 0.03, pinch.y - 0.03, travelHeight(goTo))
+        holdAndLetGoOnTheWay { path.loseTheNextStopsAnswer() }
+        let stopped = Date()
+        let mark = model.cueLog.count, wire = path.sent.count
+        try hand.tapGuide(over: target)
+        XCTAssertEqual(cues(since: mark), [.refused(.notReady)], "refused once")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).first?.speech, [.wait], "as Wait.")
+        XCTAssertFalse(path.sent.dropFirst(wire).contains("pose_start"), "nothing went on the wire")
+        XCTAssertTrue(hand.wait(3, until: { !tapWaits }), "the wait ends")
+        let waited = Date().timeIntervalSince(stopped)
+        XCTAssertGreaterThan(waited, Double(TeleopLink.finishWaitMs) / 1000 - 0.05, "not before the link's own wait")
+        XCTAssertTrue(path.lost.contains("ack"), "the server answered, and the answer was lost: \(path.lost)")
+        try assertATapGoesThere(target)
+    }
+
     /// A thumb comes down at `point`, rests longer than a reset takes, and lifts: the touch that ends a follow is dead
     /// until it lifts, so it counts nothing down and moves nothing.
     private func touchAndRest(_ point: SIMD2<Double>) {
@@ -647,4 +734,75 @@ private final class CommandLegs {
             return !(atTheCorner && level)
         }.count
     }
+}
+
+/// Under both of the app's sockets, a real WebSocket to the local server that can lose the answer to a stop: from the
+/// app's `pose_stop` until its next `pose_start`, everything the server sends on the control connection, the first one
+/// opened, is lost, except the echoes of the link's probes. The listening connection goes on reporting.
+private final class StopAnswerLosingPath {
+    /// The type of every message the app sent on its control connection, in order.
+    private(set) var sent: [String] = []
+    /// The type of every message the server sent on the control connection that was lost.
+    private(set) var lost: [String] = []
+    private var opened = 0
+    private var armed = false
+    private var losing = false
+
+    /// The answer to the app's next `pose_stop` is lost.
+    func loseTheNextStopsAnswer() { armed = true }
+
+    func transport(_ url: URL) -> LinkTransport {
+        opened += 1
+        return AnswerLosingTransport(url: url, path: self, control: opened == 1)
+    }
+
+    fileprivate func app(sent type: String) {
+        sent.append(type)
+        if type == "pose_stop", armed {
+            armed = false
+            losing = true
+        } else if type == "pose_start" {
+            losing = false
+        }
+    }
+
+    /// Whether the server's message of `type` on the control connection reaches the app.
+    fileprivate func passes(_ type: String) -> Bool {
+        guard losing, type != "test" else { return true }
+        lost.append(type)
+        return false
+    }
+
+    fileprivate static func type(of text: String) -> String {
+        let message = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
+        return message?["type"] as? String ?? "?"
+    }
+}
+
+/// One of the app's sockets through a `StopAnswerLosingPath`.
+private final class AnswerLosingTransport: LinkTransport {
+    var onText: ((String) -> Void)?
+    var onClose: (() -> Void)?
+    private let socket: WebSocketTransport
+    private let path: StopAnswerLosingPath
+    private let control: Bool
+
+    init(url: URL, path: StopAnswerLosingPath, control: Bool) {
+        socket = WebSocketTransport(url: url)
+        self.path = path
+        self.control = control
+        socket.onText = { [weak self] text in
+            guard let self else { return }
+            if self.control, !self.path.passes(StopAnswerLosingPath.type(of: text)) { return }
+            self.onText?(text)
+        }
+        socket.onClose = { [weak self] in self?.onClose?() }
+    }
+
+    func open() { socket.open() }
+    func send(_ text: String) {
+        if control { path.app(sent: StopAnswerLosingPath.type(of: text)) }
+        socket.send(text)
+    }
+    func close() { socket.close() }
 }

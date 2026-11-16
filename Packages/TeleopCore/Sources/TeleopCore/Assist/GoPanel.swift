@@ -61,10 +61,16 @@ public struct ArmFix: Equatable, Sendable {
     /// The link is re-sending its start, holding a start back behind a finishing hold, or holding the command at its
     /// lead cap ahead of the arm: the arm may stand still for a reason that says nothing about where it can go.
     public var holdPaused: Bool
+    /// The link has heard an arm position that the server sent after it finished the last hold this phone ended, or
+    /// its own wait for that answer has run out since. A move's offsets are measured from `pinch`, and the server
+    /// applies them from where the arm stands when it takes the start, so a tap waits while this is false. A running
+    /// move never reads it.
+    public var heardAfterLastStop: Bool
 
-    public init(pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool) {
+    public init(pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool, heardAfterLastStop: Bool = true) {
         self.pinch = pinch
         self.ageS = ageS
         self.holdPaused = holdPaused
+        self.heardAfterLastStop = heardAfterLastStop
     }
 }
