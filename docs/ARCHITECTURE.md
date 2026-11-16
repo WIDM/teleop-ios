@@ -14,8 +14,9 @@ A few words recur here. `docs/PROTOCOL.md` explains them in full under "Words us
   key, a thumb or a button stays down. With the hands-free aids on, an arm hold can also be one nobody keeps down: a
   follow the lock latched, or a move to a point tapped on the guide. The input rules own every hold either way
   ("The hands-free aids" below).
-- **Hands-free aids**: lock, tap-to-go and the guide's additions, all turned on and off by one master switch in
-  Settings. With the switch off the app behaves as version 1.0.1 did.
+- **Hands-free aids**: lock, tap-to-go and the guide's additions, all turned on and off by one master switch on
+  the aids' page, which the Aids button in the Settings header opens. With the switch off the app behaves as version
+  1.0.1 did.
 - **Final ack**: the server's answer to a start once the hold it started has really ended. A new start or a reset
   waits for it, at most 800 ms.
 - **Probe**: the `test` message the app sends twice a second; its echo times the round trip and shows the link is
@@ -87,7 +88,7 @@ where a press the session accepts goes live at once and no message is sent.
 |---|---|
 | `TeleopApp.swift`, `AppModel.swift` | The entry point and the one model object. `AppModel` owns the session, the operating controller, the link controller, the cue player and the recorder narrator. Every screen talks to it. |
 | `Operating/` | The operating screen's logic: `OperatingController`, `OperatingRules`, `OperatingDisplay`, `GuidePicture`, and `OperatingFixtures` for UI tests. `Operating/Views/` draws it: `OperatingScreen`, `OperatingWords`, `GuideView`, `GuideWords`. |
-| `Screens/` | `RootView` (picks the screen from `session.route`; there is no `NavigationStack`), `ConnectScreen`, `SettingsScreen`, `TutorialScreens`, `PermissionsScreen`, `ButtonPadView`. |
+| `Screens/` | `RootView` (picks the screen from `session.route`; there is no `NavigationStack`), `ConnectScreen`, `SettingsScreen` (with the aids' page), `TutorialScreens`, `PermissionsScreen`, `ButtonPadView`. |
 | `Components/` | `StopBand` (the STOP band of the other screens), the button styles, `HoldButton`, `PracticeBanner`. |
 | `Link/` | `LiveLinkController` (the two sockets and the 30 Hz timer), `LinkTransport` (one WebSocket), and `Guidance.swift`, which holds `RobotProfile`, `PhoneAxes` and `PhonePosture`. |
 | `VolumeKeys/` | The volume keys' raw press and release events. |
@@ -332,10 +333,17 @@ cue is still recorded in `AppModel.cueLog`.
 
 Three aids change what the operator can do: **lock** keeps the arm following the phone with no key held;
 **tap-to-go** sends the jaws to a point tapped on the guide; **the guide's additions** say more about where the arm
-is and where it can go. One master switch in Settings turns all three on and off, and the lock choice in Settings
-picks how lock latches, or turns it off. Both are kept across launches (`AppModel.assistKey`, `lockChoiceKey`): the
-switch is on by default and lock is off. Each change goes to the developer log, and either is refused with "Let go
-first." while anything is engaged, as a change of mode is.
+is and where it can go. One master switch turns all three on and off, and the lock choice picks how lock latches,
+or turns it off. Both are kept across launches (`AppModel.assistKey`, `lockChoiceKey`): the switch is on by default
+and lock is off. Each change goes to the developer log, and either is refused with "Let go first." while anything is
+engaged, as a change of mode is.
+
+Both are on the aids' page. A button in the Settings header, Aids, beside Done, opens it in the form's place, under
+the same header and above the same STOP band; the way back is in the title's place, and Done leaves Settings from
+either. The page holds the master switch, with what Off turns off under it, and, when the robot allows lock, a
+section headed Lock with one row per choice, disabled while the switch is off, with where lock works under it. The
+Settings form itself has the rows of version 1.0.1 and nothing of the aids, and a later aid's settings go on the
+page too. Settings opens on its form every time, also after STOP was pressed on the aids' page.
 
 ### One configuration, and off is version 1.0.1
 
@@ -348,8 +356,8 @@ bound) resolves to nil, so the rules trust what they get.
 Three places read the aids, and each reads nil as version 1.0.1: the input rules (`lock`, `goTo`), `AppModel`
 (`goTo` for the arm and the panel in the input facts; `guide` for the picture, the on-target window and the link's
 cues) and the tutorial's last page. Everything else that is new is reached only through what those three produce.
-So with the switch off the operating screen, its cues and its guide are those of version 1.0.1; Settings still shows
-the switch, so it can be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
+So with the switch off the operating screen, its cues and its guide are those of version 1.0.1; the aids' page still
+shows the switch, so it can be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
 new aid can only be added as a member that is nil when off; `docs/TESTING.md` says how the rest is held to 1.0.1.
 
 `Assist` has no mode in it: in buttons mode no key reaches the input rules and no guide is drawn, so nothing latches
@@ -403,17 +411,29 @@ A tap is refused, with NO and the reason, in this order: for the session's facts
 slow link, the server not ready); for a STOP earlier in the same call; for a target outside the work box as drawn,
 with no slack ("Outside the work area."); for no measured arm position fresher than
 `FeedbackMonitor.freshStateMs` ("No arm data."). Tracking, posture and where the arm stands are not reasons. A tap
-within the arrival tolerance of where the jaws already are says "Arrived." and moves nothing.
+within the arrival tolerance of where the jaws already are says "Arrived." and moves nothing. A touch that lands
+after a STOP in the same call is not refused for that STOP: it becomes a tap only at its lift, in a later call, and
+is then judged by the facts of that call (in the app they refuse it, since the robot is stopped).
 
 Otherwise the rules start a move, whose path is `GoMove`: from the measured pinch point straight up or down to the
 travel height above the table, then level to the tapped point at that height, at the profile's speed. The level leg
-starts only on measured positions, so the jaws never sweep low across the table while the arm lags. Once the command
-has reached the travel height it never goes below it, and it never leaves the profile's work box. A move that
-settles short, with the remainder within reach, may aim again by what is still missing, as often as the profile
-allows. It ends on measured positions (arrived; settled short of the target; no fresh position for the profile's
-timeout) or at its deadline, which grows with the path's length and with each correction. A move does not watch the
-phone: tracking, posture and the phone's speed do not end it, the phone does not steer it, and the link starts it
-without a pose. The link streams its offset through the same lead cap and re-sent start as every arm hold.
+starts only on measured positions, so the jaws never sweep low across the table while the arm lags. Once the command has
+reached the travel height it never goes below it. `GoMove` is given the work box the tap was judged against, the
+profile's box as drawn, and no commanded point of a move that starts inside it leaves it: a correction ends inside the
+box, and a raise of the level leg stops at its top. A move that starts outside the box (a server whose box is larger
+lets the arm stand there) commands nothing farther out than its start on any axis: its vertical leg stands where the arm
+stood, and its level leg heads into the box. A move that settles short, with the remainder within reach, may aim again
+by what is still missing, as often as the profile allows. It ends on measured positions (arrived; settled short of the
+target; no fresh position for the profile's timeout) or at its deadline, which grows with the path's length and with
+each correction. A move does not watch the phone: tracking, posture and the phone's speed do not end it, the phone does
+not steer it, and the link starts it without a pose. The link streams its offset through the same lead cap and re-sent
+start as every arm hold.
+
+The operator steers nothing during a move, so a limit the move meets is told once, by its ending. While it runs,
+the link plays none of the work-area cue, the server's clamp END, "Blocked." and "Can't go lower.", and the guide
+draws no line for a command outside the work area (`LiveLinkController.holdIsGoing`, set beside `holdIsLoose`). The
+feedback monitor still keeps the lowest height the arm stood at, so the guide's lowest line is drawn as after a told
+"Can't go lower.". A latched follow and a held hold keep all four, since the operator steers them.
 
 ### Every ending is told once
 
@@ -425,7 +445,7 @@ never dropped (`DriveCue`, `DriveEnd`, and their rows of `CueTable`):
 | a key press or a new touch | END and "Stopped here." |
 | the move arrived | END and "Arrived." |
 | STOP | the emergency stop's alarm alone |
-| a lost link | "Link lost." and its sound alone |
+| a lost link | its own cue alone: LETGO, its sound and "Link lost." |
 | a start the session or the link refused | that refusal alone; nothing moved |
 | the server's success | its sound and narration alone |
 | the robot stopped (`estop_active`, or an emergency-stop reason in the server's answer) | the alarm alone |
@@ -448,45 +468,44 @@ normally comes first. The server's wait never ends one in the rules: the server 
 The operating screen says "Locked on" or "Going" in the moving colour, with "Any key or touch stops it", and hides
 the scheme's hints, whose touches would stop the move. After an ending the operator did not cause (neither their own
 input nor an arrival), the reason stands where a refusal's word stands, for as long, in the words spoken
-(`OperatingState.ended`). The tutorial's last page has a line for the lock chosen and, in a phone mode with the task
-aid on, a line for the tap.
+(`OperatingState.ended`). In a phone mode the tutorial's last page has a line for the lock chosen and, with the task
+aid on as well, a line for the tap.
 
 ### The guide's additions
 
 `Assist.guide` is a `GuideAids`, one flag per addition.
 
-- **The work area** (`workAreaWords`). `WorkAreaCue` judges the gripper-link point the link commands, on every tick
-  of a translation hold, against the profile's box less the tool offset: the server keeps the gripper link in that
-  box, and the guide draws the ring and the box moved by the same measured offset, so this is what the picture
-  shows. A point more than `WorkAreaCue.slackMeters` past a face is outside, on the side whose face it is farthest
-  past. The cue is END and the side spoken ("Too far forward."), and a line under the guide names the side while the
-  point is out. Each side is told once, then again only after the point has been back inside that face by
-  `rearmMeters`, or at a new press. Within one press two cues are at least `minimumGapMs` apart, and a cue the gap
-  holds back plays on the first tick after it if the point is still out on a side not yet told; a new press ends the
-  gap. A start the link re-sends inside one press is not a new press.
+- **The work area** (`workAreaWords`). `WorkAreaCue` judges the gripper-link point the link commands, on every tick of a
+  translation hold, against the profile's box less the tool offset: the server keeps the gripper link in that box, and
+  the guide draws the ring and the box moved by the same measured offset, so this is what the picture shows. A point
+  more than `WorkAreaCue.slackMeters` past a face is outside, on the side whose face it is farthest past. The cue is END
+  and the side spoken ("Too far forward."), and a line under the guide names the side while the point is out; neither
+  comes during a move to a tapped point ("Tap-to-go" above). Each side is told once, then again only after the point has
+  been back inside that face by `rearmMeters`, or at a new press. Within one press two cues are at least `minimumGapMs`
+  apart, and a cue the gap holds back plays on the first tick after it if the point is still out on a side not yet told;
+  a new press ends the gap. A start the link re-sends inside one press is not a new press.
 - **The server's clamp, with the work area watched.** The server clamps at the face itself, so a slow push can be
-  clamped before it is past the slack. A clamp with the point past a watched face is that crossing: the rule tells
-  it, and the server's END for the clamp does not play. Nor does it once the rule has spoken in that press. A clamp
-  with the point past no face of the profile's box (a server whose box differs) plays the server's END, as in 1.0.1.
-  When the box's floor lies below the table and the lowest rule is on, the floor is not watched: the table stops the
-  arm first, and the lowest rule tells that push, so the server's END for a point past the floor alone does not play
-  either. With the lowest rule off the floor is watched like the other faces. While a move to a tapped point runs,
-  neither the work-area cue nor the server's clamp END plays: the operator steers nothing, and the move's ending
-  alone tells what happened. A latched follow keeps the cues of a held hold, since the operator steers it.
-- **The lowest height** (`lowestCue`, which sets `FeedbackMonitor.reportsLowest`). An arm on a table slides along
-  it and is never still in all three directions, so this rule judges height, not position: the pinch point's height
-  when the state carries `tool_pos` (on a table it stays put whatever the arm's posture), else the gripper link's.
-  During a translation hold it plays END and "Can't go lower." in place of "Blocked." when the newest state was sent
-  at least 10 mm lower, every state of the last second at least 5 mm lower, and the height stayed within 2 mm over
-  that second; or, back within 2 mm of the lowest height already found, when every state of the last 0.3 s was sent
-  at least 5 mm lower and the height stayed within 1 mm. Each state is judged by the command held when it arrived,
-  and a window counts only when no two of its states arrived more than `FeedbackMonitor.arrivalGapMs` apart, so
-  states held back and delivered together cannot make a stall out of an arm that was moving. It plays once per
-  approach (again after the arm has risen 10 mm), also after a clamp in the same hold, and counts as that hold's
-  "Blocked." too. "Blocked." stays silent while the operator asks for lower: while any state of its second was sent
-  at least 10 mm lower, or while the command now lies 10 mm under the newest state's gripper link. The lowest
-  heights found, of the pinch point and of the gripper link (`lowestPinchSeen`, `lowestSeen`), are kept until the
-  next `welcome`.
+  clamped before it is past the slack. A clamp with the point past a watched face is that crossing: the rule tells it,
+  and the server's END for the clamp does not play. Nor does it once the rule has spoken in that press. A clamp with the
+  point past no face of the profile's box (a server whose box differs) plays the server's END, as in 1.0.1. When the
+  box's floor lies below the table and the lowest rule is on, the floor is not watched: the table stops the arm first,
+  and the lowest rule tells that push, so the server's END for a point past the floor alone does not play either. With
+  the lowest rule off the floor is watched like the other faces. While a move to a tapped point runs, the server's clamp
+  END does not play at all ("Tap-to-go" above).
+- **The lowest height** (`lowestCue`, which sets `FeedbackMonitor.reportsLowest`). An arm on a table slides along it and
+  is never still in all three directions, so this rule judges height, not position: the pinch point's height when the
+  state carries `tool_pos` (on a table it stays put whatever the arm's posture), else the gripper link's. During a
+  translation hold other than a move to a tapped point ("Tap-to-go" above) it plays END and "Can't go lower." in place
+  of "Blocked." when the newest state was sent at least 10 mm lower, every state of the last second at least 5 mm lower,
+  and the height stayed within 2 mm over that second; or, back within 2 mm of the lowest height already found, when
+  every state of the last 0.3 s was sent at least 5 mm lower and the height stayed within 1 mm. Each state is judged by
+  the command held when it arrived, and a window counts only when no two of its states arrived more than
+  `FeedbackMonitor.arrivalGapMs` apart, so states held back and delivered together cannot make a stall out of an arm
+  that was moving. It plays once per approach (again after the arm has risen 10 mm), also after a clamp in the same
+  hold, and counts as that hold's "Blocked." too. "Blocked." stays silent while the operator asks for lower: while any
+  state of its second was sent at least 10 mm lower, or while the command now lies 10 mm under the newest state's
+  gripper link. The lowest heights found, of the pinch point and of the gripper link (`lowestPinchSeen`, `lowestSeen`),
+  are kept until the next `welcome`, and forgotten as well when the lowest rule is turned off.
 - **The drawing.** From behind, a dashed line across the box marks the lowest height: the pinch point's when the
   server reported it at the stall, else the gripper link's plus the newest reading's offset to the pinch point. The
   height read-out adds "lowest" while the pinch point is within 2 mm of it (`lowestCue`). A shadow lies under the

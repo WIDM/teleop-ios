@@ -23,10 +23,13 @@ strip under it), the fill colours, and the two views of the guide. What differs,
 
 Version 1.1.0 adds the hands-free aids (`docs/ARCHITECTURE.md`, "The hands-free aids"). None of what they put on
 the screen is drawn in the Figma file yet: the frames show the operating screen and the tutorial as they are with
-the master switch off, and Settings as it was before the aids. Until frames are drawn, these screens and states
-differ from the file:
+the master switch off, and Settings without the Aids button in its header. The Settings form itself is unchanged.
+Until frames are drawn, these screens and states differ from the file:
 
-- Settings: the aids' controls, the master switch and the lock choice. No frame of Settings has them.
+- Settings: the Aids button in the header, beside Done, and the aids' page it opens in the form's place, under the
+  same header and above the same STOP band: the master switch with what Off turns off under it, a section headed
+  Lock with one row per choice and where lock works under it, and the way back to the form in the title's place. No
+  frame has them.
 - The operating screen's two new states, "Locked on" and "Going", each with "Any key or touch stops it" and no
   scheme hint.
 - The amber "Stopped here" with the reason on the line under it, shown for a second after a follow or a move ended

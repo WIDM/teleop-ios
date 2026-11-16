@@ -11,12 +11,12 @@ recordings of the real server back most of what is written here.
 
 ## Words used here
 
-- **Hold**: a control that runs only while the operator keeps a key, a thumb or a button down. The app sends a *start*
-  when the press begins, *updates* or *keepalives* while it lasts, and a *stop* when it ends. The server runs one
-  hold at a time. With the app's hands-free aids on, an arm hold can also be one the app makes and ends without a
-  press held: a follow the lock latched, or a move to a point tapped on the guide (`docs/ARCHITECTURE.md`). The aids
-  add no message and change none: such a hold is an ordinary arm hold, and the server cannot tell it from one a
-  person keeps down.
+- **Hold**: a control the server runs from a start to a stop. The app sends a *start* when it begins, *updates* or
+  *keepalives* while it lasts, and a *stop* when it ends. The server runs one hold at a time. Most holds run only
+  while the operator keeps a key, a thumb or a button down. With the app's hands-free aids on, an arm hold can also be
+  one the app makes and ends with no press held: a follow the lock latched, or a move to a point tapped on the guide
+  (`docs/ARCHITECTURE.md`). The aids add no message and change none: such a hold is an ordinary arm hold, and the
+  server cannot tell it from one a person keeps down.
 - **Ack** (acknowledgement): the server's answer to one message, naming that message's sequence number.
 - **Final ack**: the ack a start gets when the hold it started has ended, sent from the simulation loop and
   followed by a `state`. A scene reset gets one too, when the reset is done.
@@ -501,7 +501,7 @@ On the server:
 On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`):
 
 - ARKit loses the phone's position during an arm or wrist hold, or the phone moves faster than 0.8 m/s between two
-  samples during an arm hold (not during a move to a tapped point, which does not follow the phone);
+  samples during an arm hold; neither ends a move to a tapped point, which does not follow the phone;
 - ARKit stops the camera;
 - the app leaves the active state (the home screen, a call, Control Center);
 - the operating screen goes away: Settings, Connect or the tutorial opens;
@@ -524,13 +524,16 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
   there; the only sign is `ik: pose_clamped` in `state`, which the control connection sees only after the hold.
   With the guide's aids on, the app tells the crossing itself, from the point it commands and the box in the robot
   profile, and plays no second cue for the server's clamp of it; a clamp the profile's box did not foresee, from a
-  server whose box differs, still plays as without the aids (`docs/ARCHITECTURE.md`, "The guide's additions").
+  server whose box differs, still plays as without the aids (`docs/ARCHITECTURE.md`, "The guide's additions"). During
+  a move to a tapped point the app plays neither its own cue nor the server's clamp: the move's ending tells what
+  happened.
 - **Directions the arm cannot go from its start pose.** Measured in Isaac Sim: from the reset pose the arm
   moves no more than about 1.9 cm toward the robot base, and it does not move straight down. The server model does
   not have this limit. The server says nothing; the arm simply stops following. The app notices from the listening
   connection's positions (the target at least 10 mm ahead and the arm moving less than 2 mm in 1 s,
   `FeedbackMonitor`) and tells the operator the arm is blocked. With the guide's aids on, an arm that stays at one
   height while the operator asks for lower is told "Can't go lower." instead (`FeedbackMonitor.reportsLowest`).
+  During a move to a tapped point neither is said: the move's ending tells what happened.
 - **One hold at a time.** The arm, the wrist and the gripper cannot move together. On the phone, starting one
   ends the one running: `TeleopLink` sends its stop first, then keeps the new start back for the final ack.
 - **Speeds.** Every speed limit is per simulated second, and the lab machine runs slower than real time, so the

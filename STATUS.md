@@ -19,16 +19,19 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   Traditional Chinese.
 - Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
 - Every operating state drawn in both languages at two screen heights.
-- The hands-free aids, behind one master switch in Settings, on by default; with it off the app behaves as version
-  1.0.1, and the app's unit tests pass unedited in a test plan that turns it off.
-  - Lock, chosen in Settings, in the two phone modes: a press of vol+, or a thumb slid up the glass while vol+ is
+- The hands-free aids, behind one master switch on the aids' page that the Aids button in the Settings header
+  opens, on by default; with it off the app behaves as version 1.0.1, and the app's unit tests pass unedited in a test
+  plan that turns it off. The Settings form itself is as in version 1.0.1.
+  - Lock, chosen on the same page, in the two phone modes: a press of vol+, or a thumb slid up the glass while vol+ is
     held, keeps the arm following the phone with no key held, until any key or touch, STOP, the robot profile's time
     limit, lost tracking or a phone no longer held upright stops it.
   - Tap-to-go: a tap on the guide's view from above sends the jaws there, up or down to a travel height first and
     then level. It ends when the arm arrives, when it settles short, when no fresh arm position comes, at its time
-    limit, or on any key or touch.
+    limit, or on any key or touch. A limit the move meets, such as the edge of the work area or something in its
+    path, is told by its ending alone.
   - Every start and ending of a follow or a move nobody holds is told once, by a cue that is never dropped, and the
-    screen shows "Locked on" or "Going", and afterwards why it ended when the operator did not end it.
+    screen shows "Locked on" or "Going", and afterwards why it ended when the operator did not end it and it did not
+    arrive.
   - The guide's additions: the commanded place leaving the work area is felt, said with its side and shown under
     the guide; an arm that cannot go lower says "Can't go lower." and the guide marks the lowest height; a shadow
     under the jaws; Forward and Up arrows on the two views.

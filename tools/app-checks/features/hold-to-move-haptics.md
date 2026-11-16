@@ -1,9 +1,10 @@
 # Holding a control to move, and the cues that answer
 
-With the hands-free aids off (the master switch in Settings), nothing moves unless the operator holds a control,
-and it stops where it is on release: version 1.0.1's rule, unchanged. With them on, lock and tap-to-go add moves
-that nobody holds, and each of those ends on the next key press or touch. The phone answers every press, and every
-start and ending of a move nobody holds, with a cue the operator feels and hears, so the screen is rarely needed.
+With the hands-free aids off (the master switch on the aids' page, opened from the Settings header), nothing moves
+unless the operator holds a control, and it stops where it is on release: version 1.0.1's rule, unchanged. With them
+on, lock and tap-to-go add moves that nobody holds, and each of those ends on the next key press or touch. The phone
+answers every press, and every start and ending of a move nobody holds, with a cue the operator feels and hears, so
+the screen is rarely needed.
 
 ## What the app does
 
@@ -21,12 +22,15 @@ start and ending of a move nobody holds, with a cue the operator feels and hears
   long rattle for the emergency stop (alarm); and, with a target on the guide, a tick then a soft buzz when the jaws
   are on it. The tutorial teaches them with the same words.
 - Opening Settings, leaving the app or losing the camera ends every hold, with its stop sent to the server.
-- With the aids on, in the two phone modes: lock (chosen in Settings) keeps the arm following the phone with no key
-  held, after a press of the upper key or after a thumb slid up the glass while the key is held; a tap on the
+- With the aids on, in the two phone modes: lock (chosen on the aids' page) keeps the arm following the phone with
+  no key held, after a press of the upper key or after a thumb slid up the glass while the key is held; a tap on the
   guide's view from above sends the jaws to that point. Latching plays a long buzz then a tick (latch) and "Locked
-  on."; a move that arrives plays end and "Arrived."; an ending the operator caused plays end and "Stopped here.";
-  any other ending plays let go, "Stopped here." and why, once, and the screen shows why for a second. STOP ends
-  either with the alarm alone. The tutorial's last page teaches the lock chosen and the tap.
+  on."; a move that arrives plays end and "Arrived."; an ending the operator caused plays end and "Stopped here.".
+  A lost link, STOP or a robot that stopped itself, a success and a start that was refused are each told by their
+  own cue alone: let go with the lost link's sound and "Link lost."; the alarm; the success's sound and words; the
+  refusal. Any other ending plays let go, "Stopped here." and why, once, and the screen shows why for a second. A
+  limit that a move to a tapped point meets is told by the move's ending alone. The tutorial's last page teaches the
+  lock chosen and the tap.
 
 ## How to check it
 
