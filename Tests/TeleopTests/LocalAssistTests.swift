@@ -11,10 +11,11 @@ import XCTest
 /// centre band and on a half slowly, and a thumb that does not slide changes nothing. Every ending of a latched follow
 /// stops the server's hold and is heard exactly once. A tap on the guide's view from above sends the jaws to that point
 /// at the travel height, in both schemes, and "Arrived." is heard once; a tap in the view's margin is refused and
-/// starts nothing; a move the server's box cuts short corrects at most as often as the profile allows and is heard once
-/// as stopped short; a stalled network path ends a move once as no arm data; an object held in the jaws goes with
-/// them; and a touch during a move stops it and then starts nothing while that thumb stays down. One move is one hold
-/// for the session and on the wire.
+/// starts nothing; a move the server's box cuts short is heard once as stopped short, before any correction when it
+/// follows the pinch point the server reports, and after at least one correction and no more than the profile allows
+/// when the server reports none; a stalled network path ends a move once as no arm data; an object held in the jaws
+/// goes with them; and a touch during a move stops it and then starts nothing while that thumb stays down. One move is
+/// one hold for the session and on the wire.
 final class LocalAssistTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var hand: ScriptedOperator!
@@ -49,12 +50,13 @@ final class LocalAssistTests: XCTestCase {
     ///     nil.
     ///   - serverBox: how far either way of the arm's start the server keeps the arm, metres; the server model's own
     ///     box when nil.
+    ///   - reportsPinch: whether the server's state carries the pinch point.
     ///   - transport: both of the app's sockets, in place of `path`'s.
     private func start(
         _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil,
-        transport: ((URL) -> LinkTransport)? = nil
+        reportsPinch: Bool = true, transport: ((URL) -> LinkTransport)? = nil
     ) throws {
-        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: true)
+        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: reportsPinch)
         if let serverBox { config.workspaceHalfSize = serverBox }
         server = LocalTeleopServer(config: config)
         try server.start()
@@ -429,20 +431,31 @@ final class LocalAssistTests: XCTestCase {
         try aTapInTheMarginIsRefused(.keyTurns)
     }
 
+    /// A following move ends stopped short at a fresh reading more than this many arrive tolerances from the leg ahead.
+    /// The number is the move's own, in the core, out of reach of the app's tests.
+    private static let pathWatchTolerances = 2.5
+
     /// Against a server that keeps the arm within 4 cm of its start, half of the profile's box, the hand taps a point
-    /// 6 cm forward of the jaws, inside the box the guide draws. The server holds the arm 2 cm short; the move corrects
-    /// at most as often as the profile allows, ends, and is heard once as stopped short. The server reports the pinch
-    /// point, so the move follows it, and a fresh reading about 2 cm (two and a half arrive tolerances) from where the
-    /// leg went ends a following move stopped short: it may stop short before any correction. The operator steered
-    /// nothing, so the server's clamp is told by that ending alone: GO, then the ending.
-    private func aMoveTheServerCutsShortEndsOnce(_ mode: ControlMode) throws {
+    /// forward of the jaws, inside the box the guide draws, and the server holds the jaws short of it. The move ends
+    /// and is heard once as stopped short. The operator steered nothing, so the server's clamp is told by that ending
+    /// alone: GO, then the ending.
+    ///
+    /// Following, the server reports the pinch point and the move follows it. The jaws are held half way between the
+    /// distance at which a fresh reading off the leg ahead ends the move and the farthest a correction reaches: the
+    /// move would correct once it settled short, but that reading ends it first, so it never corrects. Not following,
+    /// the server reports no pinch point and the move is planned as before. The jaws are held half way between
+    /// arriving and the farthest a correction reaches: the move corrects at least once and at most as often as the
+    /// profile allows.
+    private func aMoveTheServerCutsShortEndsOnce(_ mode: ControlMode, following: Bool) throws {
         let serverBox = 0.04
-        try start(mode, lock: .off, path: StallingPath(), serverBox: serverBox)
+        try start(mode, lock: .off, path: StallingPath(), serverBox: serverBox, reportsPinch: following)
         hand.reportGuidePanel()
         let goTo = try XCTUnwrap(model.assist.goTo)
         let pinch = try hand.measuredPinch()
+        let watched = Self.pathWatchTolerances * goTo.arriveToleranceM, reach = goTo.correctionReachM
+        let short = following ? (watched + reach) / 2 : (goTo.arriveToleranceM + reach) / 2
         // Forward is −Y in the robot base. In scheme B this tap lands in the centre band, the arrival's on a half.
-        let target = SIMD3(pinch.x, pinch.y - 0.06, travelHeight(goTo))
+        let target = SIMD3(pinch.x, pinch.y - serverBox - short, travelHeight(goTo))
         let mark = model.cueLog.count, wire = sentOnTheWire.count
         legs = CommandLegs(rest: goTo.settleS * 0.75, clock: { Date().timeIntervalSinceReferenceDate })
         watchTheMove()
@@ -454,7 +467,12 @@ final class LocalAssistTests: XCTestCase {
         XCTAssertEqual(endings(since: mark), [.drive(.ended(.stoppedShort))], "\(mode)")
         XCTAssertNil(model.controller.loose, "\(mode)")
         let corrections = legs?.corrections ?? 0
-        XCTAssertLessThanOrEqual(corrections, goTo.corrections, "\(mode): at most the profile's corrections")
+        if following {
+            XCTAssertEqual(corrections, 0, "\(mode): the reading off the leg ahead ended it before any correction")
+        } else {
+            XCTAssertGreaterThan(corrections, 0, "\(mode): the jaws are held within a correction's reach")
+            XCTAssertLessThanOrEqual(corrections, goTo.corrections, "\(mode): at most the profile's corrections")
+        }
         XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
         let (arm, armStart) = server.inspect { ($0.world.arm, $0.config.armStart) }
         XCTAssertEqual(arm.y, armStart.y - serverBox, accuracy: 0.003, "\(mode): the server held the arm at its box")
@@ -465,12 +483,20 @@ final class LocalAssistTests: XCTestCase {
         assertOneHold("\(mode)", wireSince: wire)
     }
 
-    func testAMoveTheServerCutsShortIsHeardOnceSchemeA() throws {
-        try aMoveTheServerCutsShortEndsOnce(.screenTurns)
+    func testAFollowingMoveTheServerCutsShortStopsBeforeAnyCorrectionSchemeA() throws {
+        try aMoveTheServerCutsShortEndsOnce(.screenTurns, following: true)
     }
 
-    func testAMoveTheServerCutsShortIsHeardOnceSchemeB() throws {
-        try aMoveTheServerCutsShortEndsOnce(.keyTurns)
+    func testAFollowingMoveTheServerCutsShortStopsBeforeAnyCorrectionSchemeB() throws {
+        try aMoveTheServerCutsShortEndsOnce(.keyTurns, following: true)
+    }
+
+    func testAMoveWithoutAPinchPointTheServerCutsShortCorrectsSchemeA() throws {
+        try aMoveTheServerCutsShortEndsOnce(.screenTurns, following: false)
+    }
+
+    func testAMoveWithoutAPinchPointTheServerCutsShortCorrectsSchemeB() throws {
+        try aMoveTheServerCutsShortEndsOnce(.keyTurns, following: false)
     }
 
     /// The network path stalls while the arm is on its way and comes back as soon as the move has ended: a move waits
