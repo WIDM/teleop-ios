@@ -12,9 +12,10 @@ import simd
 /// A side not yet told plays when it becomes the side outside: on the tick that turns inside into outside, or when the
 /// farthest side changes while outside. Each side is told again only after the point has been back inside its own
 /// face by `rearmMeters`, or after a new hold has started, so a point resting on a face is told once, and so is each
-/// side of a corner where the farthest side flips between two faces. Two cues are never closer than `minimumGapMs`, so
-/// a point hovering at the edge does not chatter; a cue held back by that gap plays on the first tick after it if the
-/// point is still out on a side not yet told.
+/// side of a corner where the farthest side flips between two faces. Within one hold two cues are never closer than
+/// `minimumGapMs`, so a point hovering at the edge does not chatter; a cue held back by that gap plays on the first
+/// tick after it if the point is still out on a side not yet told. A new hold is a new act and ends the gap, so the
+/// first crossing of every hold is told at once, however recent the last hold's cue.
 ///
 /// Only the faces of the sides it watches count. A face the arm is stopped before, such as a floor below the table, is
 /// left out by whoever builds the rule: something else already tells that stop, and one act should get one cue.
@@ -28,7 +29,7 @@ public struct WorkAreaCue: Sendable {
     public static let slackMeters = 0.002
     /// Back inside a face by this much before that side can be told again.
     public static let rearmMeters = 0.005
-    /// Never two cues closer together than this.
+    /// Never two cues of one hold closer together than this.
     public static let minimumGapMs = 1500
 
     /// The box in gripper-link space, robot base frame, metres.
@@ -88,9 +89,11 @@ public struct WorkAreaCue: Sendable {
         return (true, tellOutside(point, at: nowMs))
     }
 
-    /// A new hold started: every side can be told again, and the slack counts until the server clamps.
+    /// A new hold started: every side can be told again, the gap since the last cue is over, and the slack counts until
+    /// the server clamps. A restart that keeps the operator's hold is not a new hold and must not call this.
     public mutating func holdStarted() {
         told = []
+        playedAtMs = nil
         clampedAtFace = false
     }
 

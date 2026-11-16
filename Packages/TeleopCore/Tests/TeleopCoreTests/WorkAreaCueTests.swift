@@ -3,7 +3,7 @@ import simd
 @testable import TeleopCore
 
 /// The work-area rule: every time the commanded place leaves the box, on which side, once per crossing, never twice
-/// within 1.5 s, and the line and the cue read one value.
+/// within 1.5 s of one hold, and the line and the cue read one value.
 final class WorkAreaCueTests: XCTestCase {
     /// The SO-101 simulator's box, robot base frame, pinch point, and its tool offset: the rule's box is the first
     /// minus the second.
@@ -192,10 +192,56 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertNil(tick(past(.up, by: 0.004), after: 2000), "still out: told once")
         cue.holdStarted()
         XCTAssertEqual(tick(past(.up, by: 0.004)), .up, "a new hold that starts out of the box is told")
-        // The gap still holds across a new start, and a cue it holds back plays once it has passed.
+        // A new start also ends the gap: told at once, though the last cue was 0.1 s ago.
         cue.holdStarted()
-        XCTAssertNil(tick(past(.up, by: 0.004), after: 100))
-        XCTAssertEqual(tick(past(.up, by: 0.004), after: 1400), .up)
+        XCTAssertEqual(tick(past(.up, by: 0.004), after: 100), .up)
+    }
+
+    /// Two presses 1.2 s apart that each cross the same face: the second is a new act, and its first crossing is told
+    /// at once although the last cue was less than 1.5 s ago. The gap holds again from that cue on.
+    func testTheFirstCrossingOfEveryHoldIsToldAtOnce() {
+        XCTAssertEqual(tick(past(.forward, by: 0.004)), .forward)
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 600))
+        cue.holdStarted()
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 100))
+        XCTAssertEqual(tick(past(.forward, by: 0.004), after: 500), .forward, "1.2 s after the last cue, a new hold")
+        // Back 5 mm inside and out again in this hold, 1.2 s after its own cue: the gap holds that one back.
+        XCTAssertNil(tick(past(.forward, by: -0.006), after: 600))
+        XCTAssertNil(tick(past(.forward, by: 0.004), after: 600))
+        XCTAssertEqual(cue.outside, .forward)
+        XCTAssertEqual(tick(past(.forward, by: 0.004), after: 300), .forward, "played once the gap allows")
+    }
+
+    /// The same crossings without a new hold between them: the second is held back by the gap and plays on the first
+    /// tick it allows while the point is still out. Only a new hold ends the gap.
+    func testWithinOneHoldTheGapStillHoldsASecondCueBack() {
+        XCTAssertEqual(tick(past(.forward, by: 0.004)), .forward)
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 600))
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 100))
+        XCTAssertNil(tick(past(.forward, by: 0.004), after: 500), "1.2 s after the last cue, the same hold")
+        XCTAssertEqual(cue.outside, .forward, "the line says it at once")
+        XCTAssertNil(tick(past(.forward, by: 0.004), after: 280))
+        XCTAssertEqual(tick(past(.forward, by: 0.004), after: 20), .forward, "played on the first tick the gap allows")
+    }
+
+    /// A clamp in a new hold is told at once, though the last cue, in the hold before, was 1.2 s ago; a second clamp in
+    /// that hold within 1.5 s of its cue is held back, as a tick would be.
+    func testAClampInANewHoldIsToldThoughTheLastCueWasRecent() {
+        clock += 20
+        XCTAssertEqual(cue.serverClamped(past(.forward, by: 0.001), at: clock).told, .forward)
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 600))
+        cue.holdStarted()
+        XCTAssertNil(tick(past(.forward, by: -0.01), after: 100))
+        clock += 500
+        let next = cue.serverClamped(past(.forward, by: 0.001), at: clock)
+        XCTAssertTrue(next.foreseen)
+        XCTAssertEqual(next.told, .forward, "1.2 s after the last cue, a new hold")
+        XCTAssertNil(tick(past(.forward, by: -0.006), after: 600))
+        clock += 600
+        let again = cue.serverClamped(past(.forward, by: 0.001), at: clock)
+        XCTAssertTrue(again.foreseen)
+        XCTAssertNil(again.told, "within the gap of this hold")
+        XCTAssertEqual(cue.outside, .forward)
     }
 
     /// Pushed slowly, the server clamps at the face before the point is past the slack. A clamp with the point past a
@@ -249,9 +295,8 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertNil(again.told, "not armed again")
         XCTAssertEqual(cue.outside, .forward)
 
-        // Left told in one hold, and a new hold clamped at the forward face 0.2 s later.
+        // Left told, and in the same hold a clamp at the forward face 0.2 s later.
         XCTAssertEqual(tick(past(.left, by: 0.003), after: 2000), .left)
-        cue.holdStarted()
         XCTAssertNil(tick(past(.forward, by: -0.01), after: 100))
         clock += 100
         let held = cue.serverClamped(past(.forward, by: 0.001), at: clock)
