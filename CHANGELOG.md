@@ -9,6 +9,102 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+## 1.1.0 (2026-11-17)
+
+Hands-free aids: lock keeps the arm following with no key held, a tap on the guide sends the jaws there, and the
+guide says more; one switch on the aids' page in Settings turns them all off.
+
+What a person using the app notices:
+
+- **Hands-free aids**, turned on and off by one master switch, on by default. The switch and the lock choices are
+  on the aids' page, which the Aids button in the Settings header opens; the Settings form keeps the rows of 1.0.1,
+  and Settings opens on its form every time, also after STOP was pressed on that page. With the switch off the app
+  works exactly as 1.0.1 did, apart from that button and its page. A change of the switch or of the lock choice is
+  refused with "Let go first." while anything is held.
+- **Lock**, off by default, works in the two phone modes, practice included. Press then press: a press of vol+
+  starts the follow, and its release does not stop it. Hold then slide: while vol+ is held, a thumb slid up the
+  control surface, anywhere on it (scheme B's centre band included), latches the follow. The phone plays a long buzz
+  then a tick and says "Locked on." (not said if the alarm or "Link lost." comes first); the screen says "Locked on"
+  and "Any key or touch stops it", and hides the scheme's hints. Any key press or touch stops the follow, and so do
+  STOP, lost tracking, the phone no longer held upright and the robot profile's time limit.
+- **Tap-to-go**: on a real server, in the phone modes with the task aid on, a short, still tap on the guide's view
+  from above sends the jaws to that point: straight up or down to a travel height above the table, then level;
+  from an arm inside the work area the tap was judged against, the move commands no place outside it. The screen
+  says "Going", a white cross in both views marks where the jaws are going, and "Arrived." says they got there, at
+  once for a tap where they already are. A tap is refused with "Outside the work area." outside it; with "No arm
+  data." without a fresh arm position that is a real point; and with "Wait." until an arm position from after the
+  last hold ended has come. A refused tap is dropped, and no tap is taken while the camera is stopped. Any key press
+  or touch stops the move; the phone does not steer it, so turning or lowering the phone does not stop it.
+- **A move follows the jaws.** On a server that reports where the jaws pinch, a move follows that point, which
+  turns with the arm's posture. It sets off at half the robot profile's speed, then goes at that speed except where
+  the jaws turn by more than a quarter of how far the arm moves, most near the robot's base: there it slows, never
+  under 0.15 of the speed. So moves take longer. Where the jaws cannot follow its path or cannot reach the tapped
+  place at the travel height, or the server stops reporting where they pinch, the move stops by itself with "Stopped
+  here. Short of the target."; the app does not refuse such a tap beforehand. On a server that reports no pinch
+  point, a move is planned as if the jaws moved with the arm.
+- **Every ending is told once.** A follow or a move you end plays the end buzz and says "Stopped here."; an arrival
+  plays the end buzz and says "Arrived.". A lost link, STOP or a robot that stopped itself, a success, and a start
+  that was refused are each told by their own cue alone. Any other ending plays the let-go buzz and says "Stopped
+  here." and why, when a reason was named ("Stopped here. Time is up."), and the screen shows the same words for a
+  second. While a move to a tapped point runs, none of the work-area cue, the server's clamp buzz, "Blocked." and
+  "Can't go lower." plays: its ending alone tells what happened.
+- **The guide says more.**
+  - Each time the place you are commanding leaves the work area: a long buzz, the side spoken ("Too far
+    forward."), and a line under the guide naming the side while it stays out. The server's own buzz for the same
+    crossing no longer plays as well. That place starts from the arm's newest reported position when the hold
+    starts, so a quick second press no longer starts it where the first hold began.
+  - When the arm cannot go lower: "Can't go lower." in place of "Blocked.", a dashed line in the view from behind at
+    the lowest height reached, and "lowest" on the height read-out while the jaws are back there. The pause in
+    which the app checks where the arm got to during a long hold is not taken for it.
+  - A shadow under the jaws in both views, wider and fainter the higher they are.
+  - "Forward" and "Up" arrows on the two views, and the same in their accessibility labels.
+- **The tutorial's last page**, in the phone modes, has a line for the lock chosen; with the task aid on, a line for
+  the tap; and where the guide draws its arrows, a sentence saying that they are true for the picture, not for your
+  hand.
+
+What a maintainer needs to know:
+
+- `Assist` (in `TeleopCore`) is the aids' one configuration, resolved by `Assist.resolve` from the master switch,
+  the lock choice and `RobotProfile.assist`. `Assist.off` has every member nil, and every place that reads the aids
+  reads nil as 1.0.1. The two settings are saved under `assist` and `lockVariant`, and `-assist` and `-lockVariant`
+  pin them for one launch. `RobotProfile` gains `assist` (the lock's time limit, the numbers of a move to a tapped
+  point, the guide's additions) and `onTargetWindow` (nil, so "On target" keeps the grasp tolerance).
+- `InputArbiter.engagement` (`Engagement`) owns every hold, held or not: a latched follow and a move to a tapped
+  point start and end there, and `InputArbiter.startsThisCall` says what each start was. No new `InputCommand`,
+  `TeleopAction`, session state or message: the session and the server see ordinary arm holds.
+  `InputEvent.endAllHolds` is now `holdsEnded(Interruption)`, and `endAllHolds` stays as the name of
+  `holdsEnded(.unnamed)`. A tap has two new refusals, `InputRefusal.outsideWorkArea` and `.noArmData`, and waits
+  with `.wait` while `ArmFix.heardAfterLastStop` is false (`LiveLinkController.armHeardAfterLastStop`); `ArmFix`
+  also carries the gripper link of its state (`gripper`) and whether the server reported the pinch point there
+  (`pinchReported`).
+- A move to a tapped point (`GoMove`) runs on the pad's path through `AppModel.startArmHold(.going)`. From a reading
+  that reported the pinch point it follows the measured offset (pinch point less gripper link): the link is sent the
+  planned path less a drift that each fresh reading moves half way to the offset's change since the tap, the gripper
+  link asked for stays inside the box less the tap's offset, the command starts at half speed and slows where the
+  offset swings more than a quarter of the link's travel (to no less than 0.15 of the speed), waits while the newest
+  reading is stale, and a reading more than 2.5 arrive tolerances off the leg ahead or without the pinch point ends
+  the move stopped short. The time limit grows with the slow start, each slow-down measured while a leg's command is
+  still moving and each wait; a pace measured after a leg's command has reached its end is kept for the next leg and
+  adds nothing. The guide's view from above reports its rectangle (`GuidePanelBounds`, `AppModel.guidePanelChanged`),
+  and the input rules judge a tap against it as a `GoPanel`, through the guide's own `GuideProjection`.
+- The link tells the endings it causes of a hold nobody holds as that move's own (`LiveLinkController.holdIsLoose`,
+  `takeLooseEnding`), and `OperatingController.sessionChanged(told:)` names the reason for the others. With any aid
+  on (`LiveLinkController.anyAidOn`), a translation hold's start point is the newest arm position either connection
+  reported when its start goes on the wire. `FeedbackMonitor.resyncBegan()` keeps a resync's pause out of the lowest
+  rule, and `CueScheduler` drops a waiting "Locked on." at the alarm or "Link lost.". New cues: `Haptic.latch`,
+  `FeedbackEvent.drive` (`DriveCue`, `DriveEnd`), `FeedbackEvent.commandOutside` and `Limit.lowest`. `WorkAreaCue`
+  and `FeedbackMonitor.reportsLowest` are the guide's two cue rules.
+- Tests: a third test plan, AssistOff, runs the app's unit tests with the switch off, and CI runs it after Default.
+  Frozen copies of 1.0.1's input rules and feedback monitor in the core tests (`InputArbiter101`,
+  `FeedbackMonitor101`) hold today's code with the aids off to 1.0.1; `AssistPropertyTests` generates cases with
+  the aids; each aid's rules have core tests of their own (`GoMoveFollowTests` and `GoingFollowTests` for the
+  following); app tests cover the aids' wiring and endings, and `LocalAssistTests` and `LocalFollowTests` drive lock
+  and taps through raw inputs against the local server; four UI test classes cover the aids' page, states, guide
+  and taps. The server model has two options for tests: a pinch point that turns with the arm's posture
+  (`ServerModelConfig.toolTurn`), and one that stops being reported during a run (`ServerModel.reportsToolPoint`).
+  App tests that turn the aids' settings remove both saved keys afterwards, and UI tests pin both at launch.
+- `docs/parity.md` lists what the Figma file does not draw yet: every screen and state the aids add.
+
 ## 1.0.1 (2026-11-15)
 
 A scene reset no longer releases an emergency stop it never saw, and odd joint readings no longer crash the app.
