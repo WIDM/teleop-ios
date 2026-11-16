@@ -169,11 +169,13 @@ final class AssistLinkTests: XCTestCase {
         }
     }
 
-    /// The follow, the session's hold and the link's hold are over.
+    /// The follow or the move, the session's hold and the link's hold are over, and the link no longer marks its hold
+    /// as one nobody holds or as a move to a tapped point.
     private func assertOver(_ what: String, line: UInt = #line) {
         XCTAssertNil(model.controller.arbiter.engagement, what, line: line)
         XCTAssertFalse(model.session.state.armMoving, what, line: line)
         XCTAssertFalse(model.link.holdIsLoose, what, line: line)
+        XCTAssertFalse(model.link.holdIsGoing, what, line: line)
     }
 
     func testALatchedFollowStreamsThePhoneAfterTheRelease() throws {
@@ -864,6 +866,40 @@ final class AssistLinkTests: XCTestCase {
         }
         XCTAssertEqual(model.link.commandOutside, .forward, "the guide shows the side")
         XCTAssertEqual(heard, [.commandOutside(.forward)], "told its side")
+    }
+
+    /// The silence of a move to a tapped point ends with the move. Once a move has arrived, the link no longer marks
+    /// its hold as such a move, and a hold the operator then holds with the upper key, on the same model, is told its
+    /// side when its command goes past the work box's forward face, and the guide shows the side, as for any held hold.
+    func testAHeldHoldAfterAMoveIsToldItsSideAgain() {
+        tapAMove()
+        guard case .going(let target, _)? = model.controller.arbiter.engagement else { return XCTFail("no move") }
+        // The arm measured at the place tapped: the move arrives, and the server finishes its hold.
+        reportArm(atPinch: target)
+        clock += 33
+        model.controller.tick()
+        XCTAssertEqual(endings, [.arrived], "the move arrived")
+        assertOver("the move arrived")
+        serverAnswers("ok", "pose_stopped")
+
+        // 1 cm inside the forward face; forward is −Y in the robot base.
+        reportArm(atPinch: SIMD3(0.027617, Double(model.profile.workspaceMin.y) + 0.01, 0.09))
+        position = .zero
+        mark = model.cueLog.count
+        clock += 100
+        model.keyEvent(.upper, down: true)
+        XCTAssertTrue(model.session.state.armMoving, "the operator's hold runs")
+        XCTAssertEqual(transport.types.last, "pose_start")
+        XCTAssertFalse(model.link.holdIsLoose, "someone holds it")
+        // 3 cm forward (ARKit forward is −z), a centimetre a tick: 2 cm past the face.
+        for step in 1...3 {
+            position = SIMD3(0, 0, -0.01 * Float(step))
+            tick()
+        }
+        XCTAssertEqual(model.link.commandOutside, .forward, "the guide shows the side")
+        XCTAssertEqual(sidesTold, [.forward], "told its side")
+        model.keyEvent(.upper, down: false)
+        XCTAssertFalse(model.session.state.armMoving)
     }
 
     /// How far to the operator's left of where the gripper link stood the smaller server box below lets it go: farther
