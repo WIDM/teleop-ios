@@ -705,6 +705,29 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(up.commanded(at: 100), SIMD3(below.x, below.y, top.z), "raised to the top and no higher")
     }
 
+    /// The box's top lies 1 cm above the travel height, and the jaws hang 2 cm low once the level leg is under way: the
+    /// correction at the end would raise the command by the 2 cm missing, 1 cm past the top. It ends at the top
+    /// instead, the jaws still hang 1 cm low, and once the profile's corrections are spent the move stops short. No
+    /// commanded point lies above the top.
+    func testACorrectionAtTheEndNeverRaisesTheCommandAboveTheBoxTop() {
+        let low = SIMD3(-0.05, -0.26, -0.01)
+        let high = SIMD3(0.11, -0.1, travel + 0.01)
+        let start = SIMD3(0.0, -0.2, travel)
+        let target = SIMD3(0.06, -0.2, travel)
+        var move = GoMove(start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
+        var highest = -Double.infinity
+        let run = drive(&move) { command in
+            highest = max(highest, command.z)
+            return command.x > start.x + 0.005 ? command - SIMD3(0, 0, 0.02) : command
+        }
+        XCTAssertEqual(run.end, .verdict(.stoppedShort))
+        XCTAssertLessThan(run.at, move.deadline, "stopped short, not time is up")
+        XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .level, .correcting(.level)])
+        XCTAssertEqual(run.corrections.count, limits.corrections, "at most the profile's corrections")
+        XCTAssertLessThanOrEqual(highest, high.z + 1e-12, "no commanded point above the box's top")
+        XCTAssertEqual(move.commanded(at: 100), SIMD3(target.x, target.y, high.z), "raised to the top and no higher")
+    }
+
     // MARK: - Arm data, the deadline, the frame
 
     func testNoFixOrAStaleFixForTheTimeoutIsNoArmData() {

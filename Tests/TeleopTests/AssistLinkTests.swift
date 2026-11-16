@@ -38,7 +38,7 @@ private final class LooseLinkTransport: LinkTransport {
 /// to a point tapped on the guide streams the input rules' offsets through the lead cap and re-sends its start as a
 /// pad hold does, and the limits it meets are told by its ending alone: neither a side, the server's clamp nor
 /// "Blocked." is heard while it goes, and the guide shows no side for it, where a latched follow, which the phone
-/// steers, is told its side and "Blocked.".
+/// steers, is told its side, the server's clamp and "Blocked.".
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
     /// The listening connection's socket, once the link opened it.
@@ -758,6 +758,27 @@ final class AssistLinkTests: XCTestCase {
         XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "the start re-sent once")
         XCTAssertEqual(answer, "pose_clamped", "the server's first answer to the re-sent start")
         XCTAssertEqual(heard, [.holdLive, .limit(.blocked)])
+        XCTAssertEqual(model.controller.arbiter.engagement, .latched(since: 10.1), "the follow goes on")
+    }
+
+    /// The same follow and server, the server answering the re-sent start at once: it says it tracks the hold, then
+    /// clamps it with the commanded point inside the profile's box, past no face the work-area rule watches. The
+    /// follow is steered by the phone, so the server's clamp END is heard, as for a held hold; the follow goes on.
+    func testALatchedFollowStillHearsTheClampOfASmallerServerBox() throws {
+        bringUp(lock: .pressPress)
+        reportArm(atPinch: goStart)
+        latch()
+        let gripperStart = goStart - SIMD3<Double>(model.profile.toolOffset)
+        let answer = runAgainstASmallerServerBox(
+            from: gripperStart, stopAnsweredAfter: 0, steps: 150, hand: handLeft)
+        XCTAssertEqual(answer, "pose_tracking", "the server's first answer to the re-sent start")
+        // The profile's box is kept for the pinch point; the link commands the gripper link.
+        let profile = model.profile
+        let pinch = try XCTUnwrap(model.link.commandedArm.map { $0 + profile.toolOffset })
+        XCTAssertTrue(
+            all(pinch .>= profile.workspaceMin) && all(pinch .<= profile.workspaceMax),
+            "the commanded point is inside the profile's box")
+        XCTAssertEqual(heard, [.holdLive, .limit(.workspace)])
         XCTAssertEqual(model.controller.arbiter.engagement, .latched(since: 10.1), "the follow goes on")
     }
 
