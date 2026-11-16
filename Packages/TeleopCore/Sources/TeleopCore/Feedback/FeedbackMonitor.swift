@@ -106,6 +106,8 @@ public struct FeedbackMonitor {
         /// Where the app is sending the arm, robot base frame.
         var target: SIMD3<Double>?
         var samples: [Sample] = []
+        /// The link has ended the server hold to learn where the arm got to and has not re-sent the start yet.
+        var resyncing = false
     }
 
     private var engaged: Engaged?
@@ -148,6 +150,7 @@ public struct FeedbackMonitor {
             current.kind = kind
             current.sentAtMs = now
             current.ownLabelSeen = false
+            current.resyncing = false
             engaged = current
             return
         }
@@ -197,6 +200,18 @@ public struct FeedbackMonitor {
         return [.letGo(reason)]
     }
 
+    /// The link ended the translation hold's server hold to learn where the arm got to (a resync), and has not
+    /// re-sent its start yet; `startSent(restart: true)` ends the pause. Meanwhile the arm stands still because the
+    /// link stopped it, which says nothing about where it can go: with `reportsLowest` on, a state that arrives adds
+    /// no sample and nothing is judged, so no stall can span the pause. Samples from before it are kept. This is the
+    /// resync's pause alone, not every time the link holds the arm short: a command held at the lead cap, with the
+    /// hand far ahead, is exactly a push into the table, and an arm that stands against it must still be told. With
+    /// `reportsLowest` off this changes nothing.
+    public mutating func resyncBegan() {
+        guard engaged?.kind == .pose else { return }
+        engaged?.resyncing = true
+    }
+
     /// Where the app is sending the arm now in a translation hold, robot base frame.
     public mutating func commanded(_ target: SIMD3<Double>) {
         guard engaged?.kind == .pose else { return }
@@ -238,13 +253,15 @@ public struct FeedbackMonitor {
                 current.clamped = true
                 events.append(.limit(.workspace))
             }
-            if let position = state.endEffector {
+            // The lowest rule neither samples nor judges an arm the link itself has stopped for a resync.
+            let pausedByTheLink = reportsLowest && current.resyncing
+            if let position = state.endEffector, !pausedByTheLink {
                 let below = current.target.map { position.z - $0.z }
                 current.samples.append(Sample(atMs: now, position: position, pinch: state.toolPoint, below: below))
                 current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
             }
             if reportsLowest {
-                events += judgeHeight(&current, at: now)
+                if !pausedByTheLink { events += judgeHeight(&current, at: now) }
             } else if !current.blocked, !current.clamped, Self.isBlocked(current, at: now) {
                 // Version 1.0.1's rule, untouched by the lowest rule.
                 current.blocked = true

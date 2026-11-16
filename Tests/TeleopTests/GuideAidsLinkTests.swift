@@ -457,6 +457,55 @@ final class GuideAidsLinkTests: XCTestCase {
         XCTAssertEqual(felt.felt.filter { $0 == .play(.end) }.count, 1)
     }
 
+    /// A resync's pause is not a stall. The arm, 6 cm above the reset pose, comes down after a hand that went 12 cm
+    /// down; 1.5 s into the server hold the link ends it to learn where the arm got to, and the server's answer is held
+    /// back for 1.3 s while states every 198 ms report the arm standing still in the air. Then the server finishes the
+    /// hold, the start is re-sent and the arm goes on down. With the aids on nothing is told for the pause and no
+    /// lowest height is kept; with them off the same pause gives version 1.0.1's "Blocked.".
+    func testAResyncsPauseIsNotTakenForTheLowestHeight() {
+        for aids in [true, false] {
+            var arm = resetPose + SIMD3(0, 0, 0.06)
+            bringUp(aids: aids, arm: arm)
+            model.send(.holdArmStart)
+            for step in 1...12 {
+                position = SIMD3(0, -0.01 * Float(step), 0)
+                tick()
+            }
+            var ticks = 0
+            while transport.types.last(where: { $0 != "test" }) != "pose_stop", ticks < 100 {
+                run(ticks: 1)
+                ticks += 1
+                if ticks % 6 == 0 {
+                    arm.z -= 0.005
+                    transport.server("state", state(arm, ik: "pose_tracking"))
+                }
+            }
+            XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "aids \(aids): the link asks")
+            // These states stand in for the listening connection's: with no final ack they do not end the resync.
+            for step in 1...39 {
+                run(ticks: 1)
+                if step % 6 == 0 { transport.server("state", state(arm, ik: "ok")) }
+            }
+            serverFinishesHold(armAt: arm)
+            XCTAssertEqual(transport.types.last, "pose_start", "aids \(aids): the start is re-sent")
+            for _ in 0..<5 {
+                run(ticks: 6)
+                arm.z -= 0.006
+                transport.server("state", state(arm, ik: "pose_tracking"))
+            }
+            XCTAssertTrue(model.session.state.armMoving, "aids \(aids): the operator still holds")
+            if aids {
+                XCTAssertEqual(limits, [], "nothing for the pause")
+                XCTAssertFalse(speech.spoken.contains("Can't go lower."), "\(speech.spoken)")
+                XCTAssertNil(model.link.lowestSeen, "no height kept in the air")
+                XCTAssertNil(model.link.lowestPinchSeen)
+            } else {
+                XCTAssertEqual(limits, [.limit(.blocked)], "version 1.0.1's")
+                XCTAssertEqual(speech.spoken, ["Blocked."])
+            }
+        }
+    }
+
     /// The side is read only while a translation is commanded: never between holds, and not at a new hold's start
     /// before its first command, so the guide's line cannot show the last hold's side. A new hold tells it again.
     func testTheSideIsReadOnlyWhileATranslationIsCommanded() {

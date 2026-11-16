@@ -394,6 +394,7 @@ final class LiveLinkController {
     /// Ends the server hold without ending the operator's, to find out where the arm is.
     private func beginResync() {
         link?.poseStop()
+        monitor.resyncBegan()
         resync = (nowMs(), false)
         // No command goes out until the start is re-sent, so none is held at the cap; the re-sent start is the pause.
         leadCapped = false

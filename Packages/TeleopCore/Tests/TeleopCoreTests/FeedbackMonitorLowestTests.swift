@@ -214,6 +214,9 @@ final class FeedbackMonitorLowestTests: XCTestCase {
     /// One thing the link tells the monitor.
     private enum Input {
         case press(atMs: Int)
+        /// The link ended the server hold to learn where the arm got to; the start is not re-sent yet. Nothing for
+        /// version 1.0.1's monitor, which was never told.
+        case resyncBegan
         case resync(atMs: Int)
         case command(SIMD3<Double>)
         case state(atMs: Int, ServerState)
@@ -240,6 +243,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
         for input in inputs {
             switch input {
             case .press(let atMs): monitor.startSent(.pose, restart: false, at: atMs)
+            case .resyncBegan: monitor.resyncBegan()
             case .resync(let atMs): monitor.startSent(.pose, restart: true, at: atMs)
             case .command(let point): monitor.commanded(point)
             case .state(let atMs, let state):
@@ -260,6 +264,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
         for input in inputs {
             switch input {
             case .press(let atMs): monitor.startSent(.pose, restart: false, at: atMs)
+            case .resyncBegan: break
             case .resync(let atMs): monitor.startSent(.pose, restart: true, at: atMs)
             case .command(let point): monitor.commanded(point)
             case .state(let atMs, let state):
@@ -678,6 +683,79 @@ final class FeedbackMonitorLowestTests: XCTestCase {
                 + [.command(atZero + c.gap), .state(atMs: 1300, noPosition)]
                 + states(at: [1400], arm: { _ in atZero }, gap: { _ in c.gap })
             XCTAssertEqual(told(inputs), c.heard, "\(c.gap)")
+        }
+    }
+
+    // A resync ends the server hold to learn where the arm got to, and the arm stands still until the start is
+    // re-sent. The tests below feed the monitor as the link does: no command while the start waits to be re-sent.
+
+    /// The arm comes down at 30 mm/s with the command held 8 cm under where the server hold started. At 1400 ms the
+    /// link ends the server hold and the arm stops in the air. The control connection's answer comes 0.85 s, 1 s or
+    /// 1.5 s later, while states every 200 ms go on reporting the arm still under a command that still asks to go down.
+    /// The re-sent start asks for the next 8 cm; the arm goes on down 110 ms later, reaches the table and stands on it
+    /// with the hand still far below. The pause tells nothing and keeps no height, "Blocked." included; the stall on
+    /// the table, in the same press, is told. With the rule off the events are version 1.0.1's.
+    func testAResyncsPauseIsNotTakenForTheLowestHeight() {
+        let top = 0.235, speed = 0.030, lead = 0.08, table = 0.165, resyncAt = 1400, moveDelayMs = 110
+        let stop = top - speed * Double(resyncAt) / 1000
+        let (x, y) = (atZero.x, atZero.y)
+        for pause in [850, 1000, 1500] {
+            let restartAt = resyncAt + pause
+            let movingAgain = restartAt + moveDelayMs
+            let arm = { (t: Int) -> SIMD3<Double> in
+                var z = top - speed * Double(min(t, resyncAt)) / 1000
+                if t > movingAgain { z = max(table, stop - speed * Double(t - movingAgain) / 1000) }
+                return SIMD3(x, y, z)
+            }
+            let onTableAt = movingAgain + Int(((stop - table) / speed * 1000).rounded(.up))
+            let state = { (t: Int) -> Input in
+                .state(atMs: t, ServerState(activity: .poseTracking, endEffector: arm(t)))
+            }
+            var inputs: [Input] = [.press(atMs: 0)]
+            for t in every(from: 200, through: resyncAt) {
+                inputs += [.command(SIMD3(x, y, top - lead)), state(t)]
+            }
+            inputs.append(.resyncBegan)
+            inputs += every(from: resyncAt + 200, through: restartAt).map(state)
+            inputs.append(.resync(atMs: restartAt))
+            let firstAfter = restartAt - restartAt % 200 + 200
+            inputs += [.command(SIMD3(x, y, stop - lead)), state(firstAfter)]
+            let throughThePause = inputs
+            for t in every(from: firstAfter + 200, through: onTableAt + 2000) {
+                inputs += [.command(SIMD3(x, y, stop - lead)), state(t)]
+            }
+            let paused = run(throughThePause).monitor
+            XCTAssertEqual(told(throughThePause), [], "\(pause) ms: nothing for the pause")
+            XCTAssertNil(paused.lowestSeen, "\(pause) ms: no height kept in the air")
+            XCTAssertNil(paused.lowestPinchSeen, "\(pause) ms")
+            let heard = told(inputs)
+            XCTAssertEqual(heard.map(\.event), [.limit(.lowest)], "\(pause) ms: the table's stall alone")
+            XCTAssertGreaterThan(heard.first?.atMs ?? 0, onTableAt, "\(pause) ms: told standing on the table")
+            XCTAssertEqual(run(inputs).monitor.lowestSeen ?? 0, table, accuracy: 1e-9, "\(pause) ms: its height")
+        }
+    }
+
+    /// A short pause leaves a stall on time: a second of states asked 12 mm lower with the arm still, the server hold
+    /// ended at 650 ms and its start re-sent at 750 ms with no state between, or ended at 550 ms and re-sent at 650 ms
+    /// with the state of 600 ms between, is told at 1200 ms as without a resync. With the rule off, version 1.0.1's.
+    func testAStallWhoseSecondSpansAShortResyncPauseIsStillToldOnTime() {
+        for (began, restart) in [(650, 750), (550, 650)] {
+            var inputs: [Input] = [.press(atMs: 0)]
+            var paused = false
+            var restarted = false
+            for t in every(from: 200, through: 1600) {
+                if !paused, t > began {
+                    inputs.append(.resyncBegan)
+                    paused = true
+                }
+                if !restarted, t > restart {
+                    inputs.append(.resync(atMs: restart))
+                    restarted = true
+                }
+                if !paused || restarted { inputs.append(.command(atZero + down(0.012))) }
+                inputs.append(.state(atMs: t, ServerState(activity: .poseTracking, endEffector: atZero)))
+            }
+            XCTAssertEqual(told(inputs), [lowest(at: 1200)], "a pause from \(began) to \(restart) ms")
         }
     }
 }
