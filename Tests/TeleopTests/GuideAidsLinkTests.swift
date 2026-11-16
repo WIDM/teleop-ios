@@ -27,9 +27,9 @@ private final class AidsTestTransport: LinkTransport {
 
 /// The guide's aids that the link runs, against a scripted server: the work-area rule tells every time the commanded
 /// point leaves the work box, on which side, and the server's clamp END for that hold is then left out; a floor the
-/// table stops the arm before is not told; the side is read only while a translation is commanded; the switch reaches
-/// the link. Against the server model, an arm that cannot go lower says so. With the aids off the cues are version
-/// 1.0.1's.
+/// table stops the arm before is not told, and a push into the table is told by the lowest rule alone; the side is read
+/// only while a translation is commanded; the switch reaches the link. Against the server model, an arm that cannot go
+/// lower says so. With the aids off the cues are version 1.0.1's.
 final class GuideAidsLinkTests: XCTestCase {
     private var transport: AidsTestTransport!
     private var position: SIMD3<Float>? = .zero
@@ -283,6 +283,111 @@ final class GuideAidsLinkTests: XCTestCase {
             XCTAssertEqual(model.link.commandOutside, told ? .down : nil, "told: \(told)")
             XCTAssertEqual(sidesTold, told ? [.down] : [], "told: \(told)")
         }
+    }
+
+    /// The gripper link where the arm stands on the table: the pinch point at the profile's table height, below the
+    /// reset pose.
+    private var onTheTable: SIMD3<Double> {
+        let profile = RobotProfile.so101Simulator
+        return SIMD3(resetPose.x, resetPose.y, Double(profile.tableHeight - profile.toolOffset.z))
+    }
+
+    /// The arm stands on the table and the hand goes 6 cm down, a centimetre a tick (ARKit up is +y): the commanded
+    /// point ends 6 cm below the arm, 1.2 cm under the simulator's box floor and inside every other face. The arm stays
+    /// where it is, and the server sends a state every 198 ms for about 2 s, its label saying it clamps from
+    /// `clampAtMs` on.
+    private func pushIntoTheTable(clampAtMs: Int) {
+        model.send(.holdArmStart)
+        for step in 1...6 {
+            position = SIMD3(0, -0.01 * Float(step), 0)
+            tick()
+        }
+        transport.server("state", state(onTheTable, ik: "pose_tracking"))
+        for elapsed in stride(from: 198, through: 1980, by: 198) {
+            run(ticks: 6)
+            transport.server("state", state(onTheTable, ik: elapsed >= clampAtMs ? "pose_clamped" : "pose_tracking"))
+        }
+        XCTAssertTrue(model.session.state.armMoving)
+    }
+
+    private var limits: [CueKey] {
+        cues.filter { [.limit(.workspace), .limit(.blocked), .limit(.lowest)].contains($0) }
+    }
+
+    /// The simulator's box floor lies below its table: the table stops the arm before the commanded point can leave the
+    /// box downward, and the lowest rule tells that push. Pushed into the table with the aids on, "Can't go lower." is
+    /// the push's one cue: the server's clamp for the floor is not felt, whether it comes before the stall is told or
+    /// after it, and no side is told.
+    func testAPushIntoTheTableIsToldByTheLowestCueAlone() {
+        for clampAtMs in [198, 1782] {
+            bringUp(aids: true, arm: onTheTable)
+            pushIntoTheTable(clampAtMs: clampAtMs)
+            XCTAssertEqual(limits, [.limit(.lowest)], "clamp at \(clampAtMs) ms")
+            XCTAssertEqual(sidesTold, [], "clamp at \(clampAtMs) ms")
+            XCTAssertNil(model.link.commandOutside, "clamp at \(clampAtMs) ms")
+            XCTAssertEqual(felt.felt, [.play(.go), .play(.end)], "clamp at \(clampAtMs) ms")
+            XCTAssertEqual(speech.spoken, ["Can't go lower."], "clamp at \(clampAtMs) ms")
+        }
+    }
+
+    /// With the aids off the same pushes give version 1.0.1's cues: the server's clamp END, and "Blocked." first when
+    /// the arm has stood still for a second before the clamp came.
+    func testWithTheAidsOffAPushIntoTheTableGivesTheCuesOfOneZeroOne() {
+        let pushes: [(clampAtMs: Int, heard: [CueKey], ends: Int, spoken: [String])] = [
+            (198, [.limit(.workspace)], 1, []),
+            (1782, [.limit(.blocked), .limit(.workspace)], 2, ["Blocked."]),
+        ]
+        for push in pushes {
+            bringUp(aids: false, arm: onTheTable)
+            pushIntoTheTable(clampAtMs: push.clampAtMs)
+            XCTAssertEqual(limits, push.heard, "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(sidesTold, [], "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(felt.felt.filter { $0 == .play(.end) }.count, push.ends, "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(speech.spoken, push.spoken, "clamp at \(push.clampAtMs) ms")
+        }
+    }
+
+    /// On a copy of the profile whose box floor is above the table, the floor is a face the work-area rule watches.
+    /// Pushed slowly past it, the server's clamp is the crossing, as at any watched face: the rule tells "Too low." at
+    /// the clamp and the server's END is left out.
+    func testAClampPastAFloorAboveTheTableTellsTheSide() {
+        var tableBelowTheBox = RobotProfile.so101Simulator
+        tableBelowTheBox.tableHeight = tableBelowTheBox.workspaceMin.z - 0.02
+        // 9.65 mm above the floor, so no step lands on the face or on the slack's boundary.
+        let start = SIMD3(resetPose.x, resetPose.y, gripperBox(tableBelowTheBox).low.z + 0.00965)
+        bringUp(aids: true, arm: start, profile: tableBelowTheBox)
+        model.send(.holdArmStart)
+        // Down a millimetre a tick (ARKit up is +y): after 11, 1.35 mm under the floor, inside the slack.
+        for step in 1...11 {
+            position = SIMD3(0, -0.001 * Float(step), 0)
+            tick()
+        }
+        XCTAssertNil(model.link.commandOutside, "inside the slack")
+        XCTAssertEqual(sidesTold, [])
+        transport.server("state", state(start, ik: "pose_tracking"))
+        transport.server("state", state(start, ik: "pose_clamped"))
+        XCTAssertEqual(model.link.commandOutside, .down)
+        XCTAssertEqual(sidesTold, [.down])
+        XCTAssertFalse(cues.contains(.limit(.workspace)), "one crossing, one buzz")
+        XCTAssertEqual(speech.spoken, ["Too low."])
+    }
+
+    /// A server whose box differs from the profile's: a push down that stays inside every face of the profile's box,
+    /// clamped by that server, is past no face the rule knows, so the server's END is the push's cue, as in 1.0.1.
+    func testAClampPastNoFaceOfTheProfilesBoxIsStillFelt() {
+        bringUp(aids: true, arm: resetPose)
+        model.send(.holdArmStart)
+        // 3 cm down from the box's centre: 5 cm above its floor.
+        for step in 1...3 {
+            position = SIMD3(0, -0.01 * Float(step), 0)
+            tick()
+        }
+        transport.server("state", state(resetPose, ik: "pose_tracking"))
+        transport.server("state", state(resetPose, ik: "pose_clamped"))
+        XCTAssertNil(model.link.commandOutside)
+        XCTAssertEqual(sidesTold, [])
+        XCTAssertEqual(limits, [.limit(.workspace)])
+        XCTAssertEqual(felt.felt.filter { $0 == .play(.end) }.count, 1)
     }
 
     /// The side is read only while a translation is commanded: never between holds, and not at a new hold's start

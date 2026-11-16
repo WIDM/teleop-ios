@@ -284,6 +284,24 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertNil(noBox.outside)
     }
 
+    /// The rule says when a point is past only faces it does not watch: past the floor it leaves out, by any amount,
+    /// and past no watched face (lying on one is not past it). Past a watched face as well, past a watched face alone,
+    /// past no face at all, on the floor itself, with every face watched, or with no box, it is not.
+    func testAPointPastOnlyFacesTheRuleDoesNotWatchIsKnown() {
+        let noFloor = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        let below = past(.down, by: 0.03)
+        XCTAssertTrue(noFloor.isPastOnlyUnwatchedFaces(past(.down, by: 0.0001)))
+        XCTAssertTrue(noFloor.isPastOnlyUnwatchedFaces(below))
+        XCTAssertTrue(noFloor.isPastOnlyUnwatchedFaces(past(.forward, by: 0, from: below)), "on the forward face")
+        XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(past(.forward, by: 0.0001, from: below)), "past forward too")
+        XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(past(.forward, by: 0.003)), "past forward alone")
+        XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(centre), "past no face")
+        XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(past(.down, by: 0)), "on the floor")
+        XCTAssertFalse(cue.isPastOnlyUnwatchedFaces(below), "every face watched")
+        let noBox = WorkAreaCue(low: low, high: SIMD3(high.x, high.y, .nan), sides: [.forward])
+        XCTAssertFalse(noBox.isPastOnlyUnwatchedFaces(below))
+    }
+
     /// The gap between cues and each side's re-arm still hold for a clamp: a side told and not armed again is not told
     /// again, and a cue the gap holds back plays on the first tick it allows while the point is still past the face.
     func testAClampKeepsTheGapAndTheReArm() {

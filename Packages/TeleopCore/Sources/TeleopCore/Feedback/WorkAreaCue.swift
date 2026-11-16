@@ -23,7 +23,9 @@ import simd
 /// The server clamps at the face itself, so a point pushed slowly out is clamped before it is past the slack. When the
 /// server reports that clamp with the point past a watched face by any amount, that is the crossing: it is told at once
 /// (the gap and each side's re-arm still hold) and the face itself is the edge until the point is back inside, so the
-/// server need not tell it as well. A clamp with the point past no watched face is one this rule did not foresee.
+/// server need not tell it as well. A clamp with the point past no watched face is one this rule did not foresee. With
+/// the point past only faces it does not watch, something else tells that push and the server's clamp of it would be a
+/// second cue; past no face of the box at all, the server's box differs and its clamp is the only cue.
 public struct WorkAreaCue: Sendable {
     /// Beyond a face by more than this counts as outside: the guide's own millimetre plus rounding.
     public static let slackMeters = 0.002
@@ -76,8 +78,8 @@ public struct WorkAreaCue: Sendable {
     /// true when that point is past a watched face by any amount: the clamp is the crossing the rule watches for, its
     /// side is outside now and told at once unless the gap or that side's re-arm holds it back, and the server's own
     /// cue for the clamp would tell it twice. False, the point is past no watched face (a server whose box differs, or
-    /// a face the rule does not watch): nothing changes, and the server's cue is the one that tells it. `told` is the
-    /// side when the cue plays now.
+    /// a face the rule does not watch): nothing changes here, and `isPastOnlyUnwatchedFaces` says which of the two it
+    /// is. `told` is the side when the cue plays now.
     public mutating func serverClamped(
         _ point: SIMD3<Double>, at nowMs: Int
     ) -> (foreseen: Bool, told: OperatorDirection?) {
@@ -87,6 +89,14 @@ public struct WorkAreaCue: Sendable {
         clampedAtFace = true
         outside = farthest.side
         return (true, tellOutside(point, at: nowMs))
+    }
+
+    /// `point` is past at least one face the rule does not watch, by any amount, and past no face it watches. Whoever
+    /// left that face out tells such a push (a floor below the table: the lowest rule), so a clamp the server reports
+    /// for it needs no cue of its own. False with no box, and for a point past no face at all. Changes nothing.
+    public func isPastOnlyUnwatchedFaces(_ point: SIMD3<Double>) -> Bool {
+        guard hasBox, farthestPast(point).by <= 0 else { return false }
+        return OperatorDirection.allCases.contains { !sides.contains($0) && excess(of: point, past: $0) > 0 }
     }
 
     /// A new hold started: every side can be told again, the gap since the last cue is over, and the slack counts until

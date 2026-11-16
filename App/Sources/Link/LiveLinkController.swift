@@ -735,9 +735,15 @@ final class LiveLinkController {
                 events.append(.commandOutside(side))
             }
         }
+        // With the commanded point past only a face the rule does not watch (a floor below the table), the push is one
+        // the lowest rule tells, as the table stops the arm before that face; the server's END would be a second cue.
+        if events.contains(.limit(.workspace)), let point = commandedArm,
+            workAreaCue?.isPastOnlyUnwatchedFaces(SIMD3<Double>(point)) == true
+        {
+            events.removeAll { $0 == .limit(.workspace) }
+        }
         // The work-area rule already told this hold's crossing; the server's clamp of it would be a second buzz. A
-        // clamp the rule did not foresee (a server whose box differs from the profile's, or a face the rule does not
-        // watch) still plays.
+        // clamp past no face of the profile's box (a server whose box differs from the profile's) still plays.
         if workAreaToldThisHold { events.removeAll { $0 == .limit(.workspace) } }
         emit(events)
         noteGripping()
