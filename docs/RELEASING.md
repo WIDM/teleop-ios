@@ -51,8 +51,9 @@ exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on 
 catalogs, that lacks English or Traditional Chinese. `check-format.sh` fails on any Swift file not laid out as
 `.swift-format` says; CI only reports it (`docs/TESTING.md` says why), so here is where it counts.
 
-Then the full default test plan, roughly three quarters of an hour, on an iPhone simulator nothing else uses and a
-Mac that stays awake (`docs/TESTING.md` explains both):
+Then the full default test plan, the app's unit tests and more than half an hour of UI tests, on an iPhone simulator
+nothing else uses and a Mac that stays awake (`docs/TESTING.md` explains both). Use an iPhone simulator where the
+aids' settings were never changed by hand, or erase it first: the unit tests read what it has saved.
 
     xcodegen generate
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
@@ -144,5 +145,5 @@ What only the holder of the Apple developer account can do, in order:
    that without one, Connect → "Practice without a robot" shows the app working; that there is no sign-in; and that
    it speaks plain `ws://` because the teleoperation server uses unencrypted WebSocket on a private network. The
    first build for outside testers goes to beta review. A build expires after 90 days.
-6. Later uploads: each needs a build number higher than any already uploaded for that version. A second upload of
-   1.0.0 needs build 14; otherwise ship it as 1.0.1.
+6. Later uploads: each needs a build number higher than any already uploaded for that version. A build that changes
+   anything goes out as a new version with the next build number ("The version number" above).
