@@ -203,7 +203,7 @@ final class LiveLinkController {
 
     /// The guide's aids this link runs; nil is version 1.0.1. `gripperBox`: the work box in gripper-link space, robot
     /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
-    /// tells; one the arm is stopped before (a floor below the table) is left out, because another cue tells that stop.
+    /// tells; one the arm is stopped before (a floor below the table) is left out while another cue tells that stop.
     func guideAidsChanged(
         _ aids: GuideAids?, gripperBox: (low: SIMD3<Double>, high: SIMD3<Double>), sides: Set<OperatorDirection>
     ) {
@@ -737,7 +737,8 @@ final class LiveLinkController {
         }
         // With the commanded point past only a face the rule does not watch (a floor below the table), the push is one
         // the lowest rule tells, as the table stops the arm before that face; the server's END would be a second cue.
-        if events.contains(.limit(.workspace)), let point = commandedArm,
+        // Only while that rule runs: without it the END is the push's only cue.
+        if monitor.reportsLowest, events.contains(.limit(.workspace)), let point = commandedArm,
             workAreaCue?.isPastOnlyUnwatchedFaces(SIMD3<Double>(point)) == true
         {
             events.removeAll { $0 == .limit(.workspace) }

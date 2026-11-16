@@ -203,13 +203,15 @@ final class AppModel {
     /// Hands the link the guide's aids it runs, with the work box in gripper-link space: the profile keeps the box for
     /// the pinch point, the server keeps the gripper link in it, and the guide draws ring and box moved by the same
     /// measured offset, so judging the commanded gripper-link point against the box less the tool offset is what the
-    /// picture shows. A floor below the table is not told: the table stops the arm first, and the lowest rule tells
-    /// that.
+    /// picture shows. A floor below the table is not told while the lowest rule runs: the table stops the arm first,
+    /// and that rule tells it. With the lowest rule off the floor is watched like every other face, so a push into the
+    /// table is still told.
     private func guideAidsChanged() {
         let low = profile.workspaceMin - profile.toolOffset
         let high = profile.workspaceMax - profile.toolOffset
         var sides = Set(OperatorDirection.allCases)
-        if min(profile.workspaceMin.z, profile.workspaceMax.z) < profile.tableHeight { sides.remove(.down) }
+        let floorBelowTable = min(profile.workspaceMin.z, profile.workspaceMax.z) < profile.tableHeight
+        if floorBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
         link.guideAidsChanged(
             assist.guide, gripperBox: (low: SIMD3<Double>(low), high: SIMD3<Double>(high)), sides: sides)
     }

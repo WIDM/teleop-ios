@@ -27,10 +27,10 @@ private final class AidsTestTransport: LinkTransport {
 
 /// The guide's aids that the link runs, against a scripted server: the work-area rule tells every time the commanded
 /// point leaves the work box, on which side, and the server's clamp END for that hold is then left out; a floor the
-/// table stops the arm before is not told, and a push into the table is told by the lowest rule alone; the side is read
-/// only while a translation is commanded; a start the link re-sends inside one press is not a new press; the switch
-/// reaches the link. Against the server model, an arm that cannot go lower says so. With the aids off the cues are
-/// version 1.0.1's.
+/// table stops the arm before is not told, and a push into the table is told by the lowest rule alone, while that rule
+/// runs (without it the floor is watched like any other face); the side is read only while a translation is commanded;
+/// a start the link re-sends inside one press is not a new press; the switch reaches the link. Against the server
+/// model, an arm that cannot go lower says so. With the aids off the cues are version 1.0.1's.
 final class GuideAidsLinkTests: XCTestCase {
     private var transport: AidsTestTransport!
     private var position: SIMD3<Float>? = .zero
@@ -286,6 +286,33 @@ final class GuideAidsLinkTests: XCTestCase {
         }
     }
 
+    /// The simulator's profile with every aid but the lowest cue. Its box floor still lies below its table.
+    private var withoutTheLowestCue: RobotProfile {
+        var profile = RobotProfile.so101Simulator
+        profile.assist.guide?.lowestCue = false
+        return profile
+    }
+
+    /// A floor below the table is left to the lowest rule only while that rule runs. Without it the model builds the
+    /// work-area rule with the floor watched, so 2 cm below it is "Too low." as on a profile whose floor is above the
+    /// table.
+    func testWithTheLowestCueOffAFloorBelowTheTableIsTold() {
+        let profile = withoutTheLowestCue
+        XCTAssertEqual(profile.assist.guide?.workAreaWords, true, "the work-area words are on")
+        XCTAssertLessThan(profile.workspaceMin.z, profile.tableHeight, "the floor is below the table")
+        let floor = gripperBox(profile).low.z
+        bringUp(aids: true, arm: SIMD3(resetPose.x, resetPose.y, floor + 0.01), profile: profile)
+        model.send(.holdArmStart)
+        // 3 cm down (ARKit up is +y): 2 cm below the floor.
+        for step in 1...3 {
+            position = SIMD3(0, -0.01 * Float(step), 0)
+            tick()
+        }
+        XCTAssertEqual(model.link.commandOutside, .down)
+        XCTAssertEqual(sidesTold, [.down])
+        XCTAssertEqual(speech.spoken, ["Too low."])
+    }
+
     /// The gripper link where the arm stands on the table: the pinch point at the profile's table height, below the
     /// reset pose.
     private var onTheTable: SIMD3<Double> {
@@ -344,6 +371,45 @@ final class GuideAidsLinkTests: XCTestCase {
             XCTAssertEqual(limits, push.heard, "clamp at \(push.clampAtMs) ms")
             XCTAssertEqual(sidesTold, [], "clamp at \(push.clampAtMs) ms")
             XCTAssertEqual(felt.felt.filter { $0 == .play(.end) }.count, push.ends, "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(speech.spoken, push.spoken, "clamp at \(push.clampAtMs) ms")
+        }
+    }
+
+    /// With every aid but the lowest cue, the floor is a face the work-area rule watches: the push into the table is
+    /// told "Too low." as the commanded point goes past the floor, and the server's clamp for the floor is then not
+    /// felt, as at any watched face. When the arm has stood still for a second before the server's clamp comes, version
+    /// 1.0.1's "Blocked." plays as well: with the lowest cue off, that is the cue for a stall.
+    func testWithTheLowestCueOffAPushIntoTheTableIsToldTooLow() {
+        let pushes: [(clampAtMs: Int, heard: [CueKey], spoken: [String])] = [
+            (198, [], ["Too low."]),
+            (1782, [.limit(.blocked)], ["Too low.", "Blocked."]),
+        ]
+        for push in pushes {
+            bringUp(aids: true, arm: onTheTable, profile: withoutTheLowestCue)
+            pushIntoTheTable(clampAtMs: push.clampAtMs)
+            XCTAssertEqual(sidesTold, [.down], "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(model.link.commandOutside, .down, "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(limits, push.heard, "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(speech.spoken, push.spoken, "clamp at \(push.clampAtMs) ms")
+        }
+    }
+
+    /// The link leaves the server's clamp of a face the rule does not watch to the lowest rule only while that rule
+    /// runs. Handed every aid but the lowest cue and the sides without the floor, nothing but the server tells a push
+    /// into the table, so its clamp END plays, as in version 1.0.1.
+    func testWithoutTheLowestRuleTheLinkStillPlaysTheClampOfAnUnwatchedFloor() {
+        let pushes: [(clampAtMs: Int, heard: [CueKey], spoken: [String])] = [
+            (198, [.limit(.workspace)], []),
+            (1782, [.limit(.blocked), .limit(.workspace)], ["Blocked."]),
+        ]
+        for push in pushes {
+            bringUp(aids: true, arm: onTheTable, profile: withoutTheLowestCue)
+            var sides = Set(OperatorDirection.allCases)
+            sides.remove(.down)
+            model.link.guideAidsChanged(withoutTheLowestCue.assist.guide, gripperBox: gripperBox(), sides: sides)
+            pushIntoTheTable(clampAtMs: push.clampAtMs)
+            XCTAssertEqual(sidesTold, [], "clamp at \(push.clampAtMs) ms")
+            XCTAssertEqual(limits, push.heard, "clamp at \(push.clampAtMs) ms")
             XCTAssertEqual(speech.spoken, push.spoken, "clamp at \(push.clampAtMs) ms")
         }
     }
