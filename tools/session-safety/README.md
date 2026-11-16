@@ -18,7 +18,7 @@ After changing the checker or a guarded code path, also prove the check can stil
 
 It breaks a throwaway copy of `TeleopCore`, never the repo's files. Every line must say `CAUGHT`.
 
-Last mutation run: 2026-11-13, on commit `f820e37`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
+Last mutation run: 2026-11-17, on commit `e64e8e7`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
 `TeleopCore`, of which 37 must make a property fail and 2 harmless ones must leave it passing; 1 change to
 `ui-map.tsv`; 8 changes to the screens' source that `drift.py` must report.
 
@@ -87,6 +87,7 @@ Bounds:
 
 Left out:
 
+- Who holds a hold (a held key, a latched follow, a move to a tapped point), what goes on the wire and which cues play are outside the session model. A latched follow and a move to a tapped point are the session's ordinary arm hold, started and ended by the same actions as a held key's.
 - Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `OperatingController`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
 - What the screens draw. U1 counts the operating screen's routes and Settings as showing a latched stop. They show it from `AppModel.operating`, which says connecting, not connected or link lost instead while a pressed STOP is owed (`AppModel.pressedStop`, J7: the robot is not stopped), also while Connect replaces a link that is up. A pressed STOP is sent, confirmed or owed: owed when it was pressed before the control connection's `welcome` with the listening connection not up (`LiveLinkController.estop`), or when the link went before a `state` the server wrote after reading its `estop` said stopped (`LiveLinkController.estopConfirmed`), or before the answer to a reset asked for from the stop (`FakeTeleopState.resetClearsStop`), which puts a confirmed STOP back to sent. Settings draws its band only for the stopped state. The session's latch is the same either way, so the checker cannot tell the two apart; U1 states the exception, `AppModel.robotStopped` makes every press say "No link." then, also while Connect replaces a link that is up, and `OperatingLinkTests`, `LiveLinkTests` and `LinkStallTests` cover it.
@@ -114,7 +115,7 @@ Comparing whole stacks would make the state space unbounded, because `navigate` 
 
 ## Keep it in step
 
-Sync commit: `cbe633c`
+Sync commit: `e64e8e7`
 
 `check.sh` prints `REVIEW` for each covered file changed since that commit. Read the change, confirm that the checker, `ui-map.tsv` and the two stack arguments still describe the code, run `mutants.py`, and only then move the sync commit above to the commit you confirmed.
 
