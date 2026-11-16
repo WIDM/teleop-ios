@@ -533,6 +533,46 @@ final class GuideAidsLinkTests: XCTestCase {
         XCTAssertTrue(model.session.state.armMoving, "the operator still holds")
     }
 
+    /// The same restart with the commanded point kept past the forward face alone, for longer than the 1.5 s the rule
+    /// keeps between two cues: forward is told once in the press. The restart does not arm a side already told, so
+    /// once the gap is over there is still nothing to tell while the point stays past that face.
+    func testAResyncInsideAPressDoesNotTellTheSameSideAgain() throws {
+        let box = gripperBox()
+        // 7.5 cm inside the forward face (base −y), half way across and half way up.
+        let start = SIMD3(resetPose.x, box.low.y + 0.075, resetPose.z)
+        bringUp(aids: true, arm: start)
+        model.send(.holdArmStart)
+        // The hand rests until late in the server hold, then goes 10 cm forward, a centimetre a tick (ARKit forward is
+        // −z). A server hold asks for at most 8 cm, which takes the commanded point 5 mm past the forward face.
+        run(ticks: 36)
+        var forwardToldAt: Int?
+        for step in 1...10 {
+            position = SIMD3(0, 0, -0.01 * Float(step))
+            tick()
+            if forwardToldAt == nil, !sidesTold.isEmpty { forwardToldAt = clock }
+        }
+        XCTAssertEqual(sidesTold, [.forward])
+        let toldAt = try XCTUnwrap(forwardToldAt)
+        XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "the link asks where the arm got to")
+        // The server reports the arm at the face, and the link re-sends the start for the last 2.5 cm, past it.
+        serverFinishesHold(armAt: SIMD3(start.x, box.low.y, start.z))
+        XCTAssertEqual(transport.types.last, "pose_start", "the start is re-sent")
+        // The hand stays: until twice the gap since forward was told, the commanded point is past the forward face by
+        // more than the slack and inside every other face.
+        while clock - toldAt < 2 * WorkAreaCue.minimumGapMs {
+            run(ticks: 1)
+            let point = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm))
+            let since = clock - toldAt
+            XCTAssertLessThan(point.y, box.low.y - WorkAreaCue.slackMeters, "past the forward face, at \(since) ms")
+            XCTAssertTrue(point.x > box.low.x && point.x < box.high.x, "inside across, at \(since) ms")
+            XCTAssertTrue(point.z > box.low.z && point.z < box.high.z, "inside in height, at \(since) ms")
+            XCTAssertEqual(model.link.commandOutside, .forward, "at \(since) ms")
+        }
+        XCTAssertEqual(sidesTold, [.forward], "one press: forward is told once")
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "one press, one re-sent start")
+        XCTAssertTrue(model.session.state.armMoving, "the operator still holds")
+    }
+
     /// The guide draws the commanded ring at the commanded gripper-link point plus the measured offset, and the box at
     /// the profile's box moved by that offset less the profile's tool offset. The link judges the commanded
     /// gripper-link point against the profile's box less its tool offset. So with a tool point the server reports,
