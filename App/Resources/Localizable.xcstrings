@@ -2785,6 +2785,22 @@
         }
       }
     },
+    "tutorial.cue.on_target_arrows": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close. The guide's Forward and Up arrows are true for the picture, not for your hand."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畫面上有目標時，輕點一下接著一段柔和的震動，表示夾爪對準了。先放開，再夾緊。導引圖上「前」和「上」的箭頭是畫面裡的方向，不是你手的方向。"
+          }
+        }
+      }
+    },
     "tutorial.cue.reset": {
       "localizations": {
         "en": {

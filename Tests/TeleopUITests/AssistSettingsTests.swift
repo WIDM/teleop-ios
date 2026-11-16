@@ -2,9 +2,9 @@ import XCTest
 
 /// The aids' section in Settings: right after the Task aid section, above Recording, with the master switch and the
 /// lock row below it, which shows the lock chosen and is disabled while the switch is off; and the tutorial's lines for
-/// the lock chosen and for the tap on the guide. Each value is reached by a launch that pins it, never by turning it in
-/// the app: a UI test cannot remove a saved setting afterwards, and the other UI tests launch with neither of the aids'
-/// settings saved.
+/// the lock chosen, for the tap on the guide and for the guide's arrows. Each value is reached by a launch that pins
+/// it, never by turning it in the app: a UI test cannot remove a saved setting afterwards, and the other UI tests
+/// launch with neither of the aids' settings saved.
 final class AssistSettingsTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -121,6 +121,58 @@ final class AssistSettingsTests: XCTestCase {
                 XCTAssertEqual(tapLines.count, 0, "\(what): no tap line")
             }
             app.terminate()
+        }
+    }
+
+    /// The tutorial's line about the guide also says that the guide's Forward and Up arrows are true for the picture,
+    /// not for the hand, when the aids draw them, in both languages; at the smaller phone's height the page scrolls to
+    /// the whole line, as it does to its last lines. With the switch off the guide has no arrows, and the line says
+    /// only what the on-target cue means.
+    func testTheTutorialSaysTheGuidesArrowsAreThePictures() {
+        let cases: [(language: String, sentence: String)] = [
+            ("en", "The guide's Forward and Up arrows are true for the picture, not for your hand."),
+            ("zh-Hant", "導引圖上「前」和「上」的箭頭是畫面裡的方向，不是你手的方向。"),
+        ]
+        let heights: [(name: String, arguments: [String])] = [
+            ("874", []), ("667", ["-screenFrame", "375x667x20x0"]),
+        ]
+        for height in heights {
+            for one in cases {
+                let what = "\(one.language) at \(height.name)"
+                let app = XCUIApplication.teleop(
+                    ["-startRoute", "t3_tutorial", "-assist", "YES", "-lockVariant", "off"] + height.arguments,
+                    language: one.language)
+                app.launch()
+                expect(app, "tutorial.title")
+                let line = app.staticTexts.containing(NSPredicate(format: "label ENDSWITH %@", one.sentence)).firstMatch
+                XCTAssertTrue(line.waitForExistence(timeout: 5), "\(what): the guide's line says it")
+                let page = app.scrollViews.firstMatch
+                let inView = { line.frame.minY >= page.frame.minY && line.frame.maxY <= page.frame.maxY }
+                scrollPage(page, until: inView)
+                XCTAssertTrue(inView(), "\(what): the whole line in view, \(line.frame) in \(page.frame)")
+                XCTAssertTrue(app.element("tutorial.next").isHittable, "\(what): the buttons stay")
+                attachScreenshot("tutorial-arrows-\(one.language)-\(height.name)")
+                app.terminate()
+            }
+        }
+        let off = XCUIApplication.teleop(["-startRoute", "t3_tutorial", "-assist", "NO", "-lockVariant", "off"])
+        off.launch()
+        expect(off, "tutorial.title")
+        let line = off.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'When the guide shows a target'"))
+            .firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5), "switch off: the guide's line")
+        XCTAssertEqual(
+            line.label,
+            "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close.",
+            "switch off: nothing about arrows")
+    }
+
+    /// Scrolls `page` up 100 points at a time, with no fling, until `done`.
+    private func scrollPage(_ page: XCUIElement, until done: () -> Bool) {
+        let from = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+        let to = from.withOffset(CGVector(dx: 0, dy: -100))
+        for _ in 0..<10 where !done() {
+            from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
         }
     }
 

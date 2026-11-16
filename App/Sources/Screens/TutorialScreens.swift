@@ -46,12 +46,16 @@ struct TutorialScreen: View {
             let taps = mode != .buttons && model.assist.goTo != nil && model.taskAid
             let tap: [LocalizedStringKey] = taps ? ["tutorial.cue.tap_to_go"] : []
             let lock: [LocalizedStringKey] = mode == .buttons ? [] : lockLine(model.assist.lock?.variant)
+            // The guide's arrows name the picture's forward and up, while the arm follows the phone's heading at each
+            // press: where the aids draw them, the guide's line also says they are not the hand's.
+            let arrows = model.assist.guide?.directionLabels == true
+            let onTarget: LocalizedStringKey = arrows ? "tutorial.cue.on_target_arrows" : "tutorial.cue.on_target"
             return Page(
                 title: "tutorial.cues.title",
                 lines: ["tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go"]
                     + holdStill + [
-                        "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
-                        "tutorial.cue.grip", "tutorial.cue.alarm",
+                        "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", onTarget, "tutorial.cue.grip",
+                        "tutorial.cue.alarm",
                     ] + tap + lock)
         }
     }
