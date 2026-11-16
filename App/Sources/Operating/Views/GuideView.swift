@@ -154,8 +154,10 @@ private enum GuideInk {
             style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
     }
 
-    /// Where a move to a point tapped on the guide is headed: a cross in the target's colour, its arms a little longer
-    /// than the ring's radius, so it reads apart from the dashed ring of where the arm is being sent now.
+    /// Where a move to a point tapped on the guide is headed: a white cross, since white is what belongs to the arm
+    /// (the ring of the jaws, the dashed ring of where the arm is being sent now) and the orange of the task object
+    /// would make the cross read as a mark on it. Its arms are a little longer than the ring's radius, so its shape
+    /// reads apart from both rings.
     static func goTarget(_ context: inout GraphicsContext, at centre: CGPoint, ring radius: Double) {
         let reach = radius * 1.6
         var cross = Path()
@@ -163,7 +165,7 @@ private enum GuideInk {
         cross.addLine(to: CGPoint(x: centre.x + reach, y: centre.y))
         cross.move(to: CGPoint(x: centre.x, y: centre.y - reach))
         cross.addLine(to: CGPoint(x: centre.x, y: centre.y + reach))
-        context.stroke(cross, with: .color(TeleopColors.guideTarget), lineWidth: 2)
+        context.stroke(cross, with: .color(.white), lineWidth: 2)
     }
 
     /// The shadow under the pinch point (the guide's aid): at the table it is the ring's size, and the higher the jaws
