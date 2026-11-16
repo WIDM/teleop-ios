@@ -32,9 +32,10 @@ Until frames are drawn, these screens and states differ from the file:
   frame has them.
 - The operating screen's two new states, "Locked on" and "Going", each with "Any key or touch stops it" and no
   scheme hint.
-- The amber "Stopped here" with the reason on the line under it, shown for a second after a follow or a move ended
-  for a reason the operator did not give, and the two new refusals of a tap ("Outside the work area", "No arm
-  data").
+- The amber "Stopped here" with the reason, when one was named, on the line under it, shown for a second after a
+  follow or a move ended for a reason the operator did not give, other than an arrival or an ending told by its own
+  cue alone (STOP, a lost link, a robot that stopped itself, a success, a refused start), and the two new refusals
+  of a tap ("Outside the work area", "No arm data").
 - The guide's additions: the Forward and Up arrows on the two views, the shadow under the jaws, the dashed lowest
   line from behind with "lowest" on the height read-out, the line that names the side the commanded place is
   outside the work area on, and the white cross where a move to a tapped point is headed.

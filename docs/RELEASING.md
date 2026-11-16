@@ -51,8 +51,8 @@ exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on 
 catalogs, that lacks English or Traditional Chinese. `check-format.sh` fails on any Swift file not laid out as
 `.swift-format` says; CI only reports it (`docs/TESTING.md` says why), so here is where it counts.
 
-Then the full default test plan, about half an hour, on an iPhone simulator nothing else uses and a Mac that
-stays awake (`docs/TESTING.md` explains both):
+Then the full default test plan, roughly three quarters of an hour, on an iPhone simulator nothing else uses and a
+Mac that stays awake (`docs/TESTING.md` explains both):
 
     xcodegen generate
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)

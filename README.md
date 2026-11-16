@@ -29,7 +29,7 @@ Run on an iPhone simulator or a phone (`docs/RELEASING.md` says how to install o
 neither a camera nor volume keys: there the phone modes cannot move the arm, and the buttons mode can.
 
 ```bash
-(cd Packages/TeleopCore && swift test)        # the core, in about half a minute, no iPhone simulator
+(cd Packages/TeleopCore && swift test)        # the core, in about a minute, no iPhone simulator
 SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
 xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
   -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO

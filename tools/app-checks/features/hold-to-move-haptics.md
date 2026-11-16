@@ -24,11 +24,13 @@ the screen is rarely needed.
 - Opening Settings, leaving the app or losing the camera ends every hold, with its stop sent to the server.
 - With the aids on, in the two phone modes: lock (chosen on the aids' page) keeps the arm following the phone with
   no key held, after a press of the upper key or after a thumb slid up the glass while the key is held; a tap on the
-  guide's view from above sends the jaws to that point. Latching plays a long buzz then a tick (latch) and "Locked
-  on."; a move that arrives plays end and "Arrived."; an ending the operator caused plays end and "Stopped here.".
-  A lost link, STOP or a robot that stopped itself, a success and a start that was refused are each told by their
-  own cue alone: let go with the lost link's sound and "Link lost."; the alarm; the success's sound and words; the
-  refusal. Any other ending plays let go, "Stopped here." and why, once, and the screen shows why for a second. A
+  guide's view from above sends the jaws to that point (a tap before the server has answered the last stop is refused
+  with no and "Wait.", and none is taken while the camera is stopped). Latching plays a long buzz then a tick (latch)
+  and "Locked on.", which is dropped if the alarm or "Link lost." comes before it is said; a move that arrives plays
+  end and "Arrived."; an ending the operator caused plays end and "Stopped here.". A lost link, STOP or a robot that
+  stopped itself, a success and a start that was refused are each told by their own cue alone: let go with the lost
+  link's sound and "Link lost."; the alarm; the success's sound and words; the refusal. Any other ending plays let
+  go, "Stopped here." and why, when a reason was named, once, and the screen shows the same words for a second. A
   limit that a move to a tapped point meets is told by the move's ending alone. The tutorial's last page teaches the
   lock chosen and the tap.
 

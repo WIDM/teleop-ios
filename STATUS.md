@@ -28,10 +28,13 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   - Tap-to-go: a tap on the guide's view from above sends the jaws there, up or down to a travel height first and
     then level. It ends when the arm arrives, when it settles short, when no fresh arm position comes, at its time
     limit, or on any key or touch. A limit the move meets, such as the edge of the work area or something in its
-    path, is told by its ending alone.
-  - Every start and ending of a follow or a move nobody holds is told once, by a cue that is never dropped, and the
-    screen shows "Locked on" or "Going", and afterwards why it ended when the operator did not end it and it did not
-    arrive.
+    path, is told by its ending alone. A tap made before the server has answered the last stop the phone sent is
+    refused with "Wait." until an arm position from after that answer has come (or, when the answer is lost, until
+    the link's own 0.8 s wait for it has run out), and no tap is taken while the camera is stopped.
+  - Every start and ending of a follow or a move nobody holds is told once, and the screen shows "Locked on" or
+    "Going", and afterwards why it ended when the operator did not end it and it did not arrive. The cue of an ending
+    is never dropped; a "Locked on." not yet said when the alarm or "Link lost." comes is dropped, since the follow is
+    over and the latch was felt.
   - The guide's additions: the commanded place leaving the work area is felt, said with its side and shown under
     the guide; an arm that cannot go lower says "Can't go lower." and the guide marks the lowest height; a shadow
     under the jaws; Forward and Up arrows on the two views.
