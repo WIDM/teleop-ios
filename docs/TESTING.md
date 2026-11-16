@@ -16,13 +16,13 @@ to the real thing.
 
 | Layer | Where | What it can catch | What it cannot catch |
 |---|---|---|---|
-| Core | `Packages/TeleopCore/Tests/TeleopCoreTests` | a wrong rule in the session, the link, the feedback, the recorder narration, the input rules or the buttons mode, with hand-written messages and a test clock | anything the real server does differently from what the test author wrote down |
+| Core | `Packages/TeleopCore/Tests/TeleopCoreTests` | a wrong rule in the session, the link, the feedback, the recorder narration, the input rules, the buttons mode or the hands-free aids (lock, tap-to-go and the path of a move, the work-area cue, the lowest rule), with hand-written messages and a test clock | anything the real server does differently from what the test author wrote down |
 | Server model rules | `RuleTests`, `RecorderTests` (in `RuleTests.swift`), `ProtocolTests` | the model breaking one of the server rules that have bitten the app (each is explained in `docs/PROTOCOL.md`): a start refused `busy` while the last hold finishes; the final ack that comes only after the hold has really ended; no `state` to a client while it keeps sending; the watchdog that ends a hold with no updates; the emergency stop; a scene reset sent right behind a stop; the workspace box; the arm trailing its target; success; the recorder | whether the real server still behaves so |
 | Conformance | `ConformanceTests` | the model drifting from the real server in any of the 18 recorded scenarios | situations no recording has: the recorder on, a success, a tracking stop |
 | Link against the model | `LinkTests`, `FeedbackFromModelTests`, `NarrationTests` | the app's real `TeleopLink`, `FeedbackMonitor` and `RecorderNarrator` disagreeing with the server's rules, in one process on a test clock | sockets, threads, real time |
 | Socket host | `LocalTeleopServerTests` | `LocalTeleopServer` failing to serve the model on a real WebSocket at 127.0.0.1 | the app |
-| App | `Tests/TeleopTests` | the wiring of `AppModel`, `OperatingController` and `LiveLinkController` over a fake socket on a test clock (`LiveLinkTests`, `OperatingLinkTests`, `AppModelTests`), and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, and, through raw inputs only, `LocalOperatorTests`, `LocalPickAndPlaceTests` and `LinkStallTests`); the operating state (`OperatingRulesTests`); the guide's numbers (`GuidePictureTests`); the robot profile (`RobotProfileTests`, `ServerModelProfileTests`); the spoken strings in both languages (`SpeechTextTests`) | ARKit (the phone's pose is scripted), real touches, the volume keys themselves, what the operator actually feels or hears, the real server |
-| UI | `Tests/TeleopUITests` | every operating state, in both languages and at two screen heights (`OperatingScreenTests`); touches on the bands and the gear (`OperatingTouchTests`); where the STOP band ends on every screen, read from the picture's pixels, and that a press under it does nothing (`StopBandTests`); scheme B's words against everything else on the screen (`SchemeBHintTests`); practice, Settings, Connect, the tutorial and the first-run camera prompt (`PracticeTests`, `SettingsTests`, `ConnectFlowTests`, `ManualCheckTests`); the app connecting to a model served by the test process (`LocalServerUITests`); which haptics the app asks for | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
+| App | `Tests/TeleopTests` | the wiring of `AppModel`, `OperatingController` and `LiveLinkController` over a fake socket on a test clock (`LiveLinkTests`, `OperatingLinkTests`, `AppModelTests`), and over real sockets to the local server in real time (`LocalServerTests`, `ObserverTests`, and, through raw inputs only, `LocalOperatorTests`, `LocalPickAndPlaceTests` and `LinkStallTests`); the operating state (`OperatingRulesTests`); the guide's numbers (`GuidePictureTests`); the robot profile (`RobotProfileTests`, `ServerModelProfileTests`); the spoken strings in both languages (`SpeechTextTests`); the hands-free aids: their settings and what the input rules are told (`AssistModelTests`, `OffPlanTests`), each ending of a follow or a move nobody holds carried and heard once (`AssistControllerTests`, `AssistLinkTests`, `LooseEndingHeardTests`, `DriveCuePlayTests`), the guide's cues at the link (`GuideAidsLinkTests`), the guide's additions and the on-target window (`GuidePictureAssistTests`, `OnTargetWindowTests`, `SingleGuidePictureTests`), the locked, going and ended states (`OperatingRulesAssistTests`), the profile's numbers for the aids (`RobotProfileAssistTests`), and lock and taps through raw inputs against the local server (`LocalAssistTests`) | ARKit (the phone's pose is scripted), real touches, the volume keys themselves, what the operator actually feels or hears, the real server |
+| UI | `Tests/TeleopUITests` | every operating state, in both languages and at two screen heights (`OperatingScreenTests`); touches on the bands and the gear (`OperatingTouchTests`); where the STOP band ends on every screen, read from the picture's pixels, and that a press under it does nothing (`StopBandTests`); scheme B's words against everything else on the screen (`SchemeBHintTests`); practice, Settings, Connect, the tutorial and the first-run camera prompt (`PracticeTests`, `SettingsTests`, `ConnectFlowTests`, `ManualCheckTests`); the app connecting to a model served by the test process (`LocalServerUITests`); which haptics the app asks for; the aids' controls in Settings and their tutorial lines (`AssistSettingsTests`), the locked, going and ended states and the guide with its aids (`AssistOperatingScreenTests`, `GuideAidsScreenTests`), and a tap on the drawn view from above against one just outside it (`GuidePanelTapUITests`) | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
 | Live | `OperatorLiveTests`, `ServerMotionTests` in `Tests/TeleopTests` | the app against the real server in Isaac Sim: its lag, its safety stop, a pick-and-place in each control mode | anything, unless someone runs it: it moves the shared arm in Isaac Sim, so it never runs by default or in CI |
 
 Two more checks sit beside the tests:
@@ -57,6 +57,18 @@ The socket host needs Network.framework, so its tests run only on a Mac.
 `InputArbiterPropertyTests` generates 12,000 cases from a fixed seed (`SplitMix64`), so a failure names the case
 index and replays the same way every time. `HomeSwipeTests` replays, sample by sample, the swipes home and the
 taps on the STOP band that a person's phone logged.
+
+The hands-free aids are held to version 1.0.1 when they are off, without a list of features written by hand:
+
+- `AssistConfigTests` checks by reflection that `Assist.off` has every member nil.
+- `OffEqualsVersion101Tests` feeds the property test's 12,000 cases both to today's input rules with `Assist.off`
+  and to `InputArbiter101`, a frozen copy of version 1.0.1's input rules in the test target, and wants the same
+  commands and the same state of every input at every step. `FeedbackMonitorLowestTests` compares today's
+  `FeedbackMonitor` with the lowest rule off against `FeedbackMonitor101`, a frozen copy of version 1.0.1's. Each
+  frozen copy says at its top how it was made, and is never edited to make a test pass.
+- `AssistPropertyTests` generates 12,000 cases with the aids (one in five with `.off`), checks the promises of lock
+  and tap-to-go after every step, and compares each case with an `.off` twin up to the first new gesture.
+- The AssistOff plan (below) runs the app's unit tests again with the master switch off.
 
 ### The app and UI tests
 
@@ -101,6 +113,11 @@ The AssistOff plan runs the app's unit tests again with the aids' master switch 
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan AssistOff \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
+Both plans must pass with the same tests unedited, so the aids' saved settings must never leak from one test into
+another. An app test that turns the master switch or the lock choice removes both saved keys in its tearDown and
+never puts back a value it read. A UI test cannot remove a saved setting afterwards, so every UI test that needs the
+aids pins both at launch (`-assist`, `-lockVariant`, below) and never turns either in the app.
+
 ### Launch arguments for UI tests
 
 The app reads these from its launch arguments (`XCUIApplication.launchArguments`). Every UI test launch passes
@@ -125,11 +142,15 @@ The app is silent by itself as the unit-test host.
 
 ## The default and the live test plans
 
-The scheme has two test plans (`TestPlans/`):
+The scheme has three test plans (`TestPlans/`):
 
 - **Default** runs every test in `TeleopTests` and `TeleopUITests` except `OperatorLiveTests` and
   `ServerMotionTests`. It needs no server: the tests that need one start the model on a local socket themselves.
-  It is what CI runs.
+  CI runs it first.
+- **AssistOff** runs the same tests of `TeleopTests`, not the UI tests, launched with the hands-free aids' master
+  switch off (`-assist NO`), with `TELEOP_EXPECT_ASSIST_OFF` set so that `OffPlanTests` runs and fails if the
+  switch did not reach them. It shows that every app test, those written for version 1.0.1 included, passes
+  unedited with the aids off. It needs no server either. CI runs it after Default.
 - **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
 
 The live tests move the arm in Isaac Sim on a machine other people use, so three things guard them:
@@ -234,6 +255,14 @@ but whose answer the lost link kept back.
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,
 the app leaves the foreground or the camera stops.
 
+`LocalAssistTests` does the same for the hands-free aids, with the gestures in `ScriptedOperator+Assist.swift`: a
+follow latched by each lock variant in both schemes, and its endings, each heard once; a tap on the guide's view
+from above that arrives, in both schemes; a tap in the view's margin, refused with no start; a move that a server
+with a smaller box cuts short, heard once; a stall of the network path during a move, heard once as no arm data; an
+object held in the jaws carried by a move; and a touch during a move that stops it and starts nothing else while
+that thumb stays down. No view lays out the screen in the unit-test host, so for a tap the hand also reports where
+the guide's view from above is drawn, as the operating screen does.
+
 `TeleopServerModel` (`Packages/TeleopCore/Sources/TeleopServerModel`) is one deterministic type with time passed
 in. It applies the server's WebSocket rules and runs its simulation loop over a small world. Every number it uses
 is in `ServerModelConfig`, with where it came from. `LocalTeleopServer` (`Sources/TeleopServerHost`) serves it on a
@@ -313,8 +342,11 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 2. `swift test` in `Packages/TeleopCore`;
 3. `brew install xcodegen` and `xcodegen generate`;
 4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
-   `CODE_SIGNING_ALLOWED=NO`;
-5. it uploads the xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+   `CODE_SIGNING_ALLOWED=NO`, logged to `build/xcodebuild.log` with its result bundle;
+5. `xcodebuild test` with the AssistOff plan on the same iPhone simulator, logged to
+   `build/xcodebuild-assist-off.log`;
+6. it uploads both xcodebuild logs, the screenshots the UI tests attach, and the Default plan's result bundle as
+   artifacts.
 
 The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
 older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs

@@ -19,6 +19,19 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   Traditional Chinese.
 - Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
 - Every operating state drawn in both languages at two screen heights.
+- The hands-free aids, behind one master switch in Settings, on by default; with it off the app behaves as version
+  1.0.1, and the app's unit tests pass unedited in a test plan that turns it off.
+  - Lock, chosen in Settings, in the two phone modes: a press of vol+, or a thumb slid up the glass while vol+ is
+    held, keeps the arm following the phone with no key held, until any key or touch, STOP, the robot profile's time
+    limit, lost tracking or a phone no longer held upright stops it.
+  - Tap-to-go: a tap on the guide's view from above sends the jaws there, up or down to a travel height first and
+    then level. It ends when the arm arrives, when it settles short, when no fresh arm position comes, at its time
+    limit, or on any key or touch.
+  - Every start and ending of a follow or a move nobody holds is told once, by a cue that is never dropped, and the
+    screen shows "Locked on" or "Going", and afterwards why it ended when the operator did not end it.
+  - The guide's additions: the commanded place leaving the work area is felt, said with its side and shown under
+    the guide; an arm that cannot go lower says "Can't go lower." and the guide marks the lowest height; a shadow
+    under the jaws; Forward and Up arrows on the two views.
 
 ## Only a person can check
 
@@ -35,6 +48,11 @@ nothing, so none of those swipes stops the robot. One press aimed at scheme B's 
 band; scheme B's words sit halfway up the screen, away from the band. Not yet checked on a phone: other hands, the
 12 pt edge rule, a swipe home that begins above the home indicator, and how often a press on scheme B's halves lands
 on the STOP band with the words halfway up.
+
+The hands-free aids are not yet checked on a phone with a person's hand: how the latch's pattern feels beside GO
+and END; the lock's slide (`InputConstants.slideUnderWayMm`) and the tap's limits (`tapMaxS`, `tapSlopMm`), which
+no hand traces have set yet; whether the robot profile's numbers for the lock and for a move to a tapped point
+(`RobotProfile.assist`) suit a real arm's lag; and the lowest rule's numbers (`FeedbackMonitor`).
 
 ## Known not to work
 
@@ -58,6 +76,16 @@ on the STOP band with the words halfway up.
 - Nothing ends the holds when the phone overheats.
 - Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
   the value the profile keeps until a check on the live robot sets it.
+- An ending of a follow that comes within about 0.36 s of its latch has no vibration of its own, because the
+  latch's pattern is still playing; its words still play.
+- The ending heard when the app leaves the foreground during a follow or a move ("Stopped here. You left the app.")
+  is raised as the app goes, and may not be heard.
+- When the server goes quiet during a move to a tapped point, the operator hears "Stopped here. No arm data." and
+  about a second later "Link lost.": two cues for one cause.
+- "Can't go lower." stays quiet on a link whose states arrive more than 0.4 s apart (`FeedbackMonitor.arrivalGapMs`),
+  and a first stall on top of an object leaves the remembered lowest height there until a stall lower down.
+- The robot profile gives no wider on-target window yet (`RobotProfile.onTargetWindow` is nil), so "On target" uses
+  the grasp tolerance with the aids on as well.
 
 ## Left out of version 1
 

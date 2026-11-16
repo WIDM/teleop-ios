@@ -19,4 +19,25 @@ strip under it), the fill colours, and the two views of the guide. What differs,
 - The status bar and the home indicator are not drawn, and the gear is drawn as an outline.
 - The Android frames use 36 pt and 24 pt as stand-ins for the system's top and bottom insets.
 
+## Not drawn yet: what version 1.1.0 adds
+
+Version 1.1.0 adds the hands-free aids (`docs/ARCHITECTURE.md`, "The hands-free aids"). None of what they put on
+the screen is drawn in the Figma file yet: the frames show the operating screen and the tutorial as they are with
+the master switch off, and Settings as it was before the aids. Until frames are drawn, these screens and states
+differ from the file:
+
+- Settings: the aids' controls, the master switch and the lock choice. No frame of Settings has them.
+- The operating screen's two new states, "Locked on" and "Going", each with "Any key or touch stops it" and no
+  scheme hint.
+- The amber "Stopped here" with the reason on the line under it, shown for a second after a follow or a move ended
+  for a reason the operator did not give, and the two new refusals of a tap ("Outside the work area", "No arm
+  data").
+- The guide's additions: the Forward and Up arrows on the two views, the shadow under the jaws, the dashed lowest
+  line from behind with "lowest" on the height read-out, the line that names the side the commanded place is
+  outside the work area on, and the white cross where a move to a tapped point is headed.
+- The tutorial's last page: the line for the lock chosen, the line for the tap, and the sentence about the guide's
+  arrows.
+- The reference page: its states, words, cues and strings are those of 1.0.0, without the latch's pattern, the
+  spoken endings and the new strings.
+
 `docs/figma-map.md` maps the file's older Mockup v2 frames, which show the screens the app had before 1.0.0.
