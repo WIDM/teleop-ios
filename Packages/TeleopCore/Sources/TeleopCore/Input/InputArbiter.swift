@@ -1166,7 +1166,11 @@ public struct InputArbiter: Sendable {
             cue(.refused(.outsideWorkArea))
             return
         }
-        guard let fix = facts.arm, fix.ageS <= GoMove.freshS else {
+        // A reading with a part that is not a finite number is no position: a move from it would have a time limit that
+        // never comes, or ask for offsets the link drops.
+        guard let fix = facts.arm, fix.ageS <= GoMove.freshS,
+            [fix.pinch.x, fix.pinch.y, fix.pinch.z].allSatisfy(\.isFinite)
+        else {
             cue(.refused(.noArmData))
             return
         }

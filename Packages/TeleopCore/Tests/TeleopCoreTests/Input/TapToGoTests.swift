@@ -109,6 +109,33 @@ final class TapToGoTests: XCTestCase {
         XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.startTranslation], "0.4 s old is still fresh")
     }
 
+    /// A reading with a part that is not a finite number is no position: a move from it would have no time limit that
+    /// ever comes, or ask for offsets the link drops. It is refused as a missing reading is, also when the reading may
+    /// be from before the last stop's answer, and nothing starts. Where a finite reading puts the arm is still no
+    /// reason: one far outside the box starts a move.
+    func testATapFromAReadingThatIsNotAPointIsRefused() {
+        let readings: [(String, SIMD3<Double>)] = [
+            ("an infinite height", SIMD3(arm.x, arm.y, .infinity)),
+            ("a side that is not a number", SIMD3(.nan, arm.y, arm.z)),
+        ]
+        for (name, pinch) in readings {
+            for heard in [true, false] {
+                var rig = aided()
+                rig.facts = Rig.goFacts(arm: pinch)
+                rig.facts.arm?.heardAfterLastStop = heard
+                let what = "\(name), heard after the last stop: \(heard)"
+                XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.cue(.refused(.noArmData))], what)
+                XCTAssertNil(rig.arbiter.engagement, what)
+                XCTAssertEqual(rig.arbiter.startsThisCall, [], what)
+            }
+        }
+        var far = aided()
+        far.facts = Rig.goFacts(arm: SIMD3(5, -200, 52.5))
+        XCTAssertEqual(far.tap(1, at: point, after: 0.1), [.startTranslation], "a far-off reading still goes")
+        XCTAssertTrue(far.isGoing)
+        XCTAssertEqual(far.arbiter.startsThisCall, [.going])
+    }
+
     /// A move's offsets are measured from the reading at the tap, and the server applies them from where the arm stands
     /// when it takes the start. A reading that may be from before the server finished the last hold this phone ended
     /// refuses the tap as "Wait.", and nothing starts; once one from after it has come, the same tap goes.
