@@ -40,13 +40,17 @@ the screen is rarely needed.
   (`Buttons/` tests), the cues (`CueTableTests`, `FeedbackMonitorTests`, `OnTargetCueTests`), `HapticPatternTests`.
 - Core, the aids: `OffEqualsVersion101Tests` (with the aids off, the input rules equal version 1.0.1's on the same
   12,000 cases), `AssistPropertyTests` (generated cases with the aids), `LockPressPressTests`, `LockHoldSlideTests`,
-  `TapToGoTests`, `GoingTests`, `LooseEndingsTests`, `DriveCueTests`.
+  `TapToGoTests`, `GoingTests`, `LooseEndingsTests`, `DriveCueTests`, and `GoMoveFollowTests` and `GoingFollowTests`
+  (a move that follows the pinch point a server reports, also on an arm whose pinch point turns with its posture).
+- Server model: `ToolTurnTests` (the model's pinch point that turns with the arm's posture, which the app's local
+  runs of a following move meet, and a model that stops reporting it during a run).
 - App: `OperatingLinkTests` (what each mode streams), `LiveLinkTests.testMovingThePhoneTooFastEndsTheHold` and the
   tests around it, `LocalOperatorTests` (the wrist in each scheme, holds ended by Settings, the background and the
   camera), and `LocalPickAndPlaceTests`, which picks up and places the task object in every mode against the local
   server. With the aids: `LooseEndingHeardTests` (every ending of a follow or a move nobody holds heard once),
   `AssistControllerTests`, `AssistLinkTests` and `LocalAssistTests` (lock and taps through raw inputs against the
-  local server). The AssistOff test plan runs every app test again with the aids off.
+  local server), and `LocalFollowTests` (moves to a tapped point against a local server whose pinch point turns with
+  the arm's posture). The AssistOff test plan runs every app test again with the aids off.
 - UI: `OperatingScreenTests` draws every operating state, and `AssistOperatingScreenTests` the states of the aids;
   `-recordHaptics YES` puts the haptics the app asks for in a hidden element (`test.haptics`) a UI test can read.
 - By hand, on a phone: XCUITest cannot press the volume keys or move the phone, and the iPhone simulator has no

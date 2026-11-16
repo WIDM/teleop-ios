@@ -470,12 +470,13 @@ a drift: at each fresh reading (a state not taken before, by when it was measure
 reading's change of the offset since the tap, and the gripper link asked for is kept inside the move's box less the
 tap's offset. The command starts at half the profile's speed. At each fresh reading after at least 2 mm of gripper-link
 travel since the last such measure, the offset's change divided by that travel is its swing, and the command then
-moves at the profile's speed times 0.25 over the swing, never faster than the speed and never under 0.15 of it: it
-slows where the offset swings by more than a quarter of what the link moves, as it does near the base. A pace measured
-after a leg's command has reached its end applies to the next leg, so the command never goes back along a finished
-leg. A fresh reading more than 2.5 arrive tolerances off the leg ahead, or one that does not report the pinch point,
-ends the move stopped short: the jaws are not going where they are sent (a place they cannot reach, a posture in which
-they move against the link, something in the way), and nothing is steered on an estimate. While the newest reading is
+moves at the profile's speed times 0.25 over the swing, never faster than the speed and never under 0.15 of it; a new
+pace within five percent of the one it has is not taken. So it slows where the offset swings by more than a quarter
+of what the link moves, as it does near the base. A pace measured after a leg's command has reached its end applies
+to the next leg, so the command never goes back along a finished leg. A fresh reading more than 2.5 arrive tolerances
+off the leg ahead, or one that does not report the pinch point, ends the move stopped short: the jaws are not going
+where they are sent (a place they cannot reach, a posture in which they move against the link, something in the way),
+and nothing is steered on an estimate. While the newest reading is
 older than `FeedbackMonitor.freshStateMs`, the command waits where it is and goes on from there at the next fresh
 reading. With no pinch point reported at the tap the move follows nothing: it is planned as if the pinch point moved
 with the gripper link, as before. A tap on a place the jaws cannot reach at the travel height is not refused
@@ -483,10 +484,11 @@ beforehand: a following move to it stops short near the edge of reach.
 
 A move ends on measured positions (arrived; settled short of the target; for a following move, a reading off the leg
 ahead or without the pinch point; no fresh position for the profile's timeout) or at its deadline, which grows with
-the path's length and with each correction, and for a following move with the slow start, each slow-down and each
-wait for a fresh reading. A move does not watch the phone: tracking, posture and the phone's speed do not end it, the
-phone does not steer it, and the link starts it without a pose. The link streams its offset through the same lead cap
-and re-sent start as every arm hold.
+the path's length and with each correction, and for a following move with the slow start, each slow-down measured
+while a leg's command is still moving and each wait for a fresh reading; a pace measured after a leg's command has
+reached its end is kept for the next leg and adds nothing. A move does not watch the phone: tracking, posture and the
+phone's speed do not end it, the phone does not steer it, and the link starts it without a pose. The link streams its
+offset through the same lead cap and re-sent start as every arm hold.
 
 The operator steers nothing during a move, so a limit the move meets is told once, by its ending. While it runs,
 the link plays none of the work-area cue, the server's clamp END, "Blocked." and "Can't go lower.", and the guide
@@ -648,10 +650,10 @@ stays until someone has read the change and moved the sync commit.
 | `lock` (`LockLimits.timeLimitS`) | how long a latched follow may run, counted from the latch; a robot allows lock exactly when it gives this |
 | `goTo.travelHeightM` | the pinch point's height above the table for the level leg of a move to a tapped point |
 | `goTo.speedMps` | the top speed of the commanded pinch point along the path; a move that follows the reported pinch point starts at half of it and goes at 0.15 to 1 of it |
-| `goTo.arriveToleranceM` | a fresh measured pinch point this close to the target has arrived; one no lower than the travel height less this starts the level leg; a following move stops short at a fresh reading 2.5 times this off the leg ahead |
+| `goTo.arriveToleranceM` | a fresh measured pinch point this close to the target has arrived; one no lower than the travel height less this starts the level leg; a following move stops short at a fresh reading more than 2.5 times this off the leg ahead |
 | `goTo.corrections`, `goTo.correctionReachM` | how many times a move that settled short may aim again, and the longest remainder it aims again by |
 | `goTo.settleS` | how long fresh measured positions must stay within 2 mm, with the command at its leg's end, to count as settled |
-| `goTo.timeFactor`, `goTo.allowanceS` | the deadline: the path's length over the speed, times the factor, plus the allowance; each correction adds its own share, and so do a following move's slow start, each slow-down and each wait for a fresh reading |
+| `goTo.timeFactor`, `goTo.allowanceS` | the deadline: the path's length over the speed, times the factor, plus the allowance; each correction adds its own share, and so do a following move's slow start, each slow-down measured while a leg's command is still moving and each wait for a fresh reading; a pace measured after a leg's command has reached its end is kept for the next leg and adds nothing |
 | `goTo.armDataTimeoutS` | no measured position younger than this ends the move ("No arm data.") |
 | `goTo.startGraceS` | no stall is judged from positions measured this soon after the start, or after the end of the hold's last pause if that is later, unless the arm has already moved 2 mm |
 | `guide` | which of the guide's additions run (`GuideAids`) |
@@ -666,9 +668,12 @@ and `tapSlopMm`, the last parameters of its initializer. A few numbers that come
 to the code that uses them: the 8 cm cap per server hold and the 1.5 s resync (`LiveLinkController`), the ranges the
 server accepts for `pose_start` (`PoseParams`), and the buttons' speeds (`ButtonSpeed`). Numbers that are about a
 judgement rather than about an arm sit beside the rule that uses them: the work-area cue's slack, re-arm and gap
-(`WorkAreaCue`), the lowest rule's (`FeedbackMonitor`), and a following move's, which have no unit (`GoMove`: the
-half step towards each reading's offset, the half-speed start, the pace's gain of 0.25 and floor of 0.15, and the 2.5
-arrive tolerances off the leg ahead).
+(`WorkAreaCue`), the lowest rule's (`FeedbackMonitor`), and a following move's, which have no unit (`GoMove`):
+`followShare` (0.5), the share of the way each fresh reading moves the drift towards that reading's change of offset;
+`paceGain` (0.25), the pace's gain: the share of the speed is this over the swing; `slowestShare` (0.15), the slowest
+share of the speed; `startShare` (0.5), the share of the speed a following move starts at; and `pathWatchTolerances`
+(2.5): a fresh reading more than this many arrive tolerances off the leg ahead ends the move. A pace changes only when
+the new one differs from it by more than five percent.
 
 ## The server model used by tests
 

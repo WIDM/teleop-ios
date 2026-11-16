@@ -51,17 +51,18 @@ exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on 
 catalogs, that lacks English or Traditional Chinese. `check-format.sh` fails on any Swift file not laid out as
 `.swift-format` says; CI only reports it (`docs/TESTING.md` says why), so here is where it counts.
 
-Then the full default test plan, the app's unit tests and more than half an hour of UI tests, on an iPhone simulator
-nothing else uses and a Mac that stays awake (`docs/TESTING.md` explains both). Use an iPhone simulator where the
-aids' settings were never changed by hand, or erase it first: the unit tests read what it has saved.
+Then the full default test plan, the app's unit tests and then the UI tests, about three quarters of an hour with its
+build, on an iPhone simulator nothing else uses and a Mac that stays awake (`docs/TESTING.md` explains both). Use an
+iPhone simulator where the aids' settings were never changed by hand, or erase it first: the unit tests read what it
+has saved.
 
     xcodegen generate
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
-After it, on the same iPhone simulator, the AssistOff plan: the app's unit tests again with the hands-free aids'
-master switch off, which shows that they pass unedited with the aids off:
+After it, on the same iPhone simulator, the AssistOff plan, about seven minutes: the app's unit tests again with the
+hands-free aids' master switch off, which shows that they pass unedited with the aids off:
 
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan AssistOff \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
