@@ -472,9 +472,9 @@ final class LocalAssistTests: XCTestCase {
         try aMoveTheServerCutsShortEndsOnce(.keyTurns)
     }
 
-    /// The network path stalls for 2.5 s while the arm is on its way: longer than a move waits for arm data, shorter
-    /// than the link waits before it gives up. The move ends on its own during the stall, it is heard once as no arm
-    /// data, with no link hiccup and no lost link after it, and the link stays.
+    /// The network path stalls while the arm is on its way and comes back as soon as the move has ended: a move waits
+    /// less long for arm data than the link waits before it gives up. The move ends on its own during the stall, it is
+    /// heard once as no arm data, with no link hiccup and no lost link after it, and the link stays.
     private func aStallDuringAMoveEndsItOnce(_ mode: ControlMode) throws {
         let path = StallingPath()
         try start(mode, lock: .off, path: path)
@@ -489,8 +489,9 @@ final class LocalAssistTests: XCTestCase {
         hand.pump(0.5)
         XCTAssertTrue(model.session.state.armMoving, "\(mode): on its way")
         path.stall()
-        _ = hand.wait(2.5, until: { false })
-        let endedDuringTheStall = !model.session.state.armMoving
+        // Resumed at the move's end rather than after a fixed time, so a slow turn of the run loop cannot carry the
+        // stall past the link's own wait. The limit only bounds a move that never ends.
+        let endedDuringTheStall = hand.wait(10, until: { !model.session.state.armMoving })
         path.resume()
         XCTAssertTrue(endedDuringTheStall, "\(mode): the move ended on its own, with no arm data")
         XCTAssertTrue(hand.wait(2, until: { !serverHolds }), "\(mode): the server's hold ended")
