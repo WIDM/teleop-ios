@@ -280,7 +280,8 @@ struct GoMove: Equatable, Sendable {
             paceOffset = offset
         }
         // The leg ahead, along the current leg to its end: from where the command was a settle time before the reading
-        // was measured, or from where it was when the leg began or its pace last changed, if that is later.
+        // was measured, or from where it was when the leg began, when its pace last changed or when the command last
+        // waited for a fresh reading, if that is later.
         let from = commanded(at: measuredAt - limits.settleS)
         let leg = legTo - from
         let lengthSquared = simd_length_squared(leg)
