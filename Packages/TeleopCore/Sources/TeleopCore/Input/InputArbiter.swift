@@ -1185,9 +1185,12 @@ public struct InputArbiter: Sendable {
             cue(.drive(.arrived))
             return
         }
-        // The box the target was judged against also bounds every correction of the move.
+        // The box the target was judged against also bounds every correction of the move. A reading that reported
+        // the pinch point gives the move its measured offset to follow.
+        let offset = fix.pinchReported ? fix.gripper.map { fix.pinch - $0 } : nil
         move = GoMove(
-            start: fix.pinch, target: target, limits: rule, at: now, boxLow: panel.boxLow, boxHigh: panel.boxHigh)
+            start: fix.pinch, target: target, limits: rule, at: now, boxLow: panel.boxLow, boxHigh: panel.boxHigh,
+            offset: offset)
         engaged = .going(target: target, since: now)
         deadenInputsDown()
         out.append(.startTranslation)

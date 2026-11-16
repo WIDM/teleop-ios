@@ -66,11 +66,21 @@ public struct ArmFix: Equatable, Sendable {
     /// applies them from where the arm stands when it takes the start, so a tap waits while this is false. A running
     /// move never reads it.
     public var heardAfterLastStop: Bool
+    /// The gripper link point (`ee_pos`) of the same state, robot base frame, metres. Nil: not told, and a move
+    /// follows nothing.
+    public var gripper: SIMD3<Double>?
+    /// The server reported the pinch point (`tool_pos`) in that state; false: `pinch` is the profile's estimate.
+    public var pinchReported: Bool
 
-    public init(pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool, heardAfterLastStop: Bool = true) {
+    public init(
+        pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool, heardAfterLastStop: Bool = true,
+        gripper: SIMD3<Double>? = nil, pinchReported: Bool = false
+    ) {
         self.pinch = pinch
         self.ageS = ageS
         self.holdPaused = holdPaused
         self.heardAfterLastStop = heardAfterLastStop
+        self.gripper = gripper
+        self.pinchReported = pinchReported
     }
 }
