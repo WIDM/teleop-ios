@@ -273,4 +273,38 @@ final class AssistControllerTests: XCTestCase {
         XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "no refusal")
         XCTAssertEqual(model.operating.state, .going(catchingUp: false))
     }
+
+    /// While the camera is stopped the guide is still drawn, but no key reaches the app and the screen says the camera
+    /// stopped, so a move started then could be neither seen nor stopped with a key, and the camera's return would end
+    /// it as if the app had been left. The input rules are given no panel meanwhile: a tap on the guide's view from
+    /// above starts nothing and tells nothing, and the camera's return tells no ending. Once it is back the panel
+    /// reaches the rules again.
+    func testATapWhileTheCameraIsStoppedStartsNothing() throws {
+        bringUp()
+        model.taskAid = true
+        let pinch = SIMD3<Double>(0.03, -0.18, 0.09)
+        let gripper = pinch - SIMD3<Double>(model.profile.toolOffset)
+        control?.server("state", ["estop": false, "gripper": "open", "ee_pos": [gripper.x, gripper.y, gripper.z]])
+        model.guidePanelChanged(SurfaceLayout.Rect(x: 118, y: 262, width: 166, height: 166))
+        let panel = try XCTUnwrap(model.inputFacts().goPanel)
+        let point = panel.point(over: SIMD3(0.07, -0.15, 0.09))
+        model.controller.cameraInterrupted(true)
+        XCTAssertNil(model.inputFacts().goPanel, "no panel reaches the rules while the camera is stopped")
+        mark = model.cueLog.count
+        clock += 100
+        model.touch(TouchSample(id: 1, phase: .began, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        clock += 50
+        model.touch(TouchSample(id: 1, phase: .ended, x: point.x, y: point.y, majorRadius: 8), at: Double(clock) / 1000)
+        XCTAssertEqual(model.controller.arbiter.startsThisCall, [], "nothing starts")
+        XCTAssertNil(model.controller.arbiter.engagement, "no move")
+        XCTAssertFalse(model.session.state.armMoving, "the arm stays")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "nothing is told")
+
+        clock += 1000
+        model.controller.cameraInterrupted(false)
+        XCTAssertFalse(endingsHeard.contains(.ended(.appLeft)), "the app was not left")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "the camera's return tells no ending")
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertNotNil(model.inputFacts().goPanel, "the panel reaches the rules again")
+    }
 }

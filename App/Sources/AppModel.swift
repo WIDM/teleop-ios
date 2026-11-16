@@ -486,10 +486,12 @@ final class AppModel {
             connectionUp: !s.liveLink || link.isUp || link.observerUp
         )
         // Tap-to-go starts from where the arm was measured and judges a tap against the panel drawn; without it the
-        // facts are version 1.0.1's.
+        // facts are version 1.0.1's. While the camera is stopped no key reaches the app and the screen says so, so a
+        // move started then could not be seen or stopped with a key: the rules get no panel, and a touch on the guide
+        // is what it was without tap-to-go.
         if assist.goTo != nil {
             facts.arm = armFix
-            facts.goPanel = goPanel
+            if !controller.isCameraStopped { facts.goPanel = goPanel }
         }
         return facts
     }
