@@ -62,6 +62,12 @@ public struct CueScheduler {
             queued.removeAll { $0.contains { $0.key == .notStopped } }
             if queued.count < waiting { refusalSpoken[.notStopped] = nil }
         }
+        // A "Locked on." still waiting for the voice would follow the alarm or "Link lost." about a follow that has
+        // ended. The latch was felt at its moment, and a waiting ending is still said, so nothing goes untold.
+        switch event {
+        case .emergencyStop, .linkLost: queued.removeAll { $0.contains { $0.key == .driveLocked } }
+        default: break
+        }
         if let haptic = row.haptic {
             let (played, lost) = startHaptic(haptic, for: event, at: now, currentHold: currentHold)
             outputs += played

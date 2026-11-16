@@ -55,12 +55,12 @@ final class AssistControllerTests: XCTestCase {
     }
 
     /// A model on a real server, in scheme A, with lock variant 1, whose link is not open yet.
-    private func makeModel() {
+    private func makeModel(speech: SpySpeech = SpySpeech()) {
         clock = 10_000
         control = nil
         tilted = false
         model = AppModel(
-            start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(),
+            start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: speech,
             pose: { [unowned self] in
                 tilted ? TestPose.portrait(turned: 60, about: SIMD3(0, 0, 1)) : TestPose.portrait
             },
@@ -80,8 +80,8 @@ final class AssistControllerTests: XCTestCase {
     }
 
     /// Standby with the link up.
-    private func bringUp() {
-        makeModel()
+    private func bringUp(speech: SpySpeech = SpySpeech()) {
+        makeModel(speech: speech)
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.connect()
         control?.server("welcome")
@@ -198,6 +198,34 @@ final class AssistControllerTests: XCTestCase {
         clock += 100
         model.keyEvent(.upper, down: false)
         XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.noLink)], "the release adds nothing")
+    }
+
+    /// Through the real cue player, with each phrase spoken until it is finished: "Locked on." waits behind "Ready.",
+    /// and STOP or a lost link comes before the voice is free. The alarm or "Link lost." cuts "Ready." off, and "Locked
+    /// on." is never said after it: the follow it announces is over. With neither, it is said once the voice frees.
+    func testALockedOnWaitingForTheVoiceIsNotSaidAfterStopOrLinkLoss() {
+        for ending in ["STOP", "a lost link", "neither"] {
+            let speech = SpySpeech()
+            speech.holds = true
+            bringUp(speech: speech)
+            XCTAssertEqual(speech.spoken, ["Ready."], ending)
+            latchTheArm()
+            XCTAssertEqual(speech.spoken, ["Ready."], "\(ending): Locked on. waits for the voice")
+            switch ending {
+            case "STOP": model.send(.stop)
+            case "a lost link": control?.onClose?()
+            default: break
+            }
+            if ending != "neither" {
+                XCTAssertEqual(speech.spoken.count, 2, "\(ending): told at once, cutting Ready. off: \(speech.spoken)")
+            }
+            for _ in 0..<4 {
+                clock += 1000
+                speech.finish()
+            }
+            XCTAssertEqual(
+                speech.spoken.contains("Locked on."), ending == "neither", "\(ending): \(speech.spoken)")
+        }
     }
 
     /// The operator's own ending is carried to the model as such.

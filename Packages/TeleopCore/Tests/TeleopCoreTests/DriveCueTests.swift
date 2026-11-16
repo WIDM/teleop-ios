@@ -154,4 +154,84 @@ final class DriveCueTests: XCTestCase {
         XCTAssertTrue(FeedbackMonitor.isToldElsewhere("estop_active"))
         XCTAssertFalse(FeedbackMonitor.isToldElsewhere("busy"))
     }
+
+    // MARK: A latch still waiting for the voice
+
+    /// The utterances among `outputs`, each with its id.
+    private func utterances(_ outputs: [CueOutput]) -> [(keys: [SpeechKey], id: Int)] {
+        outputs.compactMap {
+            if case .speak(let phrases, _, let id) = $0 { return (phrases.map(\.key), id) }
+            return nil
+        }
+    }
+
+    /// Lets the voice run dry from `now`: the utterance `current` ends, then each one after it, a second apart, and the
+    /// ticks that follow find nothing more. Returns everything said meanwhile, in order.
+    private func drain(_ scheduler: inout CueScheduler, current: Int, from now: Int) -> [[SpeechKey]] {
+        var said: [[SpeechKey]] = []
+        var next: Int? = current
+        var at = now
+        while let id = next {
+            let started = utterances(scheduler.speechFinished(id: id, at: at))
+            said += started.map(\.keys)
+            next = started.last?.id
+            at += 1000
+        }
+        for tick in 0..<5 { said += utterances(scheduler.tick(at: at + tick * 50, currentHold: nil)).map(\.keys) }
+        return said
+    }
+
+    /// "Locked on." waits behind a phrase still being said; STOP comes first. The alarm is said at once, and the
+    /// latch's words never follow it: the follow they announce is over.
+    func testTheAlarmDropsAWaitingLockedOn() throws {
+        var scheduler = CueScheduler()
+        let ready = try XCTUnwrap(utterances(scheduler.raise(.ready, at: 0, currentHold: nil)).first)
+        XCTAssertEqual(utterances(scheduler.raise(.drive(.latched), at: 300, currentHold: nil)).count, 0, "it waits")
+        let alarm = try XCTUnwrap(
+            utterances(scheduler.raise(.emergencyStop(.button, takeDiscarded: false), at: 600, currentHold: nil)).first)
+        XCTAssertEqual(alarm.keys.first, .estop, "the alarm is said at once")
+        XCTAssertEqual(utterances(scheduler.speechFinished(id: ready.id, at: 610)).count, 0, "the alarm has the voice")
+        let after = drain(&scheduler, current: alarm.id, from: 4100)
+        XCTAssertFalse(after.contains { $0.contains(.driveLocked) }, "\(after)")
+        XCTAssertFalse(scheduler.needsTicks, "nothing is left waiting")
+    }
+
+    /// The same with the link lost in place of STOP: "Link lost." is said, and "Locked on." never after it.
+    func testLinkLostDropsAWaitingLockedOn() throws {
+        var scheduler = CueScheduler()
+        let saved = try XCTUnwrap(utterances(scheduler.raise(.takeSaved(count: 4), at: 0, currentHold: nil)).first)
+        XCTAssertEqual(utterances(scheduler.raise(.drive(.latched), at: 400, currentHold: nil)).count, 0, "it waits")
+        let lost = try XCTUnwrap(
+            utterances(scheduler.raise(.linkLost(holdEngaged: true), at: 900, currentHold: nil)).first)
+        XCTAssertEqual(lost.keys, [.linkLost], "the lost link is said at once")
+        XCTAssertEqual(utterances(scheduler.speechFinished(id: saved.id, at: 910)).count, 0)
+        let after = drain(&scheduler, current: lost.id, from: 2000)
+        XCTAssertFalse(after.contains { $0.contains(.driveLocked) }, "\(after)")
+        XCTAssertFalse(scheduler.needsTicks, "nothing is left waiting")
+    }
+
+    /// With neither, the waiting "Locked on." is said as soon as the voice is free.
+    func testAWaitingLockedOnIsSaidWhenTheVoiceFrees() throws {
+        var scheduler = CueScheduler()
+        let ready = try XCTUnwrap(utterances(scheduler.raise(.ready, at: 0, currentHold: nil)).first)
+        XCTAssertEqual(utterances(scheduler.raise(.drive(.latched), at: 300, currentHold: nil)).count, 0, "it waits")
+        XCTAssertEqual(drain(&scheduler, current: ready.id, from: 700), [[.driveLocked]])
+    }
+
+    /// Only the latch's words are dropped: an ending or an arrival waiting behind the same phrase is still said after
+    /// the alarm or the lost link, so every ending is told once.
+    func testAWaitingEndingOrArrivalStillFollowsTheAlarm() throws {
+        let stops: [FeedbackEvent] = [.emergencyStop(.button, takeDiscarded: false), .linkLost(holdEngaged: true)]
+        for stop in stops {
+            var scheduler = CueScheduler()
+            let ready = try XCTUnwrap(utterances(scheduler.raise(.ready, at: 0, currentHold: nil)).first)
+            _ = scheduler.raise(.drive(.latched), at: 200, currentHold: nil)
+            _ = scheduler.raise(.drive(.stoppedByYou), at: 300, currentHold: nil)
+            _ = scheduler.raise(.drive(.arrived), at: 400, currentHold: nil)
+            let told = try XCTUnwrap(utterances(scheduler.raise(stop, at: 500, currentHold: nil)).first)
+            _ = scheduler.speechFinished(id: ready.id, at: 510)
+            let after = drain(&scheduler, current: told.id, from: 4000)
+            XCTAssertEqual(after, [[.driveStoppedHere], [.driveArrived]], "\(stop)")
+        }
+    }
 }
