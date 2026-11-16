@@ -41,9 +41,9 @@ struct TutorialScreen: View {
         default:
             // Holding still while the arm catches up is for the phone's motion: a held arrow keeps moving the arm.
             let holdStill: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.hold_still"]
-            // A tap needs the guide, which the phone modes draw; lock is a gesture of the keys and the thumb, and the
-            // pad's arrows never latch.
-            let taps = mode != .buttons && model.assist.goTo != nil
+            // A tap needs the guide, which the phone modes draw with the task aid on; lock is a gesture of the keys and
+            // the thumb, and the pad's arrows never latch.
+            let taps = mode != .buttons && model.assist.goTo != nil && model.taskAid
             let tap: [LocalizedStringKey] = taps ? ["tutorial.cue.tap_to_go"] : []
             let lock: [LocalizedStringKey] = mode == .buttons ? [] : lockLine(model.assist.lock?.variant)
             return Page(

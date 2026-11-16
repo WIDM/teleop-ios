@@ -89,19 +89,25 @@ final class AssistSettingsTests: XCTestCase {
     }
 
     /// The tutorial's last page says a tap on the guide's view from above sends the jaws there, in the phone modes with
-    /// the switch on, in both languages; with the switch off or in buttons mode it has no such line.
+    /// the switch on and the task aid on, in both languages; with the switch off, with the task aid off (no guide is
+    /// drawn to tap) or in buttons mode it has no such line.
     func testTheTutorialTeachesTheTap() {
-        let cases: [(assist: String, mode: String, language: String, line: String?)] = [
-            ("YES", "screenTurns", "en", "Tap the view from above to send the jaws there."),
-            ("YES", "keyTurns", "zh-Hant", "點一下「從上面看」的圖，夾爪就會移到那裡。"),
-            ("NO", "screenTurns", "en", nil),
-            ("YES", "buttons", "en", nil),
+        // The app reads the task aid as a saved Bool, which a launch argument gives only in property-list form; a
+        // plain NO would be read as no saved value, which is on.
+        let cases: [(assist: String, mode: String, taskAid: String, language: String, line: String?)] = [
+            ("YES", "screenTurns", "YES", "en", "Tap the view from above to send the jaws there."),
+            ("YES", "keyTurns", "YES", "zh-Hant", "點一下「從上面看」的圖，夾爪就會移到那裡。"),
+            ("NO", "screenTurns", "YES", "en", nil),
+            ("YES", "buttons", "YES", "en", nil),
+            ("YES", "screenTurns", "<false/>", "en", nil),
         ]
         for one in cases {
-            let what = "\(one.assist) \(one.mode) \(one.language)"
+            let what = "\(one.assist) \(one.mode) task aid \(one.taskAid) \(one.language)"
             let app = XCUIApplication.teleop(
-                ["-startRoute", "t3_tutorial", "-assist", one.assist, "-lockVariant", "off", "-controlMode", one.mode],
-                language: one.language)
+                [
+                    "-startRoute", "t3_tutorial", "-assist", one.assist, "-lockVariant", "off", "-controlMode",
+                    one.mode, "-taskAid", one.taskAid,
+                ], language: one.language)
             app.launch()
             expect(app, "tutorial.title")
             let tapLines = app.staticTexts.containing(
