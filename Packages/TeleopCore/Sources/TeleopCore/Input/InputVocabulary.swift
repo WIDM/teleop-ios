@@ -143,7 +143,7 @@ public struct InputFacts: Equatable, Sendable {
     /// The measured arm, for tap-to-go. Nil unless tap-to-go is allowed, and before the server has reported a position.
     public var arm: ArmFix?
     /// The guide's view from above as it is drawn now, for tap-to-go. Nil unless tap-to-go is allowed and the guide is
-    /// drawn.
+    /// drawn, and nil while the camera is stopped, since no key could then stop a move a tap started.
     public var goPanel: GoPanel?
 
     public init(
