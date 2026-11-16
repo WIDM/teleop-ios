@@ -36,8 +36,9 @@ private final class LooseLinkTransport: LinkTransport {
 /// alarm alone. A slow link is named by the input rules, never by a refusal. A hold someone holds is told as in
 /// version 1.0.1. The link also says where the arm was last measured, how long ago, and when it pauses a hold. A move
 /// to a point tapped on the guide streams the input rules' offsets through the lead cap and re-sends its start as a
-/// pad hold does, and the limits it meets are told by its ending alone: neither a side nor the server's clamp is heard
-/// while it goes, and the guide shows no side for it, where a latched follow, which the phone steers, is told its side.
+/// pad hold does, and the limits it meets are told by its ending alone: neither a side, the server's clamp nor
+/// "Blocked." is heard while it goes, and the guide shows no side for it, where a latched follow, which the phone
+/// steers, is told its side and "Blocked.".
 final class AssistLinkTests: XCTestCase {
     private var transport: LooseLinkTransport!
     /// The listening connection's socket, once the link opened it.
@@ -672,6 +673,92 @@ final class AssistLinkTests: XCTestCase {
         }
         XCTAssertEqual(model.link.commandOutside, .forward, "the guide shows the side")
         XCTAssertEqual(heard, [.commandOutside(.forward)], "told its side")
+    }
+
+    /// How far to the operator's left of where the gripper link stood the smaller server box below lets it go: farther
+    /// than one server hold may ask for, so a command held at the lead cap is still inside it, and short of the 12 cm
+    /// the tests here ask for.
+    private static let smallerBoxReach = 0.095
+
+    /// Runs the translation hold against a server whose box is smaller than the profile's: it keeps the gripper link
+    /// within `smallerBoxReach` to the operator's left of `gripperStart`, the arm following the command at once up to
+    /// there, and it says it clamped whenever the command is past that. Each step: `hand` with the step's number, a
+    /// link tick, the server's answers and a state, and the input rules' tick; `steps` steps, or until the hold ends.
+    /// The server finishes an old hold `stopAnsweredAfter` steps after the link stopped it to re-send its start.
+    /// Returns the label of the first state after the re-sent start; nil when no start was re-sent.
+    private func runAgainstASmallerServerBox(
+        from gripperStart: SIMD3<Double>, stopAnsweredAfter wait: Int, steps: Int, hand: (Int) -> Void = { _ in }
+    ) -> String? {
+        let edge = gripperStart.x + Self.smallerBoxReach
+        var stopsAnswered = 0
+        var waited = 0
+        var firstAfterTheResentStart: String?
+        for step in 0..<steps where model.session.state.armMoving {
+            hand(step)
+            run(ticks: 1)
+            if transport.types.filter({ $0 == "pose_stop" }).count > stopsAnswered {
+                if waited >= wait {
+                    serverAnswers("ok", "pose_stopped")
+                    stopsAnswered += 1
+                    waited = 0
+                } else {
+                    waited += 1
+                }
+            }
+            let commanded = model.link.commandedArm.map { SIMD3<Double>($0) } ?? gripperStart
+            let arm = SIMD3(min(commanded.x, edge), commanded.y, commanded.z)
+            let label = commanded.x > edge ? "pose_clamped" : "pose_tracking"
+            if firstAfterTheResentStart == nil, transport.types.filter({ $0 == "pose_start" }).count > 1 {
+                firstAfterTheResentStart = label
+            }
+            transport.server(
+                "state", ["estop": false, "gripper": "closed", "ik": label, "ee_pos": [arm.x, arm.y, arm.z]])
+            model.controller.tick()
+        }
+        return firstAfterTheResentStart
+    }
+
+    /// The hand at 4 cm a second to the operator's left (ARKit −x), `step` ticks after the latch, up to 12 cm.
+    private func handLeft(_ step: Int) {
+        position = SIMD3(-Float(min(0.12, 0.04 * 0.033 * Double(step + 1))), 0, 0)
+    }
+
+    /// A move 12 cm to the left, longer than the lead cap, against a server whose box ends 9.5 cm along: the start is
+    /// re-sent part way, and the move corrects and stops short. The operator steered nothing, so the limit is told
+    /// once, by the move's ending: GO, then the ending, nothing between. So also when the server finishes the old hold
+    /// late and answers the re-sent start clamped at once, before it says it tracks that hold: no END is played for
+    /// that clamp, and the arm then stands short of the command for more than a second, which is not told "Blocked.".
+    func testAMoveLongerThanTheLeadCapIsToldByItsEndingAloneAgainstASmallerServerBox() {
+        let answers: [(String, Int, String)] = [
+            ("the stop answered at once", 0, "pose_tracking"),
+            ("the stop answered late", 20, "pose_clamped"),
+        ]
+        for (what, wait, firstAnswer) in answers {
+            tapAMove()
+            let gripperStart = goStart - SIMD3<Double>(model.profile.toolOffset)
+            let answer = runAgainstASmallerServerBox(from: gripperStart, stopAnsweredAfter: wait, steps: 300)
+            XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "\(what): the start re-sent once")
+            XCTAssertEqual(answer, firstAnswer, "\(what): the server's first answer to the re-sent start")
+            XCTAssertFalse(model.session.state.armMoving, "\(what): the move ended")
+            XCTAssertEqual(
+                heard, [.holdLive, .drive(.ended(.stoppedShort))], "\(what): GO, the ending, nothing between")
+        }
+    }
+
+    /// A follow latched by a press is steered by the phone. In the same case, the hand 12 cm to the left and the server
+    /// answering the re-sent start clamped at once, the arm stands short of the command and the follow is told
+    /// "Blocked.", as a held hold is; the follow goes on.
+    func testALatchedFollowHeldShortByASmallerServerBoxIsStillToldBlocked() {
+        bringUp(lock: .pressPress)
+        reportArm(atPinch: goStart)
+        latch()
+        let gripperStart = goStart - SIMD3<Double>(model.profile.toolOffset)
+        let answer = runAgainstASmallerServerBox(
+            from: gripperStart, stopAnsweredAfter: 20, steps: 150, hand: handLeft)
+        XCTAssertEqual(transport.types.filter { $0 == "pose_start" }.count, 2, "the start re-sent once")
+        XCTAssertEqual(answer, "pose_clamped", "the server's first answer to the re-sent start")
+        XCTAssertEqual(heard, [.holdLive, .limit(.blocked)])
+        XCTAssertEqual(model.controller.arbiter.engagement, .latched(since: 10.1), "the follow goes on")
     }
 
     /// Ticks until the link sends its next probe, then the server answers it `ms` later.

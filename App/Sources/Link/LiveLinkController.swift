@@ -129,7 +129,7 @@ final class LiveLinkController {
     var holdIsLoose = false
     /// The running translation hold is a move to a point the operator tapped, which he does not steer. Set by AppModel
     /// with `holdIsLoose`; cleared with it. A limit such a move meets is told once, by the move's own ending: neither
-    /// the work-area rule nor the server's clamp END plays during it, and the guide shows no side for it.
+    /// the work-area rule, the server's clamp END nor "Blocked." plays during it, and the guide shows no side for it.
     var holdIsGoing = false
     /// How the operator was told of the last ending this link caused of a hold nobody held, until AppModel reads it.
     private var looseEnding: Interruption?
@@ -732,8 +732,10 @@ final class LiveLinkController {
         }
         var events = monitor.observe(state, at: nowMs())
         // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
-        // ending, so the server's clamp of it plays no END and tells no side.
-        if holdIsGoing { events.removeAll { $0 == .limit(.workspace) } }
+        // ending. So the server's clamp of it plays no END and tells no side, and an arm held short of the command is
+        // not told "Blocked." either: after a re-sent start the server can say it clamped before the monitor takes
+        // that label as this hold's, and the monitor's stall rule would then speak in place of the clamp.
+        if holdIsGoing { events.removeAll { $0 == .limit(.workspace) || $0 == .limit(.blocked) } }
         // The server clamps at the face, the work-area rule only past its slack, so pushed slowly the clamp comes
         // first. With the commanded point past a face the rule watches, the clamp is that crossing: the rule tells it
         // now, in place of the server's END.
