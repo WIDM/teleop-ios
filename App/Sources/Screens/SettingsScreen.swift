@@ -7,8 +7,14 @@ struct SettingsScreen: View {
     @Bindable var model: AppModel
     /// Five taps on the version show the developer log.
     @State private var versionTaps = 0
-    /// The aids' page is showing instead of the form. Settings opens on the form every time.
-    @State private var showsAids = false
+    /// `model.stopEpoch` when the aids' page took the form's place; the page shows until the way back is taken or a
+    /// stop begins. Settings opens on the form every time, and every stop leaves Settings. A STOP on this screen's band
+    /// acts while the finger is still down, and SwiftUI then keeps the screen, this state with it, for the next
+    /// opening, without telling it that it went or came back; so the stop itself closes the page.
+    @State private var aidsOpenedAt: Int?
+
+    /// The aids' page is showing instead of the form.
+    private var showsAids: Bool { aidsOpenedAt == model.stopEpoch }
 
     /// Settings → Control → Smoothing: Off, Low and High (§7.3).
     static let smoothingSteps: [(key: LocalizedStringKey, value: Double)] = [
@@ -49,7 +55,7 @@ struct SettingsScreen: View {
         HStack {
             if showsAids {
                 Button {
-                    showsAids = false
+                    aidsOpenedAt = nil
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left").fontWeight(.semibold)
@@ -57,7 +63,7 @@ struct SettingsScreen: View {
                     }
                 }
                 .buttonStyle(TextActionStyle(color: TeleopColors.primary))
-                .accessibilityLabel(Text("settings.title"))
+                .accessibilityLabel(Text("settings.aids_back"))
                 .accessibilityIdentifier("settings.aids_back")
             } else {
                 Text("settings.title").font(.system(size: 20, weight: .bold))
@@ -65,7 +71,7 @@ struct SettingsScreen: View {
             Spacer()
             if !showsAids {
                 Button {
-                    showsAids = true
+                    aidsOpenedAt = model.stopEpoch
                 } label: {
                     Text("settings.assist")
                 }
@@ -190,31 +196,61 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The aids' page: their master switch, and lock when the robot allows it, each choice a row of its own so its
-    /// sentence is shown whole. Off makes the operating screen, its cues and its guide those of version 1.0.1, so the
-    /// lock choice is disabled while the switch is off; the page stays reachable then, since the switch is turned on
-    /// here again.
+    /// The aids' page: their master switch, with what Off turns off under it, and, when the robot allows lock, lock's
+    /// choices under their own header, with where lock works under them. Off makes the operating screen, its cues and
+    /// its guide those of version 1.0.1, so the choices are disabled while the switch is off; the page stays reachable
+    /// then, since the switch is turned on here again.
     private var aidsPage: some View {
         Form {
             Section {
                 Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
                     .accessibilityIdentifier("settings.assist")
-                if model.offersLock {
-                    Picker(selection: $model.lockChoice) {
-                        Text("settings.lock_off").tag(LockChoice.off)
-                        Text("settings.lock_press_press").tag(LockChoice.pressPress)
-                        Text("settings.lock_hold_slide").tag(LockChoice.holdThenSlide)
-                    } label: {
-                        Text("settings.lock")
-                    }
-                    .pickerStyle(.inline)
-                    .disabled(!model.assistOn)
-                    .accessibilityIdentifier("settings.lock")
-                }
             } footer: {
-                Text("settings.assist_help")
+                Text("settings.assist_off_help")
+            }
+            if model.offersLock {
+                Section {
+                    lockChoice(.off, "settings.lock_off")
+                        .accessibilityIdentifier("settings.lock.off")
+                    lockChoice(.pressPress, "settings.lock_press_press")
+                        .accessibilityIdentifier("settings.lock.press_press")
+                    lockChoice(.holdThenSlide, "settings.lock_hold_slide")
+                        .accessibilityIdentifier("settings.lock.hold_slide")
+                } header: {
+                    Text("settings.lock")
+                } footer: {
+                    Text("settings.lock_help")
+                }
             }
         }
+    }
+
+    /// One of lock's choices as a row of its own rather than a system picker's, so that on every system version each
+    /// choice has its own identifier, the chosen one carries a mark and the selected trait, and lock's word is the
+    /// section's header, not a row that reads as a fourth choice. The system greys it while the switch is off, when no
+    /// choice can be made.
+    private func lockChoice(_ choice: LockChoice, _ sentence: LocalizedStringKey) -> some View {
+        let chosen = model.lockChoice == choice
+        return Button {
+            model.lockChoice = choice
+        } label: {
+            HStack {
+                Text(sentence)
+                    .foregroundStyle(TeleopColors.textPrimary)
+                Spacer(minLength: 8)
+                if chosen {
+                    Image(systemName: "checkmark")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TeleopColors.primary)
+                }
+            }
+            .contentShape(Rectangle())
+            // Read as the sentence alone: the selected trait says what the mark shows.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(sentence))
+        }
+        .disabled(!model.assistOn)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
     private var recording: some View {

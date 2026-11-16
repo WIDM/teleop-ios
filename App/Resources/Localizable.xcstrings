@@ -1601,6 +1601,22 @@
         }
       }
     },
+    "settings.aids_back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Settings"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到設定"
+          }
+        }
+      }
+    },
     "settings.arm_speed": {
       "localizations": {
         "en": {
@@ -1649,18 +1665,18 @@
         }
       }
     },
-    "settings.assist_help": {
+    "settings.assist_off_help": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Off turns lock, tap-to-go and the guide's extra cues off. Lock works in the phone modes."
+            "value": "Off turns lock, tap-to-go and the guide's extra cues off."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關閉時，鎖定、點選前往和導引圖的額外提示都會關閉。鎖定只在螢幕轉腕和按鍵轉腕模式有效。"
+            "value": "關閉時，鎖定、點選前往和導引圖的額外提示都會關閉。"
           }
         }
       }
@@ -1837,6 +1853,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "鎖定"
+          }
+        }
+      }
+    },
+    "settings.lock_help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock works in the phone modes."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定只在螢幕轉腕和按鍵轉腕模式有效。"
           }
         }
       }

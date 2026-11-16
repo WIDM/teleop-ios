@@ -1,23 +1,52 @@
+import UIKit
 import XCTest
 
 /// The aids' controls in Settings: on a page of their own, opened by the button beside Done and never part of the form,
-/// with the master switch and lock's choices, each choice a row that shows its whole sentence, disabled while the
-/// switch is off; and the tutorial's lines for the lock chosen, for the tap on the guide and for the guide's arrows.
-/// Each value is reached by a launch that pins it, never by turning it in the app: a UI test cannot remove a saved
-/// setting afterwards, and the other UI tests launch with neither of the aids' settings saved.
+/// with the master switch and what Off turns off under it, then lock's choices under their own header and where lock
+/// works under them. Each choice is a row of its own that shows its whole sentence, the chosen one marked and selected,
+/// all of them disabled while the switch is off; Settings opens on its form every time. And the tutorial's lines for
+/// the lock chosen, for the tap on the guide and for the guide's arrows. Each value is reached by a launch that pins
+/// it, never by turning it in the app: a UI test cannot remove a saved setting afterwards, and the other UI tests
+/// launch with neither of the aids' settings saved.
 final class AssistSettingsTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// The button's words and lock's choices, in the order shown, in each language.
-    private static let words: [String: (aids: String, lock: [String])] = [
-        "en": ("Aids", ["Off", "Press, then press to stop", "Hold, then slide a thumb up"]),
-        "zh-Hant": ("輔助", ["關", "按一下，再按一下就停", "按住，再用拇指往上滑"]),
+    /// The page's words in one language.
+    private struct Words {
+        /// The button beside Done, and the page's title.
+        var aids: String
+        /// The way back to the form, as VoiceOver says it.
+        var back: String
+        /// The header of lock's choices.
+        var lock: String
+        /// Lock's choices, in the order shown.
+        var choices: [String]
+        /// Under the switch: what Off turns off.
+        var switchHelp: String
+        /// Under lock's choices: where lock works.
+        var lockHelp: String
+    }
+
+    private static let words: [String: Words] = [
+        "en": Words(
+            aids: "Aids", back: "Back to Settings", lock: "Lock",
+            choices: ["Off", "Press, then press to stop", "Hold, then slide a thumb up"],
+            switchHelp: "Off turns lock, tap-to-go and the guide's extra cues off.",
+            lockHelp: "Lock works in the phone modes."),
+        "zh-Hant": Words(
+            aids: "輔助", back: "回到設定", lock: "鎖定",
+            choices: ["關", "按一下，再按一下就停", "按住，再用拇指往上滑"],
+            switchHelp: "關閉時，鎖定、點選前往和導引圖的額外提示都會關閉。",
+            lockHelp: "鎖定只在螢幕轉腕和按鍵轉腕模式有效。"),
     ]
 
-    /// Lock's choices as a launch names them, in the order shown.
-    private static let lockValues = ["off", "pressPress", "holdThenSlide"]
+    /// Lock's choices as a launch names them, and the identifier of each one's row, in the order shown.
+    private static let choices: [(value: String, identifier: String)] = [
+        ("off", "settings.lock.off"), ("pressPress", "settings.lock.press_press"),
+        ("holdThenSlide", "settings.lock.hold_slide"),
+    ]
 
     private struct Height {
         var name: String
@@ -35,7 +64,8 @@ final class AssistSettingsTests: XCTestCase {
 
     /// With Settings just opened none of the aids' controls is in the form, nor anywhere down to its last row. The
     /// button beside Done shows their page in the form's place, under the same header and above the same STOP band;
-    /// the way back shows the form again; Done leaves Settings from the page; and Settings opens on the form again.
+    /// the way back, which VoiceOver calls the way back to Settings, shows the form again; Done leaves Settings from
+    /// the page; and Settings opens on the form again.
     func testTheAidsAreOnAPageOfTheirOwnNotInTheForm() {
         let app = openSettings(assist: "YES", lock: "pressPress")
         let button = app.element("settings.aids")
@@ -53,6 +83,7 @@ final class AssistSettingsTests: XCTestCase {
         button.tap()
         expect(app, "settings.assist")
         XCTAssertEqual(app.element("settings.aids_title").label, "Aids")
+        XCTAssertEqual(app.element("settings.aids_back").label, "Back to Settings", "the way back, to VoiceOver")
         XCTAssertFalse(app.element("settings.version").exists, "the form is not shown with the page")
         XCTAssertFalse(app.element("settings.task_aid").exists, "the form is not shown with the page")
         XCTAssertEqual(app.element("stop").frame, band, "the STOP band as on the form")
@@ -73,10 +104,26 @@ final class AssistSettingsTests: XCTestCase {
         expectNoAidsControl(app, "Settings opened again")
     }
 
-    /// Each lock choice, from a launch that pins it, in each language, reached through the button: the switch is on,
-    /// the chosen row is the one selected, and every choice's row has its whole sentence for its label and lies on
-    /// the screen above the STOP band, at the test device's height and at the smaller phone's.
-    func testEachLockChoiceIsReachedThroughTheButtonAndShownWhole() {
+    /// A STOP pressed while the aids' page shows leaves Settings for the stopped operating screen; Settings opened from
+    /// there shows its form under the STOPPED band, not the page.
+    func testAfterAStopOnTheAidsPageSettingsOpensOnTheForm() {
+        let app = openAidsPage(assist: "YES", lock: "pressPress", language: "en", height: Self.heights["874"]!)
+        app.element("stop").tap()
+        expectLabel(app.element("operating.state"), "STOPPED")
+        app.element("operating.gear").tap()
+        expect(app, "settings.stopped")
+        expect(app, "settings.aids")
+        XCTAssertTrue(app.staticTexts["Mode"].exists, "the form's first row")
+        XCTAssertFalse(app.element("settings.assist").exists, "the aids' page is not shown")
+        XCTAssertFalse(app.element("settings.aids_back").exists, "the aids' page is not shown")
+        attachScreenshot("settings-after-stop-on-the-aids-page")
+    }
+
+    /// Each lock choice, from a launch that pins it, in each language, reached through the button: the switch is on;
+    /// each choice is found by its own identifier, under lock's header and labelled with its whole sentence; the chosen
+    /// one alone carries the selected trait and shows the mark; and no choice's sentence is cut, read from the row's
+    /// pixels, at the test device's height and at the smaller phone's.
+    func testTheChosenLockIsSelectedAndMarkedAndNoChoiceIsCut() {
         let cases: [(lock: String, language: String, height: String)] = [
             ("off", "en", "874"), ("pressPress", "en", "667"), ("holdThenSlide", "en", "874"),
             ("off", "zh-Hant", "667"), ("pressPress", "zh-Hant", "874"), ("holdThenSlide", "zh-Hant", "667"),
@@ -108,9 +155,10 @@ final class AssistSettingsTests: XCTestCase {
         }
     }
 
-    /// The aids' page in both languages at both heights, with a screenshot each: nothing on it leaves the screen,
-    /// runs into anything else or reaches the STOP band, which is where it is on the form and can be pressed.
-    func testTheAidsPageLayout() {
+    /// The aids' page in both languages at both heights, with a screenshot each: what Off turns off is under the
+    /// switch, above lock's header, and where lock works is under lock's last choice; nothing on the page leaves the
+    /// screen, runs into anything else or reaches the STOP band, which is where it is on the form and can be pressed.
+    func testTheAidsPageLayoutWithEachExplanationUnderItsSection() {
         for height in [Self.heights["874"]!, Self.heights["667"]!] {
             for language in ["en", "zh-Hant"] {
                 let what = "\(language) \(height.name)"
@@ -121,6 +169,7 @@ final class AssistSettingsTests: XCTestCase {
                 expect(app, "settings.assist")
                 XCTAssertEqual(app.element("stop").frame, band, "\(what): the STOP band as on the form")
                 XCTAssertTrue(app.element("stop").isHittable, "\(what): the STOP band can be pressed")
+                expectExplanations(app, language: language, what: what)
                 attachScreenshot("settings-aids-layout-\(language)-\(height.name)")
                 checkLayout(app, screen: height.frame ?? app.windows.firstMatch.frame, what: what)
                 app.terminate()
@@ -288,40 +337,127 @@ final class AssistSettingsTests: XCTestCase {
         return app
     }
 
-    /// Lock's choices on the aids' page: one row per choice, in order, each labelled with its whole sentence and lying
-    /// on the screen above the STOP band; the chosen one selected and the others not; all of them enabled, or none.
+    /// Lock's choices on the aids' page: under lock's header, which is no choice itself, one row per choice in order,
+    /// each found by its identifier, labelled with its whole sentence and lying on the screen above the STOP band; the
+    /// chosen one selected and the others not; all of them enabled, or none. Then their pixels: no sentence is cut,
+    /// and the chosen row alone shows the mark.
     private func expectLockRows(
         _ app: XCUIApplication, chosen: String, enabled: Bool, language: String, screen: CGRect?, what: String,
         line: UInt = #line
     ) {
-        let rows = app.buttons.matching(identifier: "settings.lock")
-        let sentences = Self.words[language]!.lock
-        XCTAssertEqual(rows.count, sentences.count, "\(what): one row per choice", line: line)
+        let words = Self.words[language]!
+        let header = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", words.lock)).firstMatch
+        XCTAssertTrue(header.exists, "\(what): lock's header", line: line)
+        XCTAssertEqual(
+            app.buttons.matching(NSPredicate(format: "label ==[c] %@", words.lock)).count, 0,
+            "\(what): lock's header is not a choice", line: line)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'settings.lock'"))
+        XCTAssertEqual(choices.count, Self.choices.count, "\(what): one row per choice", line: line)
         let screen = screen ?? app.windows.firstMatch.frame
         let bandTop = app.element("stop").frame.minY
-        for (index, sentence) in sentences.enumerated() {
-            let row = rows.element(boundBy: index)
-            let name = "\(what), row \(index)"
-            XCTAssertEqual(row.label, sentence, "\(name): the whole sentence", line: line)
+        var above = header.frame.maxY
+        for (index, choice) in Self.choices.enumerated() {
+            let row = app.buttons[choice.identifier]
+            let name = "\(what), \(choice.identifier)"
+            XCTAssertTrue(row.exists, "\(name): its row", line: line)
+            XCTAssertEqual(row.label, words.choices[index], "\(name): its sentence", line: line)
+            XCTAssertGreaterThanOrEqual(row.frame.minY, above - 0.5, "\(name) \(row.frame): in order", line: line)
             XCTAssertTrue(screen.contains(row.frame), "\(name) \(row.frame) leaves the screen \(screen)", line: line)
-            XCTAssertLessThanOrEqual(row.frame.maxY, bandTop, "\(name) \(row.frame) reaches STOP", line: line)
+            XCTAssertLessThanOrEqual(row.frame.maxY, bandTop + 0.5, "\(name) \(row.frame) reaches STOP", line: line)
             XCTAssertEqual(row.isEnabled, enabled, "\(name): can be chosen", line: line)
-            XCTAssertEqual(row.isSelected, Self.lockValues[index] == chosen, "\(name): selected", line: line)
+            XCTAssertEqual(row.isSelected, choice.value == chosen, "\(name): selected", line: line)
+            above = row.frame.maxY
         }
+        let rows = Self.choices.map { app.buttons[$0.identifier].frame }
+        let marked = Self.choices.map { $0.value == chosen }
+        expectDrawnWhole(rows: rows, sentences: words.choices, marked: marked, what: what, line: line)
+    }
+
+    /// How far a row's drawing reaches, read from a screenshot: the runs of inked columns across it.
+    private struct RowInk {
+        var runs: [(from: CGFloat, to: CGFloat)]
+        /// The first run, the sentence.
+        var sentence: CGFloat { runs.first.map { $0.to - $0.from } ?? 0 }
+    }
+
+    /// Wider than any gap between two words or after a full-width comma, narrower than the room between a sentence
+    /// and the mark at the row's end.
+    private static let wordGap: CGFloat = 24
+
+    /// Each row's sentence is drawn whole: on one line, its ink reaches as far as the sentence is wide in the body
+    /// font, which the rows use, as this process measures it, give or take the blank edges of its first and last
+    /// letters. A sentence cut short, or ended with an ellipsis, reaches less far. After the sentence the chosen row
+    /// shows the mark, and the others nothing. The screenshot is taken again until all hold, as the page may still be
+    /// drawing.
+    private func expectDrawnWhole(
+        rows: [CGRect], sentences: [String], marked: [Bool], what: String, line: UInt
+    ) {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let widths = sentences.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+        let holds = { (ink: RowInk, index: Int) -> Bool in
+            ink.runs.count == (marked[index] ? 2 : 1) && ink.sentence >= widths[index] - Self.edges
+                && ink.sentence <= widths[index] + 1
+        }
+        var seen: [RowInk] = []
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            let picture = Picture(XCUIScreen.main.screenshot().image)
+            seen = rows.map { RowInk(runs: picture.inkRuns(in: $0, gap: Self.wordGap)) }
+        } while !seen.indices.allSatisfy({ holds(seen[$0], $0) }) && Date() < deadline
+        for (index, ink) in seen.enumerated() {
+            let name = "\(what), \"\(sentences[index])\" in \(rows[index])"
+            XCTAssertEqual(
+                ink.runs.count, marked[index] ? 2 : 1,
+                "\(name): the sentence, then the mark only if chosen: \(ink.runs)", line: line)
+            XCTAssertGreaterThanOrEqual(
+                ink.sentence, widths[index] - Self.edges,
+                "\(name): drawn \(ink.sentence) pt wide, the sentence is \(widths[index]) pt: cut", line: line)
+            XCTAssertLessThanOrEqual(
+                ink.sentence, widths[index] + 1,
+                "\(name): drawn \(ink.sentence) pt wide, the sentence is \(widths[index]) pt: more than the sentence",
+                line: line)
+        }
+    }
+
+    /// The most the blank edges of a sentence's first and last letters take from its measured width.
+    private static let edges: CGFloat = 4
+
+    /// Under the switch, above lock's header, what Off turns off; under lock's last choice, where lock works. Each
+    /// lies on the screen above the STOP band.
+    private func expectExplanations(_ app: XCUIApplication, language: String, what: String, line: UInt = #line) {
+        let words = Self.words[language]!
+        let switchHelp = app.staticTexts[words.switchHelp]
+        let lockHelp = app.staticTexts[words.lockHelp]
+        let header = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", words.lock)).firstMatch
+        XCTAssertTrue(switchHelp.exists, "\(what): what Off turns off", line: line)
+        XCTAssertTrue(lockHelp.exists, "\(what): where lock works", line: line)
+        XCTAssertTrue(header.exists, "\(what): lock's header", line: line)
+        let toggle = app.element("settings.assist").frame
+        let last = app.buttons[Self.choices.last!.identifier].frame
+        let bandTop = app.element("stop").frame.minY
+        // Neighbouring frames meet to within a rounding.
+        XCTAssertGreaterThanOrEqual(
+            switchHelp.frame.minY, toggle.maxY - 0.5, "\(what): \(switchHelp.frame) under the switch \(toggle)",
+            line: line)
+        XCTAssertLessThanOrEqual(
+            switchHelp.frame.maxY, header.frame.minY + 0.5,
+            "\(what): \(switchHelp.frame) above lock's header \(header.frame)", line: line)
+        XCTAssertGreaterThanOrEqual(
+            lockHelp.frame.minY, last.maxY - 0.5, "\(what): \(lockHelp.frame) under the last choice \(last)",
+            line: line)
+        XCTAssertLessThanOrEqual(
+            lockHelp.frame.maxY, bandTop + 0.5, "\(what): \(lockHelp.frame) reaches STOP", line: line)
     }
 
     /// None of the aids' controls, and none of their words, is on the screen. "Off" is left out: Smoothing's first
     /// step in the form says it too.
     private func expectNoAidsControl(_ app: XCUIApplication, _ what: String, line: UInt = #line) {
-        let identifiers = ["settings.assist", "settings.lock", "settings.aids_back", "settings.aids_title"]
-        let labels =
-            [
-                "Hands-free aids", "Lock",
-                "Off turns lock, tap-to-go and the guide's extra cues off. Lock works in the phone modes.",
-            ]
-            + Self.words["en"]!.lock.dropFirst()
+        let words = Self.words["en"]!
+        let identifiers =
+            ["settings.assist", "settings.aids_back", "settings.aids_title"] + Self.choices.map(\.identifier)
+        let labels = ["Hands-free aids", words.switchHelp, words.lockHelp] + words.choices.dropFirst()
         let found = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier IN %@ OR label IN %@", identifiers, labels))
+            NSPredicate(format: "identifier IN %@ OR label IN %@ OR label ==[c] %@", identifiers, labels, words.lock))
         XCTAssertEqual(found.count, 0, "\(what): \(found.allElementsBoundByIndex.map(\.label))", line: line)
     }
 
@@ -394,5 +530,42 @@ final class AssistSettingsTests: XCTestCase {
                     "\(what): \"\(a.label)\" \(a.frame) runs into \"\(b.label)\" \(b.frame)", line: line)
             }
         }
+    }
+}
+
+extension Picture {
+    /// The runs of inked columns across `rect`, in points, left to right. A column is inked where a pixel in it, away
+    /// from the rect's top and bottom edges, differs clearly from the background, read at the middle of its top edge;
+    /// a gap of more than `gap` points between inked columns starts a new run.
+    fileprivate func inkRuns(in rect: CGRect, gap: CGFloat) -> [(from: CGFloat, to: CGFloat)] {
+        let background = pixel(column: Int(rect.midX * scale), row: Int((rect.minY + 2) * scale))
+        let rows = Int((rect.minY + 4) * scale)..<Int((rect.maxY - 4) * scale)
+        let columns = Int((rect.minX + 2) * scale)..<Int((rect.maxX - 2) * scale)
+        var runs: [(from: CGFloat, to: CGFloat)] = []
+        var first: Int?
+        var last = 0
+        for column in columns {
+            let inked = rows.contains { row in
+                let seen = pixel(column: column, row: row)
+                return max(abs(seen.r - background.r), abs(seen.g - background.g), abs(seen.b - background.b)) > 64
+            }
+            guard inked else { continue }
+            if let start = first, CGFloat(column - last - 1) / scale > gap {
+                runs.append((CGFloat(start) / scale, CGFloat(last + 1) / scale))
+                first = column
+            } else if first == nil {
+                first = column
+            }
+            last = column
+        }
+        if let start = first { runs.append((CGFloat(start) / scale, CGFloat(last + 1) / scale)) }
+        return runs
+    }
+
+    private func pixel(column: Int, row: Int) -> (r: Int, g: Int, b: Int) {
+        let x = min(max(column, 0), width - 1)
+        let y = min(max(row, 0), height - 1)
+        let i = (y * width + x) * 4
+        return (Int(bytes[i]), Int(bytes[i + 1]), Int(bytes[i + 2]))
     }
 }
