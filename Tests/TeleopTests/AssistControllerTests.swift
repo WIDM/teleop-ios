@@ -54,8 +54,9 @@ final class AssistControllerTests: XCTestCase {
         super.tearDown()
     }
 
-    /// A model on a real server, in scheme A, with lock variant 1, whose link is not open yet.
-    private func makeModel(speech: SpySpeech = SpySpeech()) {
+    /// A model on a real server, in scheme A, with lock variant 1, whose link is not open yet; with the aids' master
+    /// switch off when `assistOn` is false.
+    private func makeModel(speech: SpySpeech = SpySpeech(), assistOn: Bool = true) {
         clock = 10_000
         control = nil
         tilted = false
@@ -73,15 +74,15 @@ final class AssistControllerTests: XCTestCase {
             makeObserverTransport: { _ in ReasonTestTransport() },
             nowMs: { [unowned self] in clock },
             inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: true, lockChoice: .pressPress
+            assistOn: assistOn, lockChoice: .pressPress
         )
         model.controlMode = .screenTurns
         mark = model.cueLog.count
     }
 
     /// Standby with the link up.
-    private func bringUp(speech: SpySpeech = SpySpeech()) {
-        makeModel(speech: speech)
+    private func bringUp(speech: SpySpeech = SpySpeech(), assistOn: Bool = true) {
+        makeModel(speech: speech, assistOn: assistOn)
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.connect()
         control?.server("welcome")
@@ -306,5 +307,52 @@ final class AssistControllerTests: XCTestCase {
         XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "the camera's return tells no ending")
         XCTAssertFalse(model.session.state.armMoving)
         XCTAssertNotNil(model.inputFacts().goPanel, "the panel reaches the rules again")
+    }
+
+    /// With the aids off, a stopped camera refuses what it refused in version 1.0.1 and nothing more: it is no reason
+    /// to refuse every start. A press of the lower key still closes the jaws, with no refusal, and its release stops
+    /// them; a thumb held on the surface while the phone turns, a wrist hold, needs the camera's tracking and is
+    /// refused "No tracking.", and its lift adds nothing.
+    func testWithTheAidsOffAStoppedCameraStillLetsTheJawsRun() throws {
+        bringUp(assistOn: false)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        let surface = try XCTUnwrap(model.operating.layout).controlSurface
+        clock += 33
+        model.poseFrame(TestPose.portrait, at: Double(clock) / 1000)
+        model.controller.cameraInterrupted(true)
+        mark = model.cueLog.count
+
+        clock += 500
+        model.keyEvent(.lower, down: true)
+        XCTAssertEqual(model.session.state.gripperMoving, .closed, "the jaws close")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "no refusal")
+        clock += 300
+        model.controller.tick()
+        model.keyEvent(.lower, down: false)
+        XCTAssertNil(model.session.state.gripperMoving, "the release stops them")
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [])
+
+        // The thumb rests a fifth of a second, then the phone turns 30 degrees on its side, 3 degrees a frame.
+        let thumb = (x: surface.x + 0.3 * surface.width, y: surface.y + 0.8 * surface.height)
+        clock += 500
+        model.touch(TouchSample(id: 1, phase: .began, x: thumb.x, y: thumb.y, majorRadius: 8), at: Double(clock) / 1000)
+        for _ in 0..<6 {
+            clock += 33
+            model.controller.tick()
+        }
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [], "a thumb at rest starts nothing")
+        for step in 1...10 {
+            clock += 33
+            let turned = TestPose.portrait(turned: Float(3 * step), about: SIMD3(0, 0, 1))
+            model.poseFrame(turned, at: Double(clock) / 1000)
+            model.controller.tick()
+        }
+        XCTAssertFalse(model.session.state.wristMoving, "no wrist hold")
+        XCTAssertNil(model.controller.arbiter.engagement)
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.notTracking)], "No tracking.")
+        clock += 33
+        model.touch(TouchSample(id: 1, phase: .ended, x: thumb.x, y: thumb.y, majorRadius: 8), at: Double(clock) / 1000)
+        XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.notTracking)], "the lift adds nothing")
+        XCTAssertNil(model.session.state.gripperMoving)
     }
 }
