@@ -145,11 +145,15 @@ public struct InputFacts: Equatable, Sendable {
     /// The guide's view from above as it is drawn now, for tap-to-go. Nil unless tap-to-go is allowed and the guide is
     /// drawn, and nil while the camera is stopped, since no key could then stop a move a tap started.
     public var goPanel: GoPanel?
+    /// Which run of the phone's tracking the attitude samples come from. The owner counts it up each time the tracking
+    /// starts again and each time the camera stops: a new run has a world frame of its own, whose heading is wherever
+    /// the phone pointed when it began, so an attitude from before it cannot be compared with one from after.
+    public var attitudeFrame: Int
 
     public init(
         refusal: InputRefusal? = nil, trackingRefusal: InputRefusal? = nil, translationRefusal: InputRefusal? = nil,
         resetRefusal: InputRefusal? = nil, gripping: Bool = false, wrist: WristReadings = .unknown,
-        connectionUp: Bool = true, arm: ArmFix? = nil, goPanel: GoPanel? = nil
+        connectionUp: Bool = true, arm: ArmFix? = nil, goPanel: GoPanel? = nil, attitudeFrame: Int = 0
     ) {
         self.refusal = refusal
         self.trackingRefusal = trackingRefusal
@@ -160,6 +164,7 @@ public struct InputFacts: Equatable, Sendable {
         self.connectionUp = connectionUp
         self.arm = arm
         self.goPanel = goPanel
+        self.attitudeFrame = attitudeFrame
     }
 }
 

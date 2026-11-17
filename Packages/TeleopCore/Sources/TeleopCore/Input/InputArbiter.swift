@@ -29,7 +29,10 @@ public struct InputArbiter: Sendable {
     /// The engaged wrist hold's mapper.
     private var wrist: RotationMapper?
     private var lastWristTarget = WristTarget.identity
+    /// The newest attitude sample of the current attitude frame; nil until one arrives.
     private var attitude: simd_quatd?
+    /// The attitude frame of the facts the newest call carried (`InputFacts.attitudeFrame`).
+    private var attitudeFrame = 0
     private var commandedTiltSinceReset = 0.0
     /// The engaged wrist hold's commanded tilt when the last reset came during it; only what it commands after that
     /// counts toward the window.
@@ -219,12 +222,19 @@ public struct InputArbiter: Sendable {
     /// timer, so nothing before the events can start or end one, and a STOP among the events always comes ahead of
     /// the checks' endings. The events keep their order under every configuration: a STOP ends the move that exists
     /// when it is applied, one started earlier in the same call included, and nothing after it in the call starts one.
+    ///
+    /// A new attitude frame in the facts is taken first of all, ahead of the timers, so a palm window that ran out
+    /// since the last call is judged without an attitude from the old frame.
     public mutating func handle(_ events: [InputEvent], at time: TimeInterval, facts: InputFacts) -> [InputCommand] {
         out = []
         self.facts = facts
         stoppedInCall = false
         startsThisCall = []
         let time = max(time, now)
+        if facts.attitudeFrame != attitudeFrame {
+            attitudeFrame = facts.attitudeFrame
+            attitudeFrameChanged()
+        }
         advance(to: time, firingTies: false)
         for event in ordered(events) {
             apply(event)
@@ -601,6 +611,28 @@ public struct InputArbiter: Sendable {
             for id in touches.keys.sorted() {
                 if case .surface(let touch)? = touches[id], touch.windowEnded { judge(id) }
             }
+        }
+    }
+
+    /// The samples now come from a new run of the phone's tracking, or the camera stopped. A new run's world frame
+    /// has its own heading, so a sample from it measured against an anchor from before reads as a turn the phone never
+    /// made, and a turn commits a scheme A touch to the wrist and sends that angle. The rules never compare the two:
+    /// they forget the attitude they hold, and every touch anchors again at the first sample of the new frame, as one
+    /// that came down before any sample does. So does scheme B's wrist hold while it still sends the identity. A wrist
+    /// hold that has committed to an axis was sending angles measured in the old frame and cannot go on from the new
+    /// one: it ends as a camera stop ends it, with that path's stop, so it never ends in silence.
+    private mutating func attitudeFrameChanged() {
+        attitude = nil
+        for (id, role) in touches {
+            guard case .surface(var touch) = role, touch.mapper.anchor != nil else { continue }
+            touch.mapper = RotationMapper(anchor: nil, startsAtCommit: true, constants: constants)
+            touches[id] = .surface(touch)
+        }
+        guard case .held(let input, .wrist)? = engaged, let mapper = wrist else { return }
+        if case .key = input, mapper.axis == nil {
+            wrist = RotationMapper(anchor: nil, startsAtCommit: false, constants: constants)
+        } else {
+            holdsEnded(.cameraStopped)
         }
     }
 
