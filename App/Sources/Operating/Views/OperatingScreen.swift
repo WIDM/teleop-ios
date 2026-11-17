@@ -373,6 +373,11 @@ private struct StateWords: View {
                     .font(.system(size: detailSize, weight: .medium))
                     .accessibilityIdentifier("operating.detail")
             }
+            if let note = look.note {
+                Text(verbatim: note)
+                    .font(.system(size: detailSize, weight: .medium))
+                    .accessibilityIdentifier("operating.note")
+            }
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)

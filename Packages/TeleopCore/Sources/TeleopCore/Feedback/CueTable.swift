@@ -82,6 +82,11 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case rangeRight = "say.range.right"
     case rangeUp = "say.range.up"
     case rangeDown = "say.range.down"
+    case tapStill = "say.tap_still"
+    case tapLetGo = "say.tap_let_go"
+    case tapViewAbove = "say.tap_view_above"
+    /// Said after "Stopped here." when a touch on the tapped spot right after the tap ended the move.
+    case tapOnce = "say.tap_once"
 
     /// The phrase has one `%d`, filled from the event's number.
     public var takesNumber: Bool {
@@ -142,6 +147,11 @@ public enum CueTable {
         CueRow(.refused(.serverRefused), .no),
         CueRow(.refused(.outsideWorkArea), .no, say: [.outside], .p4),
         CueRow(.refused(.noArmData), .no, say: [.noArmData], .p4),
+        // Why a touch on the guide was not taken as a tap. Queued, never dropped: they often come right after
+        // "Stopped here." or "Arrived.", and a dropped reason leaves only the NO.
+        CueRow(.refused(.tapStill), .no, say: [.tapStill], .p2),
+        CueRow(.refused(.tapLetGo), .no, say: [.tapLetGo], .p2),
+        CueRow(.refused(.tapViewAbove), .no, say: [.tapViewAbove], .p2),
 
         CueRow(.limit(.workspace), .end),
         CueRow(.limit(.wrist), .end),
@@ -171,6 +181,7 @@ public enum CueTable {
         CueRow(.letGo(.noAnswer), .letGo, say: [.noAnswer], .p4),
         CueRow(.letGo(.watchdog), .letGo, say: [.linkHiccup], .p4),
         CueRow(.letGo(.lateRejection), .letGo, say: [.refusedMove], .p4),
+        CueRow(.letGo(.slowLink), .letGo, say: [.slowLink], .p4),
 
         CueRow(.emergencyStop(.button, takeDiscarded: false), .alarm, say: [.estop, .causeButton, .resetPrompt], .p1),
         CueRow(
@@ -216,6 +227,7 @@ public enum CueTable {
         CueRow(.drive(.latched), .latch, say: [.driveLocked], .p2),
         CueRow(.drive(.arrived), .end, say: [.driveArrived], .p2),
         CueRow(.drive(.stoppedByYou), .end, say: [.driveStoppedHere], .p2),
+        CueRow(.drive(.stoppedByYouTapOnce), .end, say: [.driveStoppedHere, .tapOnce], .p2),
         ending(.unnamed),
         ending(.posture),
         ending(.tracking),

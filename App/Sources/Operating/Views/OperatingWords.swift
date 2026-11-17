@@ -9,12 +9,23 @@ enum OperatingWords {
         var colour: Color
         /// Gold is light: its words are drawn dark.
         var darkText = false
+        /// One more line under the details, kept apart from them: that the hands-free aids are off.
+        var note: String? = nil
     }
 
     static func look(_ display: OperatingDisplay) -> Look {
         var look = stateLook(display)
         if display.practice, look.details.isEmpty { look.details = [L10n.string("detail.no_robot")] }
+        look.note = aidsOffNote(display)
         return look
+    }
+
+    /// In a phone mode, where a tap on the guide could go, in every state but a stop: a line that came and went would
+    /// move the guide at every hold, and a stop already says why and what to do next, and takes no tap.
+    private static func aidsOffNote(_ display: OperatingDisplay) -> String? {
+        guard display.aidsOff, !display.practice, display.mode != .buttons else { return nil }
+        if case .stopped = display.state { return nil }
+        return L10n.string("detail.aids_off")
     }
 
     private static func stateLook(_ display: OperatingDisplay) -> Look {
@@ -125,6 +136,9 @@ enum OperatingWords {
         case .serverRefused: return L10n.string("refusal.server_refused")
         case .outsideWorkArea: return L10n.string("refusal.outside_work_area")
         case .noArmData: return L10n.string("refusal.no_arm_data")
+        case .tapStill: return L10n.string("refusal.tap_still")
+        case .tapLetGo: return L10n.string("refusal.tap_let_go")
+        case .tapViewAbove: return L10n.string("refusal.tap_view_above")
         }
     }
 

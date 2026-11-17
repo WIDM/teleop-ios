@@ -353,6 +353,22 @@
         }
       }
     },
+    "detail.aids_off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free aids off: taps do nothing"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免持輔助已關閉：點圖不會動"
+          }
+        }
+      }
+    },
     "detail.angle_progress": {
       "localizations": {
         "en": {
@@ -1565,6 +1581,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "已急停"
+          }
+        }
+      }
+    },
+    "refusal.tap_let_go": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap and let go"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下就放開"
+          }
+        }
+      }
+    },
+    "refusal.tap_still": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep still"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手指別動"
+          }
+        }
+      }
+    },
+    "refusal.tap_view_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the top view"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請點上面的圖"
           }
         }
       }
@@ -2870,13 +2934,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tap the view from above to send the jaws there. Any key or touch stops them."
+            "value": "Tap the view from above to send the jaws there. Tap once, then wait until the arm stops before the next tap. Any key or touch stops it."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。按任一鍵或觸碰即停。"
+            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。點一下就好，等手臂停了再點下一個點。按任一鍵或觸碰都會讓它停下。"
           }
         }
       }

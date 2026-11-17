@@ -23,6 +23,12 @@ public enum Refusal: String, CaseIterable, Sendable {
     case outsideWorkArea
     /// A tap found no measured arm position fresh enough to start from.
     case noArmData
+    /// A touch in the view from above that would have been a tap but for moving sideways too far.
+    case tapStill
+    /// A touch in the view from above that would have been a tap but for staying down too long.
+    case tapLetGo
+    /// A quick still tap on the guide outside the view from above, the only picture a tap is judged against.
+    case tapViewAbove
 }
 
 /// As far as it goes (E4).
@@ -52,6 +58,8 @@ public enum LetGoReason: String, CaseIterable, Sendable {
     case watchdog
     /// The server refused the hold after GO had played.
     case lateRejection
+    /// The link's round trip stayed too slow, so the app stopped the hold.
+    case slowLink
 }
 
 /// What the operator is told caused an emergency stop (§5.3, E-stop causes).
@@ -100,6 +108,7 @@ public enum DriveEnd: Hashable, Sendable, CaseIterable {
         case .noAnswer: self = .noAnswer
         case .watchdog: self = .linkHiccup
         case .lateRejection: self = .serverRefused
+        case .slowLink: self = .slowLink
         }
     }
 
@@ -112,7 +121,7 @@ public enum DriveEnd: Hashable, Sendable, CaseIterable {
         case .serverRefused: self = .serverRefused
         case .emergencyStop: return nil
         case .noLink, .notStopped, .slowLink, .notTracking, .posture, .letGoFirst, .deadInput, .outsideWorkArea,
-            .noArmData:
+            .noArmData, .tapStill, .tapLetGo, .tapViewAbove:
             self = .unnamed
         }
     }
@@ -127,11 +136,14 @@ public enum DriveCue: Hashable, Sendable {
     case arrived
     /// The operator's own key press or touch ended it.
     case stoppedByYou
+    /// The operator's own touch ended a move to a tapped point, coming down on the same spot right after the tap that
+    /// started it: told once a launch, with how to avoid it.
+    case stoppedByYouTapOnce
     /// Anything else ended it.
     case ended(DriveEnd)
 
     public static var allCases: [DriveCue] {
-        [.latched, .arrived, .stoppedByYou] + DriveEnd.allCases.map(DriveCue.ended)
+        [.latched, .arrived, .stoppedByYou, .stoppedByYouTapOnce] + DriveEnd.allCases.map(DriveCue.ended)
     }
 }
 

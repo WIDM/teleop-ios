@@ -13,7 +13,7 @@ final class DriveCueTests: XCTestCase {
     }
 
     func testEveryDriveRowSpeaksAtP2AndHasAHaptic() {
-        XCTAssertEqual(driveRows.count, 3 + DriveEnd.allCases.count)
+        XCTAssertEqual(driveRows.count, 4 + DriveEnd.allCases.count)
         XCTAssertEqual(Set(driveRows.map(\.key)), Set(DriveCue.allCases.map(CueKey.drive)))
         for row in driveRows {
             XCTAssertNotNil(row.haptic, "\(row.key)")
@@ -115,7 +115,7 @@ final class DriveCueTests: XCTestCase {
     func testDriveEndConversionsAreTotal() {
         let byLink: [LetGoReason: DriveEnd] = [
             .tooFast: .tooFast, .tracking: .tracking, .noAnswer: .noAnswer, .watchdog: .linkHiccup,
-            .lateRejection: .serverRefused,
+            .lateRejection: .serverRefused, .slowLink: .slowLink,
         ]
         XCTAssertEqual(Set(byLink.keys), Set(LetGoReason.allCases))
         for reason in LetGoReason.allCases {

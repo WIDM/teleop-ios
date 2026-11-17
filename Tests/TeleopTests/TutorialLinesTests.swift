@@ -29,4 +29,22 @@ final class TutorialLinesTests: XCTestCase {
             XCTAssertGreaterThan(withArrows.count, onTarget.count, "\(language): the sentence about the arrows follows")
         }
     }
+
+    /// The tap line keeps its first sentence, then says to tap once and wait until the arm stops before the next tap:
+    /// a second touch while the arm goes stops it.
+    func testTheTapLineSaysToTapOnceAndWait() {
+        let expected: [AppLanguage: (first: String, rest: String)] = [
+            .en: (
+                "Tap the view from above to send the jaws there.",
+                " Tap once, then wait until the arm stops before the next tap. Any key or touch stops it."
+            ),
+            .zhHant: ("點一下「從上面看」的圖，夾爪就會移到那裡。", "點一下就好，等手臂停了再點下一個點。按任一鍵或觸碰都會讓它停下。"),
+        ]
+        for (language, words) in expected {
+            L10n.language = language
+            let line = L10n.string("tutorial.cue.tap_to_go")
+            XCTAssertTrue(line.hasPrefix(words.first), "\(language): the first sentence unchanged: \(line)")
+            XCTAssertEqual(line, words.first + words.rest, "\(language)")
+        }
+    }
 }

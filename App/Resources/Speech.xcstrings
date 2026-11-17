@@ -882,6 +882,70 @@
         }
       }
     },
+    "say.tap_let_go" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap and let go."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下就放開。"
+          }
+        }
+      }
+    },
+    "say.tap_once" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap once."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下就好。"
+          }
+        }
+      }
+    },
+    "say.tap_still" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep your finger still."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點的時候手指別動。"
+          }
+        }
+      }
+    },
+    "say.tap_view_above" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the view from above."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請點上面的圖。"
+          }
+        }
+      }
+    },
     "say.wait" : {
       "localizations" : {
         "en" : {

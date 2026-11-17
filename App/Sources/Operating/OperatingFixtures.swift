@@ -41,6 +41,10 @@ enum OperatingFixtures {
         all["wait_resetting"] = display(.wait(.resetting), arm: hotel(), recorder: armed)
         all["camera_stopped"] = display(.trackingLost, arm: task(), recorder: armed)
         all["refused"] = display(.refused(.posture), arm: hotel(), recorder: armed)
+        // Why a touch on the guide was not a tap, for a second.
+        all["refused_tap_still"] = display(.refused(.tapStill), arm: task(), recorder: armed)
+        all["refused_tap_let_go"] = display(.refused(.tapLetGo), arm: task(), recorder: armed)
+        all["refused_tap_view_above"] = display(.refused(.tapViewAbove), arm: task(), recorder: armed)
         // A follow or a move nobody held that ran out of time: why it ended, for a second.
         all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: armed)
         all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)
@@ -80,6 +84,10 @@ enum OperatingFixtures {
         // The jaws back at the lowest height a stall reached, on something above the table: the height says "lowest",
         // and the dashed line from behind lies at the jaws, clear of the table line.
         all["lowest_aids"] = display(.ready, arm: atTheLowestOnSomething(), recorder: armed, aids: .all)
+        // The hands-free aids' master switch off on the real server: the line under the state says a tap does nothing.
+        var aidsOff = display(.ready, arm: task(), recorder: armed)
+        aidsOff.aidsOff = true
+        all["ready_aids_off"] = aidsOff
         return all
     }()
 

@@ -76,4 +76,7 @@ struct OperatingDisplay: Equatable, Sendable {
     /// The guide as numbers, built once per refresh from `arm`: the screen draws this picture and the on-target cue
     /// judges by it, so the two cannot disagree. Nil while there is no arm reading.
     var guide: GuidePicture? = nil
+    /// The robot offers hands-free aids and their master switch is off, on the real server: a tap on the guide does
+    /// nothing, and the screen says so.
+    var aidsOff = false
 }
