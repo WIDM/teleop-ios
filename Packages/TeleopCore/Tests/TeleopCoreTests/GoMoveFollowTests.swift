@@ -4,11 +4,12 @@ import simd
 
 /// A going move that follows the measured offset (pinch point less gripper link) of a server that reports the pinch
 /// point: half of each fresh reading's change is taken off the link command, the command starts at half speed and
-/// slows where the offset swings more than the link moves, a reading off the leg ahead or without the pinch point
-/// ends the move stopped short, the gripper link asked for stays inside the box less the tap's offset, a pace measured
-/// after a leg's command has reached its end never takes the command back along that leg, the command waits while the
-/// newest reading is stale, and without a measured offset at the tap nothing changes. Against an arm whose pinch point
-/// turns with its posture, moves arrive, and a move the readings show cannot get there stops short by itself.
+/// slows where the offset swings more than a quarter of the distance the link moves, a reading off the leg ahead or
+/// without the pinch point ends the move stopped short, the gripper link asked for stays inside the box less the tap's
+/// offset, a pace measured after a leg's command has reached its end never takes the command back along that leg, the
+/// command waits while the newest reading is stale, and without a measured offset at the tap nothing changes. Against
+/// an arm whose pinch point turns with its posture, moves arrive, and a move the readings show cannot get there stops
+/// short by itself.
 final class GoMoveFollowTests: XCTestCase {
     /// The SO-101 simulator's go numbers (the core tests cannot reach `RobotProfile`).
     private let limits = GoToLimits(

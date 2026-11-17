@@ -80,7 +80,8 @@ public enum DriveEnd: Hashable, Sendable, CaseIterable {
     case cameraStopped
     case leftScreen
     case slowLink
-    /// A going move settled short of its target after its corrections.
+    /// A going move settled short of its target after its corrections, or a following move took a fresh reading off
+    /// the leg ahead or one that did not report the pinch point.
     case stoppedShort
     /// A going move heard no measured position for the profile's timeout.
     case noArmData

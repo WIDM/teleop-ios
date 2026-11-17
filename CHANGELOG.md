@@ -26,22 +26,25 @@ What a person using the app notices:
   control surface, anywhere on it (scheme B's centre band included), latches the follow. The phone plays a long buzz
   then a tick and says "Locked on." (not said if the alarm or "Link lost." comes first); the screen says "Locked on"
   and "Any key or touch stops it", and hides the scheme's hints. Any key press or touch stops the follow, and so do
-  STOP, lost tracking, the phone no longer held upright and the robot profile's time limit.
+  STOP, lost tracking, the phone no longer held upright and the robot profile's time limit, counted from the latch
+  (30 s with the SO-101 profile).
 - **Tap-to-go**: on a real server, in the phone modes with the task aid on, a short, still tap on the guide's view
-  from above sends the jaws to that point: straight up or down to a travel height above the table, then level;
-  from an arm inside the work area the tap was judged against, the move commands no place outside it. The screen
-  says "Going", a white cross in both views marks where the jaws are going, and "Arrived." says they got there, at
-  once for a tap where they already are. A tap is refused with "Outside the work area." outside it; with "No arm
-  data." without a fresh arm position that is a real point; and with "Wait." until an arm position from after the
-  last hold ended has come. A refused tap is dropped, and no tap is taken while the camera is stopped. Any key press
-  or touch stops the move; the phone does not steer it, so turning or lowering the phone does not stop it.
+  from above sends the jaws to that point: straight up or down to a travel height above the table (5 cm with the
+  SO-101 profile), then level; from an arm inside the work area the tap was judged against, the move commands no
+  place outside it. The screen says "Going", a white cross in both views marks where the jaws are going, and
+  "Arrived." says they got there, at once for a tap where they already are. A tap is refused with "Outside the work
+  area." outside it; with "No arm data." without a fresh arm position that is a real point; and with "Wait." until
+  an arm position from after the last hold ended has come. A refused tap is dropped, and no tap is taken while the
+  camera is stopped. Any key press or touch stops the move; the phone does not steer it, so turning or lowering the
+  phone does not stop it.
 - **A move follows the jaws.** On a server that reports where the jaws pinch, a move follows that point, which
-  turns with the arm's posture. It sets off at half the robot profile's speed, then goes at that speed except where
-  the jaws turn by more than a quarter of how far the arm moves, most near the robot's base: there it slows, never
-  under 0.15 of the speed. So moves take longer. Where the jaws cannot follow its path or cannot reach the tapped
-  place at the travel height, or the server stops reporting where they pinch, the move stops by itself with "Stopped
-  here. Short of the target."; the app does not refuse such a tap beforehand. On a server that reports no pinch
-  point, a move is planned as if the jaws moved with the arm.
+  turns with the arm's posture. It sets off at half the robot profile's speed, then goes at the full speed, except
+  where the jaws swing about the arm by more than a quarter of the distance the arm moves, most near the robot's
+  base; there it slows, never under 0.15 of the speed. So moves take longer. Where the jaws cannot follow its path
+  or cannot reach the tapped place at the travel height, or the server stops reporting where they pinch, the move
+  stops by itself with "Stopped here. Short of the target."; the app does not refuse such a tap beforehand. A tap on
+  the part of the view from above nearest the robot's base usually cannot be reached at the travel height and ends
+  that way. On a server that reports no pinch point, a move is planned as if the jaws moved with the arm.
 - **Every ending is told once.** A follow or a move you end plays the end buzz and says "Stopped here."; an arrival
   plays the end buzz and says "Arrived.". A lost link, STOP or a robot that stopped itself, a success, and a start
   that was refused are each told by their own cue alone. Any other ending plays the let-go buzz and says "Stopped
@@ -55,7 +58,9 @@ What a person using the app notices:
     starts, so a quick second press no longer starts it where the first hold began.
   - When the arm cannot go lower: "Can't go lower." in place of "Blocked.", a dashed line in the view from behind at
     the lowest height reached, and "lowest" on the height read-out while the jaws are back there. The pause in
-    which the app checks where the arm got to during a long hold is not taken for it.
+    which the app checks where the arm got to during a long hold is not taken for it. Where the robot profile's work
+    area reaches below the table, as the SO-101's does, a push of the arm into the table gives "Can't go lower."
+    alone: the server's own buzz for that push no longer plays as well.
   - A shadow under the jaws in both views, wider and fainter the higher they are.
   - "Forward" and "Up" arrows on the two views, and the same in their accessibility labels.
 - **The tutorial's last page**, in the phone modes, has a line for the lock chosen; with the task aid on, a line for
