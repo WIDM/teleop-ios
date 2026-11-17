@@ -27,6 +27,10 @@
       {
         "key" : "TELEOP_EXPECT_ASSIST_OFF",
         "value" : "1"
+      },
+      {
+        "key" : "OS_ACTIVITY_DT_MODE",
+        "value" : "NO"
       }
     ],
     "language" : "en",

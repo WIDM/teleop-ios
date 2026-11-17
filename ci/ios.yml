@@ -40,6 +40,29 @@ jobs:
           NAME=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
           echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
 
+      - name: Boot simulator
+        timeout-minutes: 15
+        run: |
+          # The test steps name the device only, so xcodebuild takes the one with that name on the newest iOS.
+          # Boot that one and wait until it has finished, so that the tests do not start on a device still booting.
+          UDID=$(python3 - <<'PY'
+          import json, os, re, subprocess
+          listing = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+          newest = None
+          for runtime, devices in listing["devices"].items():
+              version = re.search(r"\.iOS-(\d+)-(\d+)(?:-(\d+))?$", runtime)
+              if not version:
+                  continue
+              key = tuple(int(part or 0) for part in version.groups())
+              for device in devices:
+                  if device["name"] == os.environ["SIM_NAME"] and (newest is None or key > newest[0]):
+                      newest = (key, device["udid"])
+          print(newest[1])
+          PY
+          )
+          echo "Booting $SIM_NAME ($UDID)"
+          xcrun simctl bootstatus "$UDID" -b
+
       - name: Prepare build dir
         run: mkdir -p build
 
@@ -57,6 +80,10 @@ jobs:
         env:
           NSUnbufferedIO: "YES"
 
+      - name: No system log copied to the unit tests' console
+        if: ${{ !cancelled() && hashFiles('build/xcodebuild.log') != '' }}
+        run: python3 scripts/check-test-console.py build/xcodebuild.log
+
       - name: xcodebuild test with the aids switched off
         run: |
           set -o pipefail
@@ -69,6 +96,10 @@ jobs:
             2>&1 | tee build/xcodebuild-assist-off.log
         env:
           NSUnbufferedIO: "YES"
+
+      - name: No system log copied to the unit tests' console with the aids switched off
+        if: ${{ !cancelled() && hashFiles('build/xcodebuild-assist-off.log') != '' }}
+        run: python3 scripts/check-test-console.py build/xcodebuild-assist-off.log
 
       - name: Export screenshots
         if: always()

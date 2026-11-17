@@ -164,6 +164,13 @@ The scheme has three test plans (`TestPlans/`):
   unedited with the aids off. It needs no server either. CI runs it after Default, and only when Default passed.
 - **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
 
+Every plan sets the environment variable `OS_ACTIVITY_DT_MODE` to `NO`. Without it Xcode starts the tests with
+`OS_ACTIVITY_DT_MODE=YES`, which copies every line any framework writes to the system log to the tests' console as
+well. The networking threads behind the tests' real sockets write such lines on every connect and close, so when
+whatever reads that console stalls for a few seconds, as it can on a CI runner, those threads wait inside the write,
+the sockets stop, and a test that waits for a connection fails for a reason that has nothing to do with the app.
+With `NO` those lines stay in the system log only. CI checks that the setting reached the unit tests (below).
+
 The live tests move the arm in Isaac Sim on a machine other people use, so three things guard them:
 
 1. They are in the Live plan only; the Default plan skips them by name.
@@ -371,12 +378,23 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
    which only reports (below);
 2. `swift test` in `Packages/TeleopCore`;
 3. `brew install xcodegen` and `xcodegen generate`;
-4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
-   `CODE_SIGNING_ALLOWED=NO`, logged to `build/xcodebuild.log` with its result bundle;
-5. `xcodebuild test` with the AssistOff plan on the same iPhone simulator, logged to
-   `build/xcodebuild-assist-off.log`; this step runs only when the Default plan passed;
-6. it uploads both xcodebuild logs, the screenshots the UI tests attach, and the Default plan's result bundle as
+4. the first available iPhone simulator, picked as above; it boots the device of that name on the newest iOS, the
+   one `xcodebuild` takes for a destination given by name, and waits until it has finished booting;
+5. `xcodebuild test` with the Default plan and `CODE_SIGNING_ALLOWED=NO`, logged to `build/xcodebuild.log` with its
+   result bundle, then `python3 scripts/check-test-console.py build/xcodebuild.log` (below);
+6. `xcodebuild test` with the AssistOff plan on the same iPhone simulator, logged to
+   `build/xcodebuild-assist-off.log`, then the same check on that log; this step runs only when the Default plan
+   and its check passed;
+7. it uploads both xcodebuild logs, the screenshots the UI tests attach, and the Default plan's result bundle as
    artifacts.
+
+`scripts/check-test-console.py` fails when the system log was copied to the unit tests' console after all, which
+means a test plan lost its `OS_ACTIVITY_DT_MODE=NO`. In the unit tests' part of the log it looks for the lines the
+networking library writes to the system log: its function names, such as `nw_listener_socket_inbox_create_socket`,
+and the names its connection log gives each connection, such as `[C1:2]`. XCTest, `xcodebuild` and the app never
+write them, so they reach the console only through that copy. Its message names the test plan to fix. It runs also
+when the tests failed, since with the copy on the local-server tests can fail on a stalled console. It reads a local
+log the same way: `python3 scripts/check-test-console.py <log>`.
 
 The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
 older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
