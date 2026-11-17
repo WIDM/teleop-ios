@@ -15,6 +15,12 @@
       },
       {
         "argument" : "NO"
+      },
+      {
+        "argument" : "-appLanguage"
+      },
+      {
+        "argument" : "en"
       }
     ],
     "environmentVariableEntries" : [

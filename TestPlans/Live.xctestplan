@@ -9,6 +9,14 @@
     }
   ],
   "defaultOptions" : {
+    "commandLineArgumentEntries" : [
+      {
+        "argument" : "-appLanguage"
+      },
+      {
+        "argument" : "en"
+      }
+    ],
     "language" : "en",
     "region" : "US"
   },

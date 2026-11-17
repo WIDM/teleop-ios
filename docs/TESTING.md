@@ -84,8 +84,9 @@ Pick an iPhone simulator the same way CI does, then run the default test plan:
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
 Every test plan runs the tests in English, with the United States as the region, whatever language and region the
-iPhone simulator is set to. A UI test that needs Traditional Chinese asks for it at launch (`-appLanguage zh-Hant`,
-below).
+iPhone simulator is set to and whatever language the app last saved there. Each plan launches the app's unit tests
+with `-appLanguage en`, and a UI test names the app's language at every launch: one that needs Traditional Chinese
+asks for it (`-appLanguage zh-Hant`, below).
 
 On a recent Mac a full run of the Default plan takes about three quarters of an hour with its build: about seven
 minutes of the app's unit tests and more than half an hour of UI tests. The AssistOff plan takes about seven minutes.
