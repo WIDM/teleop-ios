@@ -34,7 +34,19 @@ final class OperatingController {
     private var wasStopped: Bool
     private var wasConnected: Bool
     private var wasBlocked: Bool
+    /// The app's belief that the camera is stopped: set by ARKit's report that it stopped the camera, cleared by its
+    /// report that it gave it back or by a frame that shows the camera runs again (`cameraFrame(stampedAt:)`).
     private var cameraStopped = false
+    /// The newest report that the camera stopped, on the uptime clock.
+    private var markSetAt: TimeInterval?
+    /// The tracker's newest run of the camera session, with the time read just before it.
+    private var lastRunAt: TimeInterval?
+    /// Which run of the phone's tracking the attitude samples come from, as the input rules are told: one more at each
+    /// run and at each camera stop.
+    private(set) var attitudeFrame = 0
+    /// The newest run or camera stop. No attitude sample stamped at or before it reaches the rules: it was captured in
+    /// the run before, or before the camera stopped, even if it is handed over after.
+    private var attitudeFrameSince: TimeInterval = -.infinity
     private var queue: [Step] = []
     private var running = false
     private var timer: Timer?
@@ -46,6 +58,9 @@ final class OperatingController {
         case speed(ButtonSpeed)
         /// The pad's running hold ends with its stop, and its button stays dead until lifted (I-11).
         case endButtonHold
+        /// The attitude frame moves, and the input rules see it in a call of their own, after every step queued before
+        /// it: a camera stop's end of every hold included.
+        case newAttitudeFrame
     }
 
     init(
@@ -102,7 +117,7 @@ final class OperatingController {
     }
 
     func attitude(_ attitude: simd_quatd, at time: TimeInterval) {
-        guard mode != .buttons else { return }
+        guard mode != .buttons, time > attitudeFrameSince else { return }
         feed([.attitude(attitude)], at: time)
     }
 
@@ -140,12 +155,41 @@ final class OperatingController {
         feed([active ? .becameActive : .holdsEnded(.appLeft)], at: now())
     }
 
-    /// ARKit stopped or restarted the camera: holds end, and inputs held across it stay dead.
+    /// ARKit stopped the camera (true) or reported that it gave it back (false). A stop ends every hold, inputs held
+    /// across it stay dead, and once the holds have ended the attitude samples start a new frame. Each report of a stop
+    /// dates the mark anew, also while it is set, so a frame stamped before the newest one never clears it.
     func cameraInterrupted(_ interrupted: Bool) {
-        guard interrupted != cameraStopped else { return }
-        cameraStopped = interrupted
-        if interrupted { enqueue(.endButtonHold) }
-        feed([interrupted ? .holdsEnded(.cameraStopped) : .becameActive], at: now())
+        guard interrupted else {
+            guard cameraStopped else { return }
+            cameraStopped = false
+            feed([.becameActive], at: now())
+            return
+        }
+        markSetAt = now()
+        if !cameraStopped {
+            cameraStopped = true
+            enqueue(.endButtonHold)
+            feed([.holdsEnded(.cameraStopped)], at: now())
+        }
+        startAttitudeFrame(since: now())
+    }
+
+    /// The tracker ran the camera session; `time` was read just before the run. The run has a world frame of its own,
+    /// so the attitude samples start a new frame.
+    func trackerRan(at time: TimeInterval) {
+        lastRunAt = time
+        startAttitudeFrame(since: time)
+    }
+
+    /// A camera frame arrived, stamped `stamp`, whether or not tracking was normal for it. When the tracker ran the
+    /// session after the newest report of a stop, the first frame stamped after that run shows the camera runs, and
+    /// the mark clears: ARKit may send no report that the camera is back when the session was paused during the stop,
+    /// as leaving the operating screen does. The input rules are told nothing: every input since the run began after
+    /// it, and every input from before it ended when the operating screen or the app was left.
+    func cameraFrame(stampedAt stamp: TimeInterval) {
+        guard cameraStopped, let run = lastRunAt, let stop = markSetAt, run > stop, stamp > run else { return }
+        cameraStopped = false
+        model.inputsChanged()
     }
 
     var isCameraStopped: Bool { cameraStopped }
@@ -241,6 +285,13 @@ final class OperatingController {
         enqueue(.events(events, time))
     }
 
+    /// A run or a camera stop at `time`: from now on no sample stamped at or before it reaches the rules, and the
+    /// count they are told moves in a step of its own, after the steps already queued.
+    private func startAttitudeFrame(since time: TimeInterval) {
+        attitudeFrameSince = time
+        enqueue(.newAttitudeFrame)
+    }
+
     /// Steps run one at a time: a command can make the model report back (a start that went out, a session
     /// change), and that report waits for the step that caused it to finish.
     private func enqueue(_ step: Step) {
@@ -252,14 +303,10 @@ final class OperatingController {
             let next = queue.removeFirst()
             switch next {
             case .events(let events, let time):
-                var commands = arbiter.handle(events, at: time, facts: model.inputFacts())
-                // A countdown that ran out between ticks fires in the same step as a STOP pressed just after: the
-                // reset would go out ahead of the STOP and could clear it, so the STOP wins.
-                if commands.contains(.emergencyStop) { commands.removeAll { $0 == .fireReset } }
-                // What each start of this call was, in order, as the rules recorded it. Steps run one at a time, so
-                // no other call to the rules can change the record while this one is carried.
-                var starts = arbiter.startsThisCall[...]
-                for command in commands { carry(command, starts: &starts) }
+                handle(events, at: time)
+            case .newAttitudeFrame:
+                attitudeFrame += 1
+                handle([], at: now())
             case .press(let button):
                 press(button)
             case .release(let button):
@@ -271,6 +318,17 @@ final class OperatingController {
             }
             model.inputsChanged()
         }
+    }
+
+    private func handle(_ events: [InputEvent], at time: TimeInterval) {
+        var commands = arbiter.handle(events, at: time, facts: model.inputFacts())
+        // A countdown that ran out between ticks fires in the same step as a STOP pressed just after: the reset would
+        // go out ahead of the STOP and could clear it, so the STOP wins.
+        if commands.contains(.emergencyStop) { commands.removeAll { $0 == .fireReset } }
+        // What each start of this call was, in order, as the rules recorded it. Steps run one at a time, so no other
+        // call to the rules can change the record while this one is carried.
+        var starts = arbiter.startsThisCall[...]
+        for command in commands { carry(command, starts: &starts) }
     }
 
     private func press(_ button: ButtonID) {

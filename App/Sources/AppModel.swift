@@ -331,6 +331,7 @@ final class AppModel {
         UserDefaults.standard.removeObject(forKey: Self.liveLinkKey)
         PoseTracker.shared.onFrame = { [weak self] camera, time in self?.poseFrame(camera, at: time) }
         PoseTracker.shared.onInterruption = { [weak self] in self?.controller.cameraInterrupted($0) }
+        PoseTracker.shared.onRun = { [weak self] in self?.controller.trackerRan(at: $0) }
         controller.startTicking()
         let center = NotificationCenter.default
         lifecycleObservers = [
@@ -430,8 +431,10 @@ final class AppModel {
         controller.key(key, down: down)
     }
 
-    /// An ARKit frame: the camera's transform while tracking is normal, nil otherwise, and the frame's timestamp.
+    /// An ARKit frame: the camera's transform while tracking is normal, nil otherwise, and the frame's timestamp. Any
+    /// frame, tracked or not, can show that the camera runs again after the app ran it.
     func poseFrame(_ camera: simd_float4x4?, at time: TimeInterval) {
+        controller.cameraFrame(stampedAt: time)
         guard let camera else { return }
         controller.attitude(PhoneAttitude.portrait(cameraTransform: camera), at: time)
     }
@@ -483,7 +486,8 @@ final class AppModel {
             wrist: WristReadings(
                 rollDeg: serverState?.wristRollDeg, flexDeg: serverState?.wristFlexDeg, flexAtResetDeg: flexAtReset
             ),
-            connectionUp: !s.liveLink || link.isUp || link.observerUp
+            connectionUp: !s.liveLink || link.isUp || link.observerUp,
+            attitudeFrame: controller.attitudeFrame
         )
         // Tap-to-go starts from where the arm was measured and judges a tap against the panel drawn; without it the
         // facts are version 1.0.1's. While the camera is stopped no key reaches the app and the screen says so, so a
@@ -802,7 +806,9 @@ final class AppModel {
         facts.emergencyStop = s.emergencyStop
         facts.stopOwed = stopOwed
         facts.stopCause = s.emergencyStop ? emergencyCause : nil
-        facts.cameraStopped = controller.isCameraStopped
+        // Buttons mode pauses the tracking on purpose, so no frame can come there to show the camera runs. The pad
+        // needs no camera, and the screen does not say it stopped.
+        facts.cameraStopped = controller.isCameraStopped && modeSetting != .buttons
         facts.commandsBlocked = s.commandsBlocked
         facts.latencyMs = s.latencyMs
         facts.engaged = controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind)
