@@ -22,7 +22,9 @@
         "key" : "TELEOP_EXPECT_ASSIST_OFF",
         "value" : "1"
       }
-    ]
+    ],
+    "language" : "en",
+    "region" : "US"
   },
   "testTargets" : [
     {

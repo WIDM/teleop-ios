@@ -83,6 +83,10 @@ Pick an iPhone simulator the same way CI does, then run the default test plan:
     xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
+Every test plan runs the tests in English, with the United States as the region, whatever language and region the
+iPhone simulator is set to. A UI test that needs Traditional Chinese asks for it at launch (`-appLanguage zh-Hant`,
+below).
+
 On a recent Mac a full run of the Default plan takes about three quarters of an hour with its build: about seven
 minutes of the app's unit tests and more than half an hour of UI tests. The AssistOff plan takes about seven minutes.
 Two things make a run fail for reasons that have nothing to do with the code:
