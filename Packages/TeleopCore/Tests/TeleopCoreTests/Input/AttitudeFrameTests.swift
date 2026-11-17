@@ -39,6 +39,17 @@ final class AttitudeFrameTests: XCTestCase {
         Call(after: 0.2, events: [.tick], frame: 1),
     ]
 
+    /// The same, with the thumb already down when the tracking starts again: it was anchored on the last sample of the
+    /// old frame, and the first sample of the new frame arrives inside its palm window.
+    private static let whileAThumbWaits = [
+        Call(after: 0, events: [.attitude(Phone.rest)], frame: 0),
+        Call(after: 0.5, events: [.attitude(tippedTowardFlat)], frame: 0),
+        Call(after: 0.4, events: [touch(1, .began)], frame: 0),
+        Call(after: 0.02, events: [], frame: 1),
+        Call(after: 0.03, events: [.attitude(sameInANewFrame)], frame: 1),
+        Call(after: 0.2, events: [.tick], frame: 1),
+    ]
+
     func testATurnThatNeverHappenedIsNotReadAcrossATrackerRun() {
         let reading = WristAngles(from: Self.tippedTowardFlat, to: Self.sameInANewFrame)
         XCTAssertGreaterThan(abs(reading.turn), 10, "compared across the two frames, the phone reads as turned")
@@ -66,6 +77,57 @@ final class AttitudeFrameTests: XCTestCase {
         }
         XCTAssertTrue(commands.contains(.startWrist), "1.0.1 starts the wrist: \(commands)")
         XCTAssertGreaterThan(abs(commands.wristTargets.first?.degrees ?? 0), 10, "at a false angle: \(commands)")
+    }
+
+    func testAThumbWaitingWhenTheFrameChangesIsAnchoredAgain() {
+        for assist in [Assist.off, Rig.goTo(lock: LockRule(variant: .holdThenSlide, timeLimitS: 30))] {
+            var arbiter = InputArbiter(scheme: .screenTurns, layout: Rig.layout, assist: assist)
+            var time = 10.0
+            var commands: [InputCommand] = []
+            for call in Self.whileAThumbWaits {
+                time += call.after
+                commands += arbiter.handle(call.events, at: time, facts: InputFacts(attitudeFrame: call.frame))
+            }
+            XCTAssertEqual(
+                commands, [],
+                "\(assist): a thumb already down kept its anchor from before the tracking started again, and the "
+                    + "first sample after it was read as a turn the phone never made")
+            XCTAssertEqual(arbiter.held[.touch(1)], .waiting, "\(assist)")
+        }
+        // Version 1.0.1's rules, given the same events, measure that sample from the thumb's old anchor.
+        var old = InputArbiter101(scheme: .screenTurns, layout: Rig.layout)
+        var time = 10.0
+        var commands: [InputCommand] = []
+        for call in Self.whileAThumbWaits {
+            time += call.after
+            commands += old.handle(call.events, at: time, facts: InputFacts(attitudeFrame: call.frame))
+        }
+        XCTAssertTrue(commands.contains(.startWrist), "1.0.1 starts the wrist: \(commands)")
+    }
+
+    func testAThumbWaitingWhenTheCameraStopsAgainIsAnchoredAgain() {
+        for assist in [Assist.off, Rig.goTo(lock: LockRule(variant: .holdThenSlide, timeLimitS: 30))] {
+            var rig = Rig(.screenTurns, assist: assist)
+            rig.send(.attitude(Self.tippedTowardFlat), after: 0.5)
+            // The camera stops: the stop ends every hold, and the count moves in a step of its own after it.
+            rig.facts.trackingRefusal = .notTracking
+            rig.send(.holdsEnded(.cameraStopped), after: 0.5)
+            rig.facts.attitudeFrame = 1
+            rig.batch([], after: 0.01)
+            // Its samples come again before any report that the camera is back, and a thumb comes down on them.
+            rig.send(.attitude(Self.tippedTowardFlat), after: 1)
+            var commands = rig.touchDown(1, at: Rig.middle, after: 0.4)
+            // A second report of a stop moves the count with no stop of its own, since nothing is engaged to end.
+            rig.facts.attitudeFrame = 2
+            commands += rig.batch([], after: 0.02)
+            commands += rig.send(.attitude(Self.sameInANewFrame), after: 0.03)
+            commands += rig.wait(0.2)
+            XCTAssertEqual(
+                commands, [],
+                "\(assist): a thumb already down kept its anchor from before the camera stopped again, and the first "
+                    + "sample after it was read as a turn and refused")
+            XCTAssertEqual(rig.phase(.touch(1)), .waiting, "\(assist)")
+        }
     }
 
     func testAKeyHeldFromBeforeTheFirstSampleOfANewRunTurnsNothing() {
