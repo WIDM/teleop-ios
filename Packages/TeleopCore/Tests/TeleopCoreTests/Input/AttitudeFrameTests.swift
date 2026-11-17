@@ -117,7 +117,8 @@ final class AttitudeFrameTests: XCTestCase {
             // Its samples come again before any report that the camera is back, and a thumb comes down on them.
             rig.send(.attitude(Self.tippedTowardFlat), after: 1)
             var commands = rig.touchDown(1, at: Rig.middle, after: 0.4)
-            // A second report of a stop moves the count with no stop of its own, since nothing is engaged to end.
+            // A second report of a stop, while the camera is still marked stopped, moves the count with no stop of its
+            // own.
             rig.facts.attitudeFrame = 2
             commands += rig.batch([], after: 0.02)
             commands += rig.send(.attitude(Self.sameInANewFrame), after: 0.03)
@@ -126,6 +127,80 @@ final class AttitudeFrameTests: XCTestCase {
                 commands, [],
                 "\(assist): a thumb already down kept its anchor from before the camera stopped again, and the first "
                     + "sample after it was read as a turn and refused")
+            XCTAssertEqual(rig.phase(.touch(1)), .waiting, "\(assist)")
+        }
+    }
+
+    func testAThumbRestingPastItsPalmWindowWhenTheFrameChangesIsAnchoredAgain() {
+        for assist in [Assist.off, Rig.goTo(lock: LockRule(variant: .holdThenSlide, timeLimitS: 30))] {
+            var rig = Rig(.screenTurns, assist: assist)
+            rig.send(.attitude(Self.tippedTowardFlat), after: 0.5)
+            var commands = rig.touchDown(1, at: Rig.middle, after: 0.4)
+            // Its palm window ends with the phone still, and it rests, waiting for a turn or a slide.
+            commands += rig.wait(0.3)
+            XCTAssertEqual(rig.phase(.touch(1)), .waiting, "\(assist)")
+            rig.facts.attitudeFrame = 1
+            commands += rig.batch([], after: 0.02)
+            commands += rig.send(.attitude(Self.sameInANewFrame), after: 0.03)
+            commands += rig.wait(0.2)
+            XCTAssertEqual(
+                commands, [],
+                "\(assist): a thumb resting past its palm window kept its anchor from before the tracking started "
+                    + "again, and the first sample after it was read as a turn the phone never made")
+            XCTAssertEqual(rig.phase(.touch(1)), .waiting, "\(assist)")
+        }
+    }
+
+    func testAThumbAnchoredAgainCommitsAsOneThatCameDownWithNoAnchor() {
+        // The phone's samples from the first of the new frame on: still, then a real turn that commits the wrist.
+        func turnInTheNewFrame(_ rig: inout Rig) -> [InputCommand] {
+            var commands = rig.send(.attitude(Self.sameInANewFrame), after: 0.03)
+            commands += rig.wait(0.3)
+            for degrees in 1...12 {
+                let sample = Phone.attitude(turn: Double(degrees), from: Self.sameInANewFrame)
+                commands += rig.send(.attitude(sample), after: 1.0 / 60)
+            }
+            return commands
+        }
+        for assist in [Assist.off, Rig.goTo(lock: LockRule(variant: .holdThenSlide, timeLimitS: 30))] {
+            // Down on the last sample of the old frame, and anchored again when the tracking starts again.
+            var again = Rig(.screenTurns, assist: assist)
+            again.send(.attitude(Self.tippedTowardFlat), after: 0.5)
+            again.touchDown(1, at: Rig.middle, after: 0.4)
+            again.facts.attitudeFrame = 1
+            again.batch([], after: 0.02)
+            // Down at the same instant in the call that starts the new frame, so with nothing to anchor on.
+            var fresh = Rig(.screenTurns, assist: assist)
+            fresh.send(.attitude(Self.tippedTowardFlat), after: 0.5)
+            fresh.facts.attitudeFrame = 1
+            fresh.touchDown(1, at: Rig.middle, after: 0.4)
+            fresh.batch([], after: 0.02)
+
+            let anchoredAgain = turnInTheNewFrame(&again)
+            let noAnchor = turnInTheNewFrame(&fresh)
+            XCTAssertTrue(noAnchor.contains(.startWrist), "\(assist): \(noAnchor)")
+            XCTAssertNotEqual(noAnchor.wristTargets.first?.degrees ?? 0, 0, "\(assist): \(noAnchor)")
+            XCTAssertEqual(
+                anchoredAgain.wristTargets.first, noAnchor.wristTargets.first,
+                "\(assist): a thumb anchored again did not start the wrist at the angle it committed at, as a thumb "
+                    + "that came down with no anchor does")
+            XCTAssertEqual(anchoredAgain, noAnchor, "\(assist)")
+        }
+    }
+
+    func testAFrameChangeIsTakenBeforeTheTimersOfItsCall() {
+        for assist in [Assist.off, Rig.goTo(lock: LockRule(variant: .holdThenSlide, timeLimitS: 30))] {
+            var rig = Rig(.screenTurns, assist: assist)
+            var commands = rig.touchDown(1, at: Rig.middle, after: 0.5)
+            // A turn inside the thumb's palm window, in the old frame. The window runs out between two calls, and the
+            // next call carries the change of frame.
+            commands += rig.send(.attitude(Phone.attitude(turn: 12)), after: 0.05)
+            rig.facts.attitudeFrame = 1
+            commands += rig.batch([], after: 0.1)
+            XCTAssertEqual(
+                commands, [],
+                "\(assist): a palm window that ran out before the frame changed was judged with an attitude from "
+                    + "the old frame, in the call that carried the change")
             XCTAssertEqual(rig.phase(.touch(1)), .waiting, "\(assist)")
         }
     }
