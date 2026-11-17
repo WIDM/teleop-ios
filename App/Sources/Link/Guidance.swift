@@ -63,7 +63,8 @@ struct RobotProfile: Equatable {
                 // real arm starts to move after a start.
                 startGraceS: 1.5
             ),
-            guide: .all
+            guide: .all,
+            explain: ExplainAids(slowLinkLetGo: true)
         )
     )
 

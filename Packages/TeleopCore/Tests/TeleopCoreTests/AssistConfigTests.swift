@@ -130,6 +130,34 @@ final class AssistConfigTests: XCTestCase {
         assertGoTo(noCorrections, isKept: true, "corrections 0")
     }
 
+    /// What the phone explains is the robot's share, passed through with the master switch on whatever the operator
+    /// chose for lock and beside the other aids, and gone with the switch off. A robot that gives none explains
+    /// nothing.
+    func testWhatThePhoneExplainsComesFromTheRobotWithTheSwitchOn() {
+        let explain = ExplainAids(slowLinkLetGo: true)
+        let explaining = [
+            AssistProfile(guide: guideOnly, explain: explain),
+            AssistProfile(lock: lockLimits, goTo: goLimits, guide: .all, explain: explain),
+        ]
+        for choice in LockChoice.allCases {
+            for profile in explaining {
+                let resolved = Assist.resolve(masterOn: true, lockChoice: choice, profile: profile)
+                XCTAssertEqual(resolved.explain, explain, "\(choice) with \(profile)")
+                XCTAssertEqual(resolved.goTo, profile.goTo, "\(choice) with \(profile)")
+                XCTAssertEqual(resolved.guide, profile.guide, "\(choice) with \(profile)")
+                XCTAssertEqual(
+                    Assist.resolve(masterOn: false, lockChoice: choice, profile: profile), .off,
+                    "\(choice) with \(profile)")
+            }
+            for profile in profiles {
+                XCTAssertNil(
+                    Assist.resolve(masterOn: true, lockChoice: choice, profile: profile).explain,
+                    "\(choice) with \(profile)")
+            }
+        }
+        XCTAssertNil(AssistProfile.none.explain)
+    }
+
     /// The input rules are built with every aid off unless the caller says otherwise, so every test and caller that
     /// does not ask for an aid runs 1.0.1's rules.
     func testTheArbiterDefaultsToOff() {

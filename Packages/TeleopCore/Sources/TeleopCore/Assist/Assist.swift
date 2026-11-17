@@ -1,7 +1,7 @@
-/// What the hands-free aids may do now: lock (a follow nobody holds), tap-to-go, and the guide's additions. The one
-/// configuration value every seam reads. Its `.off` is version 1.0.1 for every seam: every member is nil, and every
-/// seam's nil path is its 1.0.1 path. A test holds `.off` to "every stored member is nil" by reflection, so a new aid
-/// can only be added here as an optional member that is nil when off.
+/// What the hands-free aids may do now: lock (a follow nobody holds), tap-to-go, the guide's additions, and what the
+/// phone explains. The one configuration value every seam reads. Its `.off` is version 1.0.1 for every seam: every
+/// member is nil, and every seam's nil path is its 1.0.1 path. A test holds `.off` to "every stored member is nil" by
+/// reflection, so a new aid can only be added here as an optional member that is nil when off.
 public struct Assist: Equatable, Sendable {
     /// Lock. Nil: releasing the upper key stops the arm, and a thumb that lands during its hold is judged as in 1.0.1.
     public var lock: LockRule?
@@ -9,11 +9,15 @@ public struct Assist: Equatable, Sendable {
     public var goTo: GoToLimits?
     /// The guide's additions. Nil: the 1.0.1 guide, cues and on-target window.
     public var guide: GuideAids?
+    /// What the phone says about its link beyond 1.0.1's words. Nil: a slow link that stops a held hold is shown on
+    /// the screen only, as in 1.0.1.
+    public var explain: ExplainAids?
 
-    public init(lock: LockRule? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil) {
+    public init(lock: LockRule? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil) {
         self.lock = lock
         self.goTo = goTo
         self.guide = guide
+        self.explain = explain
     }
 
     /// Version 1.0.1.
@@ -34,7 +38,7 @@ public struct Assist: Equatable, Sendable {
             return LockRule(variant: variant, timeLimitS: limits.timeLimitS)
         }
         let goTo = profile.goTo.flatMap { $0.isUsable ? $0 : nil }
-        return Assist(lock: lock, goTo: goTo, guide: profile.guide)
+        return Assist(lock: lock, goTo: goTo, guide: profile.guide, explain: profile.explain)
     }
 }
 
@@ -47,14 +51,30 @@ public struct AssistProfile: Equatable, Sendable {
     public var goTo: GoToLimits?
     /// Which guide additions suit this robot.
     public var guide: GuideAids?
+    /// What the phone may say about its link with this robot. A robot that sets it also sets `guide`: with any aid on,
+    /// the link takes a translation hold's start point when the start goes on the wire, and an aid that only speaks
+    /// must not change that by itself.
+    public var explain: ExplainAids?
 
-    public init(lock: LockLimits? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil) {
+    public init(
+        lock: LockLimits? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil
+    ) {
         self.lock = lock
         self.goTo = goTo
         self.guide = guide
+        self.explain = explain
     }
 
     public static let none = AssistProfile()
+}
+
+/// What the phone says about its link beyond 1.0.1's words. All false is the same as nil.
+public struct ExplainAids: Equatable, Sendable {
+    /// A hold the operator holds that a slow link stops lets go with "Slow link.", as a move nobody holds already ends
+    /// with it; without this the slow link shows on the screen only.
+    public var slowLinkLetGo: Bool
+
+    public init(slowLinkLetGo: Bool) { self.slowLinkLetGo = slowLinkLetGo }
 }
 
 /// Lock's robot numbers. A robot cannot allow lock without saying how long a follow nobody holds may run.

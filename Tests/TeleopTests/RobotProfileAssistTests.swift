@@ -86,6 +86,24 @@ final class RobotProfileAssistTests: XCTestCase {
         XCTAssertNil(unsaid.onTargetWindow)
     }
 
+    /// With the master switch on, the SO-101 has the phone let go of a held hold with "Slow link." when a slow link
+    /// stops it.
+    func testTheSO101ExplainsASlowLinkThatLetsGo() {
+        XCTAssertEqual(profile.assist.explain, ExplainAids(slowLinkLetGo: true))
+        let on = Assist.resolve(masterOn: true, lockChoice: .off, profile: profile.assist)
+        XCTAssertEqual(on.explain, ExplainAids(slowLinkLetGo: true))
+        XCTAssertNil(Assist.resolve(masterOn: false, lockChoice: .off, profile: profile.assist).explain)
+    }
+
+    /// With any aid on, the link takes a translation hold's start point when the start goes on the wire instead of at
+    /// the press. An aid that only speaks must not change that by itself, so every profile the app ships that has the
+    /// phone explain something also gives the guide's additions.
+    func testEveryProfileThatExplainsAlsoGuides() {
+        for shipped in [RobotProfile.so101Simulator] where shipped.assist.explain != nil {
+            XCTAssertNotNil(shipped.assist.guide, shipped.name)
+        }
+    }
+
     /// "Fully open" is felt at the opening angle of the profile the model was given, not the SO-101's: a robot whose
     /// jaws open only to 50 degrees hears it at 60, the SO-101 (97 degrees) does not.
     func testTheLinkJudgesTheJawsByTheModelsProfile() {
