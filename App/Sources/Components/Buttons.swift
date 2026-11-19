@@ -1,31 +1,42 @@
 import SwiftUI
+import TeleopCore
 
-struct StopButton: View {
-    var accessibilityId = "stop"
+/// The red STOP band pinned to the bottom of every screen that is not the operating screen (§2.8). It acts on
+/// touch-down, as the operating screen's band does: a stop must not wait for the finger to lift. It ends where the
+/// bottom safe area begins, red only where a touch stops; the strip under it belongs to the system's swipe home.
+struct StopBand: View {
     let action: () -> Void
+    @State private var down = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: "hand.raised.fill")
-                Text("stop.label").font(.system(size: 22, weight: .bold))
-            }
+        Text("band.stop")
+            .font(.system(size: 26, weight: .heavy))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: TeleopMetrics.stopHeight)
-            .background(TeleopColors.emergency, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            .overlay(
-                RoundedRectangle(cornerRadius: TeleopMetrics.corner)
-                    .strokeBorder(TeleopColors.emergencyBorder, lineWidth: 3)
+            // A colour fills the safe area under a view by default; here only the band is red.
+            .background(TeleopColors.emergency, ignoresSafeAreaEdges: [])
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !down else { return }
+                        down = true
+                        action()
+                    }
+                    .onEnded { _ in down = false }
             )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(accessibilityId)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("band.stop"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { action() }
+            .accessibilityIdentifier("stop")
     }
 }
 
 struct FilledButtonStyle: ButtonStyle {
     var color: Color = TeleopColors.primary
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -33,12 +44,13 @@ struct FilledButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: TeleopMetrics.touch)
             .background(color, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
     }
 }
 
 struct OutlineButtonStyle: ButtonStyle {
     var color: Color = TeleopColors.textPrimary
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -50,7 +62,7 @@ struct OutlineButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: TeleopMetrics.corner)
                     .strokeBorder(color.opacity(0.4), lineWidth: 1.5)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }
 
@@ -91,6 +103,8 @@ struct HoldButton: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: TeleopMetrics.corner))
             Text(titleKey)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(foreground)
                 .frame(maxWidth: .infinity)
@@ -106,42 +120,7 @@ struct HoldButton: View {
                 .updating($pressing) { value, state, _ in state = value }
                 .onEnded { _ in action() }
         )
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-    }
-}
-
-/// Press = start moving the arm, release = stop. Same session path as holding vol+ (`holdArmStart` / `holdArmEnd`).
-/// `@GestureState` resets when the system cancels the gesture (call, Control Center), so that reset also sends `holdArmEnd`.
-private struct ArmHoldModifier: ViewModifier {
-    let model: AppModel
-    @GestureState private var pressing = false
-
-    func body(content: Content) -> some View {
-        content
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($pressing) { _, state, _ in state = true }
-                    .onChanged { _ in
-                        guard !model.session.state.armMoving else { return }
-                        model.send(.holdArmStart)
-                    }
-                    .onEnded { _ in model.send(.holdArmEnd) }
-            )
-            .onChange(of: pressing) { _, isPressing in
-                if !isPressing { model.send(.holdArmEnd) }
-            }
-            .onDisappear {
-                guard model.session.state.armMoving else { return }
-                model.send(.holdArmEnd)
-            }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityValue(model.session.state.armMoving ? "moving" : "stopped")
-    }
-}
-
-extension View {
-    func armHold(model: AppModel) -> some View {
-        modifier(ArmHoldModifier(model: model))
     }
 }

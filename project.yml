@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.0.1"
+    CURRENT_PROJECT_VERSION: "14"
 packages:
   TeleopCore:
     path: Packages/TeleopCore
@@ -24,13 +24,20 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Teleop
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiredDeviceCapabilities:
           - arm64
         NSCameraUsageDescription: The camera tracks the phone pose and detects volume-key hold and release.
-        NSMotionUsageDescription: Motion sensors map phone rotation to wrist orientation.
+        NSLocalNetworkUsageDescription: The app connects to the teleop server on your network.
+        # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        # Only the system's own encryption (URLSession for wss://), which is exempt: no export question on upload.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app
@@ -46,6 +53,10 @@ targets:
     dependencies:
       - target: Teleop
       - package: TeleopCore
+      - package: TeleopCore
+        product: TeleopServerModel
+      - package: TeleopCore
+        product: TeleopServerHost
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.tests
@@ -57,6 +68,10 @@ targets:
       - path: Tests/TeleopUITests
     dependencies:
       - target: Teleop
+      - package: TeleopCore
+        product: TeleopServerModel
+      - package: TeleopCore
+        product: TeleopServerHost
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app.uitests
@@ -70,6 +85,11 @@ schemes:
       config: Debug
     test:
       config: Debug
-      targets:
-        - TeleopTests
-        - TeleopUITests
+      # Default: everything but the live tests. Critical: every unit test and only the critical-path UI tests,
+      # what CI runs on each push (docs/TESTING.md). Live: only ServerMotionTests, which drive the lab simulator
+      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1.
+      testPlans:
+        - path: TestPlans/Default.xctestplan
+          defaultPlan: true
+        - path: TestPlans/Critical.xctestplan
+        - path: TestPlans/Live.xctestplan

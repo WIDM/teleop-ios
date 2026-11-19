@@ -1,0 +1,2 @@
+# Property ids the current code breaks. One id per line, then a short reason.
+# Remove a line when the code is fixed. Do not add a line to make a new failure pass without reporting it.

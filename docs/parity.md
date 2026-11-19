@@ -1,35 +1,22 @@
-# Figma parity (Mockup v2 iOS, 402x874)
+# Figma parity
 
-Source: Figma `inLwADDDptRo8qIw34DRqP`, page Mockup v2 `121:134`, exports `figma-v2-ios/*.png` and `metadata.xml`.
-Rule: where Figma and visual spec v1.14 disagree, the spec wins and the row says so.
-Method: every non-hidden text node of each frame was compared with the string catalog (text, order). Layout, size and colour were compared by reading metadata and PNG against the SwiftUI source. No simulator render was available on this Linux box, so pixel diffs are not done; they are the Mac-only step in the verify-teleop-ios skill.
+The app's screens at version 1.0.0 are drawn in the Figma file (key `inLwADDDptRo8qIw34DRqP`) on two pages.
+"Mockup v3" (page `312:2`) holds every screen as an iPhone frame and an Android frame, the operating screen also
+as a Traditional Chinese frame, with the app's own pictures beside them. "Mockup v3 · reference" (page `312:3`)
+holds the rules a frame cannot show: the states, the words, the cues, the timings and the strings.
+[`figma/mockup-v3-frames.tsv`](figma/mockup-v3-frames.tsv) lists every frame with its node. Open a node by
+replacing the colon in its id with a hyphen:
+`https://www.figma.com/design/inLwADDDptRo8qIw34DRqP/?node-id=314-2`.
 
-| Screen | Status | Notes |
-|---|---|---|
-| P1 Mode select | matched | text and order match; no connection chip (Planner confirmed none in Figma) |
-| P2 Cloud check pass | matched | text matches; no connection chip |
-| P3 Cloud check failed | matched | text matches; no connection chip |
-| P4 Standby | matched (layout not pixel-checked) | Bottom row is three equal outline buttons (Record with empty circle, Reset, Settings) as in Figma; gripper card uses the slate fill. Demo shortcuts ("Simulate high latency", "On-screen controls") are removed from the main layout and live in a debug sheet opened by holding the mode pill for 1 second; they are not in Figma |
-| P5 Connection details | matched | text matches; latency shown (allowed on P5) |
-| P6 High latency | matched (layout not pixel-checked) | Same layout as P4; amber banner is full width under the gripper card as in Figma. "Simulate normal latency" is in the same debug sheet |
-| P7 Keyboard open | matched | text matches; latency shown (allowed on P7) |
-| T1 / T2 / T3 Tutorial | matched | "Step N of 3" is a format string. The dimmed P4 backdrop still draws its chip because Figma does (see T1 export); it is not tappable (`allowsHitTesting(false)`) and there is no chip on the tip card |
-| S1 Connect | matched (spacing not pixel-checked) | Recent rows (lab Wi-Fi, Personal hotspot) have history icons; status chip sits in a white card as in Figma. Navigation per spec (Back/Connect -> P5, Disconnect -> S7) |
-| S2 Permissions | matched | text matches |
-| S3a Recording | matched | Dark "Recording" pill with dot, full-width gripper card, dot beside the timer, Figma hint text (`recording.volume_hint`: "Hold vol+: move arm with the phone, release to stop / Press vol−: toggle gripper (after releasing vol+)"). Bottom row is the dark Recording button plus Reset and Settings outlines. S5a keeps the fallback hint and is now a hold pad |
-| S3b Record end | matched | Save / Discard (hold 1s) present |
-| S3m Teleop with base | matched (bottom row differs) | Hint uses the Figma text (`base.volume_hint`: "Hold vol+: move the arm / Press vol−: toggle gripper / Hold right edge: move the base"). The bottom row keeps Record / Back / Settings: Back is the prototype's release of the base handle, Figma shows Record / Reset / Settings |
-| S4 E-stopped | matched | Rewritten this pass: pill, red card, "Hold 1s to release" white button with progress, caption, STOP solid red + yellow border. Release button is white as in Figma, not red (red only for STOP / E-stop) |
-| S5 Screen fallback | matched | Hold pad now holds: press sends `holdArmStart`, release sends `holdArmEnd` (same path as vol+). The entry button is in the P4 debug sheet |
-| S5a Recording fallback | matched | hold hint text now matches |
-| S6 Settings | matched | Gain, deadband (2 deg) and smoothing (0.3) values live in `FakeTeleopState`, not in view state, so they survive leaving S6. In memory only (no disk persistence yet) |
-| S7 Errors | matched | text matches; amber/red use per spec |
+The pages were drawn from the app's code at 1.0.0, and each of the 125 drawn frames was compared with the rule
+and with the app's picture of that screen: the zone edges (top band, control surface, gap, STOP band and the
+strip under it), the fill colours, and the two views of the guide. What differs, and why:
 
-Behaviour rows (not screens)
-- Blocked gripper toggle or arm hold (latency block, or gripper while the arm is held): `.commandBlocked`, 3 short (haptics-v1 H3, H8).
-- E-stop release: long buzz cancelled, then 1 short (haptics-v1 H15).
+- The frames use Noto Sans TC and the app uses the system font. Word widths differ a little, some lines break one
+  word earlier, and a Chinese read-out box is wider than in the app.
+- The caption over each guide view is 18 pt high in the frames against about 16.5 pt in the app, so the view from
+  behind sits up to 2 pt lower and is up to 2.7 pt less high than in the app.
+- The status bar and the home indicator are not drawn, and the gear is drawn as an outline.
+- The Android frames use 36 pt and 24 pt as stand-ins for the system's top and bottom insets.
 
-Figma-vs-spec notes
-- Figma frames mark "Volume key status" and "Keep awake" as hidden; they are not rendered, matching the app.
-- Icons in Figma are Material Symbols; the app uses SF Symbols equivalents (no font bundled).
-- Figma "Android ..." frames in the same file are out of scope for this repo.
+`docs/figma-map.md` maps the file's older Mockup v2 frames, which show the screens the app had before 1.0.0.

@@ -1,90 +1,116 @@
 import SwiftUI
 import TeleopCore
 
-/// S1. Back and Connect return to P5; Disconnect goes to S7.
+/// Connect (§7.1): the address, Connect, the real reason a connection failed, and practice without a robot.
 struct ConnectScreen: View {
-    let model: AppModel
+    @Bindable var model: AppModel
 
     var body: some View {
         let state = model.session.state
+        let practice = model.operating.practice
+        // Practice cannot start or end while the stop is latched (AppModel.startPractice): say so, never fall through.
+        let practiceBlocked = state.emergencyStop && !practice
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Spacer()
-                ConnectionChip(connected: false, heartbeatOk: false) { model.send(.openConnection) }
-            }
-            .padding(.horizontal, 8)
-            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
-            Text("connect.title")
-                .font(.system(size: 28, weight: .bold))
-                .padding(.top, 16)
-            Text("connect.subtitle")
-                .font(.system(size: 14))
-                .foregroundStyle(TeleopColors.textSecondary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("connection.server_address")
-                    .font(.system(size: 14))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                ServerAddressField(address: state.serverAddress, error: state.serverInputError)
-                if state.serverInputError {
-                    Text("connect.input_error")
-                        .font(.system(size: 12))
-                        .foregroundStyle(TeleopColors.statusAmber)
-                }
-                HStack(spacing: 8) {
-                    Button { model.send(.connect) } label: {
-                        Label("connect.connect", systemImage: "link")
+            PracticeBanner(practice: model.operating.practice)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("connect.title")
+                        .font(.system(size: 28, weight: .bold))
+                    if state.connectionLost {
+                        Text("connect.connection_lost")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TeleopColors.emergency)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("connect.connection_lost")
                     }
-                    .buttonStyle(FilledButtonStyle())
-                    .accessibilityIdentifier("connect.connect")
-                    Button { model.send(.disconnect) } label: {
-                        Label("connect.disconnect", systemImage: "bolt.slash")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("connection.server_address")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TeleopColors.textSecondary)
+                        TextField(text: $model.session.state.serverAddress, prompt: Text(verbatim: "192.168.0.10:8765"))
+                        {
+                            Text("connection.server_address")
+                        }
+                        .font(.system(size: 16, design: .monospaced))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.numbersAndPunctuation)
+                        .submitLabel(.go)
+                        .onSubmit { model.connect() }
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: TeleopMetrics.touch)
+                        .background(
+                            state.serverInputError
+                                ? TeleopColors.statusAmber.opacity(0.15) : TeleopColors.textSecondary.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: TeleopMetrics.corner)
+                        )
+                        .accessibilityIdentifier("connect.address_field")
+                        if let reason = failure {
+                            Text(verbatim: reason)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(TeleopColors.statusAmber)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("connect.failure")
+                        }
+                        if practice {
+                            // In practice Connect only reconnects the demo, whatever the address says.
+                            Text("settings.practice_no_server")
+                                .font(.system(size: 14))
+                                .foregroundStyle(TeleopColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("connect.in_practice")
+                        }
+                        HStack(spacing: 8) {
+                            Button {
+                                model.connect()
+                            } label: {
+                                Text("connect.connect")
+                            }
+                            .buttonStyle(FilledButtonStyle())
+                            .disabled(practice)
+                            .accessibilityIdentifier("connect.connect")
+                            Button {
+                                model.send(.s1Back)
+                            } label: {
+                                Text("common.back")
+                            }
+                            .buttonStyle(OutlineButtonStyle())
+                            .accessibilityIdentifier("connect.back")
+                        }
+                        .padding(.top, 4)
                     }
-                    .buttonStyle(OutlineButtonStyle())
-                    .accessibilityIdentifier("connect.disconnect")
+                    .card()
+                    Button {
+                        model.startPractice()
+                        // Refused while the robot is stopped: then Connect would reach the real server.
+                        guard !model.session.state.liveLink else { return }
+                        // Practice is the built-in demo: it is there at once, so go straight to the operating screen.
+                        model.connect()
+                    } label: {
+                        Text("connect.practice")
+                    }
+                    .buttonStyle(OutlineButtonStyle(color: TeleopColors.practice))
+                    .disabled(practiceBlocked)
+                    .accessibilityIdentifier("connect.practice")
+                    if practiceBlocked {
+                        Text(model.practiceBlockedReason)
+                            .font(.system(size: 14))
+                            .foregroundStyle(TeleopColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("connect.practice_stopped")
+                    }
                 }
-                .padding(.top, 4)
-            }
-            .card()
-            .padding(.top, 16)
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text("connect.recent")
-                    .font(.system(size: 14))
-                    .foregroundStyle(TeleopColors.textSecondary)
-                    .padding(.bottom, 4)
-                recentRow("connect.recent_lab_wifi")
-                recentRow("connect.recent_hotspot")
-            }
-            .card()
-            .padding(.top, 16)
-
-            Text("connect.hint")
-                .font(.system(size: 12))
-                .foregroundStyle(TeleopColors.textSecondary)
+                .padding(.horizontal, TeleopMetrics.margin)
                 .padding(.top, 12)
-
-            Button { model.send(.s1Back) } label: {
-                Label("common.back", systemImage: "arrow.left")
             }
-            .buttonStyle(OutlineButtonStyle())
-            .accessibilityIdentifier("connect.back")
-            .padding(.top, 8)
-
-            Spacer(minLength: 8)
-            StopButton { model.send(.stop) }
+            StopBand { model.send(.stop) }
         }
-        .padding(.horizontal, TeleopMetrics.margin)
-        .padding(.vertical, 12)
     }
 
-    private func recentRow(_ key: LocalizedStringKey) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "clock.arrow.circlepath")
-                .foregroundStyle(TeleopColors.textSecondary)
-            Text(key).font(.system(size: 16))
-            Spacer()
-        }
-        .frame(minHeight: TeleopMetrics.touch)
+    /// Why the last attempt failed, as the link reported it; or that the address cannot be read.
+    private var failure: String? {
+        if model.session.state.serverInputError { return L10n.string("connect.input_error") }
+        if case .notConnected(let reason?) = model.operating.state { return reason }
+        return nil
     }
 }
