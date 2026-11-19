@@ -160,6 +160,38 @@
           }
         }
       }
+    },
+    "btn.precision_open": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine controls"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精細微調"
+          }
+        }
+      }
+    },
+    "btn.precision_close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to phone control"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到手機控制"
+          }
+        }
+      }
     }
   },
   "sourceLanguage": "en",

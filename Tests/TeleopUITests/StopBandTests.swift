@@ -17,7 +17,7 @@ final class StopBandTests: XCTestCase {
     private func launchOperating(_ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication.teleop(["-startRoute", "p4_standby", "-recordHaptics", "YES"] + extra)
         app.launch()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         return app
     }
 
@@ -222,8 +222,9 @@ final class StopBandTests: XCTestCase {
         let deadline = Date().addingTimeInterval(1)
         repeat {
             let now = state.label
-            XCTAssertEqual(now, "Ready", "\(String(describing: p ?? start)): the state changed", file: file, line: line)
-            if now != "Ready" { break }
+            XCTAssertEqual(
+                now, "Available", "\(String(describing: p ?? start)): the state changed", file: file, line: line)
+            if now != "Available" { break }
         } while Date() < deadline
         XCTAssertEqual(app.element("test.haptics").label, cues, "no cue", file: file, line: line)
     }

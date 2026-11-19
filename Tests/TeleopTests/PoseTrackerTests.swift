@@ -28,6 +28,18 @@ final class PoseTrackerTests: XCTestCase {
     private var interruptions: [Bool] = []
     private var frames: [(pose: simd_float4x4?, stamp: TimeInterval)] = []
 
+    func testTheRecordNamesEveryRunPauseAndInterruption() {
+        var record: [String] = []
+        tracker.onRecord = { record.append($0) }
+        tracker.setActive(true)
+        tracker.interrupted()
+        tracker.interruptionEnded()
+        tracker.setActive(false)
+        tracker.setActive(false)
+        XCTAssertEqual(
+            record, ["tracker run stamp=100.0", "tracker interrupted", "tracker interruption ended", "tracker pause"])
+    }
+
     override func setUp() {
         super.setUp()
         let session = FakeCameraSession()

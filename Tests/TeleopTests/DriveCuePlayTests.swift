@@ -59,6 +59,27 @@ final class DriveCuePlayTests: XCTestCase {
         }
     }
 
+    func testTheHeightFloorRefusalIsFeltSpokenAndWrittenInBothLanguages() {
+        for language in [AppLanguage.en, .zhHant] {
+            L10n.language = language
+            let felt = SpyHaptics(), speech = SpySpeech()
+            let model = AppModel(start: .p4, haptics: felt, sounds: SpySounds(), speech: speech, liveLink: false)
+            model.raise(.refused(OperatingController.refusal(.useUpperKey)))
+            XCTAssertEqual(felt.felt, [.play(.no)])
+            XCTAssertEqual(
+                speech.spoken,
+                [
+                    language == .en
+                        ? "To lower further, hold the upper volume key."
+                        : "更低請按住上音量鍵，往下移動手機。"
+                ])
+            XCTAssertEqual(
+                OperatingWords.reason(.useUpperKey),
+                language == .en
+                    ? "Hold + to lower" : "按住上鍵下降")
+        }
+    }
+
     func testTheTapsRefusalsHaveTheirWords() {
         XCTAssertEqual(OperatingController.refusal(.outsideWorkArea), .outsideWorkArea)
         XCTAssertEqual(OperatingController.refusal(.noArmData), .noArmData)

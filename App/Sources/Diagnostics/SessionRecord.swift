@@ -5,8 +5,8 @@ import UIKit
 /// across launches. Each line starts with the wall-clock time to the millisecond and the seconds since the record
 /// started in this process. It only records: nothing the app decides, sends, shows or plays reads it.
 ///
-/// The file never grows past `limit`: when a launch finds it at the limit, or a write would take it past, it is
-/// renamed `session.1.log`, replacing an older one, so the record never holds more than twice the limit.
+/// The file rotates around `limit`: when a launch finds it at the limit, or a batch would take it past, it is
+/// renamed `session.1.log`, replacing an older one. A single large batch may exceed the limit.
 ///
 /// Nothing private is written: a server's address (a ws:// or wss:// address, an IPv4 address, an IPv6 address in
 /// brackets, or a host with a port) is written as `<server>`.
@@ -85,6 +85,7 @@ final class SessionRecord: @unchecked Sendable {
     /// Adds one line, stamped now, whose words are built later on the writer's queue: for lines on the path of a
     /// touch, so that the main thread only keeps the values.
     func noteLater(_ words: @escaping @Sendable () -> String) {
+        guard url != nil else { return }
         let line = Line(date: Date(), uptime: ProcessInfo.processInfo.systemUptime, words: words)
         lock.lock()
         pending.append(line)
@@ -102,6 +103,7 @@ final class SessionRecord: @unchecked Sendable {
     /// Once per process: the launch line (version, build, device model, system version), then a line each time the
     /// app becomes active, will resign active or enters the background, and every line written before it goes.
     func launched() {
+        guard url != nil else { return }
         lock.lock()
         let first = !launchNoted
         launchNoted = true

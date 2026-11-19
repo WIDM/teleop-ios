@@ -6,9 +6,50 @@ import TeleopCore
 @Observable
 final class AppModel {
     var session: TeleopSession
+    @ObservationIgnored private let aimViewsAllowed: Bool
     @ObservationIgnored private let cues: CuePlayer
+    @ObservationIgnored let experimentTiming: ExperimentTiming
+    @ObservationIgnored private var timingWelcome: [String: Any]?
+    @ObservationIgnored let sessionRecord: SessionRecord
+    @ObservationIgnored private var recordedTouches: [Int: RecordedTouch] = [:]
+    @ObservationIgnored private var lastRecordedLift: TimeInterval?
+    @ObservationIgnored private var recentRoundTrips: [Int] = []
+
+    private struct RecordedTouch {
+        let point: SIMD2<Double>
+        let at: TimeInterval
+        let layout: SurfaceLayout
+        let panel: SurfaceLayout.Rect?
+        var farthestMm = 0.0
+
+        mutating func track(_ sample: TouchSample) {
+            let delta = SIMD2(sample.x, sample.y) - point
+            farthestMm = max(farthestMm, layout.millimetres(simd_length(delta)))
+        }
+    }
     @ObservationIgnored private let pose: () -> simd_float4x4?
     @ObservationIgnored private let nowMs: () -> Int
+    @ObservationIgnored private var speechActive = true
+    private(set) var voiceAxisSession = VoiceAxisSession()
+    private(set) var voiceAxisFailure: AxisSpeechFailure?
+    @ObservationIgnored private let axisRecognizer: AxisSpeechRecognizing
+    @ObservationIgnored private var voiceResume: DispatchWorkItem?
+    @ObservationIgnored let voiceActionsPrototype: Bool
+    @ObservationIgnored private var voiceMotion: VoiceMotion?
+
+    private enum VoiceGoal {
+        case step(offset: SIMD3<Double>, target: SIMD3<Double>)
+        case gripper(GripperState)
+    }
+
+    private struct VoiceMotion {
+        let action: VoiceAction
+        let goal: VoiceGoal
+        let deadline: Int
+        let startStamp: Int
+    }
+    @ObservationIgnored var onVoiceEvent: ((String, [String: Any]) -> Void)?
+    @ObservationIgnored private var readyAfterWelcome = false
     @ObservationIgnored private var holdStartPose: simd_float4x4?
     @ObservationIgnored private var pendingServerCause: StopCause?
     @ObservationIgnored let link: LiveLinkController
@@ -40,6 +81,7 @@ final class AppModel {
         didSet {
             L10n.language = language
             language.save()
+            recordSettings()
         }
     }
     /// True while the command is held back so the arm can catch up with the phone.
@@ -95,6 +137,7 @@ final class AppModel {
     /// Where the guide's view from above is drawn, in the operating screen's coordinates, which touches arrive in, as
     /// the screen reported it; nil while it is not drawn. Not observed: the screen reports it while laying out.
     @ObservationIgnored private(set) var guidePanelRect: SurfaceLayout.Rect?
+    @ObservationIgnored private var guideBehindRect: SurfaceLayout.Rect?
     @ObservationIgnored private var lifecycleObservers: [NSObjectProtocol] = []
 
     static let controlModeKey = "controlMode"
@@ -115,6 +158,7 @@ final class AppModel {
             }
             modeSetting = newValue
             UserDefaults.standard.set(newValue.rawValue, forKey: Self.controlModeKey)
+            recordSettings()
             controller.modeChanged(newValue, hand: handSetting)
             refreshOperating()
         }
@@ -127,6 +171,7 @@ final class AppModel {
             guard newValue != handSetting else { return }
             handSetting = newValue
             UserDefaults.standard.set(newValue == .left ? "left" : "right", forKey: Self.handKey)
+            recordSettings()
             controller.modeChanged(modeSetting, hand: newValue)
             refreshOperating()
         }
@@ -139,6 +184,7 @@ final class AppModel {
             guard newValue != taskAidSetting else { return }
             taskAidSetting = newValue
             UserDefaults.standard.set(newValue, forKey: Self.taskAidKey)
+            recordSettings()
             refreshOperating()
         }
     }
@@ -157,6 +203,7 @@ final class AppModel {
             UserDefaults.standard.set(newValue, forKey: Self.assistKey)
             // Rounds with and without the aids are compared from the developer log.
             log("assist: \(newValue ? "on" : "off")")
+            recordSettings()
             assistDidChange()
         }
     }
@@ -174,6 +221,7 @@ final class AppModel {
             lockChoiceSetting = newValue
             UserDefaults.standard.set(newValue.rawValue, forKey: Self.lockChoiceKey)
             log("assist: lock \(newValue.rawValue)")
+            recordSettings()
             assistDidChange()
         }
     }
@@ -185,7 +233,9 @@ final class AppModel {
     /// The one configuration of the aids, resolved from the two settings and the robot. Derived, never stored, so it
     /// cannot disagree with them.
     var assist: Assist {
-        Assist.resolve(masterOn: assistSetting, lockChoice: lockChoiceSetting, profile: profile.assist)
+        var settings = profile.assist
+        if !aimViewsAllowed { settings.views = nil }
+        return Assist.resolve(masterOn: assistSetting, lockChoice: lockChoiceSetting, profile: settings)
     }
 
     private func assistDidChange() {
@@ -208,13 +258,12 @@ final class AppModel {
     /// and that rule tells it. With the lowest rule off the floor is watched like every other face, so a push into the
     /// table is still told.
     private func guideAidsChanged() {
-        let low = profile.workspaceMin - profile.toolOffset
-        let high = profile.workspaceMax - profile.toolOffset
         var sides = Set(OperatorDirection.allCases)
         let floorBelowTable = min(profile.workspaceMin.z, profile.workspaceMax.z) < profile.tableHeight
         if floorBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
         link.guideAidsChanged(
-            assist.guide, gripperBox: (low: SIMD3<Double>(low), high: SIMD3<Double>(high)), sides: sides)
+            assist.guide, gripperBox: profile.gripperWorkspace, sides: sides,
+            directionalBlocked: profile.usesDirectionalBlockedFeedback)
     }
 
     /// A saved Bool that a launch argument can set as YES or NO. A launch argument arrives as a string, which a cast
@@ -236,6 +285,7 @@ final class AppModel {
         haptics: HapticsPlaying? = nil,
         sounds: SoundPlaying? = nil,
         speech: SpeechPlaying? = nil,
+        axisRecognizer: AxisSpeechRecognizing? = nil,
         pose: @escaping () -> simd_float4x4? = { PoseTracker.shared.current },
         liveLink: Bool = AppModel.launchesOnTheRealServer(),
         makeTransport: @escaping (URL) -> LinkTransport = { WebSocketTransport(url: $0) },
@@ -245,9 +295,18 @@ final class AppModel {
         clientName: String = LiveLinkController.clientName(),
         profile: RobotProfile = .so101Simulator,
         assistOn: Bool? = nil,
-        lockChoice: LockChoice? = nil
+        lockChoice: LockChoice? = nil,
+        sessionRecord: SessionRecord = .shared,
+        experimentTiming: ExperimentTiming? = nil,
+        voiceActionsPrototype: Bool = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[
+            "voiceActionsPrototype"
+        ] as? String == "YES"
     ) {
         self.profile = profile
+        self.sessionRecord = sessionRecord
+        self.experimentTiming = experimentTiming ?? ExperimentTiming()
+        self.axisRecognizer = axisRecognizer ?? AxisSpeechRecognizer()
+        self.voiceActionsPrototype = voiceActionsPrototype
         var state = FakeTeleopState()
         state.liveLink = liveLink
         // Loaded in practice too, so leaving practice connects to it.
@@ -256,9 +315,10 @@ final class AppModel {
         }
         session = TeleopSession(state: state, start: start)
         let defaults = UserDefaults.standard
+        aimViewsAllowed = Self.savedBool("aimViews", default: true, defaults)
         let mode = defaults.string(forKey: Self.controlModeKey).flatMap(ControlMode.init(rawValue:)) ?? .screenTurns
         let hand: Hand = defaults.string(forKey: Self.handKey) == "left" ? .left : .right
-        let taskAid = defaults.object(forKey: Self.taskAidKey) as? Bool ?? true
+        let taskAid = Self.savedBool(Self.taskAidKey, default: true, defaults)
         let fixture = defaults.string(forKey: Self.operatingFixtureKey).flatMap(OperatingDisplay.fixture(named:))
         modeSetting = mode
         handSetting = hand
@@ -292,7 +352,29 @@ final class AppModel {
             gripperLimits: profile.gripperLimits, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
+        self.experimentTiming.send = { [weak self] type, payload in
+            _ = self?.link.sendDiagnostic(type: type, payload: payload)
+        }
+        link.onWireEvent = { [weak self] type, payload, at in
+            guard let self else { return }
+            if type == "welcome" { timingWelcome = payload }
+            guard speechActive else { return }
+            self.experimentTiming.receive(type: type, payload: payload, localMonotonicNs: at)
+        }
+        cues.onDecision = { [weak self] event, at in
+            self?.experimentTiming.decision(event: String(describing: event), localMonotonicNs: at)
+        }
+        cues.onSpeechEvent = { [weak self] stage, id, at in
+            self?.experimentTiming.speech(stage: stage, id: id, localMonotonicNs: at)
+        }
+        sessionRecord.launched()
+        recordSettings()
+        cues.onSpeechLog = { [weak sessionRecord] in sessionRecord?.note($0) }
+        cues.onAudioWillPlay = { [weak self] in self?.suspendVoiceListening() }
+        cues.onAudioSettled = { [weak self] in self?.resumeVoiceListening() }
+        self.axisRecognizer.onEvent = { [weak self] epoch, event in self?.voiceRecognition(epoch: epoch, event: event) }
         cues.currentHold = { [weak self] in self?.currentHold }
+        cues.isReady = { [weak self] in self?.readyToAnnounce == true }
         cues.onLog = { [weak self] in self?.log("~ \($0)") }
         link.onFeedback = { [weak self] in self?.raise($0) }
         link.onState = { [weak self] in self?.stateArrived($0) }
@@ -332,6 +414,7 @@ final class AppModel {
         PoseTracker.shared.onFrame = { [weak self] camera, time in self?.poseFrame(camera, at: time) }
         PoseTracker.shared.onInterruption = { [weak self] in self?.controller.cameraInterrupted($0) }
         PoseTracker.shared.onRun = { [weak self] in self?.controller.trackerRan(at: $0) }
+        PoseTracker.shared.onRecord = { [weak sessionRecord] in sessionRecord?.note($0) }
         controller.startTicking()
         let center = NotificationCenter.default
         lifecycleObservers = [
@@ -346,6 +429,8 @@ final class AppModel {
     }
 
     deinit {
+        voiceResume?.cancel()
+        axisRecognizer.stop()
         for observer in lifecycleObservers { NotificationCenter.default.removeObserver(observer) }
     }
 
@@ -374,9 +459,18 @@ final class AppModel {
         guidePanelRect = rect
     }
 
+    func guideBehindChanged(_ rect: SurfaceLayout.Rect?) {
+        guideBehindRect = rect
+    }
+
     /// One raw touch on the operating screen, with `UITouch.timestamp`.
     func touch(_ sample: TouchSample, at time: TimeInterval) {
+        recordTouch(sample, at: time)
         controller.touch(sample, at: time)
+    }
+
+    func setPrecisionPanelOpen(_ open: Bool) {
+        controller.setPrecisionPanelOpen(open)
     }
 
     /// Buttons mode: a finger came down on `button`.
@@ -424,26 +518,261 @@ final class AppModel {
         send(.switchLink)
     }
 
+    var voiceAxisLabel: String {
+        if let failure = voiceAxisFailure {
+            switch failure {
+            case .permission: return L10n.string("voice.error.permission")
+            case .unavailable: return L10n.string("voice.error.unavailable")
+            case .audio: return L10n.string("voice.error.audio")
+            case .interrupted: return L10n.string("voice.error.interrupted")
+            case .unsupportedTool: return L10n.string("voice.error.unsupported_tool")
+            }
+        }
+        if let axis = voiceAxisSession.axis {
+            switch axis {
+            case .height: return L10n.string("voice.axis.height")
+            case .foreAft: return L10n.string("voice.axis.fore_aft")
+            case .leftRight: return L10n.string("voice.axis.left_right")
+            }
+        }
+        if voiceActionsPrototype {
+            return L10n.string(voiceAxisSession.enabled ? "voice.action.listening" : "voice.action.enable")
+        }
+        return L10n.string(voiceAxisSession.enabled ? "voice.listening" : "voice.enable")
+    }
+
+    func toggleVoiceAxis() {
+        if voiceAxisSession.enabled { disableVoiceAxis(reason: "operator_disabled"); return }
+        guard voiceInputIdle else { raise(.refused(.letGoFirst)); return }
+        guard session.state.liveLink, link.toolCalibrationID != nil else {
+            voiceAxisFailure = .unsupportedTool
+            return
+        }
+        voiceAxisFailure = nil
+        voiceAxisSession.enable()
+        voiceRecord("enabled")
+        resumeVoiceListening()
+    }
+
+    func disableVoiceAxis(reason: String) {
+        if voiceMotion != nil { finishVoiceMotion(reason: reason) }
+        guard voiceAxisSession.enabled else { return }
+        voiceAxisSession.disable()
+        voiceResume?.cancel()
+        voiceResume = nil
+        axisRecognizer.stop()
+        cues.cancelVoiceAxisConfirmation()
+        controller?.selectTranslationAxis(nil)
+        voiceRecord("disabled", ["reason": reason])
+    }
+
+    private var voiceInputIdle: Bool {
+        guard let controller else { return false }
+        return voiceMotion == nil && !controller.isEngaged && !controller.arbiter.isHoldingAnInput
+            && controller.buttons.down.isEmpty
+            && !controller.precisionPanelOpen && !session.state.armMoving && !session.state.wristMoving
+            && session.state.gripperMoving == nil
+    }
+
+    private var voiceMayListen: Bool {
+        speechActive && voiceInputIdle && !cues.hasAudio && modeSetting != .buttons
+            && OperatingController.operatingRoutes.contains(session.route)
+            && session.state.connected && !session.state.emergencyStop && !session.state.commandsBlocked
+            && !link.resetPending && serverState?.simBusy != true && link.toolCalibrationID != nil
+    }
+
+    private func suspendVoiceListening() {
+        guard voiceAxisSession.enabled else { return }
+        voiceResume?.cancel()
+        voiceResume = nil
+        if voiceAxisSession.listeningEpoch != nil {
+            voiceAxisSession.suspend()
+            axisRecognizer.stop()
+            voiceRecord("capture_suspended")
+        }
+    }
+
+    private func resumeVoiceListening() {
+        guard voiceAxisSession.enabled, voiceAxisSession.listeningEpoch == nil,
+            voiceResume == nil, voiceMayListen
+        else { return }
+        let resume = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.voiceResume = nil
+            guard self.voiceMayListen, let epoch = self.voiceAxisSession.beginListening() else { return }
+            self.voiceRecord("capture_requested", ["epoch": epoch])
+            self.axisRecognizer.start(epoch: epoch, language: SpeechText.voiceLanguage())
+        }
+        voiceResume = resume
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: resume)
+    }
+
+    private func voiceRecognition(epoch: Int, event: AxisSpeechEvent) {
+        guard voiceAxisSession.listeningEpoch == epoch else { return }
+        switch event {
+        case .listening:
+            voiceRecord("capture_started", ["epoch": epoch])
+        case .transcript(let text, let final, let captured):
+            let now = controller.now()
+            let inputIdle = voiceInputIdle
+            if voiceActionsPrototype, voiceMayListen, !stopOwed,
+                let action = voiceAxisSession.acceptAction(
+                    text, final: final, epoch: epoch, capturedAt: captured, now: now, inputIdle: inputIdle)
+            {
+                disableVoiceAxis(reason: "action_consumed")
+                startVoiceMotion(action)
+                return
+            }
+            guard
+                let axis = voiceAxisSession.accept(
+                    text, final: final, epoch: epoch, capturedAt: captured, now: now, inputIdle: inputIdle)
+            else {
+                if final {
+                    let age = now - captured
+                    voiceRecord(
+                        "selection_rejected",
+                        [
+                            "epoch": epoch,
+                            "input_idle": inputIdle,
+                            "phrase_matched": TranslationAxis.recognized(text) != nil,
+                            "capture_age_s": age.isFinite ? String(format: "%.3f", age) : "invalid",
+                        ])
+                }
+                return
+            }
+            axisRecognizer.stop()
+            controller.selectTranslationAxis(axis)
+            voiceRecord("axis_selected", ["axis": axis.rawValue, "epoch": epoch, "capture_uptime_s": captured])
+            raise(.voiceAxis(axis))
+            resumeVoiceListening()
+        case .ended:
+            voiceAxisSession.suspend()
+            voiceRecord("capture_ended", ["epoch": epoch])
+            resumeVoiceListening()
+        case .failed(let failure):
+            disableVoiceAxis(reason: "recognition_" + failure.rawValue)
+            voiceAxisFailure = failure
+        }
+    }
+
+    private func voiceRecord(_ kind: String, _ details: [String: Any] = [:]) {
+        sessionRecord.note(
+            "voice " + kind + " " + details.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: " "))
+        experimentTiming.event(kind: "voice." + kind, details: details)
+        onVoiceEvent?(kind, details)
+    }
+
     // MARK: Raw inputs from the device
 
     /// A volume key's capture event: `down` for began, false for ended or cancelled.
     func keyEvent(_ key: InputKey, down: Bool) {
+        experimentTiming.event(kind: "key_edge", details: ["key": String(describing: key), "down": down])
+        if down { suspendVoiceListening() }
         controller.key(key, down: down)
+        if !down { resumeVoiceListening() }
     }
 
     /// An ARKit frame: the camera's transform while tracking is normal, nil otherwise, and the frame's timestamp. Any
     /// frame, tracked or not, can show that the camera runs again after the app ran it.
     func poseFrame(_ camera: simd_float4x4?, at time: TimeInterval) {
         controller.cameraFrame(stampedAt: time)
-        guard let camera else { return }
+        cues.refreshReadiness()
+        guard let camera else { disableVoiceAxis(reason: "tracking_lost"); return }
         controller.attitude(PhoneAttitude.portrait(cameraTransform: camera), at: time)
     }
 
     /// The app became active or left the active state (a call, the home screen, Control Center). Every hold ends, with
     /// its stop, on leaving; inputs held across it stay dead; the link's old latency probes are dropped.
     func activeChanged(_ active: Bool) {
+        speechActive = active
+        cues.refreshReadiness()
+        if !active { recordedTouches.removeAll() }
         controller.activeChanged(active)
         link.foregroundChanged()
+        if !active {
+            experimentTiming.event(kind: "app_suspended", details: [:])
+            experimentTiming.reset()
+        } else if link.isUp, let timingWelcome {
+            experimentTiming.receive(
+                type: "welcome", payload: timingWelcome,
+                localMonotonicNs: DispatchTime.now().uptimeNanoseconds)
+        }
+    }
+
+    func measurementTick() {
+        experimentTiming.tick()
+        if let voiceMotion, nowMs() >= voiceMotion.deadline {
+            finishVoiceMotion(reason: "timeout")
+            raise(.letGo(.noAnswer))
+        }
+    }
+
+    private func startVoiceMotion(_ action: VoiceAction) {
+        guard let startStamp = link.voiceMotionStartStamp else {
+            voiceRecord("action_refused", ["reason": "no_fresh_idle_state"])
+            raise(.refused(.notReady))
+            return
+        }
+        let goal: VoiceGoal
+        let timeout: Int
+        switch action {
+        case .forward, .up:
+            guard let start = link.freshToolPointForStep else {
+                voiceRecord("action_refused", ["reason": "tool_state_unavailable"])
+                raise(.refused(.notReady))
+                return
+            }
+            let direction: OperatorDirection = action == .forward ? .forward : .up
+            let offset = direction.linkVector * 0.005
+            goal = .step(offset: offset, target: start + OperatorFrame.base(fromLink: offset))
+            timeout = 2_000
+        case .open, .close:
+            goal = .gripper(action == .open ? .open : .closed)
+            timeout = 7_000
+        }
+        voiceMotion = VoiceMotion(action: action, goal: goal, deadline: nowMs() + timeout, startStamp: startStamp)
+        voiceRecord("action_requested", ["action": action.rawValue])
+        switch goal {
+        case .step:
+            startArmHold(.pad)
+            if !session.state.armMoving { finishVoiceMotion(reason: "start_refused", sendEnd: false) }
+        case .gripper(let target):
+            send(.gripperStart(target))
+            if session.state.gripperMoving != target { finishVoiceMotion(reason: "start_refused", sendEnd: false) }
+        }
+    }
+
+    private func finishVoiceMotion(reason: String, sendEnd: Bool = true) {
+        guard let motion = voiceMotion else { return }
+        voiceMotion = nil
+        voiceRecord("action_ended", ["action": motion.action.rawValue, "reason": reason])
+        guard sendEnd else { return }
+        switch motion.goal {
+        case .step: send(.holdArmEnd)
+        case .gripper: send(.gripperEnd)
+        }
+    }
+
+    private func observeVoiceMotion(_ state: ServerState) {
+        guard let motion = voiceMotion, !state.estop,
+            let stamp = link.latestVoiceMotionStateStamp, stamp > motion.startStamp
+        else { return }
+        switch motion.goal {
+        case .step(_, let target):
+            if state.activity == .poseTracking, let point = state.toolPoint,
+                simd_distance(point, target) <= 0.001
+            {
+                finishVoiceMotion(reason: "target_reached")
+            }
+        case .gripper(let target):
+            if target == .closed, state.activity == .gripperContact {
+                finishVoiceMotion(reason: "contact")
+            } else if state.activity == .gripperJogging, let angle = state.gripperDeg,
+                target == .open ? angle >= profile.gripperLimits.openDeg : angle <= profile.gripperLimits.emptyDeg
+            {
+                finishVoiceMotion(reason: "gripper_limit")
+            }
+        }
     }
 
     // MARK: What the input rules are told
@@ -463,6 +792,8 @@ final class AppModel {
         } else if s.commandsBlocked {
             refusal = .slowLink
         } else if notReady {
+            refusal = .wait
+        } else if voiceAxisSession.enabled, voiceAxisSession.axis == nil {
             refusal = .wait
         }
         let camera = pose()
@@ -508,7 +839,7 @@ final class AppModel {
         else { return nil }
         return GoPanel(
             rect: rect, projection: picture.projection, boxLow: picture.workBoxLow, boxHigh: picture.workBoxHigh,
-            tableHeight: Double(profile.tableHeight))
+            tableHeight: Double(profile.tableHeight), behind: assist.views == nil ? nil : guideBehindRect)
     }
 
     /// Where the arm was last measured, for tap-to-go: the pinch point of the newest position either connection
@@ -531,6 +862,7 @@ final class AppModel {
     /// The controller handled an input; what the screen draws may have changed.
     func inputsChanged() {
         refreshOperating()
+        resumeVoiceListening()
     }
 
     /// Starts the session's arm hold with its motion from `source`. `send(.holdArmStart)` alone starts a phone hold,
@@ -597,6 +929,26 @@ final class AppModel {
     }
 
     func send(_ action: TeleopAction) {
+        if controller?.precisionPanelOpen == true {
+            let allowed: Bool
+            switch action {
+            case .holdArmStart:
+                allowed = pendingArmSource == .pad && controller.buttons.engaged?.direction != nil
+            case .gripperStart(let target):
+                allowed = controller.buttons.engaged == (target == .open ? .open : .close)
+            case .wristStart:
+                allowed = false
+            default:
+                allowed = true
+            }
+            if !allowed {
+                raise(.refused(.letGoFirst))
+                return
+            }
+        }
+        if case .gripperStart = action, session.state.gripperMoving != nil, case .gripper? = voiceMotion?.goal {
+            finishVoiceMotion(reason: "manual_override", sendEnd: false)
+        }
         if action == .stop { stopEpoch += 1 }
         // A reset is refused while anything is held: the operator lets go first.
         if action == .resetScene, Self.engaged(session.state) {
@@ -617,6 +969,10 @@ final class AppModel {
     /// Plays an event's cue: felt, heard or both. Other parts raise their own here, as the input does for a dead
     /// input (`.refused(.deadInput)`) or a second close while gripping (`.limit(.alreadyGripping)`).
     func raise(_ event: FeedbackEvent) {
+        if case .ready = event, session.state.liveLink, link.isUp, !session.state.connected, session.route == .s1 {
+            readyAfterWelcome = true
+            return
+        }
         cues.raise(event)
         switch event {
         case .refused(let refusal): lastRefusal = (refusal, nowMs())
@@ -673,6 +1029,10 @@ final class AppModel {
 
     /// Server-side changes. A server E-stop latches here too, but is not echoed back.
     private func fromServer(_ action: TeleopAction) {
+        if action == .linkLost {
+            experimentTiming.reset()
+            timingWelcome = nil
+        }
         if action == .stop, session.state.emergencyStop { return }
         if action == .sceneResetDone {
             // A stop that began after the reset was asked for is one the reset never meant to clear.
@@ -686,11 +1046,16 @@ final class AppModel {
             raise(.linkLost(holdEngaged: engaged))
         }
         perform(action, fromServer: true)
+        if case .linkUp = action, readyAfterWelcome {
+            readyAfterWelcome = false
+            if readyToAnnounce { raise(.ready) }
+        }
     }
 
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
+        observeVoiceMotion(state)
         // Only a state the server wrote after reading this STOP's `estop` confirms it, never one from before the press.
         // Once a reset has been asked for from the stop, which clears the server's stop even when refused, none does:
         // only a new STOP can be confirmed again.
@@ -717,6 +1082,11 @@ final class AppModel {
             raise(event)
         }
         refreshRecorder()
+        experimentTiming.event(
+            kind: "state_model_commit",
+            details: [
+                "presentation": "not_measured", "source_binding": "unavailable_typed_state_has_no_source_id",
+            ])
     }
 
     /// The control connection's welcome. With the stop latched, `estop` goes out first, whatever latched it: the server
@@ -756,6 +1126,7 @@ final class AppModel {
 
     /// Recomputes what the operating screen draws, and writes it only on a change: every write redraws.
     private func refreshOperating() {
+        cues.refreshReadiness()
         guard fixture == nil, let controller else { return }
         let s = session.state
         let arm =
@@ -766,15 +1137,21 @@ final class AppModel {
                 commandOutside: link.commandOutside, lowestGripperZ: link.lowestSeen.map { Float($0) },
                 lowestPinchZ: link.lowestPinchSeen.map { Float($0) }) : nil
         // The guide's aids in force draw into the one picture; nil draws version 1.0.1's.
-        let aids = assist.guide
+        let aids = assist
         let display = OperatingDisplay(
             mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
             engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
             resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
             speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
             latencyMs: s.latencyMs, address: s.serverAddress, arm: arm, practice: !s.liveLink, taskAid: taskAidSetting,
-            guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids) }
+            guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids.guide, views: aids.views) },
+            aidsOff: s.liveLink && !assistSetting && profile.assist != .none,
+            precisionPanelOpen: controller.precisionPanelOpen
         )
+        if operating.state != display.state {
+            let summary = display.state.recordSummary
+            if operating.state.recordSummary != summary { sessionRecord.note("screen \(summary)") }
+        }
         if operating != display { operating = display }
         feelOnTarget(display)
     }
@@ -796,6 +1173,19 @@ final class AppModel {
         if onTargetCue.observe(look, at: nowMs()) { raise(.onTarget) }
     }
 
+    private var readyToAnnounce: Bool {
+        guard speechActive, controller != nil, OperatingController.operatingRoutes.contains(session.route) else {
+            return false
+        }
+        let facts = operatingFacts
+        let needsCamera = session.state.liveLink && modeSetting != .buttons && !controller.precisionPanelOpen
+        let connected = session.state.liveLink ? link.isUp : facts.connected
+        return connected && !facts.emergencyStop && !facts.stopOwed && !facts.cameraStopped
+            && !facts.commandsBlocked && facts.engaged == nil && !facts.serverSaving && !facts.serverResetting
+            && (!session.state.liveLink || (serverState?.estop != true && serverState?.simBusy != true))
+            && (!needsCamera || pose() != nil)
+    }
+
     private var operatingFacts: OperatingFacts {
         let s = session.state
         var facts = OperatingFacts()
@@ -808,7 +1198,7 @@ final class AppModel {
         facts.stopCause = s.emergencyStop ? emergencyCause : nil
         // Buttons mode pauses the tracking on purpose, so no frame can come there to show the camera runs. The pad
         // needs no camera, and the screen does not say it stopped.
-        facts.cameraStopped = controller.isCameraStopped && modeSetting != .buttons
+        facts.cameraStopped = controller.isCameraStopped && modeSetting != .buttons && !controller.precisionPanelOpen
         facts.commandsBlocked = s.commandsBlocked
         facts.latencyMs = s.latencyMs
         facts.engaged = controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind)
@@ -874,9 +1264,22 @@ final class AppModel {
         let before = session.state
         let routeBefore = session.route
         let wasMoving = before.armMoving
+        let heldOnTheLink = Self.isLatency(action) && Self.heldControl(before) != nil && controller.loose == nil
         // A server that counts episodes says every reset with a new episode, which arms the cue once (`stateArrived`).
         if action == .sceneResetDone, lastEpisode == nil { onTargetRearmOwed = true }
         session.perform(action)
+        if case .linkLatency(let ms) = action, before.connected, before.liveLink {
+            recentRoundTrips.append(ms)
+            if recentRoundTrips.count > 8 { recentRoundTrips.removeFirst() }
+        }
+        if before.commandsBlocked != session.state.commandsBlocked {
+            let state = session.state.commandsBlocked ? "on" : "off"
+            let sample = recentRoundTrips
+            recentRoundTrips.removeAll(keepingCapacity: true)
+            sessionRecord.noteLater { "slow link \(state) rtt_ms=\(sample)" }
+        } else if before.connected && !session.state.connected {
+            recentRoundTrips.removeAll(keepingCapacity: true)
+        }
         if routeBefore != .p4, session.route == .p4 {
             UserDefaults.standard.set(true, forKey: Self.firstRunDoneKey)
         }
@@ -924,6 +1327,11 @@ final class AppModel {
         let told: Interruption? =
             action == .holdArmStart && !session.state.armMoving
             ? .startRefused : action == .holdArmEnd && fromServer ? link.takeLooseEnding() : nil
+        if heldOnTheLink, !before.commandsBlocked, session.state.commandsBlocked,
+            Self.heldControl(session.state) == nil, assist.explain?.slowLinkLetGo == true
+        {
+            raise(.letGo(.slowLink))
+        }
         controller.sessionChanged(told: told)
     }
 
@@ -983,13 +1391,22 @@ final class AppModel {
         // The server clears its stop as soon as it reads a reset asked for from the stop, even one it then refuses: a
         // confirmed STOP counts as only sent again, and is owed if the link goes before the reset releases the stop.
         if action == .resetScene, after.resetClearsStop, pressedStop == .confirmed { pressedStop = .sent }
-        if before.armMoving, !after.armMoving { link.endHold() }
+        if before.armMoving, !after.armMoving {
+            link.endHold()
+            if case .step? = voiceMotion?.goal { finishVoiceMotion(reason: "interrupted", sendEnd: false) }
+        }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
         if !before.armMoving, after.armMoving {
             switch pendingArmSource {
             case .pad:
-                if !link.startButtonHold({ [weak self] in self?.controller.buttonTarget() }) { buttonHoldNotStarted() }
+                if case .step(let offset, _)? = voiceMotion?.goal {
+                    if !link.startButtonHold(useToolPoint: true, { offset }) { buttonHoldNotStarted() }
+                } else if !link.startButtonHold(
+                    useToolPoint: link.toolCalibrationID != nil, { [weak self] in self?.controller.buttonTarget() })
+                {
+                    buttonHoldNotStarted()
+                }
             case .going:
                 // A move to a point the operator tapped: a hold on the pad's path, with the input rules' offsets.
                 // Nobody holds it, so the link tells the endings it causes as the move's own; nobody steers it, so the
@@ -1001,17 +1418,20 @@ final class AppModel {
                     buttonHoldNotStarted()
                 }
             case .phone:
-                let params = PoseParams(gain: after.sensitivity, smoothing: after.smoothing)
+                let axis = controller.arbiter.translationAxis
+                let params = PoseParams(
+                    gain: axis == nil ? after.sensitivity : 0.2, smoothing: axis == nil ? after.smoothing : 0,
+                    toolCalibrationID: link.toolCalibrationID)
                 let held = PhonePosture.of(pose())
-                if held == .tilted || !link.startHold(params) {
+                if held == .tilted || !link.startHold(params, axis: axis) {
                     let why = held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"
                     log("link: hold not started (\(why))")
                     if held == .tilted {
                         pendingRefusal = .posture
-                    } else if link.resetPending {
-                        pendingRefusal = .notReady
+                    } else if held == .unknown {
+                        pendingRefusal = .notTracking
                     } else {
-                        pendingRefusal = held == .unknown ? .notTracking : .noLink
+                        pendingRefusal = link.manualTranslationStartRefusal ?? .busy
                     }
                     session.perform(.holdArmEnd)
                     session.pendingCue(.commandBlocked)
@@ -1036,15 +1456,20 @@ final class AppModel {
                 if !link.startGripper(target), link.resetPending { raise(.refused(.notReady)) }
             } else {
                 link.stopGripper()
+                if case .gripper? = voiceMotion?.goal { finishVoiceMotion(reason: "interrupted", sendEnd: false) }
             }
         }
         switch action {
         case .resetScene where before.connected && !before.emergencyStop:
             link.resetScene()
         case .disconnect:
+            experimentTiming.reset()
+            timingWelcome = nil
             link.closeQuietly()
             holdEngagedAtLoss = false
         case .switchLink:
+            experimentTiming.reset()
+            timingWelcome = nil
             link.closeQuietly()
             holdEngagedAtLoss = false
             trySavedServer()
@@ -1055,8 +1480,9 @@ final class AppModel {
 
     /// A hold on the pad's path the link could not start: the session drops it, and the operator hears why.
     private func buttonHoldNotStarted() {
-        log("link: button hold not started (no link or a reset)")
-        pendingRefusal = link.resetPending ? .notReady : .noLink
+        let reason = link.manualTranslationStartRefusal ?? .busy
+        log("link: button hold not started reason=\(reason.rawValue)")
+        pendingRefusal = reason
         session.perform(.holdArmEnd)
         session.pendingCue(.commandBlocked)
     }
@@ -1066,7 +1492,52 @@ final class AppModel {
         return false
     }
 
+    private func recordSettings() {
+        let mode = modeSetting.rawValue
+        let hand = handSetting == .left ? "left" : "right"
+        let taskAid = taskAidSetting
+        let assist = assistSetting
+        let lock = lockChoiceSetting.rawValue
+        let language = language.rawValue
+        sessionRecord.noteLater {
+            "settings mode=\(mode) hand=\(hand) taskAid=\(taskAid) assist=\(assist) lock=\(lock) language=\(language)"
+        }
+    }
+
+    private func recordTouch(_ sample: TouchSample, at time: TimeInterval) {
+        guard sessionRecord.url != nil else { return }
+        if sample.phase == .began {
+            if let layout = surfaceLayout, layout.zone(x: sample.x, y: sample.y) == .controlSurface {
+                recordedTouches[sample.id] = RecordedTouch(
+                    point: SIMD2(sample.x, sample.y), at: time, layout: layout, panel: guidePanelRect)
+            }
+            return
+        }
+        guard var touch = recordedTouches[sample.id] else { return }
+        touch.track(sample)
+        if sample.phase == .moved {
+            recordedTouches[sample.id] = touch
+            return
+        }
+        recordedTouches[sample.id] = nil
+        let elapsed = time - touch.at
+        let gap = lastRecordedLift.map { time - $0 }
+        lastRecordedLift = time
+        let point = touch.point
+        let panel = touch.panel
+        let travel = touch.farthestMm
+        let cancelled = sample.phase == .cancelled
+        sessionRecord.noteLater {
+            let rect = panel.map { "\($0)" } ?? "none"
+            let spacing = gap.map { String(format: "%.3f", $0) } ?? "none"
+            return String(
+                format: "touch x=%.1f y=%.1f duration_s=%.3f travel_mm=%.2f", point.x, point.y, elapsed, travel)
+                + " panel=\(rect) since_lift_s=\(spacing) cancelled=\(cancelled)"
+        }
+    }
+
     func log(_ line: String) {
+        sessionRecord.note(line)
         debugLog.append(Self.clock.string(from: Date()) + " " + line)
         if debugLog.count > 40 { debugLog.removeFirst(debugLog.count - 40) }
     }

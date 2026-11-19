@@ -29,7 +29,10 @@ struct OperatingScreen: View {
         .volumeKeys(model: model, enabled: model.operating.mode != .buttons)
         // The screen stays awake while it shows: it is held, not looked at.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            model.setPrecisionPanelOpen(false)
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 
     private func report(_ surface: SurfaceSize) {
@@ -99,6 +102,17 @@ private struct OperatingSurface: View {
                     .onAppear { model.guidePanelChanged(Self.rect(frame)) }
                     .onChange(of: frame) { _, new in model.guidePanelChanged(Self.rect(new)) }
                     .onDisappear { model.guidePanelChanged(nil) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .overlayPreferenceValue(GuideBehindBounds.self) { panel in
+            GeometryReader { proxy in
+                let frame = panel.map { proxy[$0] }
+                Color.clear
+                    .onAppear { model.guideBehindChanged(Self.rect(frame)) }
+                    .onChange(of: frame) { _, new in model.guideBehindChanged(Self.rect(new)) }
+                    .onDisappear { model.guideBehindChanged(nil) }
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -402,11 +416,72 @@ private struct PhoneSurface: View {
     }
 
     var body: some View {
+        if display.taskAid, let picture = display.guide, picture.fixedLayout, usesFixedLayout {
+            fixed(picture)
+        } else {
+            flowing
+        }
+    }
+
+    private var precisionFooterHeight: Double {
+        display.linkUp && !OperatingWords.offersRelease(display) ? 48 : 0
+    }
+
+    private var usesFixedLayout: Bool {
+        switch display.state {
+        case .notConnected, .connecting, .linkLost, .stopped: return false
+        default: return true
+        }
+    }
+
+    private func fixed(_ picture: GuidePicture) -> some View {
+        let slots = GuideLayout(
+            surface: layout, aboveAspect: picture.aboveAspect, behindAspect: picture.behindAspect,
+            practice: display.practice, footerHeight: precisionFooterHeight)
+        let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
+        let detail = (look.details + (look.note.map { [$0] } ?? [])).joined(separator: " · ")
+        return ZStack(alignment: .topLeading) {
+            if display.mode == .keyTurns {
+                SchemeBHints(
+                    display: display, layout: layout, scale: scale, ink: Self.hintInk(look), wordsHidden: hintsHidden)
+            }
+            if let practice = slots.practice {
+                PracticeMark(size: max(12, 16 * scale)).place(practice)
+            }
+            Text(verbatim: look.word)
+                .font(.system(size: Self.wordSize(scale), weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityIdentifier("operating.state")
+                .place(slots.word)
+            Text(verbatim: detail)
+                .font(.system(size: max(15, 20 * scale), weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityIdentifier("operating.detail")
+                .place(slots.detail)
+            GuideView(picture: picture, scale: scale, layout: slots)
+                .frame(width: layout.controlSurface.width, height: layout.controlSurface.height, alignment: .topLeading)
+            if display.mode == .screenTurns {
+                Text("hint.scheme_a")
+                    .font(.system(size: max(12, 14 * scale), weight: .medium))
+                    .foregroundStyle(Self.hintInk(look))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityIdentifier("operating.hint")
+                    .modifier(HiddenKeepingRoom(hidden: hintsHidden))
+                    .place(slots.hint)
+            }
+        }
+        .foregroundStyle(look.darkText ? TeleopColors.textPrimary : .white)
+    }
+
+    private var flowing: some View {
         let stopped = { if case .stopped = display.state { return true } else { return false } }()
         // While a follow or a move nobody holds runs, the hints' touches would stop it: they are hidden, keeping their
         // room so the guide does not move.
         let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
-        ZStack(alignment: .top) {
+        return ZStack(alignment: .top) {
             if display.mode == .keyTurns, !stopped {
                 SchemeBHints(
                     display: display, layout: layout, scale: scale, ink: Self.hintInk(look), wordsHidden: hintsHidden)
@@ -436,6 +511,7 @@ private struct PhoneSurface: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10 * scale)
+            .padding(.bottom, precisionFooterHeight)
         }
     }
 }
@@ -576,6 +652,22 @@ private struct OperatingControls: View {
                                 width: cs.width - 32, height: ReleaseButton.height(scale)
                             ))
                 }
+            } else if display.precisionPanelOpen {
+                let height = min(400.0, cs.height - 64)
+                ButtonPadView(
+                    held: display.heldButton, speed: .fine, nearSideIsRight: display.hand == .right,
+                    onTouchDown: { model.buttonDown($0) },
+                    onTouchUp: { model.buttonUp($0) },
+                    onDragOut: { model.buttonUp($0) },
+                    onSpeed: { _ in },
+                    onClose: { model.setPrecisionPanelOpen(false) }
+                )
+                .background(TeleopColors.band.opacity(0.97))
+                .contentShape(Rectangle())
+                .onTapGesture {}
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("precision.panel")
+                .place(SurfaceLayout.Rect(x: cs.x, y: cs.maxY - height, width: cs.width, height: height))
             } else if OperatingWords.offersRelease(display) {
                 ReleaseButton(scale: scale) { model.send(.releaseStop) }
                     .place(
@@ -583,6 +675,37 @@ private struct OperatingControls: View {
                             x: cs.x + 16, y: cs.maxY - 10 * scale - ReleaseButton.height(scale),
                             width: cs.width - 32, height: ReleaseButton.height(scale)
                         ))
+            } else if display.linkUp {
+                Button {
+                    model.toggleVoiceAxis()
+                } label: {
+                    Text(verbatim: model.voiceAxisLabel)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(TeleopColors.card, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(TeleopColors.textPrimary)
+                .accessibilityHint(
+                    Text(verbatim: L10n.string(model.voiceActionsPrototype ? "voice.action.hint" : "voice.hint"))
+                )
+                .accessibilityIdentifier("voice.axis")
+                .place(SurfaceLayout.Rect(x: cs.x + 16, y: cs.maxY - 52, width: max(100, cs.width - 176), height: 44))
+                Button {
+                    model.setPrecisionPanelOpen(true)
+                } label: {
+                    Text("btn.precision_open", tableName: "Buttons")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(TeleopColors.card, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(TeleopColors.textPrimary)
+                .accessibilityIdentifier("precision.open")
+                .place(SurfaceLayout.Rect(x: cs.maxX - 144, y: cs.maxY - 52, width: 128, height: 44))
             }
         }
     }

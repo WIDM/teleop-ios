@@ -88,11 +88,25 @@ final class AidsOffWordsTests: XCTestCase {
         }
     }
 
+    func testAvailabilityWordsDoNotClaimGraspAlignment() throws {
+        for (language, word, spoken) in [
+            (AppLanguage.en, "Available", "Controls available."),
+            (.zhHant, "可操作", "可以操作。"),
+        ] {
+            L10n.language = language
+            for name in ["ready", "outside", "approximate", "ready_aids_off"] {
+                let fixture = try XCTUnwrap(OperatingFixtures.all[name])
+                XCTAssertEqual(OperatingWords.look(fixture).word, word, name)
+            }
+            XCTAssertEqual(SpeechText.string([Phrase(.ready)], language: language), spoken)
+        }
+    }
+
     func testTheFixtureShowsTheLine() throws {
         let fixture = try XCTUnwrap(OperatingFixtures.all["ready_aids_off"])
         XCTAssertTrue(fixture.aidsOff)
         let look = OperatingWords.look(fixture)
-        XCTAssertEqual(look.word, "Ready")
+        XCTAssertEqual(look.word, "Available")
         XCTAssertEqual(look.details, [])
         XCTAssertEqual(look.note, Self.line[.en])
     }

@@ -25,7 +25,7 @@ final class PracticeTests: XCTestCase {
         XCTAssertFalse(app.element("practice.mark").exists, "not the default")
         app.element("connect.practice").tap()
 
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         XCTAssertTrue(app.element("practice.mark").exists)
         XCTAssertEqual(app.element("operating.rec").label, "Practice: nothing is recorded")
         XCTAssertEqual(app.element("operating.link").label, "No robot")
@@ -42,7 +42,7 @@ final class PracticeTests: XCTestCase {
         expectLabel(app.element("operating.state"), "STOPPED")
         XCTAssertTrue(app.element("practice.mark").exists, "stopped")
         app.element("stop.release").press(forDuration: 1.3)
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
 
         app.element("operating.gear").tap()
         app.swipeUp()

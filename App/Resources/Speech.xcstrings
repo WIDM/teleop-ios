@@ -1,967 +1,1034 @@
 {
-  "extractionState" : "manual",
-  "sourceLanguage" : "en",
-  "strings" : {
-    "say.already_gripping" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Already gripping."
+  "extractionState": "manual",
+  "sourceLanguage": "en",
+  "strings": {
+    "say.use_upper_key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To lower further, hold the upper volume key."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已經夾著了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更低請按住上音量鍵，往下移動手機。"
           }
         }
       }
     },
-    "say.blocked" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blocked."
+    "say.already_gripping": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already gripping."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "擋住了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已經夾著了。"
           }
         }
       }
     },
-    "say.cause.behind" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The arm fell behind."
+    "say.blocked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手臂跟不上。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "擋住了。"
           }
         }
       }
     },
-    "say.cause.button" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You pressed stop."
+    "say.cause.behind": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The arm fell behind."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你按了急停。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂跟不上。"
           }
         }
       }
     },
-    "say.cause.link" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The link dropped during a move."
+    "say.cause.button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You pressed stop."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移動中斷線。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你按了急停。"
           }
         }
       }
     },
-    "say.cause.on_connect" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The robot was already stopped."
+    "say.cause.link": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The link dropped during a move."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "機器人本來就已經急停。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移動中斷線。"
           }
         }
       }
     },
-    "say.cause.other" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server stopped the arm."
+    "say.cause.on_connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot was already stopped."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "伺服器停住了手臂。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人本來就已經急停。"
           }
         }
       }
     },
-    "say.drive.app_left" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You left the app."
+    "say.cause.other": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server stopped the arm."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你離開了程式。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器停住了手臂。"
           }
         }
       }
     },
-    "say.drive.arrived" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arrived."
+    "say.drive.app_left": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You left the app."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "到了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你離開了程式。"
           }
         }
       }
     },
-    "say.drive.camera" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The camera stopped."
+    "say.drive.arrived": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrived."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "相機停了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到了。"
           }
         }
       }
     },
-    "say.drive.left_screen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You left the screen."
+    "say.drive.camera": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The camera stopped."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你離開了操作畫面。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相機停了。"
           }
         }
       }
     },
-    "say.drive.locked" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locked on."
+    "say.drive.left_screen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You left the screen."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已鎖定。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你離開了操作畫面。"
           }
         }
       }
     },
-    "say.drive.server_busy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server was busy."
+    "say.drive.locked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locked on."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "伺服器正忙。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已鎖定。"
           }
         }
       }
     },
-    "say.drive.short" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Short of the target."
+    "say.drive.server_busy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server was busy."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒走到目標。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器正忙。"
           }
         }
       }
     },
-    "say.drive.stopped_here" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stopped here."
+    "say.drive.short": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short of the target."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停在這裡。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒走到目標。"
           }
         }
       }
     },
-    "say.drive.time_up" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Time is up."
+    "say.drive.stopped_here": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped here."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時間到了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停在這裡。"
           }
         }
       }
     },
-    "say.empty" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty."
+    "say.drive.time_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time is up."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒夾到。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時間到了。"
           }
         }
       }
     },
-    "say.estop" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emergency stop."
+    "say.empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "急停。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒夾到。"
           }
         }
       }
     },
-    "say.let_go_first" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Let go first."
+    "say.estop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emergency stop."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先放開。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "急停。"
           }
         }
       }
     },
-    "say.letgo.link_hiccup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Link hiccup."
+    "say.let_go_first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let go first."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "網路頓了一下。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先放開。"
           }
         }
       }
     },
-    "say.letgo.no_answer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The arm didn't answer."
+    "say.letgo.link_hiccup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link hiccup."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手臂沒有回應。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路頓了一下。"
           }
         }
       }
     },
-    "say.letgo.refused" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server refused that move."
+    "say.letgo.no_answer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The arm didn't answer."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "伺服器拒絕了這個動作。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂沒有回應。"
           }
         }
       }
     },
-    "say.letgo.too_fast" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too fast."
+    "say.letgo.refused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server refused that move."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太快了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器拒絕了這個動作。"
           }
         }
       }
     },
-    "say.letgo.tracking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lost tracking."
+    "say.letgo.too_fast": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too fast."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追蹤中斷。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太快了。"
           }
         }
       }
     },
-    "say.link_lost" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Link lost."
+    "say.letgo.tracking": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lost tracking."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連線中斷。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追蹤中斷。"
           }
         }
       }
     },
-    "say.lowest" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can't go lower."
+    "say.link_lost": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link lost."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下不去了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線中斷。"
           }
         }
       }
     },
-    "say.not_recording" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not recording."
+    "say.lowest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't go lower."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有在錄。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下不去了。"
           }
         }
       }
     },
-    "say.not_reset" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not reset. Wait."
+    "say.not_recording": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not recording."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有重置，請稍等。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有在錄。"
           }
         }
       }
     },
-    "say.offline_discarded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "While the link was down: %d discarded."
+    "say.not_reset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not reset. Wait."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "斷線期間：作廢 %d 筆。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有重置，請稍等。"
           }
         }
       }
     },
-    "say.offline_saved" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "While the link was down: %d saved."
+    "say.offline_discarded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While the link was down: %d discarded."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "斷線期間：存了 %d 筆。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斷線期間：作廢 %d 筆。"
           }
         }
       }
     },
-    "say.range.back" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too far back."
+    "say.offline_saved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While the link was down: %d saved."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太後面了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斷線期間：存了 %d 筆。"
           }
         }
       }
     },
-    "say.range.down" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too low."
+    "say.range.back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too far back."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太低了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太後面了。"
           }
         }
       }
     },
-    "say.range.forward" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too far forward."
+    "say.range.down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too low."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太前面了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太低了。"
           }
         }
       }
     },
-    "say.range.left" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too far left."
+    "say.range.forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too far forward."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太靠左了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太前面了。"
           }
         }
       }
     },
-    "say.range.right" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too far right."
+    "say.range.left": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too far left."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太靠右了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太靠左了。"
           }
         }
       }
     },
-    "say.range.up" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Too high."
+    "say.range.right": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too far right."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "太高了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太靠右了。"
           }
         }
       }
     },
-    "say.ready" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ready."
+    "say.range.up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too high."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "準備好了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太高了。"
           }
         }
       }
     },
-    "say.reason.no_arm_data" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No arm data."
+    "say.ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls available."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收不到手臂資料。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以操作。"
           }
         }
       }
     },
-    "say.reason.no_link" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No link."
+    "say.reason.no_arm_data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No arm data."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有連線。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收不到手臂資料。"
           }
         }
       }
     },
-    "say.reason.not_stopped" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No link. Not stopped."
+    "say.reason.no_link": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No link."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有連線，急停沒有送出。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有連線。"
           }
         }
       }
     },
-    "say.reason.not_tracking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can't track the phone."
+    "say.reason.not_stopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No link. Not stopped."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追蹤不到手機。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有連線，急停沒有送出。"
           }
         }
       }
     },
-    "say.reason.outside" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Outside the work area."
+    "say.reason.not_tracking": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't track the phone."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "超出工作範圍。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追蹤不到手機。"
           }
         }
       }
     },
-    "say.reason.posture" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hold the phone upright."
+    "say.reason.outside": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outside the work area."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手機請拿直。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超出工作範圍。"
           }
         }
       }
     },
-    "say.reason.slow_link" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Slow link."
+    "say.reason.posture": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold the phone upright."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "網路太慢。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手機請拿直。"
           }
         }
       }
     },
-    "say.rec_session" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recording session."
+    "say.reason.slow_link": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow link."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "錄製模式。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路太慢。"
           }
         }
       }
     },
-    "say.reconnected" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reconnected."
+    "say.rec_session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording session."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已重新連線。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄製模式。"
           }
         }
       }
     },
-    "say.reset_prompt" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hold the top edge to reset."
+    "say.reconnected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnected."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按住螢幕頂端重置。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已重新連線。"
           }
         }
       }
     },
-    "say.saved_count" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d saved."
+    "say.reset_prompt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold the top edge to reset."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已存 %d 筆。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住螢幕頂端重置。"
           }
         }
       }
     },
-    "say.saved_n" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved. %d."
+    "say.saved_count": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d saved."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已存，第 %d 筆。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存 %d 筆。"
           }
         }
       }
     },
-    "say.server_restarted" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server restarted."
+    "say.saved_n": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved. %d."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "伺服器重新啟動了。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存，第 %d 筆。"
           }
         }
       }
     },
-    "say.stopped" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stopped."
+    "say.server_restarted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server restarted."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已急停。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器重新啟動了。"
           }
         }
       }
     },
-    "say.success" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Success."
+    "say.stopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "成功。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已急停。"
           }
         }
       }
     },
-    "say.success_not_saved" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Success, but not saved."
+    "say.success": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Success."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "成功了，但沒有存到。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成功。"
           }
         }
       }
     },
-    "say.take_continues" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The take continues."
+    "say.success_not_saved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Success, but not saved."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這次錄製繼續。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成功了，但沒有存到。"
           }
         }
       }
     },
-    "say.take_discarded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Take discarded."
+    "say.take_continues": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The take continues."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這次作廢。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次錄製繼續。"
           }
         }
       }
     },
-    "say.tap_let_go" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap and let go."
+    "say.take_discarded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take discarded."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下就放開。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次作廢。"
           }
         }
       }
     },
-    "say.tap_once" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap once."
+    "say.tap_let_go": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap and let go."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下就好。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下就放開。"
           }
         }
       }
     },
-    "say.tap_still" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep your finger still."
+    "say.tap_once": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap once."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點的時候手指別動。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下就好。"
           }
         }
       }
     },
-    "say.tap_view_above" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap the view from above."
+    "say.tap_still": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep your finger still."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請點上面的圖。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點的時候手指別動。"
           }
         }
       }
     },
-    "say.wait" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wait."
+    "say.tap_view_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the view from above."
           }
         },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請稍等。"
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請點上面的圖。"
+          }
+        }
+      }
+    },
+    "say.wait": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請稍等。"
+          }
+        }
+      }
+    },
+    "say.voice.height": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height only."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調高度。"
+          }
+        }
+      }
+    },
+    "say.voice.fore_aft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward and back only."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調前後。"
+          }
+        }
+      }
+    },
+    "say.voice.left_right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left and right only."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調左右。"
           }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

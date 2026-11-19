@@ -45,6 +45,7 @@ final class PoseTracker: NSObject, ARSessionDelegate {
     /// The tracker ran the session, with the uptime read just before it did. Every frame stamped after that time is
     /// from the new run, in its new world frame. A pause is not reported.
     var onRun: ((TimeInterval) -> Void)?
+    var onRecord: ((String) -> Void)?
 
     /// `shared` gives ARKit's session and the device's own answers; a test gives a stand-in session, its answers and
     /// its clock. The caller makes the tracker the session's delegate.
@@ -69,15 +70,27 @@ final class PoseTracker: NSObject, ARSessionDelegate {
         if canRun {
             let stamp = clock()
             session.runResettingTracking()
+            onRecord?("tracker run stamp=\(stamp)")
             onRun?(stamp)
         } else {
             session.pause()
+            onRecord?("tracker pause")
             current = nil
         }
     }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         frameArrived(frame.camera.transform, tracked: frame.camera.trackingState.isNormal, stampedAt: frame.timestamp)
+    }
+
+    func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+        let state: String
+        switch camera.trackingState {
+        case .normal: state = "normal"
+        case .notAvailable: state = "not available"
+        case .limited(let reason): state = "limited \(reason)"
+        }
+        onRecord?("tracker tracking \(state)")
     }
 
     func sessionWasInterrupted(_ session: ARSession) { interrupted() }
@@ -91,11 +104,13 @@ final class PoseTracker: NSObject, ARSessionDelegate {
     }
 
     func interrupted() {
+        onRecord?("tracker interrupted")
         current = nil
         onInterruption?(true)
     }
 
     func interruptionEnded() {
+        onRecord?("tracker interruption ended")
         onInterruption?(false)
     }
 }

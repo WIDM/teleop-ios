@@ -117,9 +117,11 @@ struct GuidePicture: Equatable {
     let lift: Double?
     /// Draw which way is forward and which way is up on the views, and say it in their accessibility labels.
     let directionLabels: Bool
+    let fixedLayout: Bool
+    let pinchAboveRearView: Bool
 
     /// `aids`: the guide's aids in force (`Assist.guide`); nil draws and says exactly what version 1.0.1 does.
-    init(reading: ArmReading, profile: RobotProfile, aids: GuideAids? = nil) {
+    init(reading: ArmReading, profile: RobotProfile, aids: GuideAids? = nil, views: ViewAim? = nil) {
         let ends = (profile.workspaceMin + reading.boxShift, profile.workspaceMax + reading.boxShift)
         workBoxLow = SIMD3<Double>(simd_min(ends.0, ends.1))
         workBoxHigh = SIMD3<Double>(simd_max(ends.0, ends.1))
@@ -128,7 +130,17 @@ struct GuidePicture: Equatable {
         let boxLow = simd_min(corners.0, corners.1), boxHigh = simd_max(corners.0, corners.1)
         let table = Double(profile.tableHeight)
         let floor = max(boxLow.z, table)
-        let projection = GuideProjection(boxLow: boxLow, boxHigh: boxHigh, table: table)
+        let projection: GuideProjection
+        fixedLayout = views != nil
+        if let views {
+            let profileLow = Self.operatorPoint(profile.workspaceMin)
+            let profileHigh = Self.operatorPoint(profile.workspaceMax)
+            projection = GuideProjection(
+                boxLow: simd_min(profileLow, profileHigh), boxHigh: simd_max(profileLow, profileHigh), table: table,
+                behindTop: table + views.behindTopAboveTableM)
+        } else {
+            projection = GuideProjection(boxLow: boxLow, boxHigh: boxHigh, table: table)
+        }
         self.projection = projection
         let width = projection.across.upperBound - projection.across.lowerBound
 
@@ -147,10 +159,11 @@ struct GuidePicture: Equatable {
         boxAbove = Area(minX: lowAbove.x, minY: highAbove.y, maxX: highAbove.x, maxY: lowAbove.y)
         let topBehind = projection.behind(boxHigh)
         let floorBehind = projection.behind(SIMD3(boxLow.x, boxLow.y, floor))
-        boxBehind = Area(minX: floorBehind.x, minY: topBehind.y, maxX: topBehind.x, maxY: floorBehind.y)
+        boxBehind = Area(minX: floorBehind.x, minY: max(0, topBehind.y), maxX: topBehind.x, maxY: floorBehind.y)
         tableY = projection.behind(SIMD3(boxLow.x, boxLow.y, table)).y
 
         let pinchPoint = Self.operatorPoint(reading.pinchPoint)
+        pinchAboveRearView = fixedLayout && pinchPoint.z > projection.height.upperBound
         pinch = mark(reading.pinchPoint)
         commanded = reading.commanded.map(mark)
         goTarget = reading.goTarget.map(mark)

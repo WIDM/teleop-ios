@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.1.0"
-    CURRENT_PROJECT_VERSION: "15"
+    MARKETING_VERSION: "1.1.1"
+    CURRENT_PROJECT_VERSION: "26"
 packages:
   TeleopCore:
     path: Packages/TeleopCore
@@ -32,6 +32,8 @@ targets:
         UIRequiredDeviceCapabilities:
           - arm64
         NSCameraUsageDescription: The camera tracks the phone pose and detects volume-key hold and release.
+        NSMicrophoneUsageDescription: The microphone recognizes your chosen movement axis on this device. Audio is not saved.
+        NSSpeechRecognitionUsageDescription: Speech recognition selects height, forward/back, or left/right. Movement still requires holding volume up.
         NSLocalNetworkUsageDescription: The app connects to the teleop server on your network.
         # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
         NSAppTransportSecurity:

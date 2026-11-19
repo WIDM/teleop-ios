@@ -18,6 +18,10 @@ final class OperatingController {
     private(set) var arbiter: InputArbiter
     private(set) var buttons = ButtonArbiter()
     private(set) var mode: ControlMode
+    private(set) var precisionPanelOpen = false
+    private var precisionKeys: Set<InputKey> = []
+    private var savedButtonSpeed: ButtonSpeed?
+    private var active = true
     private var hand: Hand
     /// When the reset countdown began, while it runs.
     private var countdownStartedAt: TimeInterval?
@@ -56,6 +60,8 @@ final class OperatingController {
         case press(ButtonID)
         case release(ButtonID)
         case speed(ButtonSpeed)
+        case precision(Bool)
+        case axis(TranslationAxis?)
         /// The pad's running hold ends with its stop, and its button stays dead until lifted (I-11).
         case endButtonHold
         /// The attitude frame moves, and the input rules see it in a call of their own, after every step queued before
@@ -96,18 +102,23 @@ final class OperatingController {
 
     func key(_ key: InputKey, down: Bool) {
         guard mode != .buttons else { return }
+        if down, precisionPanelOpen || precisionKeys.contains(key) || !buttons.down.isEmpty {
+            precisionKeys.insert(key)
+            return
+        }
+        if !down { precisionKeys.remove(key) }
         feed([down ? .keyDown(key) : .keyUp(key)], at: now())
     }
 
     func touch(_ sample: TouchSample, at time: TimeInterval) {
-        if mode == .buttons {
+        if mode == .buttons || precisionPanelOpen || !buttons.down.isEmpty {
             if sample.phase == .began, arbiter.layout.zone(x: sample.x, y: sample.y) == .controlSurface {
                 padTouches.insert(sample.id)
             }
-            if padTouches.contains(sample.id) {
-                if sample.phase == .ended || sample.phase == .cancelled { padTouches.remove(sample.id) }
-                return
-            }
+        }
+        if padTouches.contains(sample.id) {
+            if sample.phase == .ended || sample.phase == .cancelled { padTouches.remove(sample.id) }
+            return
         }
         if sample.phase == .began, arbiter.layout.zone(x: sample.x, y: sample.y) == .topBand {
             topBandTouchEpochs[sample.id] = model.stopEpoch
@@ -117,15 +128,18 @@ final class OperatingController {
     }
 
     func attitude(_ attitude: simd_quatd, at time: TimeInterval) {
-        guard mode != .buttons, time > attitudeFrameSince else { return }
+        guard mode != .buttons, !precisionPanelOpen, time > attitudeFrameSince else { return }
         feed([.attitude(attitude)], at: time)
     }
 
     func buttonDown(_ button: ButtonID) { enqueue(.press(button)) }
     func buttonUp(_ button: ButtonID) { enqueue(.release(button)) }
     func selectSpeed(_ speed: ButtonSpeed) { enqueue(.speed(speed)) }
+    func setPrecisionPanelOpen(_ open: Bool) { enqueue(.precision(open)) }
+    func selectTranslationAxis(_ axis: TranslationAxis?) { enqueue(.axis(axis)) }
 
     func tick() {
+        model.measurementTick()
         feed([.tick], at: now())
     }
 
@@ -136,6 +150,8 @@ final class OperatingController {
     }
 
     func modeChanged(_ mode: ControlMode, hand: Hand) {
+        model.disableVoiceAxis(reason: "mode_changed")
+        setPrecisionPanelOpen(false)
         self.mode = mode
         self.hand = hand
         releaseAllButtons()
@@ -151,7 +167,12 @@ final class OperatingController {
     /// The app left or returned to the active state (I-11): every hold ends on leaving, and every input held across
     /// it stays dead until released.
     func activeChanged(_ active: Bool) {
-        if !active { enqueue(.endButtonHold) }
+        self.active = active
+        if !active {
+            model.disableVoiceAxis(reason: "background")
+            setPrecisionPanelOpen(false)
+            enqueue(.endButtonHold)
+        }
         feed([active ? .becameActive : .holdsEnded(.appLeft)], at: now())
     }
 
@@ -162,12 +183,15 @@ final class OperatingController {
         guard interrupted else {
             guard cameraStopped else { return }
             cameraStopped = false
+            model.sessionRecord.note("camera mark cleared by the end report")
             feed([.becameActive], at: now())
             return
         }
+        model.disableVoiceAxis(reason: "camera_interrupted")
         markSetAt = now()
         if !cameraStopped {
             cameraStopped = true
+            model.sessionRecord.note("camera mark set")
             enqueue(.endButtonHold)
             feed([.holdsEnded(.cameraStopped)], at: now())
         }
@@ -189,6 +213,7 @@ final class OperatingController {
     func cameraFrame(stampedAt stamp: TimeInterval) {
         guard cameraStopped, let run = lastRunAt, let stop = markSetAt, run > stop, stamp > run else { return }
         cameraStopped = false
+        model.sessionRecord.noteLater { "camera mark cleared by a frame after the app's run stamp=\(stamp)" }
         model.inputsChanged()
     }
 
@@ -196,6 +221,8 @@ final class OperatingController {
 
     /// The server reset the scene, started a new episode or a new run.
     func sceneReset() {
+        model.disableVoiceAxis(reason: "scene_reset")
+        setPrecisionPanelOpen(false)
         feed([.sceneReset], at: now())
     }
 
@@ -222,6 +249,10 @@ final class OperatingController {
         let blocked = model.session.state.commandsBlocked
         let newlyBlocked = blocked && !wasBlocked
         wasBlocked = blocked
+        if left || newlyStopped || lostLink || newlyBlocked {
+            model.disableVoiceAxis(reason: "session_interrupted")
+            setPrecisionPanelOpen(false)
+        }
         if let held = buttons.engaged {
             if !Self.holds(held, model.session.state) {
                 buttons.holdEnded()
@@ -311,8 +342,16 @@ final class OperatingController {
                 press(button)
             case .release(let button):
                 for command in buttons.release(button) { carry(command) }
+                restoreButtonSpeed()
             case .speed(let speed):
+                guard !precisionPanelOpen else { continue }
                 for command in buttons.selectSpeed(speed) { carry(command) }
+            case .precision(let open):
+                changePrecisionPanel(open)
+            case .axis(let axis):
+                let commands = arbiter.selectTranslationAxis(axis, at: now(), facts: model.inputFacts())
+                var starts = ArraySlice<ArmSource>()
+                for command in commands { carry(command, starts: &starts) }
             case .endButtonHold:
                 endButtonHold()
             }
@@ -331,14 +370,55 @@ final class OperatingController {
         for command in commands { carry(command, starts: &starts) }
     }
 
+    private func changePrecisionPanel(_ open: Bool) {
+        guard open != precisionPanelOpen else { return }
+        if open {
+            model.disableVoiceAxis(reason: "fine_panel")
+            let state = model.session.state
+            guard mode != .buttons, active, Self.operatingRoutes.contains(model.session.route),
+                !isEngaged, !arbiter.isHoldingAnInput, buttons.down.isEmpty,
+                precisionKeys.isEmpty, padTouches.isEmpty, topBandTouchEpochs.isEmpty,
+                !state.armMoving, state.gripperMoving == nil, !state.wristMoving,
+                !state.liveLink || model.link.armHeardAfterLastStop
+            else {
+                model.raise(.refused(.letGoFirst))
+                return
+            }
+            if let refusal = model.inputFacts().refusal {
+                model.raise(.refused(Self.refusal(refusal)))
+                return
+            }
+            savedButtonSpeed = buttons.speed
+            _ = buttons.selectSpeed(.fine)
+            precisionPanelOpen = true
+        } else {
+            endButtonHold()
+            precisionPanelOpen = false
+            restoreButtonSpeed()
+        }
+        model.sessionRecord.note("precision panel \(open ? "opened" : "closed")")
+    }
+
+    private func restoreButtonSpeed() {
+        guard !precisionPanelOpen, buttons.down.isEmpty, let speed = savedButtonSpeed else { return }
+        _ = buttons.selectSpeed(speed)
+        savedButtonSpeed = nil
+    }
+
     private func press(_ button: ButtonID) {
         let facts = model.inputFacts()
         let commands = buttons.press(button, atMs: milliseconds(now()), gripping: facts.gripping)
         let starts = commands.contains {
             if case .startTranslation = $0 { true } else if case .startGripper = $0 { true } else { false }
         }
-        if starts, countdownStartedAt != nil {
-            // The reset countdown counts as engaged (I-3): the press is dead until it is released.
+        if starts,
+            !active || !Self.operatingRoutes.contains(model.session.route)
+                || (mode != .buttons && !precisionPanelOpen) || arbiter.isHoldingAnInput
+                || arbiter.engagedHold != nil || countdownStartedAt != nil
+                || model.session.state.armMoving || model.session.state.gripperMoving != nil
+                || model.session.state.wristMoving
+                || (precisionPanelOpen && model.session.state.liveLink && !model.link.armHeardAfterLastStop)
+        {
             buttons.holdEnded()
             model.raise(.refused(.deadInput))
             return
@@ -433,6 +513,7 @@ final class OperatingController {
     private func releaseAllButtons() {
         buttons.holdEnded()
         for button in buttons.down { _ = buttons.release(button) }
+        restoreButtonSpeed()
     }
 
     private func milliseconds(_ time: TimeInterval) -> Int { Int((time * 1000).rounded()) }
@@ -472,11 +553,15 @@ final class OperatingController {
         case .stopped: return .emergencyStop
         case .wait: return .notReady
         case .slowLink: return .slowLink
+        case .tapStill: return .tapStill
+        case .tapLetGo: return .tapLetGo
+        case .tapViewAbove: return .tapViewAbove
         case .notTracking: return .notTracking
         case .posture: return .posture
         case .letGoFirst: return .letGoFirst
         case .notStopped: return .notStopped
         case .settingsOpen, .tooHot, .resetFirst: return .deadInput
+        case .useUpperKey: return .useUpperKey
         case .outsideWorkArea: return .outsideWorkArea
         case .noArmData: return .noArmData
         }

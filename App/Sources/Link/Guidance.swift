@@ -33,6 +33,7 @@ struct RobotProfile: Equatable {
         name: "SO-101 (S4 simulator)",
         toolOffset: SIMD3(0.007, -0.036, -0.088),
         baseInWorld: SIMD3(0, 0, 0.05),
+        usesDirectionalBlockedFeedback: true,
         assist: AssistProfile(
             // 30 s from the latch. What would change it: how long latched runs last in the hand sessions; a safety
             // review.
@@ -64,7 +65,9 @@ struct RobotProfile: Equatable {
                 startGraceS: 1.5
             ),
             guide: .all,
-            explain: ExplainAids(slowLinkLetGo: true)
+            explain: ExplainAids(slowLinkLetGo: true),
+            // Keep the heights used for positioning visible without spending space on the upper workspace.
+            views: ViewAim(behindTopAboveTableM: 0.09, maxRetargetedMoveS: 30)
         )
     )
 
@@ -86,6 +89,10 @@ struct RobotProfile: Equatable {
     /// With a reported tool point the guide moves it by the measured offset instead (`ArmReading.boxShift`).
     var workspaceMin = SIMD3<Float>(-0.052383, -0.257418, -0.008015)
     var workspaceMax = SIMD3<Float>(0.107617, -0.097418, 0.151985)
+    var gripperWorkspace: (low: SIMD3<Double>, high: SIMD3<Double>) {
+        (SIMD3<Double>(workspaceMin - toolOffset), SIMD3<Double>(workspaceMax - toolOffset))
+    }
+
     /// Height of the table surface in the robot base frame, metres (`TABLE_TOP_Z_M` minus the base height).
     var tableHeight: Float = 0.04
     /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt. +1 until the
@@ -96,6 +103,8 @@ struct RobotProfile: Equatable {
     /// angle; so a second close is refused until they have opened. True for this simulator. A robot that must squeeze
     /// harder to hold would set it false.
     var recloseLoosensGrip = true
+    /// This profile's gripper-link box has been checked against the workspace in the server recording.
+    var usesDirectionalBlockedFeedback = false
     /// Which hands-free aids this robot allows, with their numbers. A robot allows lock exactly when `assist.lock` is
     /// set, and cannot allow it without saying how long a follow nobody holds may run. `.none` allows none of them and
     /// needs no code path of its own.

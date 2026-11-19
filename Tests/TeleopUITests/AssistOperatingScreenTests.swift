@@ -12,8 +12,8 @@ final class AssistOperatingScreenTests: XCTestCase {
     private static let words: [String: (en: String, zh: String)] = [
         "locked": ("Locked on", "已鎖定"),
         "going": ("Going", "前往中"),
-        "ready_aids": ("Ready", "就緒"),
-        "lowest_aids": ("Ready", "就緒"),
+        "ready_aids": ("Available", "可操作"),
+        "lowest_aids": ("Available", "可操作"),
         "ended_time_limit": ("Stopped here", "停在這裡"),
     ]
 

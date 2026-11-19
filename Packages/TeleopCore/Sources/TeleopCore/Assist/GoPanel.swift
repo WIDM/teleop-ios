@@ -7,6 +7,8 @@ import simd
 public struct GoPanel: Equatable, Sendable {
     /// Operating-screen points, origin top left: the coordinates touches arrive in.
     public var rect: SurfaceLayout.Rect
+    public static let heightColumnHalfWidth: Double = 22
+    public var behind: SurfaceLayout.Rect?
     public var projection: GuideProjection
     /// The work box as drawn: the profile's box moved by the reading's `boxShift` (its measured gripper-to-pinch offset
     /// less the profile's tool offset, zero unless the server reports a tool point), robot base frame, pinch point,
@@ -18,16 +20,56 @@ public struct GoPanel: Equatable, Sendable {
 
     public init(
         rect: SurfaceLayout.Rect, projection: GuideProjection, boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>,
-        tableHeight: Double
+        tableHeight: Double, behind: SurfaceLayout.Rect? = nil
     ) {
         self.rect = rect
+        self.behind = behind
         self.projection = projection
         self.boxLow = boxLow
         self.boxHigh = boxHigh
         self.tableHeight = tableHeight
     }
 
-    public func contains(x: Double, y: Double) -> Bool { rect.contains(x: x, y: y) }
+    public enum Side: Equatable, Sendable { case above, behind }
+
+    public enum BehindAim: Equatable, Sendable {
+        case target(SIMD3<Double>)
+        case useUpperKey
+        case outsideWorkArea
+    }
+
+    public func view(at point: SIMD2<Double>) -> Side? {
+        if rect.contains(x: point.x, y: point.y) { return .above }
+        if behind?.contains(x: point.x, y: point.y) == true { return .behind }
+        return nil
+    }
+
+    public func contains(x: Double, y: Double) -> Bool { view(at: SIMD2(x, y)) != nil }
+
+    public func aimBehind(
+        at point: SIMD2<Double>, measured: SIMD3<Double>, running: SIMD3<Double>? = nil,
+        limits: GoToLimits, views: ViewAim
+    ) -> BehindAim {
+        guard let behind, behind.contains(x: point.x, y: point.y) else { return .outsideWorkArea }
+        let reference = GuideProjection.operatorPoint(running ?? measured)
+        let share = SIMD2((point.x - behind.x) / behind.width, (point.y - behind.y) / behind.height)
+        var aim = projection.point(behindShare: share, forward: reference.y)
+        let columnCentre = min(max(projection.behind(reference).x, 0), 1) * behind.width + behind.x
+        let heightOnly = abs(point.x - columnCentre) <= Self.heightColumnHalfWidth
+        let floor = tableHeight + limits.travelHeightM
+        let ceiling = tableHeight + views.behindTopAboveTableM
+        guard floor <= ceiling else { return .outsideWorkArea }
+        if heightOnly {
+            let measuredHeight = GuideProjection.operatorPoint(measured).z
+            if aim.z < floor, measuredHeight <= floor + limits.arriveToleranceM {
+                return .useUpperKey
+            }
+            aim.x = reference.x
+        }
+        aim.z = min(max(aim.z, floor), ceiling)
+        let target = GuideProjection.base(fromOperator: aim)
+        return inBox(target) ? .target(target) : .outsideWorkArea
+    }
 
     /// The pinch-point place a tap at (x, y) asks for, robot base frame: the point the view from above draws there, at
     /// `travelHeight` above the table. Not checked against the box; `inBox` does that.

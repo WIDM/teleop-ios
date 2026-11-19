@@ -12,12 +12,17 @@ public struct Assist: Equatable, Sendable {
     /// What the phone says about its link beyond 1.0.1's words. Nil: a slow link that stops a held hold is shown on
     /// the screen only, as in 1.0.1.
     public var explain: ExplainAids?
+    public var views: ViewAim?
 
-    public init(lock: LockRule? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil) {
+    public init(
+        lock: LockRule? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil,
+        views: ViewAim? = nil
+    ) {
         self.lock = lock
         self.goTo = goTo
         self.guide = guide
         self.explain = explain
+        self.views = views
     }
 
     /// Version 1.0.1.
@@ -38,7 +43,10 @@ public struct Assist: Equatable, Sendable {
             return LockRule(variant: variant, timeLimitS: limits.timeLimitS)
         }
         let goTo = profile.goTo.flatMap { $0.isUsable ? $0 : nil }
-        return Assist(lock: lock, goTo: goTo, guide: profile.guide, explain: profile.explain)
+        let views = goTo.flatMap { limits in
+            profile.views.flatMap { $0.isUsable(travelHeightM: limits.travelHeightM) ? $0 : nil }
+        }
+        return Assist(lock: lock, goTo: goTo, guide: profile.guide, explain: profile.explain, views: views)
     }
 }
 
@@ -55,17 +63,36 @@ public struct AssistProfile: Equatable, Sendable {
     /// the link takes a translation hold's start point when the start goes on the wire, and an aid that only speaks
     /// must not change that by itself.
     public var explain: ExplainAids?
+    public var views: ViewAim?
 
     public init(
-        lock: LockLimits? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil
+        lock: LockLimits? = nil, goTo: GoToLimits? = nil, guide: GuideAids? = nil, explain: ExplainAids? = nil,
+        views: ViewAim? = nil
     ) {
         self.lock = lock
         self.goTo = goTo
         self.guide = guide
         self.explain = explain
+        self.views = views
     }
 
     public static let none = AssistProfile()
+}
+
+/// Settings for the fixed aiming views, measured from the robot's tabletop.
+public struct ViewAim: Equatable, Sendable {
+    public var behindTopAboveTableM: Double
+    public var maxRetargetedMoveS: Double?
+
+    public init(behindTopAboveTableM: Double, maxRetargetedMoveS: Double? = nil) {
+        self.behindTopAboveTableM = behindTopAboveTableM
+        self.maxRetargetedMoveS = maxRetargetedMoveS
+    }
+
+    fileprivate func isUsable(travelHeightM: Double) -> Bool {
+        behindTopAboveTableM.isFinite && behindTopAboveTableM >= travelHeightM && behindTopAboveTableM > 0
+            && (maxRetargetedMoveS.map { $0.isFinite && $0 > 0 } ?? true)
+    }
 }
 
 /// What the phone says about its link beyond 1.0.1's words. All false is the same as nil.

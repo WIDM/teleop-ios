@@ -1,4 +1,5 @@
 import SwiftUI
+import TeleopCore
 
 /// The guide in the control surface: the workspace from above and from behind, one under the other on one left-right
 /// axis, and the read-outs under them. It draws `GuidePicture` and decides nothing. Translucent, so the state colour
@@ -8,11 +9,20 @@ struct GuideView: View {
     let picture: GuidePicture
     /// The operating screen's height over the reference 874 pt.
     let scale: Double
+    var layout: GuideLayout? = nil
 
     private var captionSize: Double { max(11, 13 * scale) }
     private var lineSize: Double { max(13, 15 * scale) }
 
     var body: some View {
+        Group {
+            if let layout { fixed(layout) } else { flowing }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("guide")
+    }
+
+    private var flowing: some View {
         GeometryReader { proxy in
             let width = viewWidth(in: proxy.size)
             VStack(spacing: 4) {
@@ -35,8 +45,61 @@ struct GuideView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("guide")
+    }
+
+    private func fixed(_ layout: GuideLayout) -> some View {
+        ZStack(alignment: .topLeading) {
+            GuideAbove(picture: picture, drawsDirection: false)
+                .overlay(alignment: .topLeading) { chip("guide.from_above", "guide.arrow_forward") }
+                .frame(width: layout.above.width, height: layout.above.height)
+                .anchorPreference(key: GuidePanelBounds.self, value: .bounds) { $0 }
+                .offset(x: layout.above.x, y: layout.above.y)
+            GuideBehind(picture: picture, drawsDirection: false)
+                .overlay(alignment: .topLeading) { chip("guide.from_behind", "guide.arrow_up") }
+                .frame(width: layout.behind.width, height: layout.behind.height)
+                .anchorPreference(key: GuideBehindBounds.self, value: .bounds) { $0 }
+                .offset(x: layout.behind.x, y: layout.behind.y)
+            VStack(spacing: 0) {
+                ForEach(0..<3) { row in
+                    HStack(spacing: 8) {
+                        ForEach(Array(readoutRows[row].enumerated()), id: \.offset) { _, line in
+                            lineView(line).lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                    }
+                    .frame(height: lineSize * 1.45)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(width: layout.readout.width, height: layout.readout.height)
+            .background(GuideInk.words, in: RoundedRectangle(cornerRadius: 8))
+            .offset(x: layout.readout.x, y: layout.readout.y)
+        }
+    }
+
+    private var readoutRows: [[GuidePicture.Line]] {
+        var rows: [[GuidePicture.Line]] = [[], [], []]
+        for line in picture.lines {
+            switch line {
+            case .height, .heightLowest, .jaws: rows[0].append(line)
+            case .target, .goal, .onTarget, .holding: rows[1].append(line)
+            case .outside, .commandOutside, .approximate, .wrist: rows[2].append(line)
+            }
+        }
+        return rows
+    }
+
+    private func chip(_ title: LocalizedStringKey, _ arrow: LocalizedStringKey) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+            Text(arrow)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(GuideInk.words, in: Capsule())
+        .padding(4)
+        .accessibilityHidden(true)
     }
 
     /// The width both views get: the height left once the captions and read-outs are placed, shared by the two views
@@ -103,6 +166,14 @@ struct GuidePanelBounds: PreferenceKey {
 }
 
 /// Shared drawing for the two views.
+struct GuideBehindBounds: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
+    }
+}
+
 private enum GuideInk {
     /// Dark enough that white, the orange target and the green flags stay readable over the gold Saved state too.
     static let panel = Color.black.opacity(0.45)
@@ -203,6 +274,7 @@ private enum GuideInk {
 /// shadow under the ring and an arrow that says so.
 private struct GuideAbove: View {
     let picture: GuidePicture
+    var drawsDirection = true
 
     private var label: LocalizedStringKey {
         picture.directionLabels ? "guide.from_above_directions" : "guide.from_above"
@@ -246,7 +318,7 @@ private struct GuideAbove: View {
                     Path(ellipseIn: GuideInk.square(at: pinch, edge: radius * 2)), with: .color(GuideInk.jaws(picture)),
                     lineWidth: picture.onTarget ? 4 : 2.5)
                 GuideInk.centre(&context, at: pinch, picture)
-                if picture.directionLabels { GuideInk.direction(&context, "guide.arrow_forward") }
+                if picture.directionLabels, drawsDirection { GuideInk.direction(&context, "guide.arrow_forward") }
             }
         )
         .accessibilityElement(children: .ignore)
@@ -262,6 +334,7 @@ private struct GuideAbove: View {
 /// arrow that says up is up.
 private struct GuideBehind: View {
     let picture: GuidePicture
+    var drawsDirection = true
 
     private var label: LocalizedStringKey {
         picture.directionLabels ? "guide.from_behind_directions" : "guide.from_behind"
@@ -271,6 +344,15 @@ private struct GuideBehind: View {
         GuideInk.backdrop(
             Canvas { context, size in
                 let tableY = picture.tableY * size.height
+                if picture.fixedLayout {
+                    let centre = (picture.goTarget ?? picture.pinch).behind.x * size.width
+                    let halfWidth = GoPanel.heightColumnHalfWidth
+                    let left = max(0, centre - halfWidth)
+                    let right = min(size.width, centre + halfWidth)
+                    context.fill(
+                        Path(CGRect(x: left, y: 0, width: right - left, height: size.height)),
+                        with: .color(.white.opacity(0.14)))
+                }
                 context.fill(
                     Path(CGRect(x: 0, y: tableY, width: size.width, height: size.height - tableY)),
                     with: .color(.white.opacity(0.12)))
@@ -329,8 +411,18 @@ private struct GuideBehind: View {
                 if let goTarget = picture.goTarget {
                     GuideInk.goTarget(&context, at: GuideInk.point(goTarget.behind, in: size), ring: radius)
                 }
-                drawJaws(&context, at: pinch, radius: radius)
-                if picture.directionLabels { GuideInk.direction(&context, "guide.arrow_up") }
+                if picture.pinchAboveRearView {
+                    context.stroke(
+                        Path {
+                            $0.move(to: CGPoint(x: pinch.x - 5, y: 12))
+                            $0.addLine(to: CGPoint(x: pinch.x, y: 5))
+                            $0.addLine(to: CGPoint(x: pinch.x + 5, y: 12))
+                        },
+                        with: .color(GuideInk.jaws(picture)), lineWidth: 2)
+                } else {
+                    drawJaws(&context, at: pinch, radius: radius)
+                }
+                if picture.directionLabels, drawsDirection { GuideInk.direction(&context, "guide.arrow_up") }
             }
         )
         .accessibilityElement(children: .ignore)

@@ -67,8 +67,8 @@ struct GoMove: Equatable, Sendable {
 
     /// The measured pinch point at the tap, robot base frame, metres.
     let start: SIMD3<Double>
-    /// The tapped point at the travel height. Corrections never move it, and arrival is judged against it.
-    let target: SIMD3<Double>
+    /// The latest tapped point. Corrections never move it, and arrival is judged against it.
+    private(set) var target: SIMD3<Double>
     let limits: GoToLimits
     /// The work box the tapped point was judged against, robot base frame, pinch point, metres, corners sorted. No
     /// correction ends outside it.
@@ -110,6 +110,8 @@ struct GoMove: Equatable, Sendable {
     private var nextShare: Double?
     /// Since when a following move's command has waited for a fresh reading.
     private var frozenSince: TimeInterval?
+    private var fingerDownAt: TimeInterval?
+    private var retargetedAt = -TimeInterval.infinity
     /// A fresh reading was off the leg ahead, or did not report the pinch point: the move ends stopped short.
     private var endShort = false
 
@@ -159,6 +161,7 @@ struct GoMove: Equatable, Sendable {
     /// where it waits, while a following move waits for a fresh reading.
     func commanded(at time: TimeInterval) -> SIMD3<Double> {
         if frozenSince != nil { return legFrom }
+        let time = min(time, fingerDownAt ?? time)
         let length = simd_length(legTo - legFrom)
         // Over by time; no computed point is compared with the leg's end.
         guard length > 0, time < legEndsAt else { return legTo }
@@ -176,19 +179,53 @@ struct GoMove: Equatable, Sendable {
         return OperatorFrame.link(fromBase: link - (start - tapOffset))
     }
 
+    mutating func pauseForRetarget(at time: TimeInterval) {
+        fingerDownAt = time
+    }
+
+    /// Keeps the wire hold's origin and offset. Only the path beyond the paused command changes.
+    mutating func retarget(_ point: SIMD3<Double>, at time: TimeInterval) -> Bool {
+        guard let paused = fingerDownAt, all(point .>= boxLow), all(point .<= boxHigh) else { return false }
+        let here = commanded(at: time)
+        fingerDownAt = nil
+        settle = nil
+        pausedUntil = time
+        retargetedAt = time
+        if simd_distance(point, target) <= limits.arriveToleranceM {
+            legStartedAt += time - paused
+            deadline += time - paused
+            return true
+        }
+
+        target = point
+        frozenSince = nil
+        heightAim = 0
+        correctionsLeft = limits.corrections
+        stage = .vertical
+        legFrom = here
+        legTo = SIMD3(here.x, here.y, point.z)
+        legStartedAt = time
+        nextShare = nil
+        endShort = false
+        seenMoving = false
+        let distance = abs(point.z - here.z) + simd_length(SIMD2(point.x - here.x, point.y - here.y))
+        deadline = time + distance / (limits.speedMps * speedShare) * limits.timeFactor + limits.allowanceS
+        return true
+    }
+
     /// Judges the newest measured arm at `now`; nil while the move goes on. Changes legs and aims as it goes.
     mutating func observe(_ fix: ArmFix?, at now: TimeInterval) -> Verdict? {
         guard let fix, fix.ageS <= limits.armDataTimeoutS else { return .noArmData }
+        if fingerDownAt != nil { return nil }
         if fix.holdPaused { pausedUntil = now }
-        // A stale fix says nothing either way: no arrival, no corner, no settle.
-        guard fix.ageS <= Self.freshS else {
+        let measuredAt = now - fix.ageS
+        // A reading from before a new target cannot show progress on that target.
+        guard fix.ageS <= Self.freshS, measuredAt >= retargetedAt else {
             settle = nil
-            // A following move does not go on blind: the command waits where it is for a fresh reading.
-            if tapOffset != nil { freeze(at: now) }
+            if tapOffset != nil || retargetedAt.isFinite { freeze(at: now) }
             return nil
         }
-        if tapOffset != nil { thaw(at: now) }
-        let measuredAt = now - fix.ageS
+        if tapOffset != nil || retargetedAt.isFinite { thaw(at: now) }
         var pinch = fix.pinch
         if tapOffset != nil {
             pinch = follow(fix, measuredAt: measuredAt, now: now)

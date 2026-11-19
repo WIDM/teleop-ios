@@ -134,6 +134,7 @@ enum OperatingWords {
         case .letGoFirst: return L10n.string("refusal.let_go_first")
         case .deadInput: return L10n.string("refusal.did_nothing")
         case .serverRefused: return L10n.string("refusal.server_refused")
+        case .useUpperKey: return L10n.string("refusal.use_upper_key")
         case .outsideWorkArea: return L10n.string("refusal.outside_work_area")
         case .noArmData: return L10n.string("refusal.no_arm_data")
         case .tapStill: return L10n.string("refusal.tap_still")

@@ -1,3 +1,4 @@
+import TeleopCore
 import XCTest
 @testable import Teleop
 
@@ -39,6 +40,70 @@ final class SessionRecordTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
         } while Date() < end
         return contents(url).contains(text)
+    }
+
+    func testTheAppRecordsSettingsLinkTransitionsAndSpeech() {
+        let record = SessionRecord(url: logURL)
+        let model = AppModel(
+            start: .p4, speech: NoSpeech(), liveLink: true, assistOn: false, sessionRecord: record)
+        model.session.state.markConnected()
+        model.send(.linkLatency(ms: 450))
+        model.send(.linkLatency(ms: 480))
+        model.send(.linkLatency(ms: 40))
+        model.raise(.refused(.tapStill))
+        model.log("link: connecting wss://robot.example:1234")
+        record.flush()
+        let lines = words(logURL)
+        XCTAssertTrue(lines.contains { $0.hasPrefix("launch version=") })
+        XCTAssertTrue(lines.contains { $0.hasPrefix("settings mode=") && $0.contains("assist=false") })
+        XCTAssertTrue(lines.contains("slow link on rtt_ms=[450, 480]"))
+        XCTAssertTrue(lines.contains("slow link off rtt_ms=[40]"))
+        XCTAssertTrue(lines.contains { $0.hasPrefix("screen refused") })
+        let start = lines.firstIndex {
+            $0.hasPrefix("speech start id=") && $0.contains("say.tap_still")
+        }
+        let finish = lines.firstIndex { $0.hasPrefix("speech end id=") && $0.hasSuffix(" finished") }
+        XCTAssertNotNil(start)
+        XCTAssertNotNil(finish)
+        if let start, let finish { XCTAssertLessThan(start, finish) }
+        XCTAssertTrue(lines.contains("link: connecting <server>"))
+        XCTAssertFalse(contents(logURL).contains("robot.example"))
+    }
+
+    func testTheAppRecordsHowTheCameraMarkCleared() {
+        let record = SessionRecord(url: logURL)
+        let model = AppModel(start: .p4, liveLink: false, inputClock: { 10 }, sessionRecord: record)
+        model.controller.cameraInterrupted(true)
+        model.controller.trackerRan(at: 11)
+        model.poseFrame(nil, at: 12)
+        model.controller.cameraInterrupted(true)
+        model.controller.cameraInterrupted(false)
+        record.flush()
+        let marks = words(logURL).filter { $0.hasPrefix("camera mark ") }
+        XCTAssertEqual(
+            marks,
+            [
+                "camera mark set",
+                "camera mark cleared by a frame after the app's run stamp=12.0",
+                "camera mark set",
+                "camera mark cleared by the end report",
+            ])
+    }
+
+    func testTheAppRecordsTheWholeTouchOnceAtLift() {
+        let record = SessionRecord(url: logURL)
+        let model = AppModel(start: .p4, liveLink: false, inputClock: { 10 }, sessionRecord: record)
+        model.surfaceChanged(width: 402, height: 874, safeTop: 62, safeBottom: 34)
+        model.guidePanelChanged(SurfaceLayout.Rect(x: 100, y: 260, width: 200, height: 200))
+        model.touch(TouchSample(id: 1, phase: .began, x: 200, y: 350, majorRadius: 1), at: 10)
+        model.touch(TouchSample(id: 1, phase: .moved, x: 232, y: 350, majorRadius: 1), at: 10.05)
+        model.guidePanelChanged(nil)
+        model.touch(TouchSample(id: 1, phase: .ended, x: 201, y: 350, majorRadius: 1), at: 10.1)
+        record.flush()
+        let touches = words(logURL).filter { $0.hasPrefix("touch ") }
+        XCTAssertEqual(touches.count, 1)
+        XCTAssertTrue(touches.first?.contains("x=200.0 y=350.0 duration_s=0.100 travel_mm=5.00") == true)
+        XCTAssertTrue(touches.first?.contains("panel=Rect(x: 100.0, y: 260.0, width: 200.0, height: 200.0)") == true)
     }
 
     func testALineReachesTheFileUnaskedWithItsTimes() throws {

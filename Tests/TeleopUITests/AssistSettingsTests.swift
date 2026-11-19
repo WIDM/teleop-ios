@@ -97,7 +97,7 @@ final class AssistSettingsTests: XCTestCase {
         app.element("settings.aids").tap()
         expect(app, "settings.assist")
         app.element("settings.done").tap()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         app.element("operating.gear").tap()
         expect(app, "settings.done")
         expect(app, "settings.task_aid")
@@ -318,7 +318,7 @@ final class AssistSettingsTests: XCTestCase {
         let app = XCUIApplication.teleop(
             ["-startRoute", "p4_standby", "-assist", assist, "-lockVariant", lock] + extra, language: language)
         app.launch()
-        expectLabel(app.element("operating.state"), language == "en" ? "Ready" : "就緒", timeout: 8)
+        expectLabel(app.element("operating.state"), language == "en" ? "Available" : "可操作", timeout: 8)
         app.element("operating.gear").tap()
         expect(app, "settings.done")
         return app

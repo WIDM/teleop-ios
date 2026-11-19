@@ -45,3 +45,13 @@ Until frames are drawn, these screens and states differ from the file:
   spoken endings and the new strings.
 
 `docs/figma-map.md` maps the file's older Mockup v2 frames, which show the screens the app had before 1.0.0.
+
+
+## Additional operating words in 1.1.1
+
+- With hands-free aids off, the phone modes show “Hands-free aids off: taps do nothing” under the operating state
+  when the robot offers aids and the screen is not stopped. In Traditional Chinese it is 「免持輔助已關閉：點圖不會動」.
+- A missed tap may show “Keep still”, “Tap and let go”, or “Tap the top view”. In Traditional Chinese the words
+  are 「手指別動」、「點一下就放開」 and 「請點上面的圖」. These are refusals and use the existing refusal colour.
+- The first quick second contact that stops a tapped move says “Stopped here. Tap once.” The tutorial's tap
+  instruction also asks the operator to tap once and wait for the move to stop.

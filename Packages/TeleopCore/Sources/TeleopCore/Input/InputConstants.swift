@@ -70,9 +70,13 @@ public struct InputConstants: Equatable, Sendable {
     /// that would change it: durations of intended and unintended taps logged on the device.
     public var tapMaxS: Double
     /// ... and only if it never went farther than this from its touch-down, straight distance, millimetres. Well under
-    /// the 10 mm that commits a slide, so a wobble between the two does nothing, as in 1.0.1. Evidence: tap travel
+    /// the 10 mm that commits a slide. Evidence: tap travel
     /// logged on the device.
     public var tapSlopMm: Double
+    /// Longest lift that can still be explained as a missed tap. Evidence: the duration of intended taps.
+    public static let tapSaysWhyMaxS: Double = 1
+    /// Longest gap between a tap's lift and a second contact that may be a bounce. Evidence: gaps between contacts.
+    public static let secondContactS: Double = 0.15
 
     public init(
         rollClampDeg: Double = 55, tiltClampDeg: Double = 20,
@@ -87,7 +91,7 @@ public struct InputConstants: Equatable, Sendable {
         gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874,
         referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
-        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3, tapMaxS: Double = 0.30, tapSlopMm: Double = 3
+        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3, tapMaxS: Double = 0.30, tapSlopMm: Double = 4
     ) {
         self.rollClampDeg = rollClampDeg
         self.tiltClampDeg = tiltClampDeg

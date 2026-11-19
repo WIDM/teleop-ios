@@ -145,6 +145,8 @@ final class AssistPropertyTests: XCTestCase {
         var lastStopStep: Int?
         // With tap-to-go: the arm the rules are told of, and how each move to a point starts, runs and ends.
         var watch: GoWatch?
+        var lastTapPoint: SIMD2<Double>?
+        var explainedSecondContact = false
         if let limits = scenario.assist.goTo, let walk = scenario.walk { watch = GoWatch(limits: limits, walk: walk) }
 
         for (index, step) in scenario.steps.enumerated() {
@@ -415,11 +417,11 @@ final class AssistPropertyTests: XCTestCase {
                     return "an aid acts only when it is on: \(String(describing: engagement)) without tap-to-go "
                         + "\(at())"
                 }
-                if commands.contains(.cue(.refused(.outsideWorkArea))) || commands.contains(.cue(.refused(.noArmData)))
-                {
+                let tapRefusals: [InputRefusal] = [.outsideWorkArea, .noArmData, .tapStill, .tapLetGo, .tapViewAbove]
+                if tapRefusals.contains(where: { commands.contains(.cue(.refused($0))) }) {
                     return "an aid acts only when it is on: a tap's refusal without tap-to-go \(at())"
                 }
-                let goOnly: [DriveCue] = [.arrived, .ended(.stoppedShort), .ended(.noArmData)]
+                let goOnly: [DriveCue] = [.arrived, .ended(.stoppedShort), .ended(.noArmData), .stoppedByYouTapOnce]
                 if drives.contains(where: goOnly.contains) || recorded.contains(.going) {
                     return "an aid acts only when it is on: \(drives), \(recorded) without tap-to-go \(at())"
                 }
@@ -475,6 +477,9 @@ final class AssistPropertyTests: XCTestCase {
                     }
                 }
             }
+            if recorded.contains(.going), engagementBefore?.isLoose != true {
+                lastTapPoint = lifted.first(where: { $0.isTap() })?.down
+            }
             if !(engagementBefore?.isLoose == true), !drives.isEmpty, drives != [.latched], drives != [.arrived] {
                 return "with nothing loose before, the only drive cue is one latch, or a tap's \"Arrived.\": "
                     + "\(drives) \(at())"
@@ -483,7 +488,16 @@ final class AssistPropertyTests: XCTestCase {
             // A move nobody holds ends once, with the cue of what ended it (its door). A move to a point that the
             // checks after the events ended is judged by `GoWatch`, which knows what its verdicts need.
             if let looseBefore = engagementBefore, looseBefore.isLoose {
-                let eventDoor = Self.eventDoor(step.events[...])
+                let quickSecondContactPoint: SIMD2<Double>?
+                if case .going(_, let since) = looseBefore, step.time - since <= InputConstants.secondContactS + 1e-9,
+                    !explainedSecondContact
+                {
+                    quickSecondContactPoint = lastTapPoint
+                } else {
+                    quickSecondContactPoint = nil
+                }
+                let eventDoor = Self.eventDoor(step.events[...], near: quickSecondContactPoint)
+                if eventDoor == [.stoppedByYouTapOnce] { explainedSecondContact = true }
                 var door = eventDoor
                 if case .latched(let since) = looseBefore {
                     door = door ?? Self.gateDoor(facts: facts, since: since, limit: limitBefore, time: step.time)
@@ -754,7 +768,8 @@ final class AssistPropertyTests: XCTestCase {
         guard !off.contains(.startTranslation), on.count > off.count else { return false }
         var outcomes: [InputCommand] = [
             .startTranslation, .cue(.refused(.outsideWorkArea)), .cue(.refused(.noArmData)), .cue(.refused(.stopped)),
-            .cue(.drive(.arrived)),
+            .cue(.drive(.arrived)), .cue(.refused(.tapStill)), .cue(.refused(.tapLetGo)),
+            .cue(.refused(.tapViewAbove)),
         ]
         if let refusal = facts.refusal { outcomes.append(.cue(.refused(refusal))) }
         for i in 0...off.count {
@@ -779,7 +794,9 @@ final class AssistPropertyTests: XCTestCase {
     }
 
     /// The cues the first ending among `events` plays for a move nobody holds, or nil when none of them ends one.
-    fileprivate static func eventDoor(_ events: ArraySlice<InputEvent>) -> [DriveCue]? {
+    fileprivate static func eventDoor(
+        _ events: ArraySlice<InputEvent>, near tap: SIMD2<Double>? = nil
+    ) -> [DriveCue]? {
         for event in events {
             switch event {
             case .keyDown:
@@ -788,7 +805,16 @@ final class AssistPropertyTests: XCTestCase {
                 switch ArbiterRig.layout.zone(x: s.x, y: s.y) {
                 case .bottomBand:
                     return []
-                case .controlSurface, .gear, .topBand:
+                case .controlSurface:
+                    if Self.passesTheFilters(s) {
+                        if let tap,
+                            millimetres(from: tap, to: SIMD2(s.x, s.y)) <= InputConstants.appendixA.tapSlopMm + 1e-9
+                        {
+                            return [.stoppedByYouTapOnce]
+                        }
+                        return [.stoppedByYou]
+                    }
+                case .gear, .topBand:
                     if Self.passesTheFilters(s) { return [.stoppedByYou] }
                 case .gap, .bottomSafeArea:
                     break

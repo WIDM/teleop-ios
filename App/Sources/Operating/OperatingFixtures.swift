@@ -45,6 +45,7 @@ enum OperatingFixtures {
         all["refused_tap_still"] = display(.refused(.tapStill), arm: task(), recorder: armed)
         all["refused_tap_let_go"] = display(.refused(.tapLetGo), arm: task(), recorder: armed)
         all["refused_tap_view_above"] = display(.refused(.tapViewAbove), arm: task(), recorder: armed)
+        all["refused_use_upper_key"] = display(.refused(.useUpperKey), arm: task(), recorder: armed)
         // A follow or a move nobody held that ran out of time: why it ended, for a second.
         all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: armed)
         all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)

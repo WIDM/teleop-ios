@@ -29,6 +29,30 @@ enum OperatingState: Equatable, Sendable {
     case stopped(cause: EmergencyCause?)
     case linkLost
     case saved(count: Int)  // shown for 2 s after a take is saved
+
+    /// A screen state without changing measurements or a server address.
+    var recordSummary: String {
+        switch self {
+        case .notConnected: return "not connected"
+        case .connecting: return "connecting"
+        case .ready: return "ready"
+        case .moving(let catchingUp): return catchingUp ? "moving, catching up" : "moving"
+        case .locked(let catchingUp): return catchingUp ? "locked, catching up" : "locked"
+        case .going(let catchingUp): return catchingUp ? "going, catching up" : "going"
+        case .turning: return "turning"
+        case .tilting: return "tilting"
+        case .opening: return "opening"
+        case .closing(let gripped): return gripped ? "closing, gripped" : "closing"
+        case .wait(let reason): return "wait \(reason)"
+        case .trackingLost: return "tracking lost"
+        case .refused(let reason): return "refused \(reason)"
+        case .ended(let reason): return "ended \(reason)"
+        case .slowLink: return "slow link"
+        case .stopped: return "stopped"
+        case .linkLost: return "link lost"
+        case .saved: return "saved"
+        }
+    }
 }
 
 /// What the arm and the task look like, for the guide. Robot base frame, metres.
@@ -79,4 +103,5 @@ struct OperatingDisplay: Equatable, Sendable {
     /// The robot offers hands-free aids and their master switch is off, on the real server: a tap on the guide does
     /// nothing, and the screen says so.
     var aidsOff = false
+    var precisionPanelOpen = false
 }

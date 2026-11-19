@@ -21,6 +21,10 @@ the screen is rarely needed.
   than 0.8 m/s or lost tracking (let go); three quick ticks for a press that did nothing, followed by why (no); a
   long rattle for the emergency stop (alarm); and, with a target on the guide, a tick then a soft buzz when the jaws
   are on it. The tutorial teaches them with the same words.
+- With the guide aids on and the S4 simulator profile, a held or latched follow or a held direction on the button pad
+  can play END and “Blocked.” once per hold. Over a second of regularly arriving states, the arm must stay at least
+  10 mm short of a consistent commanded direction and make little progress toward it. The rule accounts for an arm
+  following a moving request and for a stall explained by a workspace clamp.
 - Opening Settings, leaving the app or losing the camera ends every hold, with its stop sent to the server.
 - With the aids on, in the two phone modes: lock (chosen on the aids' page) keeps the arm following the phone with
   no key held, after a press of the upper key or after a thumb slid up the glass while the key is held; a tap on the
@@ -51,6 +55,10 @@ the screen is rarely needed.
   `AssistControllerTests`, `AssistLinkTests` and `LocalAssistTests` (lock and taps through raw inputs against the
   local server), and `LocalFollowTests` (moves to a tapped point against a local server whose pinch point turns with
   the arm's posture). The AssistOff test plan runs every app test again with the aids off.
+- App replay: `BlockedReplayTests` plays the six recorded holds through the link, cue scheduler and app players
+  with a test clock. It checks the actual haptic requests and localized utterances for the clamp alternatives, the
+  missed obstruction and the two earlier false cues. Additional holds cover obstructions after an earlier clamp
+  and the “Can't go lower.” cue on a later approach.
 - UI: `OperatingScreenTests` draws every operating state, and `AssistOperatingScreenTests` the states of the aids;
   `-recordHaptics YES` puts the haptics the app asks for in a hidden element (`test.haptics`) a UI test can read.
 - By hand, on a phone: XCUITest cannot press the volume keys or move the phone, and the iPhone simulator has no

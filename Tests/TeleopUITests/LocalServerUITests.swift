@@ -29,7 +29,7 @@ final class LocalServerUITests: XCTestCase {
         // screen comes up only once the server has answered hello with welcome and a state.
         let state = app.element("operating.state")
         XCTAssertTrue(state.waitForExistence(timeout: 5), "the app did not connect to \(server.address)")
-        expectLabel(state, "Ready")
+        expectLabel(state, "Available")
         XCTAssertEqual(app.element("operating.link").label, "Link up")
         // The control connection, and the listening one the app opens right after its welcome.
         let deadline = Date().addingTimeInterval(3)
@@ -44,7 +44,7 @@ final class LocalServerUITests: XCTestCase {
     /// opens the jaws, and the jaw read-out follows.
     func testTheGuideIsOnScreenWhileConnectedAndAfterAHold() {
         let app = launchOnTheLocalServer(["-startRoute", "p4_standby", "-controlMode", "keyTurns"])
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         expect(app, "guide")
         expect(app, "guide.above")
         expect(app, "guide.behind")

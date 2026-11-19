@@ -201,24 +201,28 @@ final class AssistControllerTests: XCTestCase {
         XCTAssertEqual(model.cueLog.dropFirst(mark).map(\.event), [.refused(.noLink)], "the release adds nothing")
     }
 
-    /// Through the real cue player, with each phrase spoken until it is finished: "Locked on." waits behind "Ready.",
-    /// and STOP or a lost link comes before the voice is free. The alarm or "Link lost." cuts "Ready." off, and "Locked
-    /// on." is never said after it: the follow it announces is over. With neither, it is said once the voice frees.
+    /// A historical saved result keeps the voice occupied while a follow starts. STOP or link loss must cancel
+    /// the queued latch announcement; otherwise it plays once the voice is free.
     func testALockedOnWaitingForTheVoiceIsNotSaidAfterStopOrLinkLoss() {
         for ending in ["STOP", "a lost link", "neither"] {
             let speech = SpySpeech()
             speech.holds = true
             bringUp(speech: speech)
-            XCTAssertEqual(speech.spoken, ["Ready."], ending)
+            XCTAssertEqual(speech.spoken, ["Controls available."], ending)
+            speech.finish()
+            speech.spoken = []
+            model.raise(.takeSaved(count: 1))
+            XCTAssertEqual(speech.spoken, ["Saved. 1."], ending)
             latchTheArm()
-            XCTAssertEqual(speech.spoken, ["Ready."], "\(ending): Locked on. waits for the voice")
+            XCTAssertEqual(speech.spoken, ["Saved. 1."], "\(ending): Locked on. waits for the voice")
             switch ending {
             case "STOP": model.send(.stop)
             case "a lost link": control?.onClose?()
             default: break
             }
             if ending != "neither" {
-                XCTAssertEqual(speech.spoken.count, 2, "\(ending): told at once, cutting Ready. off: \(speech.spoken)")
+                XCTAssertEqual(
+                    speech.spoken.count, 2, "\(ending): told at once, interrupting the saved result: \(speech.spoken)")
             }
             for _ in 0..<4 {
                 clock += 1000

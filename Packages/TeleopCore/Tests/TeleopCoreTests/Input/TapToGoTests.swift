@@ -216,23 +216,27 @@ final class TapToGoTests: XCTestCase {
         XCTAssertEqual(near.tap(1, at: point, after: 0.1), [.startTranslation], "8.1 mm away goes")
     }
 
-    /// The whole touch counts: one that went 4 mm away and came back is no tap; one that went 2.9 mm is.
-    func testAnExcursionOverThreeMillimetresThatComesBackIsNotATap() {
+    /// The whole touch counts: one that went 5 mm away and came back is no tap; one that went 3.9 mm is.
+    func testAnExcursionOverFourMillimetresThatComesBackIsNotATap() {
         let mm = Rig.pointsPerMm
         for scheme in [InputScheme.screenTurns, .keyTurns] {
-            let (on, _) = both(scheme) { rig in
-                [
-                    rig.touchDown(1, at: point, after: 0.1),
-                    rig.move(1, to: point + SIMD2(4 * mm, 0), after: 0.03),
-                    rig.move(1, to: point, after: 0.03),
-                    rig.lift(1, after: 0.03),
-                ]
-            }
-            XCTAssertNil(on.arbiter.engagement, "\(scheme)")
+            var rig = aided(scheme)
+            XCTAssertEqual(rig.touchDown(1, at: point, after: 0.1), [])
+            XCTAssertEqual(rig.move(1, to: point + SIMD2(5 * mm, 0), after: 0.03), [])
+            XCTAssertEqual(rig.move(1, to: point, after: 0.03), [])
+            XCTAssertEqual(rig.lift(1, after: 0.03), [.cue(.refused(.tapStill))])
+            XCTAssertNil(rig.arbiter.engagement, "\(scheme)")
+
+            var off = aided(scheme, assist: .off)
+            XCTAssertEqual(off.touchDown(1, at: point, after: 0.1), [])
+            XCTAssertEqual(off.move(1, to: point + SIMD2(5 * mm, 0), after: 0.03), [])
+            XCTAssertEqual(off.move(1, to: point, after: 0.03), [])
+            XCTAssertEqual(off.lift(1, after: 0.03), [])
+            XCTAssertNil(off.arbiter.engagement)
         }
         var rig = aided()
         rig.touchDown(1, at: point, after: 0.1)
-        rig.move(1, to: point + SIMD2(0, 2.9 * mm), after: 0.03)
+        rig.move(1, to: point + SIMD2(0, 3.9 * mm), after: 0.03)
         rig.move(1, to: point, after: 0.03)
         XCTAssertEqual(rig.lift(1, after: 0.03), [.startTranslation])
     }
@@ -253,17 +257,35 @@ final class TapToGoTests: XCTestCase {
         }
     }
 
-    /// The lift sample counts too: a lift that lands 4 mm away is no tap, although no move came before it.
+    /// The lift sample counts too: a lift that lands 5 mm away is no tap, although no move came before it.
     func testALiftFarAwayIsNotATap() {
         for scheme in [InputScheme.screenTurns, .keyTurns] {
-            let away = point + SIMD2(0, -4 * Rig.pointsPerMm)
-            let (on, _) = both(scheme) { rig in
+            let away = point + SIMD2(5 * Rig.pointsPerMm, 0)
+            var rig = aided(scheme)
+            XCTAssertEqual(rig.touchDown(1, at: point, after: 0.1), [])
+            XCTAssertEqual(
+                rig.send(rig.sample(1, .ended, away, radius: 8), after: 0.08), [.cue(.refused(.tapStill))])
+            XCTAssertNil(rig.arbiter.engagement, "\(scheme)")
+
+            var off = aided(scheme, assist: .off)
+            XCTAssertEqual(off.touchDown(1, at: point, after: 0.1), [])
+            XCTAssertEqual(off.send(off.sample(1, .ended, away, radius: 8), after: 0.08), [])
+            XCTAssertNil(off.arbiter.engagement)
+        }
+    }
+
+    func testAVerticalLiftShortOfTheJawSlideStaysSilent() {
+        for scheme in [InputScheme.screenTurns, .keyTurns] {
+            let away = point + SIMD2(0, -5 * Rig.pointsPerMm)
+            let (on, off) = both(scheme) { rig in
                 [
                     rig.touchDown(1, at: point, after: 0.1),
                     rig.send(rig.sample(1, .ended, away, radius: 8), after: 0.08),
                 ]
             }
-            XCTAssertNil(on.arbiter.engagement, "\(scheme)")
+            XCTAssertEqual(on.log, [])
+            XCTAssertNil(on.arbiter.engagement)
+            XCTAssertNil(off.arbiter.engagement)
         }
     }
 
@@ -289,10 +311,14 @@ final class TapToGoTests: XCTestCase {
     /// Scheme A: a touch that lingers past 0.30 s, turns the phone 5 degrees or slides 10 mm up does what it does in
     /// 1.0.1, and is no tap.
     func testSchemeAATouchThatLingersOrTurnsOrSlidesIsOneZeroOne() {
-        let lingers = both(.screenTurns) { rig in
-            [rig.touchDown(1, at: point, after: 0.1), rig.lift(1, after: 0.31)]
-        }
-        XCTAssertNil(lingers.on.arbiter.engagement)
+        var lingers = aided()
+        XCTAssertEqual(lingers.touchDown(1, at: point, after: 0.1), [])
+        XCTAssertEqual(lingers.lift(1, after: 0.31), [.cue(.refused(.tapLetGo))])
+        XCTAssertNil(lingers.arbiter.engagement)
+        var off = aided(assist: .off)
+        XCTAssertEqual(off.touchDown(1, at: point, after: 0.1), [])
+        XCTAssertEqual(off.lift(1, after: 0.31), [])
+        XCTAssertNil(off.arbiter.engagement)
         // Both commit after the palm window and lift well inside 0.30 s.
         let turns = both(.screenTurns) { rig in
             [
@@ -344,27 +370,69 @@ final class TapToGoTests: XCTestCase {
         XCTAssertEqual(rig.phase(.touch(1)), .dead, "reported as 1.0.1 reports it")
         XCTAssertEqual(rig.lift(1, after: 0.08), [.startTranslation])
 
-        let nothingElse = both(.keyTurns) { rig in
+        var resting = aided(.keyTurns)
+        XCTAssertEqual(resting.touchDown(1, at: centre, after: 0.1), [])
+        XCTAssertEqual(resting.wait(0.6), [])
+        XCTAssertEqual(resting.lift(1), [.cue(.refused(.tapLetGo))])
+        var off = aided(.keyTurns, assist: .off)
+        XCTAssertEqual(off.touchDown(1, at: centre, after: 0.1), [])
+        XCTAssertEqual(off.wait(0.6), [])
+        XCTAssertEqual(off.lift(1), [])
+        XCTAssertNil(off.arbiter.engagement)
+        let slides = both(.keyTurns) { rig in
             [
-                rig.touchDown(1, at: centre, after: 0.1), rig.wait(0.6), rig.lift(1),
                 rig.touchDown(2, at: centre, after: 0.1), rig.slide(2, mm: 12, degrees: 90), rig.lift(2),
                 rig.touchDown(3, at: centre, after: 0.1), rig.slide(3, mm: 12, degrees: 0), rig.lift(3),
             ]
         }
-        XCTAssertEqual(nothingElse.off.log, [], "dead and silent")
-        XCTAssertNil(nothingElse.on.arbiter.engagement)
+        XCTAssertEqual(slides.off.log, [], "dead and silent")
+        XCTAssertNil(slides.on.arbiter.engagement)
     }
 
-    func testATouchOutsideThePanelLiftedQuicklyDoesNothing() {
+    func testATouchOutsideThePanelLiftedQuicklyNamesTheTopView() {
         for scheme in [InputScheme.screenTurns, .keyTurns] {
             for outside in [Rig.middle, Rig.rightHalf, Rig.inPanel(-0.02, 0.5), Rig.inPanel(0.5, 1)] {
-                let (on, off) = both(scheme) { rig in
-                    [rig.touchDown(1, at: outside, after: 0.1), rig.lift(1, after: 0.08)]
-                }
-                XCTAssertEqual(off.log, [], "\(scheme) \(outside)")
+                var on = aided(scheme)
+                XCTAssertEqual(on.touchDown(1, at: outside, after: 0.1), [])
+                XCTAssertEqual(on.lift(1, after: 0.08), [.cue(.refused(.tapViewAbove))])
                 XCTAssertNil(on.arbiter.engagement)
+                var off = aided(scheme, assist: .off)
+                XCTAssertEqual(off.touchDown(1, at: outside, after: 0.1), [])
+                XCTAssertEqual(off.lift(1, after: 0.08), [])
             }
         }
+    }
+
+    func testATapRejectionUsesTheOperatingRefusalFirst() {
+        var rig = aided()
+        rig.facts.refusal = .slowLink
+        XCTAssertEqual(rig.tap(1, at: Rig.middle, after: 0.1), [.cue(.refused(.slowLink))])
+        XCTAssertNil(rig.arbiter.engagement)
+    }
+
+    func testASecondContactStopsTheMoveAndExplainsItOnlyOnce() {
+        var rig = aided()
+        XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.startTranslation])
+        let nearby = point + SIMD2(2 * Rig.pointsPerMm, 0)
+        XCTAssertEqual(
+            rig.touchDown(2, at: nearby, after: 0.1), [.stopTranslation, .cue(.drive(.stoppedByYouTapOnce))])
+        XCTAssertEqual(rig.lift(2), [])
+        XCTAssertEqual(rig.tap(3, at: point, after: 0.1), [.startTranslation])
+        XCTAssertEqual(rig.touchDown(4, at: nearby, after: 0.1), [.stopTranslation, .cue(.drive(.stoppedByYou))])
+        XCTAssertEqual(rig.lift(4), [])
+        XCTAssertNil(rig.arbiter.engagement)
+    }
+
+    func testADistantOrLateSecondContactStillStopsWithoutTheExtraWords() {
+        var rig = aided()
+        XCTAssertEqual(rig.tap(1, at: point, after: 0.1), [.startTranslation])
+        let distant = point + SIMD2(5 * Rig.pointsPerMm, 0)
+        XCTAssertEqual(rig.touchDown(2, at: distant, after: 0.1), [.stopTranslation, .cue(.drive(.stoppedByYou))])
+        XCTAssertEqual(rig.lift(2), [])
+        XCTAssertEqual(rig.tap(3, at: point, after: 0.1), [.startTranslation])
+        XCTAssertEqual(rig.touchDown(4, at: point, after: 0.2), [.stopTranslation, .cue(.drive(.stoppedByYou))])
+        XCTAssertEqual(rig.lift(4), [])
+        XCTAssertNil(rig.arbiter.engagement)
     }
 
     /// Without tap-to-go, or with no panel drawn, the same touches are 1.0.1's.

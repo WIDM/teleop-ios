@@ -39,11 +39,13 @@ public struct SentStart: Equatable, Sendable {
 public struct PoseParams: Equatable, Sendable {
     public var gain: Double
     public var smoothing: Double
+    public var toolCalibrationID: String?
 
-    public init(gain: Double, smoothing: Double) {
+    public init(gain: Double, smoothing: Double, toolCalibrationID: String? = nil) {
         // Ranges the server accepts; outside them it rejects pose_start.
         self.gain = min(max(gain, 0.1), 2.0)
         self.smoothing = min(max(smoothing, 0), 0.95)
+        self.toolCalibrationID = toolCalibrationID
     }
 }
 
@@ -104,6 +106,18 @@ public final class TeleopLink {
     public private(set) var lastStateServerMs: Int?
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
+    public private(set) var toolCalibrationID: String?
+    public private(set) var telemetryVersion: Int?
+    public var onReceivedEnvelope: ((String, [String: Any]) -> Void)?
+
+    @discardableResult
+    public func sendDiagnostic(type: String, payload: [String: Any]) -> Bool {
+        guard welcomed, telemetryVersion == 1, ["clock_probe", "telemetry"].contains(type),
+            JSONSerialization.isValidJSONObject(payload)
+        else { return false }
+        emit(type, payload)
+        return true
+    }
     /// The newest control start that went on the wire.
     public private(set) var lastStart: SentStart?
     /// A scene reset asked for and not yet answered: waiting for a stop's final ack, waiting to retry, or in flight.
@@ -148,6 +162,9 @@ public final class TeleopLink {
     @discardableResult
     public func poseStart(_ params: PoseParams) -> Bool {
         guard ready, !holdActive, !resetPending else { return false }
+        if let requested = params.toolCalibrationID {
+            guard !requested.isEmpty, requested == toolCalibrationID else { return false }
+        }
         // The server runs one held control at a time.
         gripperJogStop()
         orientStop()
@@ -379,6 +396,8 @@ public final class TeleopLink {
     public func transportClosed() {
         ready = false
         welcomed = false
+        toolCalibrationID = nil
+        telemetryVersion = nil
         holdActive = false
         holdSeq = nil
         stopping = nil
@@ -402,12 +421,19 @@ public final class TeleopLink {
             let type = message["type"] as? String
         else { return nil }
         let payload = message["payload"] as? [String: Any] ?? [:]
+        defer {
+            if message["v"] as? Int == Self.protocolVersion { onReceivedEnvelope?(type, payload) }
+        }
         if welcomed { lastHeardAt = now() }
         switch type {
         case "welcome":
             welcomed = true
             lastHeardAt = now()
             serverSession = payload["session"] as? String
+            let points = payload["control_points"] as? [String] ?? []
+            let calibration = payload["tool_calibration_id"] as? String
+            toolCalibrationID = points.contains("tool") && calibration?.isEmpty == false ? calibration : nil
+            telemetryVersion = payload["telemetry_version"] as? Int
             return nil
         case "state":
             guard welcomed else { return nil }
@@ -501,17 +527,15 @@ public final class TeleopLink {
         stopping = nil
         switch start {
         case .pose(let params):
-            holdSeq = emit(
-                "pose_start",
-                [
-                    "frame": "webxr_local",
-                    "rate_hz": Self.poseRateHz,
-                    "control_mode": "translation",
-                    "gain": params.gain,
-                    // Required by the server's validation (0 to 15) and ignored by it in every hold.
-                    "deadband_deg": 0.0,
-                    "smoothing": params.smoothing,
-                ])
+            var payload: [String: Any] = [
+                "frame": "webxr_local", "rate_hz": Self.poseRateHz, "control_mode": "translation",
+                "gain": params.gain, "deadband_deg": 0.0, "smoothing": params.smoothing,
+            ]
+            if let calibration = params.toolCalibrationID {
+                payload["control_point"] = "tool"
+                payload["calibration_id"] = calibration
+            }
+            holdSeq = emit("pose_start", payload)
             lastStart = SentStart(seq: seq, kind: .pose, atMs: now())
         case .gripperJog(let target):
             gripperJogSeq = emit("gripper_jog_start", ["action": target == .open ? "open" : "close", "step": "coarse"])
@@ -549,8 +573,11 @@ public final class TeleopLink {
         let message: [String: Any] = [
             "v": Self.protocolVersion, "type": type, "ts": now(), "seq": seq, "payload": payload,
         ]
-        // pose_update, orient_update and test get no ack; remembering them would only grow the table.
-        if type != "pose_update", type != "orient_update", type != "test", type != "jog_keepalive" {
+        switch type {
+        case "pose_update", "orient_update", "test", "jog_keepalive", "clock_probe", "telemetry":
+            // These do not return a control ack. Do not let them displace a pending START or STOP.
+            break
+        default:
             sentTypes[seq] = type
         }
         if sentTypes.count > 64, let oldest = sentTypes.keys.min() { sentTypes[oldest] = nil }

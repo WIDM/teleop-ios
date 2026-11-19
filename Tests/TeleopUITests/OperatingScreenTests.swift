@@ -9,8 +9,8 @@ final class OperatingScreenTests: XCTestCase {
     private static let words: [String: (en: String, zh: String)] = [
         "not_connected": ("Not connected", "未連線"),
         "connecting": ("Connecting", "連線中"),
-        "ready": ("Ready", "就緒"),
-        "ready_hotel": ("Ready", "就緒"),
+        "ready": ("Available", "可操作"),
+        "ready_hotel": ("Available", "可操作"),
         "moving": ("Moving", "移動中"),
         "moving_hotel": ("Moving", "移動中"),
         "moving_no_arm": ("Moving", "移動中"),
@@ -29,16 +29,16 @@ final class OperatingScreenTests: XCTestCase {
         "stopped_unknown_server": ("STOPPED", "已急停"),
         "link_lost": ("Link lost", "連線中斷"),
         "saved": ("Saved 13", "已存 13"),
-        "rec_off_countdown": ("Ready", "就緒"),
-        "outside": ("Ready", "就緒"),
-        "approximate": ("Ready", "就緒"),
+        "rec_off_countdown": ("Available", "可操作"),
+        "outside": ("Available", "可操作"),
+        "approximate": ("Available", "可操作"),
         "approximate_hotel": ("Moving", "移動中"),
-        "practice_ready": ("Ready", "就緒"),
+        "practice_ready": ("Available", "可操作"),
         "practice_stopped": ("STOPPED", "已急停"),
-        "buttons_ready": ("Ready", "就緒"),
+        "buttons_ready": ("Available", "可操作"),
         "buttons_moving": ("Moving", "移動中"),
         "buttons_stopped": ("STOPPED", "已急停"),
-        "buttons_practice": ("Ready", "就緒"),
+        "buttons_practice": ("Available", "可操作"),
     ]
 
     private struct Size {

@@ -37,9 +37,10 @@ final class GuideAidsScreenTests: XCTestCase {
     func testTheViewsSayWhichWayIsForwardAndWhichWayIsUp() {
         let labels = [
             "en": (
-                "From above. Up the screen is forward.", "From behind. Up the screen is up.", "Ready", "Height 6.2 cm"
+                "From above. Up the screen is forward.", "From behind. Up the screen is up.", "Available",
+                "Height 6.2 cm"
             ),
-            "zh-Hant": ("從上面看。螢幕往上是前方。", "從後面看。螢幕往上是上方。", "就緒", "離桌面 6.2 公分"),
+            "zh-Hant": ("從上面看。螢幕往上是前方。", "從後面看。螢幕往上是上方。", "可操作", "離桌面 6.2 公分"),
         ]
         for size in Self.sizes {
             for (language, expected) in labels {

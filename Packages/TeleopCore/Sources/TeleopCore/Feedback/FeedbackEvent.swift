@@ -21,6 +21,7 @@ public enum Refusal: String, CaseIterable, Sendable {
     case serverRefused
     /// A tap asked for a point outside the work box.
     case outsideWorkArea
+    case useUpperKey
     /// A tap found no measured arm position fresh enough to start from.
     case noArmData
     /// A touch in the view from above that would have been a tap but for moving sideways too far.
@@ -121,7 +122,7 @@ public enum DriveEnd: Hashable, Sendable, CaseIterable {
         case .serverRefused: self = .serverRefused
         case .emergencyStop: return nil
         case .noLink, .notStopped, .slowLink, .notTracking, .posture, .letGoFirst, .deadInput, .outsideWorkArea,
-            .noArmData, .tapStill, .tapLetGo, .tapViewAbove:
+            .noArmData, .tapStill, .tapLetGo, .tapViewAbove, .useUpperKey:
             self = .unnamed
         }
     }
@@ -181,6 +182,7 @@ public enum FeedbackEvent: Equatable, Sendable {
     case takeDiscarded
     /// E12
     case ready
+    case voiceAxis(TranslationAxis)
     /// E22
     case recordingSession(saved: Int)
     /// E30: moving while the recorder is off. Once per take.
@@ -214,6 +216,7 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .successNotSaved: return .successNotSaved
         case .takeDiscarded: return .takeDiscarded
         case .ready: return .ready
+        case .voiceAxis(let axis): return .voiceAxis(axis)
         case .recordingSession: return .recordingSession
         case .notRecording: return .notRecording
         case .notReset: return .notReset
@@ -252,6 +255,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case successNotSaved
     case takeDiscarded
     case ready
+    case voiceAxis(TranslationAxis)
     case recordingSession
     case notRecording
     case notReset
@@ -267,7 +271,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     enum Kind: CaseIterable {
         case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
-        case ready, recordingSession, notRecording, notReset, drive, commandOutside
+        case ready, voiceAxis, recordingSession, notRecording, notReset, drive, commandOutside
     }
 
     var kind: Kind {
@@ -290,6 +294,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .successNotSaved: return .successNotSaved
         case .takeDiscarded: return .takeDiscarded
         case .ready: return .ready
+        case .voiceAxis: return .voiceAxis
         case .recordingSession: return .recordingSession
         case .notRecording: return .notRecording
         case .notReset: return .notReset
@@ -321,6 +326,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .successNotSaved: return [.successNotSaved]
         case .takeDiscarded: return [.takeDiscarded]
         case .ready: return [.ready]
+        case .voiceAxis: return TranslationAxis.allCases.map(CueKey.voiceAxis)
         case .recordingSession: return [.recordingSession]
         case .notRecording: return [.notRecording]
         case .notReset: return [.notReset]

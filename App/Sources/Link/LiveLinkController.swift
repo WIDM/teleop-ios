@@ -15,9 +15,11 @@ final class LiveLinkController {
     /// (`pose_tracking_safety_stop`). A server hold is relative to the arm's position when it started, so no
     /// single server hold ever asks for more than this. That holds however slow or stuck the arm is.
     static let maxLeadMeters: Float = 0.08
+    static let toolMaxLeadMeters: Float = 0.005
     /// The server reports no arm position during a hold. When the hand wants more than the limit, the server
     /// hold is ended and restarted this often, which is the only way to learn how far the arm really got.
     static let resyncAfterMs = 1500
+    static let toolResyncAfterMs = 500
     /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
     static let resyncTimeoutMs = 1500
     /// A dropped listening connection is opened again this often, without a word to the operator.
@@ -35,6 +37,8 @@ final class LiveLinkController {
     static let stalledTickMs = 250
 
     var onAction: ((TeleopAction) -> Void)?
+    var onWireEvent: ((String, [String: Any], UInt64) -> Void)?
+    private var holdAxis: TranslationAxis?
     var onLog: ((String) -> Void)?
     /// True while the command is being held back so the arm can catch up.
     var onCatchingUp: ((Bool) -> Void)?
@@ -89,6 +93,10 @@ final class LiveLinkController {
     private var openedAtMs = 0
     private var holdStart: SIMD3<Float>?
     private var lastSample: (position: SIMD3<Float>, atMs: Int)?
+    private var lastMotionRecordAtMs: Int?
+    private var lastGripperRecordAtMs: Int?
+    private var motionRequest: (offset: SIMD3<Float>, atMs: Int)?
+    private var motionUpdate: (delta: SIMD3<Float>, target: SIMD3<Float>?, atMs: Int)?
     /// Set when estop_reset goes out. States sent before the server handled it still say estop, and must not re-latch.
     private var resetSentAtMs: Int?
     /// The server ignores gain and smoothing in translation mode, so they are applied here.
@@ -101,7 +109,7 @@ final class LiveLinkController {
     private var segmentStartedMs = 0
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
-    private var resync: (sinceMs: Int, stopped: Bool)?
+    private var resync: (sinceMs: Int, stopped: Bool, stoppedServerMs: Int?)?
     private var lastRefusal: (reason: String, atMs: Int)?
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
@@ -114,6 +122,7 @@ final class LiveLinkController {
     private var buttonTarget: (() -> SIMD3<Double>?)?
     /// During a translation hold: where the reported arm point is being sent, robot base frame.
     private(set) var commandedArm: SIMD3<Float>?
+    private var toolTargets: (intent: SIMD3<Float>, applied: SIMD3<Float>)?
     /// The operator's right and forward at the start of the hold, both horizontal.
     private var holdRight = SIMD3<Float>(1, 0, 0)
     private var holdForward = SIMD3<Float>(0, 0, -1)
@@ -177,6 +186,49 @@ final class LiveLinkController {
     }
 
     var isOpen: Bool { transport != nil }
+    var toolCalibrationID: String? { link?.toolCalibrationID }
+    @discardableResult
+    func sendDiagnostic(type: String, payload: [String: Any]) -> Bool {
+        link?.sendDiagnostic(type: type, payload: payload) ?? false
+    }
+    private var measuredControlPoint: SIMD3<Float>? {
+        if holdParams.toolCalibrationID != nil { return newestArmState?.toolPoint.map { SIMD3<Float>($0) } }
+        return Self.vector(link?.lastEndEffector)
+    }
+    var freshToolPointForStep: SIMD3<Double>? {
+        guard toolCalibrationID != nil, voiceMotionStartStamp != nil,
+            let age = newestArmAgeMs, (0...FeedbackMonitor.freshStateMs).contains(age)
+        else { return nil }
+        return newestArmState?.toolPoint
+    }
+
+    var manualTranslationStartRefusal: Refusal? {
+        guard isUp else { return .noLink }
+        if resetPending || newestState?.simBusy == true { return .notReady }
+        if newestState?.estop == true { return .emergencyStop }
+        guard armHeardAfterLastStop, link?.unfinishedStop == nil else { return .busy }
+        guard toolCalibrationID != nil else { return nil }
+        guard let state = newestState, let receivedAt = newestStateAtMs,
+            (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt),
+            state.endEffector != nil, state.toolPoint != nil
+        else { return .noArmData }
+        switch state.activity {
+        case .ok?, .other("no_solution")?: return nil
+        case .poseTracking?, .poseClamped?, .orienting?, .orientClamped?, .gripperJogging?, .gripperContact?:
+            return .busy
+        default: return .notReady
+        }
+    }
+
+    var voiceMotionStartStamp: Int? {
+        guard armHeardAfterLastStop, link?.unfinishedStop == nil, let state = newestState, !state.estop,
+            state.activity == .ok, let receivedAt = newestStateAtMs,
+            (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt)
+        else { return nil }
+        return newestStateServerMs
+    }
+
+    var latestVoiceMotionStateStamp: Int? { newestStateServerMs }
     /// The control connection is welcomed and has had its first state.
     var isUp: Bool { link?.ready == true }
     /// The listening connection is up and receiving state.
@@ -233,13 +285,15 @@ final class LiveLinkController {
     /// base frame, which the server keeps the gripper link inside. `sides`: the faces of that box the work-area rule
     /// tells; one the arm is stopped before (a floor below the table) is left out while another cue tells that stop.
     func guideAidsChanged(
-        _ aids: GuideAids?, gripperBox: (low: SIMD3<Double>, high: SIMD3<Double>), sides: Set<OperatorDirection>
+        _ aids: GuideAids?, gripperBox: (low: SIMD3<Double>, high: SIMD3<Double>), sides: Set<OperatorDirection>,
+        directionalBlocked: Bool = false
     ) {
         workAreaCue =
             aids?.workAreaWords == true
             ? WorkAreaCue(low: gripperBox.low, high: gripperBox.high, sides: sides) : nil
         workAreaToldThisHold = false
         monitor.reportsLowest = aids?.lowestCue == true
+        monitor.blockedWorkspace = directionalBlocked && aids != nil ? gripperBox : nil
     }
 
     /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.
@@ -272,6 +326,9 @@ final class LiveLinkController {
         self.url = url
         let transport = makeTransport(url)
         let link = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
+        link.onReceivedEnvelope = { [weak self] type, payload in
+            self?.onWireEvent?(type, payload, DispatchTime.now().uptimeNanoseconds)
+        }
         self.transport = transport
         self.link = link
         openedAtMs = nowMs()
@@ -317,6 +374,7 @@ final class LiveLinkController {
         controlStopped = nil
         observerStopped = nil
         holdStart = nil
+        holdAxis = nil
         lastSample = nil
         resetSentAtMs = nil
         lastRefusal = nil
@@ -325,6 +383,7 @@ final class LiveLinkController {
         wristTarget = nil
         buttonTarget = nil
         commandedArm = nil
+        toolTargets = nil
         newestStateAtMs = nil
         newestState = nil
         leadBound = WristLeadBound()
@@ -343,9 +402,16 @@ final class LiveLinkController {
     func foregroundChanged() { link?.dropProbes() }
 
     /// False when the hold could not start (no link, or no tracked pose to measure from).
-    func startHold(_ params: PoseParams) -> Bool {
+    func startHold(_ params: PoseParams, axis: TranslationAxis? = nil) -> Bool {
         guard let link, let start = pose() else { return false }
-        guard link.poseStart(params) else { return false }
+        if axis != nil || params.toolCalibrationID != nil {
+            guard let calibration = link.toolCalibrationID, params.toolCalibrationID == calibration,
+                manualTranslationStartRefusal == nil
+            else { return false }
+        }
+        holdAxis = axis
+        holdParams = params
+        guard link.poseStart(params) else { holdAxis = nil; return false }
         noteStopSent()
         syncStart()
         holdStart = Self.position(start)
@@ -357,28 +423,30 @@ final class LiveLinkController {
         resync = nil
         segmentStartedMs = nowMs()
         // With an aid on the start point is taken when the start goes on the wire, which may be later.
-        if !anyAidOn { armAtSegmentStart = Self.vector(link.lastEndEffector) }
+        if !anyAidOn || params.toolCalibrationID != nil { armAtSegmentStart = measuredControlPoint }
         translationStarted()
         return true
     }
 
     /// A translation hold that follows `target` instead of the phone: no pose, gain, smoothing or speed guard, but
     /// the same lead cap and resync. False when the hold could not start.
-    func startButtonHold(_ target: @escaping () -> SIMD3<Double>?) -> Bool {
+    func startButtonHold(useToolPoint: Bool = false, _ target: @escaping () -> SIMD3<Double>?) -> Bool {
         guard let link else { return false }
-        let params = PoseParams(gain: 1, smoothing: 0)
+        if useToolPoint, toolCalibrationID == nil || manualTranslationStartRefusal != nil { return false }
+        let params = PoseParams(gain: 1, smoothing: 0, toolCalibrationID: useToolPoint ? link.toolCalibrationID : nil)
         guard link.poseStart(params) else { return false }
+        holdParams = params
         noteStopSent()
         syncStart()
         holdStart = nil
+        holdAxis = nil
         lastSample = nil
         buttonTarget = target
-        holdParams = params
         armProgress = .zero
         resync = nil
         segmentStartedMs = nowMs()
         // With an aid on the start point is taken when the start goes on the wire, which may be later.
-        if !anyAidOn { armAtSegmentStart = Self.vector(link.lastEndEffector) }
+        if !anyAidOn { armAtSegmentStart = measuredControlPoint }
         translationStarted()
         return true
     }
@@ -386,6 +454,8 @@ final class LiveLinkController {
     /// The operator's translation hold has started (not a resync's restart, which stays the same hold): the work-area
     /// rule may tell every side again.
     private func translationStarted() {
+        motionRequest = nil
+        motionUpdate = nil
         workAreaCue?.holdStarted()
         workAreaToldThisHold = false
     }
@@ -402,10 +472,12 @@ final class LiveLinkController {
 
     private func holdEnded() {
         holdStart = nil
+        holdAxis = nil
         buttonTarget = nil
         lastSample = nil
         armAtSegmentStart = nil
         commandedArm = nil
+        toolTargets = nil
         resync = nil
         holdIsLoose = false
         holdIsGoing = false
@@ -425,15 +497,30 @@ final class LiveLinkController {
         link?.poseStop()
         noteStopSent()
         monitor.resyncBegan()
-        resync = (nowMs(), false)
+        resync = (nowMs(), false, nil)
         // No command goes out until the start is re-sent, so none is held at the cap; the re-sent start is the pause.
         leadCapped = false
     }
 
     /// The old server hold has finished and the server has said where the arm is: start the next one from there.
-    private func finishResync() {
-        guard let link, translating else { return }
-        let now = Self.vector(link.lastEndEffector)
+    private func finishResync(after state: ServerState, serverMs: Int?) {
+        guard let link, translating, let pending = resync else { return }
+        if nowMs() - pending.sinceMs > Self.resyncTimeoutMs
+            || (holdParams.toolCalibrationID != nil && holdParams.toolCalibrationID != link.toolCalibrationID)
+        {
+            onLog?("link: valid stopped tool state unavailable before resync deadline, hold ended")
+            endedTranslation(monitor.endedByApp(.noAnswer))
+            holdEnded()
+            onAction?(.holdArmEnd)
+            return
+        }
+        if holdParams.toolCalibrationID != nil,
+            !confirmsToolResync(state, serverMs: serverMs) || freshToolPointForStep == nil
+                || newestState?.simBusy == true
+        {
+            return
+        }
+        let now = measuredControlPoint
         if let now, let before = armAtSegmentStart {
             // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
             let moved = now - before
@@ -452,6 +539,14 @@ final class LiveLinkController {
         syncStart()
         armAtSegmentStart = now
         segmentStartedMs = nowMs()
+    }
+
+    private func confirmsToolResync(_ state: ServerState, serverMs: Int?) -> Bool {
+        guard let stoppedAt = resync?.stoppedServerMs, let serverMs, serverMs >= stoppedAt,
+            state.activity == .ok, !state.estop, !state.simBusy,
+            state.endEffector != nil, state.toolPoint != nil
+        else { return false }
+        return true
     }
 
     /// Sends `estop` on the control connection and, when it is up, on the listening one too (the server takes it
@@ -491,12 +586,16 @@ final class LiveLinkController {
     @discardableResult
     func startGripper(_ target: GripperState) -> Bool {
         guard let link, link.gripperJogStart(target) else { return false }
+        onLog?("grip-edge start target=\(target) " + measuredControlRecord(newestState))
         noteStopSent()
         syncStart()
         return true
     }
 
     func stopGripper() {
+        if link?.gripperJogActive == true {
+            onLog?("grip-edge stop " + measuredControlRecord(newestState))
+        }
         link?.gripperJogStop()
         noteStopSent()
         monitor.released(.gripper(.open))
@@ -557,6 +656,10 @@ final class LiveLinkController {
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
         guard let link else { return }
+        defer {
+            recordMotion()
+            recordGripper()
+        }
         let tickedAt = nowMs()
         if let last = lastTickAtMs, tickedAt - last > Self.stalledTickMs {
             let stall = tickedAt - last - 1000 / TeleopLink.poseRateHz
@@ -594,28 +697,98 @@ final class LiveLinkController {
         emit(monitor.tick(at: nowMs()))
         guard link.holdActive, let wanted = wantedOffset() else { return }
         let now = nowMs()
+        motionRequest = (wanted, now)
         // What is still to do, measured from where the arm was when this server hold started.
         let remaining = wanted - armProgress
         let distance = simd_length(remaining)
-        let catchingUp = distance > Self.maxLeadMeters
+        let toolControl = holdParams.toolCalibrationID != nil
+        let maxLead = toolControl ? Self.toolMaxLeadMeters : Self.maxLeadMeters
+        let catchingUp = distance > maxLead
         leadCapped = catchingUp
-        let delta = catchingUp ? remaining / distance * Self.maxLeadMeters : remaining
+        let delta = catchingUp ? remaining / distance * maxLead : remaining
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         syncStart()
         if let start = armAtSegmentStart {
             let target = start + SIMD3(delta.x, delta.y, -delta.z)
-            commandedArm = target
-            let point = SIMD3(Double(target.x), Double(target.y), Double(target.z))
-            monitor.commanded(point)
-            // A move to a tapped point is not fed to the work-area rule: its ending tells a limit it meets.
-            if !holdIsGoing, let side = workAreaCue?.commanded(point, at: now) {
-                workAreaToldThisHold = true
-                emit([.commandOutside(side)])
+            if toolControl {
+                if !link.startHeldBack {
+                    let intent = start + SIMD3(remaining.x, remaining.y, -remaining.z)
+                    toolTargets = (intent, target)
+                    monitor.commanded(SIMD3<Double>(intent), point: .tool)
+                }
+            } else {
+                poseCommandSent(target, at: now)
             }
+        }
+        if !link.startHeldBack {
+            motionUpdate = (delta, commandedArm, now)
         }
         onCatchingUp?(catchingUp)
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
-        if catchingUp, now - segmentStartedMs >= Self.resyncAfterMs { beginResync() }
+        let resyncAfter = toolControl ? Self.toolResyncAfterMs : Self.resyncAfterMs
+        if catchingUp, now - segmentStartedMs >= resyncAfter { beginResync() }
+    }
+
+    private func recordMotion() {
+        guard translating, let onLog else { return }
+        let now = nowMs()
+        guard lastMotionRecordAtMs.map({ now - $0 >= 1000 }) ?? true else { return }
+        lastMotionRecordAtMs = now
+        func vector(_ value: SIMD3<Float>?) -> String {
+            guard let value else { return "none" }
+            return String(format: "[%.4f,%.4f,%.4f]", value.x, value.y, value.z)
+        }
+        func age(_ stamp: Int?) -> String { stamp.map { String(max(0, now - $0)) } ?? "none" }
+        let measured = newestArmState?.endEffector.map { SIMD3<Float>($0) }
+        onLog(
+            "motion source=\(buttonTarget == nil ? "phone" : "button_or_tap") "
+                + "link_frame=base_x,base_y,negative_base_z units=m "
+                + "wanted_link=\(vector(motionRequest?.offset)) wanted_age_ms=\(age(motionRequest?.atMs)) "
+                + "sent_link=\(vector(motionUpdate?.delta)) sent_target_base=\(vector(motionUpdate?.target)) "
+                + "sent_age_ms=\(age(motionUpdate?.atMs)) measured_base=\(vector(measured)) "
+                + "measured_received_age_ms=\(age(newestArmAtMs)) cap=\(leadCapped) "
+                + "resync=\(resync != nil) start_wait=\(link?.startHeldBack == true) "
+                + "gain=\(holdParams.gain) smoothing=\(holdParams.smoothing) "
+                + "tool_intent_base=\(vector(toolTargets?.intent)) tool_applied_base=\(vector(toolTargets?.applied)) "
+                + measuredControlRecord(newestArmState))
+    }
+
+    private func measuredControlRecord(_ state: ServerState?) -> String {
+        func number(_ value: Double?) -> String {
+            value.map { String(format: "%.4f", $0) } ?? "none"
+        }
+        let tool =
+            state?.toolPoint.map {
+                "[\(number($0.x)),\(number($0.y)),\(number($0.z))]"
+            } ?? "none"
+        let activity = state?.activity.map { String(describing: $0) } ?? "none"
+        return "tool_base=\(tool) wrist_flex_deg=\(number(state?.wristFlexDeg)) "
+            + "wrist_roll_deg=\(number(state?.wristRollDeg)) jaw_deg=\(number(state?.gripperDeg)) "
+            + "server_activity=\(activity)"
+    }
+
+    private func recordGripper() {
+        guard link?.gripperJogActive == true, let onLog else {
+            lastGripperRecordAtMs = nil
+            return
+        }
+        let now = nowMs()
+        guard lastGripperRecordAtMs.map({ now - $0 >= 1000 }) ?? true else { return }
+        lastGripperRecordAtMs = now
+        let age = newestStateAtMs.map { String(max(0, now - $0)) } ?? "none"
+        onLog("grip measured_received_age_ms=\(age) " + measuredControlRecord(newestState))
+    }
+
+    /// Records the target carried by a pose update in robot-base coordinates.
+    func poseCommandSent(_ target: SIMD3<Float>, at now: Int) {
+        commandedArm = target
+        let point = SIMD3<Double>(target)
+        monitor.commanded(point)
+        // A move to a tapped point is not fed to the work-area rule: its ending tells a limit it meets.
+        if !holdIsGoing, let side = workAreaCue?.commanded(point, at: now) {
+            workAreaToldThisHold = true
+            emit([.commandOutside(side)])
+        }
     }
 
     /// What the running translation hold asks for in all, in the frame offsets are sent in: the button ramp's
@@ -650,7 +823,14 @@ final class LiveLinkController {
         // Low-pass, then scale: smoothing 0 follows the hand exactly, higher values trade lag for a steadier arm.
         let keep = Float(holdParams.smoothing)
         smoothed = smoothed * keep + (current - holdStart) * (1 - keep)
-        return Self.serverOffset(smoothed * Float(holdParams.gain), right: holdRight, forward: holdForward)
+        let scaled = smoothed * Float(holdParams.gain)
+        if let axis = holdAxis {
+            return SIMD3<Float>(
+                axis.project(
+                    right: Double(simd_dot(scaled, holdRight)), forward: Double(simd_dot(scaled, holdForward)),
+                    up: Double(scaled.y)))
+        }
+        return Self.serverOffset(scaled, right: holdRight, forward: holdForward)
     }
 
     private func handle(_ text: String) {
@@ -682,9 +862,18 @@ final class LiveLinkController {
                 onAction?(.stop)
             }
         case .holdStopped:
-            if resync != nil { resync?.stopped = true }
+            if resync != nil {
+                resync?.stopped = true
+                if let data = text.data(using: .utf8),
+                    let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                {
+                    resync?.stoppedServerMs = envelope["ts"] as? Int
+                }
+            }
         case .state(let estop, _):
-            if let resync, resync.stopped, !estop { finishResync() }
+            if let resync, resync.stopped, !estop, let state = link.lastState {
+                finishResync(after: state, serverMs: link.lastStateServerMs)
+            }
             if !estop {
                 resetSentAtMs = nil
             } else if let sent = resetSentAtMs, nowMs() - sent < 2000 {
@@ -758,7 +947,11 @@ final class LiveLinkController {
         onStopSeen?()
     }
 
-    private func stateArrived(_ state: ServerState, serverMs: Int?, onControl: Bool) {
+    func stateArrived(_ state: ServerState, serverMs: Int?, onControl: Bool) {
+        let toolResync = resync != nil && holdParams.toolCalibrationID != nil
+        if onControl, toolResync, confirmsToolResync(state, serverMs: serverMs) {
+            armHeard(onControl: true)
+        }
         if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
         if let serverMs { newestStateServerMs = serverMs }
         newestState = state
@@ -766,7 +959,7 @@ final class LiveLinkController {
         if state.endEffector != nil {
             newestArmState = state
             newestArmAtMs = nowMs()
-            armHeard(onControl: onControl)
+            if !toolResync { armHeard(onControl: onControl) }
         }
         var events = monitor.observe(state, at: nowMs())
         // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
@@ -832,9 +1025,12 @@ final class LiveLinkController {
         announcedStart = start.seq
         // A resync's restart takes its start point from the answer it waited for, as it always has.
         if anyAidOn, start.kind == .pose, !restarting {
-            armAtSegmentStart = newestArmState?.endEffector.map { SIMD3<Float>($0) }
+            armAtSegmentStart =
+                holdParams.toolCalibrationID == nil
+                ? newestArmState?.endEffector.map { SIMD3<Float>($0) }
+                : measuredControlPoint
         }
-        monitor.startSent(start.kind, restart: restarting, at: start.atMs)
+        feedbackStartSent(start.kind, restart: restarting, at: start.atMs)
         restarting = false
         noteGripping()
         if start.kind == .wrist, wristTarget != nil {
@@ -847,6 +1043,11 @@ final class LiveLinkController {
         guard monitor.gripping != reportedGripping else { return }
         reportedGripping = monitor.gripping
         onGripping?(reportedGripping)
+    }
+
+    /// Starts feedback for a command sent on the wire, keeping the operator hold across resyncs.
+    func feedbackStartSent(_ kind: ControlKind, restart: Bool, at now: Int) {
+        monitor.startSent(kind, restart: restart, at: now)
     }
 
     /// Hands events to AppModel. While the hold is one nobody holds, a let-go or a refusal of it becomes the move's own
@@ -901,6 +1102,10 @@ final class LiveLinkController {
         guard let url, observerTransport == nil else { return }
         let transport = makeObserverTransport(url)
         let observer = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
+        observer.onReceivedEnvelope = { [weak self] type, payload in
+            guard type == "state" else { return }
+            self?.onWireEvent?(type, payload, DispatchTime.now().uptimeNanoseconds)
+        }
         observerTransport = transport
         self.observer = observer
         observerOpenedAtMs = nowMs()

@@ -16,6 +16,7 @@ public struct InputArbiter: Sendable {
     public private(set) var hand: Hand
     /// The aids allowed now. Changed only by `.assistChanged`, which ends every hold first.
     public private(set) var assist: Assist
+    public private(set) var translationAxis: TranslationAxis?
 
     private var keys: [InputKey: KeyState] = [:]
     private var keyBeganAt: [InputKey: TimeInterval] = [:]
@@ -26,6 +27,9 @@ public struct InputArbiter: Sendable {
     private var engaged: Engagement?
     /// The going move's path. Set exactly while `engaged` is `.going`: by a tap that starts one, cleared by its ending.
     private var move: GoMove?
+    private var moveTouchDown: SIMD2<Double>?
+    private var toldTapOnce = false
+    private var reaimTouchID: Int?
     /// The engaged wrist hold's mapper.
     private var wrist: RotationMapper?
     private var lastWristTarget = WristTarget.identity
@@ -101,12 +105,19 @@ public struct InputArbiter: Sendable {
         var windowEnded = false
         /// Variant 2: it began during the upper key's translation hold, and may latch that hold by sliding up.
         var latch: LatchAttempt?
-        /// The guide's view from above as it was at touch-down, when the touch began inside it with nothing engaged and
-        /// tap-to-go allowed. A tap is judged against this one rectangle and projection. Nil: it is never a tap.
-        var panel: GoPanel?
-        /// The farthest it has been from its touch-down point over every sample, the lift sample included,
-        /// millimetres. Kept only while `panel` is set.
-        var farthestMm = 0.0
+        enum TapSite: Equatable, Sendable {
+            case inside(GoPanel)
+            case outside
+        }
+
+        /// The guide's view as it was at touch-down, if tap-to-go was available.
+        var tapSite: TapSite?
+        var farthest = SIMD2<Double>.zero
+
+        mutating func trackTravel(to point: SIMD2<Double>) {
+            let delta = point - down
+            if simd_length_squared(delta) > simd_length_squared(farthest) { farthest = delta }
+        }
         /// Its lift sample was at least `palmRadiusPt` wide: a palm at the lift is never a tap, whether or not its
         /// palm window was over.
         var liftWide = false
@@ -130,6 +141,15 @@ public struct InputArbiter: Sendable {
         self.layout = layout
         self.constants = constants
         self.assist = assist
+    }
+
+    @discardableResult
+    public mutating func selectTranslationAxis(_ axis: TranslationAxis?, at time: TimeInterval, facts: InputFacts)
+        -> [InputCommand]
+    {
+        let commands = handle([.endAllHolds], at: time, facts: facts)
+        translationAxis = axis
+        return commands
     }
 
     // MARK: Reading the state
@@ -194,7 +214,16 @@ public struct InputArbiter: Sendable {
     private var looseDeadline: TimeInterval? {
         switch engaged {
         case .latched(let since)?: return since + (assist.lock?.timeLimitS ?? 0)
-        case .going?: return move?.deadline
+        case .going?:
+            guard let move else { return nil }
+            let cap = assist.views?.maxRetargetedMoveS.map { move.startedAt + $0 } ?? .infinity
+            let liftBy: TimeInterval
+            if let id = reaimTouchID, case .surface(let touch)? = touches[id] {
+                liftBy = touch.downAt + constants.tapMaxS
+            } else {
+                liftBy = .infinity
+            }
+            return min(move.deadline, cap, liftBy)
         default: return nil
         }
     }
@@ -361,7 +390,7 @@ public struct InputArbiter: Sendable {
                 touches[id] = .surface(touch)
             }
         }
-        if key == .upper, assist.lock?.variant == .pressPress {
+        if key == .upper, translationAxis == nil, assist.lock?.variant == .pressPress {
             // The press itself starts the follow. The key is dead from now on, so its release stops nothing and the
             // next press ends the follow.
             keys[key] = .dead
@@ -399,11 +428,11 @@ public struct InputArbiter: Sendable {
         case .ended, .cancelled:
             // The sample that lifts a contact counts like any other: a palm by it, still inside its window, was a palm
             // all along, so it neither opens Settings nor plays the NO it owed.
+            if reaimTouchID == sample.id, sample.majorRadius >= constants.palmRadiusPt { endLoose(.byYou) }
             _ = ignoredAsPalm(sample)
             // A possible tap is judged on the whole touch: where the lift lands, and how wide it is.
-            if case .surface(var touch)? = touches[sample.id], touch.panel != nil {
-                let lift = SIMD2(sample.x, sample.y)
-                touch.farthestMm = max(touch.farthestMm, layout.millimetres(simd_length(lift - touch.down)))
+            if case .surface(var touch)? = touches[sample.id], touch.tapSite != nil {
+                touch.trackTravel(to: SIMD2(sample.x, sample.y))
                 touch.liftWide = sample.majorRadius >= constants.palmRadiusPt
                 touches[sample.id] = .surface(touch)
             }
@@ -414,6 +443,13 @@ public struct InputArbiter: Sendable {
     private mutating func touchBegan(_ s: TouchSample) {
         let zone = layout.zone(x: s.x, y: s.y)
         let palm = s.majorRadius >= constants.palmRadiusPt
+        if case .going? = engaged, assist.views?.maxRetargetedMoveS != nil, reaimTouchID != nil,
+            zone != .bottomBand, zone != .bottomSafeArea
+        {
+            endLoose(.byYou)
+            touches[s.id] = .ignored
+            return
+        }
         switch zone {
         case .bottomSafeArea:
             // The system's swipe home begins here; it must not stop the robot, nor count as the thumb.
@@ -444,9 +480,11 @@ public struct InputArbiter: Sendable {
             // later one. A NO an attempt withheld plays after the stop's own cues.
             endAttempts()
         case .gap:
+            if case .going? = engaged, assist.views?.maxRetargetedMoveS != nil { endLoose(.byYou) }
             touches[s.id] = .ignored
         case .gear, .topBand:
             if palm || layout.isAtSideEdge(x: s.x) {
+                if case .going? = engaged, assist.views?.maxRetargetedMoveS != nil { endLoose(.byYou) }
                 touches[s.id] = .ignored
                 return
             }
@@ -477,10 +515,31 @@ public struct InputArbiter: Sendable {
             if engaged?.isLoose == true {
                 // Anywhere on the surface, scheme B's centre band included, and even with another thumb tracked: one
                 // thumb at a time protects the gestures, never a move nobody holds. Dead and silent until lifted.
-                touches[s.id] = .surface(
-                    SurfaceTouch(
-                        downAt: now, down: point, at: point, side: side, mapper: mapper, phase: .dead(owesNO: false)))
-                endLoose(.byYou)
+                var touch = SurfaceTouch(
+                    downAt: now, down: point, at: point, side: side, mapper: mapper, phase: .dead(owesNO: false))
+                if case .going? = engaged, assist.views?.maxRetargetedMoveS != nil, tapRefusal == nil,
+                    let panel = facts.goPanel, panel.view(at: point) != nil
+                {
+                    touch.tapSite = .inside(panel)
+                    touches[s.id] = .surface(touch)
+                    reaimTouchID = s.id
+                    move?.pauseForRetarget(at: now)
+                    return
+                }
+                touches[s.id] = .surface(touch)
+                let secondContact =
+                    moveTouchDown.map {
+                        layout.millimetres(simd_distance($0, point)) <= constants.tapSlopMm + Self.slack
+                    }
+                    ?? false
+                if case .going(_, let since)? = engaged, now - since <= InputConstants.secondContactS + Self.slack,
+                    secondContact, !toldTapOnce, assist.views?.maxRetargetedMoveS == nil
+                {
+                    toldTapOnce = true
+                    endLoose(.byYouTapOnce)
+                } else {
+                    endLoose(.byYou)
+                }
                 return
             }
             let tracked = touches.values.contains { if case .surface = $0 { return true } else { return false } }
@@ -490,9 +549,13 @@ public struct InputArbiter: Sendable {
             }
             // With tap-to-go allowed and nothing engaged, a touch that begins inside the guide's view from above may be
             // a tap. It keeps the view as it is now, so its tap is judged against what was drawn under it.
-            var panel: GoPanel?
-            if assist.goTo != nil, engaged == nil, let view = facts.goPanel, view.contains(x: s.x, y: s.y) {
-                panel = view
+            var tapSite: SurfaceTouch.TapSite?
+            if assist.goTo != nil, engaged == nil, let view = facts.goPanel {
+                if view.contains(x: s.x, y: s.y) {
+                    tapSite = .inside(view)
+                } else if view.behind == nil {
+                    tapSite = .outside
+                }
             }
             let phase: SurfaceTouch.Phase
             switch scheme {
@@ -502,14 +565,16 @@ public struct InputArbiter: Sendable {
                 // The centre band never acts, so it never owes NO either; inside the guide's view it can still be a
                 // tap.
                 if side == .centre {
-                    phase = panel != nil ? .tapOnly : .dead(owesNO: false)
+                    phase = tapSite != nil ? .tapOnly : .dead(owesNO: false)
                 } else {
                     phase = engaged != nil ? .dead(owesNO: true) : .waiting
                 }
             }
             var touch = SurfaceTouch(downAt: now, down: point, at: point, side: side, mapper: mapper, phase: phase)
-            touch.panel = panel
-            if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
+            touch.tapSite = tapSite
+            if translationAxis == nil, assist.lock?.variant == .holdThenSlide,
+                engaged == .held(.key(.upper), .translation), !stoppedInCall
+            {
                 // Anywhere on the surface, scheme B's centre band included, a thumb may latch the upper key's hold,
                 // unless a STOP came earlier in this call. Its phase stays as 1.0.1 has it.
                 touch.latch = LatchAttempt()
@@ -535,13 +600,17 @@ public struct InputArbiter: Sendable {
     }
 
     private mutating func touchMoved(_ s: TouchSample) {
+        if reaimTouchID == s.id, s.majorRadius >= constants.palmRadiusPt {
+            endLoose(.byYou)
+        }
         if ignoredAsPalm(s) { return }
         guard case .surface(var touch)? = touches[s.id] else { return }
         touch.at = SIMD2(s.x, s.y)
-        if touch.panel != nil {
-            touch.farthestMm = max(touch.farthestMm, layout.millimetres(simd_length(touch.at - touch.down)))
-        }
+        if touch.tapSite != nil { touch.trackTravel(to: touch.at) }
         touches[s.id] = .surface(touch)
+        if reaimTouchID == s.id, layout.millimetres(simd_length(touch.farthest)) > constants.tapSlopMm + Self.slack {
+            endLoose(.byYou)
+        }
         // The attempt is followed first, so a NO that falls due now is withheld if the slide is under way.
         if touch.latch != nil { followAttempt(s.id) }
         if touch.windowEnded { judge(s.id) }
@@ -553,10 +622,14 @@ public struct InputArbiter: Sendable {
         case .ignored, .stop:
             break
         case .surface(let touch):
+            if reaimTouchID == id {
+                finishRetarget(touch, cancelled: cancelled)
+                return
+            }
             if touch.phase == .engaged, case .held(.touch(id), _)? = engaged { stopEngaged() }
             // Lifted without a latch: the NO it withheld plays now.
             if touch.latch?.withheldNO == true { cue(.dead) }
-            if !cancelled, let panel = touch.panel, isTap(touch) { tap(at: touch.down, on: panel) }
+            if !cancelled { judgeTap(touch) }
         case .band(let band):
             switch band.phase {
             case .pending, .live:
@@ -962,7 +1035,7 @@ public struct InputArbiter: Sendable {
             switch role {
             case .surface(var touch):
                 touch.phase = .dead(owesNO: false)
-                touch.panel = nil
+                touch.tapSite = nil
                 touches[id] = .surface(touch)
             case .band(var band):
                 band.phase = .dead(owes: nil)
@@ -990,6 +1063,7 @@ public struct InputArbiter: Sendable {
     private enum LooseEnd: Equatable {
         /// A key press, or a new touch the filters pass on the control surface, the top band or the gear.
         case byYou
+        case byYouTapOnce
         /// The STOP band. The session's ALARM is the cue.
         case stop
         /// Someone else has told it (`.announced`), or nothing moved (`.startRefused`).
@@ -1028,7 +1102,9 @@ public struct InputArbiter: Sendable {
     /// heard as the unnamed ending. It never ends one on `.wait`: the server shows a success or is resetting, ends the
     /// hold itself, and the link reports it; a success is told by its sound and narration.
     private mutating func gate() {
-        if assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation), !stoppedInCall {
+        if translationAxis == nil, assist.lock?.variant == .holdThenSlide, engaged == .held(.key(.upper), .translation),
+            !stoppedInCall
+        {
             latchBySlide()
         }
         let backstop = facts.refusal.map { $0 != .wait } ?? false
@@ -1046,6 +1122,14 @@ public struct InputArbiter: Sendable {
         case .going?:
             guard !backstop else { return endLoose(.ended(.unnamed)) }
             guard var current = move else { return }
+            if let cap = assist.views?.maxRetargetedMoveS, now >= current.startedAt + cap - Self.slack {
+                return endLoose(.ended(.timeLimit))
+            }
+            if let id = reaimTouchID, case .surface(let touch)? = touches[id],
+                now >= touch.downAt + constants.tapMaxS - Self.slack
+            {
+                return endLoose(.byYou)
+            }
             let verdict = current.observe(facts.arm, at: now)
             move = current
             switch verdict {
@@ -1123,7 +1207,7 @@ public struct InputArbiter: Sendable {
             case .surface(var touch):
                 touch.phase = .dead(owesNO: false)
                 touch.latch = nil
-                touch.panel = nil
+                touch.tapSite = nil
                 touches[id] = .surface(touch)
             case .band(var band):
                 band.phase = .dead(owes: nil)
@@ -1140,9 +1224,12 @@ public struct InputArbiter: Sendable {
         guard engaged?.isLoose == true else { return }
         engaged = nil
         move = nil
+        moveTouchDown = nil
+        reaimTouchID = nil
         out.append(.stopTranslation)
         switch how {
         case .byYou: cue(.drive(.stoppedByYou))
+        case .byYouTapOnce: cue(.drive(.stoppedByYouTapOnce))
         case .arrived: cue(.drive(.arrived))
         case .ended(let end): cue(.drive(.ended(end)))
         case .stop, .silent: break
@@ -1170,10 +1257,68 @@ public struct InputArbiter: Sendable {
     /// touch-down and never farther than `tapSlopMm` from it. A dwell that completed before the lift fired ahead of
     /// the lift's events, so a lift past the dwell is a jaw move, as in 1.0.1. A palm inside its window was ignored
     /// before it got here.
-    private func isTap(_ touch: SurfaceTouch) -> Bool {
-        (touch.phase == .waiting || touch.phase == .tapOnly) && engaged == nil && !touch.liftWide
-            && now - touch.downAt <= constants.tapMaxS + Self.slack
-            && touch.farthestMm <= constants.tapSlopMm + 1e-9
+    private mutating func judgeTap(_ touch: SurfaceTouch) {
+        guard let site = touch.tapSite, touch.phase == .waiting || touch.phase == .tapOnly,
+            engaged == nil, !touch.liftWide
+        else { return }
+        let duration = now - touch.downAt
+        let travel = layout.millimetres(simd_length(touch.farthest))
+        let quick = duration <= constants.tapMaxS + Self.slack
+        let still = travel <= constants.tapSlopMm + Self.slack
+        let reason: InputRefusal
+        switch site {
+        case .inside(let panel):
+            if quick && still {
+                tap(at: touch.down, on: panel)
+                return
+            }
+            // An overshoot within the jaw-slide distance only reads as a missed tap when it is sideways.
+            guard duration <= InputConstants.tapSaysWhyMaxS + Self.slack, travel <= constants.openSlideMm + Self.slack
+            else { return }
+            if !still {
+                guard abs(touch.farthest.x) > abs(touch.farthest.y) else { return }
+                reason = .tapStill
+            } else {
+                reason = .tapLetGo
+            }
+        case .outside:
+            guard quick && still else { return }
+            reason = .tapViewAbove
+        }
+        cue(.refused(tapRefusal ?? reason))
+    }
+
+    private mutating func finishRetarget(_ touch: SurfaceTouch, cancelled: Bool) {
+        reaimTouchID = nil
+        guard !cancelled, !touch.liftWide, now - touch.downAt <= constants.tapMaxS + Self.slack,
+            layout.millimetres(simd_length(touch.farthest)) <= constants.tapSlopMm + Self.slack,
+            tapRefusal == nil, case .inside(let panel)? = touch.tapSite, let views = assist.views,
+            let fix = facts.arm, fix.ageS <= GoMove.freshS, !fix.holdPaused,
+            [fix.pinch.x, fix.pinch.y, fix.pinch.z].allSatisfy(\.isFinite),
+            var current = move, now <= current.deadline + Self.slack
+        else { return endLoose(.byYou) }
+        let point: SIMD3<Double>
+        if panel.view(at: touch.down) == .behind {
+            switch panel.aimBehind(
+                at: touch.down, measured: fix.pinch, running: current.target, limits: current.limits, views: views)
+            {
+            case .target(let target): point = target
+            case .useUpperKey:
+                endLoose(.silent)
+                cue(.refused(.useUpperKey))
+                return
+            case .outsideWorkArea: return endLoose(.byYou)
+            }
+        } else {
+            point = panel.target(x: touch.down.x, y: touch.down.y, travelHeight: current.limits.travelHeightM)
+        }
+        guard panel.inBox(point), current.retarget(point, at: now) else { return endLoose(.byYou) }
+        move = current
+        engaged = .going(target: current.target, since: current.startedAt)
+    }
+
+    private var tapRefusal: InputRefusal? {
+        facts.refusal ?? (stoppedInCall ? .stopped : nil)
     }
 
     /// A tap at `point` on `panel`: refused with a cue, "Arrived." when the arm is there already, or a move that goes
@@ -1183,18 +1328,15 @@ public struct InputArbiter: Sendable {
     /// it.
     private mutating func tap(at point: SIMD2<Double>, on panel: GoPanel) {
         guard let rule = assist.goTo, engaged == nil else { return }
-        if let refusal = facts.refusal {
+        if let refusal = tapRefusal {
             cue(.refused(refusal))
-            return
-        }
-        if stoppedInCall {
-            cue(.refused(.stopped))
             return
         }
         // No slack: a place the arm is sent to must lie in the box itself, which also refuses a travel height outside
         // it.
-        let target = panel.target(x: point.x, y: point.y, travelHeight: rule.travelHeightM)
-        guard panel.inBox(target) else {
+        let fromBehind = panel.view(at: point) == .behind
+        var target = panel.target(x: point.x, y: point.y, travelHeight: rule.travelHeightM)
+        if !fromBehind, !panel.inBox(target) {
             cue(.refused(.outsideWorkArea))
             return
         }
@@ -1205,6 +1347,18 @@ public struct InputArbiter: Sendable {
         else {
             cue(.refused(.noArmData))
             return
+        }
+        if fromBehind {
+            guard let views = assist.views else { return }
+            switch panel.aimBehind(at: point, measured: fix.pinch, limits: rule, views: views) {
+            case .target(let rearTarget): target = rearTarget
+            case .useUpperKey:
+                cue(.refused(.useUpperKey))
+                return
+            case .outsideWorkArea:
+                cue(.refused(.outsideWorkArea))
+                return
+            }
         }
         // The move's path starts at this reading and the server starts it from where the arm stands when it takes the
         // start: a reading that may be from before the last stop's answer could shift the whole path. Last of the
@@ -1223,6 +1377,7 @@ public struct InputArbiter: Sendable {
         move = GoMove(
             start: fix.pinch, target: target, limits: rule, at: now, boxLow: panel.boxLow, boxHigh: panel.boxHigh,
             offset: offset)
+        moveTouchDown = point
         engaged = .going(target: target, since: now)
         deadenInputsDown()
         out.append(.startTranslation)

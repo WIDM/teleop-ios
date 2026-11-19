@@ -98,6 +98,20 @@ where a press the session accepts goes live at once and no message is sent.
 | `Localization/`, `Permissions/`, `Theme/` | The in-app language choice, the camera permission request, colours and sizes. |
 | `App/Resources/` | The string catalogs (`Localizable`, `Speech`, `Buttons`, `InfoPlist`), each in English and Traditional Chinese. |
 
+The camera run starts a new attitude frame. A waiting touch anchors at the first tracked sample of that frame.
+A wrist hold already committed to an axis ends on the frame change. If the app restarted the camera after its
+interruption, a frame stamped after the restart clears the interruption notice even before normal tracking returns.
+
+The diagnostic record receives the app's events on a background write queue. The app never reads this record.
+It retains each control-surface touch's starting point, the panel it began over, its duration and farthest travel,
+along with camera, slow-link, settings, screen and speech events. Addresses are masked before writing.
+
+The fixed aiming layout reports the drawn rectangle of each view. A rear tap changes height while keeping depth.
+Inside the column around the jaws it keeps both horizontal coordinates. During a tapped move, touching a view
+holds the current command and lifting promptly retargets the existing hold. The arm may continue towards the
+held command while the finger is down. A key, STOP, a touch outside the views, or a long or sliding contact ends
+the move. The new path waits for a position measured after the change.
+
 ## The session and its routes
 
 `TeleopSession` is a value type: the state, the screen stack and the pending haptic requests, changed only by

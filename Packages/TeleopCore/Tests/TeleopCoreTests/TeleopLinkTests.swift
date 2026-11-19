@@ -942,6 +942,20 @@ final class TeleopLinkTests: XCTestCase {
         XCTAssertEqual(types.last, "orient_start")
     }
 
+    func testDiagnosticsCannotEvictTheFinalAckForAStoppedHold() {
+        bringUp()
+        _ = server("welcome", ["telemetry_version": 1])
+        XCTAssertTrue(link.poseStart(params))
+        let start = lastSeq
+        for sample in 0..<116 {
+            XCTAssertTrue(link.sendDiagnostic(type: "telemetry", payload: ["sample": sample]))
+        }
+        XCTAssertTrue(link.sendDiagnostic(type: "clock_probe", payload: [:]))
+        link.poseStop()
+        XCTAssertNil(finish(lastSeq), "the stop request acknowledgement is not the final acknowledgement")
+        XCTAssertEqual(finish(start), .holdStopped)
+    }
+
     func testTheResyncStopStillReportsHoldStoppedAndTheNextHoldGoesOutAtOnce() {
         bringUp()
         link.poseStart(params)

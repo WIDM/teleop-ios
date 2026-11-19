@@ -4,17 +4,24 @@ import TeleopCore
 protocol SpeechPlaying: AnyObject {
     /// Called with an utterance's id when it has been spoken through or cut off.
     var onFinished: ((Int) -> Void)? { get set }
+    var onStarted: ((Int) -> Void)? { get set }
     /// - Parameters:
     ///   - language: a BCP 47 voice language, such as "en-US" or "zh-TW".
     ///   - interrupt: stop what is being spoken first.
     func speak(_ text: String, language: String, interrupt: Bool, id: Int)
+    func stop(id: Int)
 }
 
 /// Speaks the app's phrases in the app's language, through the app's audio session.
 final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
     var onFinished: ((Int) -> Void)?
+    var onStarted: ((Int) -> Void)?
+    var onEnded: ((Int, Bool) -> Void)?
     private let synthesizer = AVSpeechSynthesizer()
     private var ids: [ObjectIdentifier: Int] = [:]
+    private var activeID: Int?
+    private var submittedID: Int?
+    private var invalidated: Set<Int> = []
     private var interruptions: NSObjectProtocol?
 
     override init() {
@@ -43,21 +50,47 @@ final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: language)
         ids[ObjectIdentifier(utterance)] = id
+        submittedID = id
         synthesizer.speak(utterance)
     }
 
+    func stop(id: Int) {
+        guard ids.values.contains(id) else { return }
+        invalidated.insert(id)
+        if activeID == id || (activeID == nil && submittedID == id) {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        let key = ObjectIdentifier(utterance)
+        activeID = ids[key]
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let id = ids[key] else { return }
+            if invalidated.contains(id) {
+                stop(id: id)
+                return
+            }
+            onStarted?(id)
+        }
+    }
+
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        finished(utterance)
+        finished(utterance, cut: false)
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        finished(utterance)
+        finished(utterance, cut: true)
     }
 
-    private func finished(_ utterance: AVSpeechUtterance) {
+    private func finished(_ utterance: AVSpeechUtterance, cut: Bool) {
         let key = ObjectIdentifier(utterance)
         DispatchQueue.main.async { [weak self] in
             guard let self, let id = ids.removeValue(forKey: key) else { return }
+            if activeID == id { activeID = nil }
+            if submittedID == id { submittedID = nil }
+            invalidated.remove(id)
+            onEnded?(id, cut)
             onFinished?(id)
         }
     }
@@ -65,10 +98,14 @@ final class SpeechPlayer: NSObject, SpeechPlaying, AVSpeechSynthesizerDelegate {
 
 /// Unit tests: nothing is heard, and every utterance ends at once.
 final class NoSpeech: SpeechPlaying {
+    var onStarted: ((Int) -> Void)?
     var onFinished: ((Int) -> Void)?
     private(set) var spoken: [String] = []
 
+    func stop(id: Int) {}
+
     func speak(_ text: String, language: String, interrupt: Bool, id: Int) {
+        onStarted?(id)
         spoken.append(text)
         onFinished?(id)
     }

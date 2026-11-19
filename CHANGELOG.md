@@ -9,6 +9,21 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 18 shows the rear view's height-only touch column. At the minimum automatic height, a lower tap explains
+  how to descend with the upper volume key instead of reporting arrival or an unrelated work-area error.
+- Adds bounded manual-motion diagnostics for comparing requested, transmitted and measured motion. Manual gain,
+  smoothing and the minimum automatic height are unchanged.
+
+## 1.1.1 (2026-11-18)
+
+- Clears the camera interruption notice when a fresh frame arrives after the app restarts tracking. Wrist input
+  starts from the new tracking frame, so the phone does not carry its old angle into the next turn.
+- Explains when a touch moved sideways, lasted too long, or missed the top view. A tap tolerates up to 4 mm of
+  travel. The first quick second contact that stops a move also says to tap once.
+- Shows when hands-free aids are off and says when a slow link ends a held move when the robot enables the cue and
+  the operator has the aids on.
+- Keeps a bounded diagnostic record in the app's local storage across launches, with server addresses removed.
+
 ## 1.1.0 (2026-11-17)
 
 Hands-free aids: lock keeps the arm following with no key held, a tap on the guide sends the jaws there, and the

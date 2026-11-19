@@ -20,12 +20,13 @@ public struct GuideProjection: Equatable, Sendable {
 
     /// `boxLow` and `boxHigh` are the work box in the operator's frame, corners sorted; `table` is the table's height,
     /// metres.
-    public init(boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>, table: Double) {
+    public init(boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>, table: Double, behindTop: Double? = nil) {
         let span = boxHigh - boxLow
         let margin = max(span.x, span.y) * Self.marginShare
         across = (boxLow.x - margin)...(boxHigh.x + margin)
         depth = (boxLow.y - margin)...(boxHigh.y + margin)
-        height = (table - margin / 2)...(max(boxHigh.z, table) + margin)
+        let rearTop = behindTop.flatMap { $0.isFinite && $0 > table ? $0 : nil } ?? (max(boxHigh.z, table) + margin)
+        height = (table - margin / 2)...rearTop
     }
 
     /// Width over height of the view from above, and of the view from behind.
@@ -62,6 +63,11 @@ public struct GuideProjection: Equatable, Sendable {
     /// The operator-frame point at `share` in the view from above, at height `up`, which that view does not show.
     public func point(aboveShare share: SIMD2<Double>, up: Double) -> SIMD3<Double> {
         SIMD3(across.lowerBound + share.x * width, depth.lowerBound + (1 - share.y) * Self.length(depth), up)
+    }
+
+    /// The operator-frame point at `share` in the rear view, with the supplied forward position.
+    public func point(behindShare share: SIMD2<Double>, forward: Double) -> SIMD3<Double> {
+        SIMD3(across.lowerBound + share.x * width, forward, height.lowerBound + (1 - share.y) * Self.length(height))
     }
 
     private var width: Double { Self.length(across) }

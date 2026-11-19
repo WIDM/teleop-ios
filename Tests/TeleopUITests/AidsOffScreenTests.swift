@@ -22,8 +22,8 @@ final class AidsOffScreenTests: XCTestCase {
     ]
 
     private static let words = [
-        "en": (state: "Ready", note: "Hands-free aids off: taps do nothing"),
-        "zh-Hant": (state: "就緒", note: "免持輔助已關閉：點圖不會動"),
+        "en": (state: "Available", note: "Hands-free aids off: taps do nothing"),
+        "zh-Hant": (state: "可操作", note: "免持輔助已關閉：點圖不會動"),
     ]
 
     override func setUp() {

@@ -53,7 +53,7 @@ final class SingleGuidePictureTests: XCTestCase {
             nowMs: { [unowned self] in clock }
         )
         model.taskAid = true
-        let aids = model.assist.guide
+        let assist = model.assist
         XCTAssertNil(model.operating.guide, "no arm reported yet")
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.connect()
@@ -61,14 +61,23 @@ final class SingleGuidePictureTests: XCTestCase {
         control?.server("state", armState(model, above: 0.02))
         let above = model.operating.guide
         XCTAssertNotNil(above)
-        XCTAssertEqual(above, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile, aids: aids) })
+        XCTAssertEqual(
+            above,
+            model.operating.arm.map {
+                GuidePicture(reading: $0, profile: model.profile, aids: assist.guide, views: assist.views)
+            })
+        XCTAssertEqual(above?.fixedLayout, assist.views != nil)
         XCTAssertEqual(above?.onTarget, false)
         XCTAssertEqual(felt.felt.filter { $0 == .play(.onTarget) }.count, 0)
 
         clock += 1000
         control?.server("state", armState(model, above: 0))
         let on = model.operating.guide
-        XCTAssertEqual(on, model.operating.arm.map { GuidePicture(reading: $0, profile: model.profile, aids: aids) })
+        XCTAssertEqual(
+            on,
+            model.operating.arm.map {
+                GuidePicture(reading: $0, profile: model.profile, aids: assist.guide, views: assist.views)
+            })
         XCTAssertEqual(on?.onTarget, true)
         XCTAssertEqual(
             felt.felt.filter { $0 == .play(.onTarget) }.count, 1, "felt as the drawn picture turns On target")

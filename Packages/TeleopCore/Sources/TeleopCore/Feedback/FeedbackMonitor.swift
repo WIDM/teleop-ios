@@ -1,3 +1,5 @@
+import simd
+
 /// Robot numbers the monitor judges the gripper by. The app fills them from its robot profile.
 public struct GripperLimits: Equatable, Sendable {
     /// A measured jaw angle at or above this while opening is fully open.
@@ -17,14 +19,16 @@ public struct GripperLimits: Equatable, Sendable {
 /// - GO when a start went out and no refusal came within the acceptance time (I-4).
 /// - NO for a start the server refused within that time; LETGO for a refusal after it, or for a hold the app ends.
 /// - END at a workspace or wrist clamp the server reports, at fully open, on an empty close, and when the arm is
-///   blocked: during a translation hold the commanded point is at least 10 mm ahead and the measured arm moved
-///   less than 2 mm in 1.0 s.
+///   blocked: during a translation hold the commanded point is at least 10 mm ahead and the measured arm makes
+///   little progress in 1.0 s.
 /// - GRIP on contact while closing, or in the states that follow letting go of a close; from then on the jaws count
 ///   as gripping until an open, a scene reset or a new server run.
 /// - Nothing for a hold the server ends with a success, and nothing judged while the success shows.
 /// - With `reportsLowest` (the guide's aids), END for an arm that cannot go lower, still in height while the operator
-///   asks for lower, in place of blocked; blocked then stays silent while the operator asks for lower.
+///   asks for lower, in place of blocked when both cues qualify.
 public struct FeedbackMonitor {
+    public enum TranslationPoint: Equatable, Sendable { case linkOrigin, tool }
+
     public static let acceptMinMs = 100
     public static let acceptMaxMs = 300
     public static let acceptMarginMs = 50
@@ -48,10 +52,12 @@ public struct FeedbackMonitor {
     public static let arrivalGapMs = 400
 
     public let limits: GripperLimits
+    /// Gripper-link bounds in the active robot profile. Never applied to tool-point targets.
+    public var blockedWorkspace: (low: SIMD3<Double>, high: SIMD3<Double>)?
     /// With the guide's aids on: an arm that stands against the operator's ask for lower is `.limit(.lowest)`, told
     /// once per approach and not silenced by an earlier clamp in the same hold (pushing down past the box's floor sets
     /// the clamp label, just when the operator needs to hear it); `.limit(.blocked)` stays silent while the operator
-    /// asks for lower. False is version 1.0.1 in every rule, and forgets both lowest heights.
+    /// asks for lower when the directional blocked rule is off. False forgets both lowest heights.
     public var reportsLowest = false {
         didSet {
             if !reportsLowest {
@@ -70,21 +76,33 @@ public struct FeedbackMonitor {
     /// One state of a translation hold that carried the gripper link's position.
     private struct Sample {
         let atMs: Int
-        /// The gripper link, robot base frame.
+        /// The selected translation control point, robot base frame.
         let position: SIMD3<Double>
+        let origin: SIMD3<Double>
         /// The pinch point, robot base frame, when the state carries it.
         let pinch: SIMD3<Double>?
-        /// How far the commanded point held when the state arrived lay under its gripper link; nil before the first
+        /// How far the commanded point held when the state arrived lay under its selected control point; nil before the first
         /// command. It is never judged again against a later command.
         let below: Double?
+        let request: SIMD3<Double>?
+        /// Nil for an ordinary state, false for a clamp before this segment has tracked.
+        let clamp: Bool?
     }
 
-    /// Where the lowest cue was told: the newest state's height then (the pinch point's when that state carried it,
+    /// Where a downward approach was told: the newest state's height then (the pinch point's when it carried it,
     /// else the gripper link's) and the gripper link's height.
     private struct ToldHeight {
         let height: Double
         let ofPinch: Bool
         let gripperZ: Double
+        let blockedLead: SIMD3<Double>?
+
+        init(_ sample: Sample, blockedLead: SIMD3<Double>? = nil) {
+            height = sample.pinch?.z ?? sample.position.z
+            ofPinch = sample.pinch != nil
+            gripperZ = sample.origin.z
+            self.blockedLead = blockedLead
+        }
     }
 
     /// The operator's hold from its first start until it ends. A hold the app restarts on its own stays the same hold.
@@ -92,6 +110,7 @@ public struct FeedbackMonitor {
         let hold: Int
         var kind: ControlKind
         var sentAtMs: Int
+        let beganAtMs: Int
         var accepted = false
         /// The hold's own label (`pose_tracking`, `orienting`) has been seen since its start, so a clamp label
         /// from now on is this hold's, not one left over from the hold before.
@@ -101,10 +120,12 @@ public struct FeedbackMonitor {
         var empty = false
         var fullyOpen = false
         var blocked = false
-        /// Where the lowest cue was told in this approach; nil while it is armed.
+        var workspaceExplainsStall = false
+        /// Where this downward approach was told; nil while the lowest cue is armed.
         var lowestTold: ToldHeight?
         /// Where the app is sending the arm, robot base frame.
         var target: SIMD3<Double>?
+        var point: TranslationPoint = .linkOrigin
         var samples: [Sample] = []
         /// The link has ended the server hold to learn where the arm got to and has not re-sent the start yet.
         var resyncing = false
@@ -151,10 +172,12 @@ public struct FeedbackMonitor {
             current.sentAtMs = now
             current.ownLabelSeen = false
             current.resyncing = false
+            current.workspaceExplainsStall = false
+            if blockedWorkspace != nil || current.point == .tool { current.target = nil }
             engaged = current
             return
         }
-        engaged = Engaged(hold: nextHold, kind: kind, sentAtMs: now)
+        engaged = Engaged(hold: nextHold, kind: kind, sentAtMs: now, beganAtMs: now)
         nextHold += 1
     }
 
@@ -213,9 +236,15 @@ public struct FeedbackMonitor {
     }
 
     /// Where the app is sending the arm now in a translation hold, robot base frame.
-    public mutating func commanded(_ target: SIMD3<Double>) {
-        guard engaged?.kind == .pose else { return }
-        engaged?.target = target
+    public mutating func commanded(_ target: SIMD3<Double>, point: TranslationPoint = .linkOrigin) {
+        guard var current = engaged, current.kind == .pose else { return }
+        if current.point != point {
+            current.samples.removeAll()
+            current.lowestTold = nil
+        }
+        current.target = target
+        current.point = point
+        engaged = current
     }
 
     /// The acceptance time passing.
@@ -254,18 +283,44 @@ public struct FeedbackMonitor {
                 events.append(.limit(.workspace))
             }
             // The lowest rule neither samples nor judges an arm the link itself has stopped for a resync.
-            let pausedByTheLink = reportsLowest && current.resyncing
-            if let position = state.endEffector, !pausedByTheLink {
-                let below = current.target.map { position.z - $0.z }
-                current.samples.append(Sample(atMs: now, position: position, pinch: state.toolPoint, below: below))
-                current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
-            }
-            if reportsLowest {
-                if !pausedByTheLink { events += judgeHeight(&current, at: now) }
-            } else if !current.blocked, !current.clamped, Self.isBlocked(current, at: now) {
-                // Version 1.0.1's rule, untouched by the lowest rule.
-                current.blocked = true
-                events.append(.limit(.blocked))
+            let pausedByTheLink =
+                (reportsLowest || blockedWorkspace != nil || current.point == .tool) && current.resyncing
+            if !pausedByTheLink {
+                let measured = current.point == .tool ? state.toolPoint : state.endEffector
+                if let position = measured, position.indices.allSatisfy({ position[$0].isFinite }),
+                    let origin = state.endEffector, origin.indices.allSatisfy({ origin[$0].isFinite })
+                {
+                    let request = current.target
+                    let below = request.map { position.z - $0.z }
+                    let clamp = state.activity == .poseClamped ? current.ownLabelSeen : nil
+                    if current.workspaceExplainsStall, state.activity == .poseTracking, let request,
+                        Self.length(position - request) < Self.blockedMovedMeters
+                    {
+                        current.workspaceExplainsStall = false
+                    }
+                    current.samples.append(
+                        Sample(
+                            atMs: now, position: position, origin: origin, pinch: state.toolPoint, below: below,
+                            request: request, clamp: clamp))
+                    current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
+                }
+                if reportsLowest { events += judgeHeight(&current, at: now) }
+                if !current.blocked, blockedWorkspace != nil || current.point == .tool,
+                    Self.isNotFollowing(&current, workspace: current.point == .tool ? nil : blockedWorkspace, at: now),
+                    let newest = current.samples.last
+                {
+                    current.blocked = true
+                    if let below = newest.below, below >= Self.lowestSustainMeters, let request = newest.request {
+                        current.lowestTold = ToldHeight(newest, blockedLead: request - newest.position)
+                    }
+                    events.append(.limit(.blocked))
+                } else if current.point == .linkOrigin, blockedWorkspace == nil, !reportsLowest, !current.blocked,
+                    !current.clamped,
+                    Self.isBlocked(current, at: now)
+                {
+                    current.blocked = true
+                    events.append(.limit(.blocked))
+                }
             }
         case .wrist:
             if state.activity == .orienting { current.ownLabelSeen = true }
@@ -338,6 +393,58 @@ public struct FeedbackMonitor {
         return window.allSatisfy { length($0.position - oldest.position) < blockedMovedMeters }
     }
 
+    /// An aided hold is blocked when a sustained request has a consistent lead but makes too little progress.
+    private static func isNotFollowing(
+        _ hold: inout Engaged, workspace: (low: SIMD3<Double>, high: SIMD3<Double>)?, at now: Int
+    ) -> Bool {
+        let since = hold.point == .tool ? hold.beganAtMs : hold.sentAtMs
+        let samples = hold.samples.filter { $0.atMs >= since && $0.request != nil }
+        guard let newest = samples.last, now - newest.atMs < freshStateMs,
+            let window = window(of: samples, ms: blockedWindowMs), arrivesRegularly(window),
+            let oldest = window.first
+        else { return false }
+
+        let requests = window.compactMap(\.request)
+        let targets = requests.map { request in
+            guard let workspace else { return request }
+            return simd_min(simd_max(request, workspace.low), workspace.high)
+        }
+        let leads = zip(targets, window).map { $0 - $1.position }
+        guard let firstLead = leads.first, let firstTarget = targets.first, let lastTarget = targets.last else {
+            return false
+        }
+        let leadLength = length(firstLead)
+        guard leadLength >= blockedShortMeters,
+            leads.allSatisfy({ length($0) >= blockedShortMeters && pointsSameWay(firstLead, $0) })
+        else { return false }
+
+        let moved = newest.position - oldest.position
+        guard simd_dot(moved, firstLead) / leadLength < min(blockedMovedMeters, leadLength * 0.10),
+            length(moved) < 0.04
+        else { return false }
+        let targetTravel = lastTarget - firstTarget
+        let commandDistance = length(targetTravel)
+        if commandDistance >= blockedMovedMeters,
+            simd_dot(moved, targetTravel) / commandDistance >= max(blockedMovedMeters, commandDistance * 0.5)
+        {
+            return false
+        }
+
+        let clamps = zip(window, targets).map { sample, target in
+            guard sample.clamp != nil, let request = sample.request else { return false }
+            return hold.clamped
+                || target.indices.contains { axis in
+                    abs(request[axis] - target[axis]) >= blockedMovedMeters
+                        && abs(sample.position[axis] - target[axis]) <= blockedMovedMeters
+                }
+        }
+        if window.contains(where: { $0.clamp == true }) || zip(clamps, clamps.dropFirst()).contains(where: { $0 && $1 })
+        {
+            hold.workspaceExplainsStall = true
+        }
+        return !hold.workspaceExplainsStall
+    }
+
     // The lowest rule, used only with `reportsLowest` on.
     //
     // An arm on a table slides along it, so it is never still in all three directions for a second: the rule judges
@@ -349,22 +456,22 @@ public struct FeedbackMonitor {
 
     /// The lowest cue, once per approach, and "Blocked." when the operator is not asking for lower.
     private mutating func judgeHeight(_ hold: inout Engaged, at now: Int) -> [FeedbackEvent] {
-        if let told = hold.lowestTold, let newest = hold.samples.last, Self.hasRisen(newest, above: told) {
+        if let told = hold.lowestTold, let newest = hold.samples.last, Self.hasLeftToldHeight(newest, told) {
             hold.lowestTold = nil
         }
         if isLowestStall(hold, at: now), let newest = hold.samples.last {
             // Both heights are kept from every stall, told or not.
-            lowestSeen = min(lowestSeen ?? newest.position.z, newest.position.z)
+            lowestSeen = min(lowestSeen ?? newest.origin.z, newest.origin.z)
             if let pinch = newest.pinch { lowestPinchSeen = min(lowestPinchSeen ?? pinch.z, pinch.z) }
             guard hold.lowestTold == nil else { return [] }
-            hold.lowestTold = ToldHeight(
-                height: newest.pinch?.z ?? newest.position.z, ofPinch: newest.pinch != nil,
-                gripperZ: newest.position.z)
+            hold.lowestTold = ToldHeight(newest)
             // One stall, one cue: a told lowest is this hold's blocked cue as well.
             hold.blocked = true
             return [.limit(.lowest)]
         }
-        guard !hold.blocked, !hold.clamped, Self.isBlockedWithoutAskingLower(hold, at: now) else { return [] }
+        guard hold.point == .linkOrigin, blockedWorkspace == nil, !hold.blocked, !hold.clamped,
+            Self.isBlockedWithoutAskingLower(hold, at: now)
+        else { return [] }
         hold.blocked = true
         return [.limit(.blocked)]
     }
@@ -410,13 +517,22 @@ public struct FeedbackMonitor {
         return newest.position.z - target.z >= blockedShortMeters
     }
 
-    /// The arm has risen 10 mm above where the lowest cue was told, so the next stall is a new approach: judged on the
-    /// same kind of height, or on the gripper link's when the pinch point has come or gone since.
-    private static func hasRisen(_ newest: Sample, above told: ToldHeight) -> Bool {
-        guard (newest.pinch != nil) == told.ofPinch else {
-            return newest.position.z >= told.gripperZ + blockedShortMeters
-        }
-        return (newest.pinch?.z ?? newest.position.z) >= told.height + blockedShortMeters
+    /// Rising 10 mm rearms the lowest cue. After a downward Blocked, a lower height or a new direction also rearms it.
+    private static func hasLeftToldHeight(_ newest: Sample, _ told: ToldHeight) -> Bool {
+        let sameKind = (newest.pinch != nil) == told.ofPinch
+        let measured = sameKind ? (newest.pinch?.z ?? newest.position.z) : newest.origin.z
+        let previous = sameKind ? told.height : told.gripperZ
+        if measured >= previous + blockedShortMeters { return true }
+        guard let blockedLead = told.blockedLead else { return false }
+        if measured <= previous - blockedShortMeters { return true }
+        guard let request = newest.request else { return false }
+        let lead = request - newest.position
+        return length(lead) >= blockedShortMeters && !pointsSameWay(blockedLead, lead)
+    }
+
+    /// A change of less than 45 degrees is part of the same request.
+    private static func pointsSameWay(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Bool {
+        simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b) * 0.5).squareRoot()
     }
 
     /// From the last sample at least `ms` older than the newest to the newest, with every sample that arrived in that

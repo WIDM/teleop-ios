@@ -19,6 +19,7 @@ struct ButtonPadView: View {
     let onDragOut: (ButtonID) -> Void
     /// One side of the Fine | Coarse switch was tapped.
     let onSpeed: (ButtonSpeed) -> Void
+    var onClose: (() -> Void)? = nil
 
     static let space = "buttonPad"
 
@@ -47,7 +48,21 @@ struct ButtonPadView: View {
                     .position(x: layout.speedLabel.midX, y: layout.speedLabel.midY)
                     // The switch already says the speed.
                     .accessibilityHidden(true)
-                SpeedSwitch(layout: layout, speed: speed, onSpeed: onSpeed)
+                if let onClose {
+                    Button(action: onClose) {
+                        Text("btn.precision_close", tableName: "Buttons")
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(TeleopColors.textPrimary)
+                    .accessibilityIdentifier("precision.close")
+                    .frame(width: layout.speedSwitch.width, height: layout.speedSwitch.height)
+                    .position(x: layout.speedSwitch.midX, y: layout.speedSwitch.midY)
+                } else {
+                    SpeedSwitch(layout: layout, speed: speed, onSpeed: onSpeed)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
             .coordinateSpace(.named(Self.space))

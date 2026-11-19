@@ -1,6 +1,22 @@
 {
   "extractionState": "manual",
   "strings": {
+    "refusal.use_upper_key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold + to lower"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住上鍵下降"
+          }
+        }
+      }
+    },
     "band.reset_hint": {
       "localizations": {
         "en": {
@@ -2518,13 +2534,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ready"
+            "value": "Available"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "就緒"
+            "value": "可操作"
           }
         }
       }
@@ -2929,6 +2945,22 @@
         }
       }
     },
+    "tutorial.cue.tap_both_views": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the view from above to send the jaws there. Tap the rear view near the jaws to change height. Tap either view again to change the target. Press a key or tap outside the views to stop."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。點下圖靠近夾爪上方或下方可調高度。再點圖可改目標，按任一鍵或點圖外可停止。"
+          }
+        }
+      }
+    },
     "tutorial.cue.tap_to_go": {
       "localizations": {
         "en": {
@@ -3181,6 +3213,214 @@
           "stringUnit": {
             "state": "translated",
             "value": "螢幕的左右兩半"
+          }
+        }
+      }
+    },
+    "voice.enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice axes"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音選軸"
+          }
+        }
+      }
+    },
+    "voice.listening": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say an axis · Tap to exit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請說方向 · 點此關閉"
+          }
+        }
+      }
+    },
+    "voice.axis.height": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調高度 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.axis.fore_aft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward/back only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調前後 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.axis.left_right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left/right only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調左右 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.error.permission": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow microphone and speech"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請允許麥克風與語音辨識"
+          }
+        }
+      }
+    },
+    "voice.error.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device speech unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置語音辨識無法使用"
+          }
+        }
+      }
+    },
+    "voice.error.audio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麥克風無法使用"
+          }
+        }
+      }
+    },
+    "voice.error.interrupted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice interrupted · Tap to retry"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音已中斷 · 點此重試"
+          }
+        }
+      }
+    },
+    "voice.error.unsupported_tool": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tool control required"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器尚未支援夾取點控制"
+          }
+        }
+      }
+    },
+    "voice.action.enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Voice control"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "語音控制"}}
+      }
+    },
+    "voice.action.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Say forward a little, up a little, open gripper, or close gripper. Tap again for the next command."}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "說「往前一點」、「往上一點」、「開爪」或「關爪」。下一個指令請再點一下。"}}
+      }
+    },
+    "voice.action.listening": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Say one command · Tap to exit"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "請說一個指令 · 點此關閉"}}
+      }
+    },
+    "voice.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say height only, forward back only, or left right only. Hold volume up to move; release to stop. Tap again to turn voice off."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "說「只調高度」、「只調前後」或「只調左右」。按住上音量鍵移動，放開停止。再點一下關閉語音。"
           }
         }
       }

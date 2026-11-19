@@ -16,6 +16,25 @@ public final class LocalTeleopServer {
     /// What to type as the server address: `127.0.0.1:<port>`.
     public var address: String { "127.0.0.1:\(port)" }
 
+    public struct CommandEvent: Equatable, Sendable {
+        public enum Direction: Sendable { case received, sent }
+        public let direction: Direction
+        public let connection: Int
+        public let type: String
+        public let sequence: Int
+        public let status: String?
+        public let reason: String?
+    }
+
+    public struct CommandTrace: Sendable {
+        public let events: [CommandEvent]
+        public let droppedCount: Int
+    }
+
+    private let captureCommands: Bool
+    private var commandEvents: [CommandEvent] = []
+    private var droppedCommandEvents = 0
+
     private let queue = DispatchQueue(label: "LocalTeleopServer")
     private var model: ServerModel
     private var listener: NWListener?
@@ -23,7 +42,8 @@ public final class LocalTeleopServer {
     private var sockets: [Int: NWConnection] = [:]
     private var startedAt = DispatchTime.now()
 
-    public init(config: ServerModelConfig = .s4Simulator(stepsPerSecond: 60)) {
+    public init(config: ServerModelConfig = .s4Simulator(stepsPerSecond: 60), captureCommands: Bool = false) {
+        self.captureCommands = captureCommands
         self.config = config
         model = ServerModel(config: config)
     }
@@ -95,6 +115,26 @@ public final class LocalTeleopServer {
         queue.sync { body(model) }
     }
 
+    public func commandTrace() -> CommandTrace {
+        queue.sync { CommandTrace(events: commandEvents, droppedCount: droppedCommandEvents) }
+    }
+
+    private func record(_ message: JSONValue, direction: CommandEvent.Direction, connection: Int) {
+        guard captureCommands, let type = message["type"]?.stringValue,
+            (direction == .received ? ["pose_start", "pose_stop"].contains(type) : type == "ack"),
+            let sequence = message["seq"]?.intValue
+        else { return }
+        if commandEvents.count == 256 {
+            commandEvents.removeFirst()
+            droppedCommandEvents += 1
+        }
+        commandEvents.append(
+            CommandEvent(
+                direction: direction, connection: connection, type: type, sequence: sequence,
+                status: direction == .sent ? message["payload"]?["status"]?.stringValue : nil,
+                reason: direction == .sent ? message["payload"]?["reason"]?.stringValue : nil))
+    }
+
     private var now: Double { Double(DispatchTime.now().uptimeNanoseconds - startedAt.uptimeNanoseconds) / 1e9 }
 
     private func accept(_ connection: NWConnection) {
@@ -122,6 +162,9 @@ public final class LocalTeleopServer {
             switch metadata?.opcode {
             case .text?:
                 if let data, let text = String(data: data, encoding: .utf8) {
+                    if captureCommands, let message = JSONValue.parse(text) {
+                        record(message, direction: .received, connection: id)
+                    }
                     deliver(model.receive(text, from: id, at: now))
                 }
             case .close?:
@@ -142,6 +185,7 @@ public final class LocalTeleopServer {
 
     private func deliver(_ outputs: [ServerOutput]) {
         for output in outputs {
+            record(output.message, direction: .sent, connection: output.connection)
             guard let socket = sockets[output.connection] else { continue }
             let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])

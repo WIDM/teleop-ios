@@ -63,6 +63,7 @@ final class AssistModelTests: XCTestCase {
             makeObserverTransport: { _ in FactsTestTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
             clientName: "teleop-ios/1.0.0 (7)", profile: profile, assistOn: assistOn, lockChoice: .off)
+        model.controlMode = .screenTurns
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.connect()
         transport.server("welcome")
@@ -220,7 +221,9 @@ final class AssistModelTests: XCTestCase {
     /// position reported, how old it is, and whether the link is pausing the hold. The panel the screen reports is
     /// kept and told while the guide is drawn. A robot that allows no tap-to-go is told no arm.
     func testTheFactsCarryTheMeasuredArmWhenTapToGoIsAllowed() throws {
+        UserDefaults.standard.set(ControlMode.buttons.rawValue, forKey: AppModel.controlModeKey)
         let model = liveModel(assistOn: true)
+        XCTAssertEqual(model.controlMode, .screenTurns, "the phone-guide fixture does not inherit saved buttons mode")
         XCTAssertNotNil(model.assist.goTo)
         clock += 40
         var arm = try XCTUnwrap(model.inputFacts().arm)

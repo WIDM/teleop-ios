@@ -26,6 +26,7 @@ final class TapWordsScreenTests: XCTestCase {
         ("refused_tap_still", "Keep still", "手指別動"),
         ("refused_tap_let_go", "Tap and let go", "點一下就放開"),
         ("refused_tap_view_above", "Tap the top view", "請點上面的圖"),
+        ("refused_use_upper_key", "Hold + to lower", "按住上鍵下降"),
     ]
 
     override func setUp() {

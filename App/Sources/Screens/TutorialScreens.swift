@@ -44,7 +44,9 @@ struct TutorialScreen: View {
             // A tap needs the guide, which the phone modes draw with the task aid on; lock is a gesture of the keys and
             // the thumb, and the pad's arrows never latch.
             let taps = mode != .buttons && model.assist.goTo != nil && model.taskAid
-            let tap: [LocalizedStringKey] = taps ? ["tutorial.cue.tap_to_go"] : []
+            let tapKey: LocalizedStringKey =
+                model.assist.views == nil ? "tutorial.cue.tap_to_go" : "tutorial.cue.tap_both_views"
+            let tap: [LocalizedStringKey] = taps ? [tapKey] : []
             let lock: [LocalizedStringKey] = mode == .buttons ? [] : lockLine(model.assist.lock?.variant)
             // The guide's arrows name the picture's forward and up, while the arm follows the phone's heading at each
             // press: where the aids draw them, the guide's line also says they are not the hand's. Like the tap, they

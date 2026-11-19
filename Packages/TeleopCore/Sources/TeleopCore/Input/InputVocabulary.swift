@@ -118,8 +118,12 @@ public enum InputRefusal: Equatable, Sendable {
     /// `say.reason.outside`: the tapped point is outside the work box as the guide draws it, with no slack. Decided
     /// here.
     case outsideWorkArea
+    case useUpperKey
     /// `say.reason.no_arm_data`: no measured arm position fresh enough to start a move from. Decided here.
     case noArmData
+    case tapStill
+    case tapLetGo
+    case tapViewAbove
 }
 
 /// What the rest of the app tells the arbiter on every call.

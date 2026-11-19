@@ -12,7 +12,7 @@ public enum Sound: String, CaseIterable, Sendable {
 public enum SpeechLevel: Int, Comparable, Sendable {
     /// Stops current speech at once and speaks: emergency stop, link lost.
     case p1 = 1
-    /// Queued and never dropped.
+    /// Queued while its announcement remains valid.
     case p2 = 2
     /// Spoken at once, during a hold too, or dropped if another phrase is playing.
     case p4 = 4
@@ -23,6 +23,9 @@ public enum SpeechLevel: Int, Comparable, Sendable {
 /// A spoken phrase's key in the app's `Speech` string table (§8.2), which holds English and Traditional Chinese.
 public enum SpeechKey: String, CaseIterable, Sendable {
     case ready = "say.ready"
+    case voiceHeight = "say.voice.height"
+    case voiceForeAft = "say.voice.fore_aft"
+    case voiceLeftRight = "say.voice.left_right"
     case linkLost = "say.link_lost"
     case reconnected = "say.reconnected"
     case serverRestarted = "say.server_restarted"
@@ -74,6 +77,7 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     /// "Stopped here." would sound as if the move goes on after a wait.
     case driveServerBusy = "say.drive.server_busy"
     case noArmData = "say.reason.no_arm_data"
+    case useUpperKey = "say.use_upper_key"
     case outside = "say.reason.outside"
     case lowest = "say.lowest"
     case rangeForward = "say.range.forward"
@@ -131,6 +135,9 @@ public struct CueRow: Equatable, Sendable {
 public enum CueTable {
     public static let rows: [CueRow] = [
         CueRow(.holdLive, .go),
+        CueRow(.voiceAxis(.height), nil, say: [.voiceHeight], .p4),
+        CueRow(.voiceAxis(.foreAft), nil, say: [.voiceForeAft], .p4),
+        CueRow(.voiceAxis(.leftRight), nil, say: [.voiceLeftRight], .p4),
 
         CueRow(.refused(.noLink), .no, say: [.noLink], .p4),
         // Queued, never dropped: it is the only word that a STOP has reached no robot, and it often comes while
@@ -145,6 +152,7 @@ public enum CueTable {
         CueRow(.refused(.letGoFirst), .no, say: [.letGoFirst], .p4),
         CueRow(.refused(.deadInput), .no),
         CueRow(.refused(.serverRefused), .no),
+        CueRow(.refused(.useUpperKey), .no, say: [.useUpperKey], .p2),
         CueRow(.refused(.outsideWorkArea), .no, say: [.outside], .p4),
         CueRow(.refused(.noArmData), .no, say: [.noArmData], .p4),
         // Why a touch on the guide was not taken as a tap. Queued, never dropped: they often come right after
@@ -222,7 +230,7 @@ public enum CueTable {
         CueRow(.notRecording, say: [.notRecording], .p2),
         CueRow(.notReset, say: [.notReset], .p2),
 
-        // A move nobody holds never starts or ends in silence: each of these is queued, never dropped, and felt.
+        // A move nobody holds announces its start and ending. A waiting latch is cancelled when that move ends.
         // Latching has its own pattern, so it is never taken for GO.
         CueRow(.drive(.latched), .latch, say: [.driveLocked], .p2),
         CueRow(.drive(.arrived), .end, say: [.driveArrived], .p2),
