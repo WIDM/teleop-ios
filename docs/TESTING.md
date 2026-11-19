@@ -298,16 +298,20 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 
 ## What CI runs
 
-`.github/workflows/ios.yml` (a copy is kept in `ci/ios.yml`) runs on every push and pull request, on GitHub's
-`macos-15` image with the Xcode that image ships:
+`.github/workflows/ios.yml` runs on every push and pull request. A newer push to the same branch cancels the run
+still going for the older one. `ci/ios.yml` must be an exact copy: the `checks` job fails when the two differ. Three
+jobs run side by side, so the fast ones report in a few minutes instead of waiting for the UI tests:
 
-1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`, then `scripts/check-format.sh`,
-   which only reports (below);
-2. `swift test` in `Packages/TeleopCore`;
-3. `brew install xcodegen` and `xcodegen generate`;
-4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
-   `CODE_SIGNING_ALLOWED=NO`;
-5. it uploads the xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+1. `checks`, on Ubuntu: `python3 scripts/check-strings.py`, `python3 scripts/check-dead-buttons.py`, the scripts'
+   own unit tests (`python3 -m unittest discover -s scripts -p 'test_*.py'`), the copy check, and a gitleaks scan
+   of the whole history for leaked keys and tokens (the gitleaks version is pinned in the workflow).
+2. `core`, on GitHub's `macos-15` image with the Xcode that image ships: `scripts/check-format.sh`, which only
+   reports (below), `swift test` in `Packages/TeleopCore`, and the session safety checker
+   (`tools/session-safety/scripts/check.sh`).
+3. `app`, on the same image: XcodeGen at the version pinned in the workflow, `xcodegen generate`, then the first
+   available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
+   `CODE_SIGNING_ALLOWED=NO`. It uploads the xcodebuild log, the screenshots the UI tests attach,
+   and the result bundle as artifacts.
 
 The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
 older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
@@ -316,8 +320,8 @@ from swift format's defaults (four-space indents, 120 columns, no indent inside 
 that the older version can read it too. The strict check that counts is a step of the release procedure
 (`docs/RELEASING.md`), run with the current Xcode.
 
-CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
-whenever a change touches the session, its state, the screens' actions or the hold handling.
+CI never runs the Live plan or the safety checker's mutation run (`tools/session-safety/scripts/mutants.py`).
+Run the mutation run yourself after changing the checker or a guarded code path.
 
 CI's iPhone simulator and Xcode can be older than a current Mac's, so a UI test that passes locally can fail
 there. Two differences matter: on iOS 18 a system permission alert's buttons have no identifiers (the UI tests'
