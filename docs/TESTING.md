@@ -116,18 +116,32 @@ The app is silent by itself as the unit-test host.
 | `-recordHaptics YES` | put the haptics the app asks for into a hidden element (`test.haptics`) that XCUITest can read |
 | `-startConnected YES`, `-startBlocked YES`, `-startConnectionLost YES` | start marked connected, with commands blocked as on a slow link, or as a dropped link leaves things |
 
-## The default and the live test plans
+## The test plans
 
-The scheme has two test plans (`TestPlans/`):
+The scheme has three test plans (`TestPlans/`):
 
 - **Default** runs every test in `TeleopTests` and `TeleopUITests` except `OperatorLiveTests` and
   `ServerMotionTests`. It needs no server: the tests that need one start the model on a local socket themselves.
-  It is what CI runs.
+  CI runs it every night.
+- **Critical** runs the same `TeleopTests` and only the UI tests of the five journeys that, broken, leave the app
+  useless. CI runs it on every push and pull request, so a run takes minutes instead of most of an hour:
+  1. first run, Connect through the tutorial to the operating screen
+     (`ConnectFlowTests.testFirstRunWalksThroughTheTutorialToTheOperatingScreen`);
+  2. a tap on the STOP band stops; a short press on Release keeps the stop, and a full hold on it leaves the stop
+     (`OperatingTouchTests.testATapOnTheStopBandStopsAndAHoldOnReleaseLeavesTheStop`);
+  3. a launch with a saved address reaches the local server and shows the guide (both `LocalServerUITests`);
+  4. a failed connect says why and offers practice (`ConnectFlowTests.testConnectShowsWhyItFailedAndOffersPractice`);
+  5. denied system prompts still reach the tutorial (`ManualCheckTests.testDenyingPromptsStillReachesTutorial`).
+
+  Every other UI test runs only in Default. They pin layouts that change with the design (`OperatingScreenTests`),
+  or take minutes each (`StopBandTests`), or cover screens still changing (Settings, practice, scheme B's hint).
+  Add a test to Critical only for a journey of the same weight, and keep it to five journeys: each added UI test
+  costs every push its run time.
 - **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
 
 The live tests move the arm in Isaac Sim on a machine other people use, so three things guard them:
 
-1. They are in the Live plan only; the Default plan skips them by name.
+1. They are in the Live plan only; the Default and Critical plans skip them by name.
 2. They skip unless the test runner's environment has `TELEOP_MOTION` set, which `xcodebuild` passes on when the
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
 3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below).
@@ -298,16 +312,24 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 
 ## What CI runs
 
-`.github/workflows/ios.yml` (a copy is kept in `ci/ios.yml`) runs on every push and pull request, on GitHub's
-`macos-15` image with the Xcode that image ships:
+`.github/workflows/ios.yml` runs on every push and pull request. A newer push to the same branch cancels the run
+still going for the older one. `ci/ios.yml` must be an exact copy: the `checks` job fails when the two differ. Three
+jobs run side by side, so the fast ones report in a few minutes instead of waiting for the UI tests:
 
-1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`, then `scripts/check-format.sh`,
-   which only reports (below);
-2. `swift test` in `Packages/TeleopCore`;
-3. `brew install xcodegen` and `xcodegen generate`;
-4. the first available iPhone simulator, picked as above, and `xcodebuild test` with the Default plan and
-   `CODE_SIGNING_ALLOWED=NO`;
-5. it uploads the xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+1. `checks`, on Ubuntu: `python3 scripts/check-strings.py`, `python3 scripts/check-dead-buttons.py`, the scripts'
+   own unit tests (`python3 -m unittest discover -s scripts -p 'test_*.py'`), the copy check, and a gitleaks scan
+   of the whole history for leaked keys and tokens (the gitleaks version is pinned in the workflow).
+2. `core`, on GitHub's `macos-15` image with the Xcode that image ships: `scripts/check-format.sh`, which only
+   reports (below), `swift test` in `Packages/TeleopCore`, and the session safety checker
+   (`tools/session-safety/scripts/check.sh`).
+3. `app`, on the same image: XcodeGen at the version pinned in the workflow, `xcodegen generate`, then the first
+   available iPhone simulator, picked as above, and `xcodebuild test` with `CODE_SIGNING_ALLOWED=NO`: the
+   Critical plan on a push or pull request, the Default plan in the nightly run (02:00 Asia/Taipei, on the
+   default branch only), and either one when started by hand (Actions, ios, Run workflow). It uploads the
+   xcodebuild log, the screenshots the UI tests attach, and the result bundle as artifacts.
+
+A failure in the nightly Default run does not block a merge, since the merge rules only see the Critical run of the
+pull request. Read the nightly result before a release.
 
 The layout check runs with `continue-on-error`, so a finding shows on the run but does not fail it. CI's Xcode is
 older than the one the code was laid out with, and the two `swift format` versions lay out a few constructs
@@ -316,8 +338,8 @@ from swift format's defaults (four-space indents, 120 columns, no indent inside 
 that the older version can read it too. The strict check that counts is a step of the release procedure
 (`docs/RELEASING.md`), run with the current Xcode.
 
-CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
-whenever a change touches the session, its state, the screens' actions or the hold handling.
+CI never runs the Live plan or the safety checker's mutation run (`tools/session-safety/scripts/mutants.py`).
+Run the mutation run yourself after changing the checker or a guarded code path.
 
 CI's iPhone simulator and Xcode can be older than a current Mac's, so a UI test that passes locally can fail
 there. Two differences matter: on iOS 18 a system permission alert's buttons have no identifiers (the UI tests'
