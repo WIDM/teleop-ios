@@ -1,0 +1,20 @@
+#!/bin/sh
+# Check branch names and every outgoing commit before push.
+# Enable once per clone: git config core.hooksPath .githooks
+root=$(git rev-parse --show-toplevel) || exit 1
+check="$root/scripts/check-git-hygiene.py"
+zero=0000000000000000000000000000000000000000
+remote=$1
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # branch deletion
+  branch=${remote_ref#refs/heads/}
+  python3 "$check" --branch "$branch" || status=1
+  # Only commits no branch of the destination remote has yet: merging main in brings commits that are already
+  # there, and CI checked them when they were pushed.
+  commits=$(git rev-list "$local_sha" --not --remotes="$remote")
+  for c in $commits; do
+    python3 "$check" --range "$c^!" || status=1
+  done
+done
+exit $status
