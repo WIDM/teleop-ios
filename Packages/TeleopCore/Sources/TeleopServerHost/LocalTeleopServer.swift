@@ -90,6 +90,14 @@ public final class LocalTeleopServer {
         }
     }
 
+    /// The client sockets the server has accepted and not yet dropped. A socket leaves when the server reads its close,
+    /// or when it fails or is cancelled. In one CI run's log, every close a client made reached the server only after
+    /// the client's own networking had finished tearing that socket down (29 of 29, once 6.4 s late); a new connection
+    /// from the same process did not start before then.
+    public var openSockets: Int {
+        queue.sync { sockets.count }
+    }
+
     /// Runs `body` on the model, between messages. For checks such as "is the cube in the goal".
     public func inspect<T>(_ body: (ServerModel) -> T) -> T {
         queue.sync { body(model) }

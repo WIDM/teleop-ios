@@ -10,6 +10,7 @@ import XCTest
 final class LocalServerTests: XCTestCase {
     private var server: LocalTeleopServer!
     private var position = SIMD3<Float>.zero
+    private var models: [AppModel] = []
 
     override func setUpWithError() throws {
         server = LocalTeleopServer()
@@ -17,6 +18,9 @@ final class LocalServerTests: XCTestCase {
     }
 
     override func tearDown() {
+        for model in models { model.link.closeQuietly() }
+        models = []
+        XCTAssertTrue(server.waitForTheAppsSocketsToClose(), "the server still holds \(server.openSockets) sockets")
         server.stop()
         server = nil
         super.tearDown()
@@ -32,6 +36,7 @@ final class LocalServerTests: XCTestCase {
             liveLink: true
         )
         model.session.state.serverAddress = address
+        models.append(model)
         return model
     }
 

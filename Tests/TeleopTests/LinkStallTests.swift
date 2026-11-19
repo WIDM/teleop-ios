@@ -132,6 +132,7 @@ final class LinkStallTests: XCTestCase {
     override func tearDown() {
         hand?.watch = nil
         hand?.finish()
+        if hand != nil, server != nil { waitForTheAppsSocketsToClose("tearing down") }
         hand = nil
         server?.stop()
         server = nil
@@ -438,6 +439,7 @@ final class LinkStallTests: XCTestCase {
     /// The operator connects again (Settings, Server, Connect) and the link comes up. Returns the number of the new
     /// control connection, to read what the app sent on it.
     private func connectAgain(_ what: String, file: StaticString = #filePath, line: UInt = #line) -> Int {
+        waitForTheAppsSocketsToClose(what, file: file, line: line)
         let control = path.opened + 1
         model.connect()
         XCTAssertTrue(
@@ -446,8 +448,17 @@ final class LinkStallTests: XCTestCase {
         return control
     }
 
+    /// `LocalTeleopServer.waitForTheAppsSocketsToClose`, through the hand, so the screens shown meanwhile are watched
+    /// too: before anything connects again or the server stops.
+    private func waitForTheAppsSocketsToClose(_ what: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            hand.wait(30, until: { server.openSockets == 0 }),
+            "\(what): the server still holds \(server.openSockets) of the app's sockets", file: file, line: line)
+    }
+
     /// A new run of the server, not stopped, at a new address: the operator's Connect reaches it.
     private func restartTheServer() throws {
+        waitForTheAppsSocketsToClose("restarting the server")
         server.stop()
         var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60)
         config.session = "00000000-0000-4000-8000-000000000002"
