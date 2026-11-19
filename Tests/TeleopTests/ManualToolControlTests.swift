@@ -652,6 +652,113 @@ final class ManualToolControlTests: XCTestCase {
         model.link.endHold()
     }
 
+    func testResyncRefusalEndsOnceWithoutNoAnswerForEitherAckOrder() throws {
+        for stopFirst in [false, true] {
+            bringUp()
+            XCTAssertTrue(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
+            let start = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+            clock += 510
+            state()
+            model.link.tick()
+            let stop = try XCTUnwrap(wire.messages("pose_stop").last?["seq"] as? Int)
+            let rejectedStart: [String: Any] = [
+                "seq": start, "status": "rejected", "reason": "tool_measured_corridor",
+            ]
+            let rejectedStop: [String: Any] = [
+                "seq": stop, "status": "rejected", "reason": "pose_not_active",
+            ]
+            wire.receive("ack", stopFirst ? rejectedStop : rejectedStart)
+            wire.receive("ack", stopFirst ? rejectedStart : rejectedStop)
+            let refusals = model.cueLog.filter { $0.event == .letGo(.lateRejection) }.count
+            XCTAssertEqual(refusals, 1, "stopFirst = \(stopFirst)")
+            let updates = wire.messages("pose_update").count
+            clock += LiveLinkController.resyncTimeoutMs + 1
+            state()
+            model.link.tick()
+            XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
+            XCTAssertEqual(model.cueLog.filter { $0.event == .letGo(.lateRejection) }.count, 1)
+            XCTAssertEqual(wire.messages("pose_start").count, 1)
+            XCTAssertEqual(wire.messages("pose_update").count, updates)
+        }
+    }
+
+    func testPreviousHoldRefusalCannotEndCurrentResync() throws {
+        bringUp(tool: false)
+        XCTAssertTrue(model.link.startButtonHold { SIMD3(0.1, 0, 0) })
+        let previous = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        model.link.endHold()
+        clock += TeleopLink.finishWaitMs + 1
+        state()
+        XCTAssertTrue(model.link.startButtonHold { SIMD3(0.1, 0, 0) })
+        let current = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        XCTAssertNotEqual(previous, current)
+        clock += LiveLinkController.resyncAfterMs + 1
+        state()
+        model.link.tick()
+        XCTAssertEqual(wire.messages("pose_stop").count, 2)
+        wire.receive("ack", ["seq": previous, "status": "rejected", "reason": "tool_measured_corridor"])
+        XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.lateRejection) || $0.event == .letGo(.noAnswer) })
+        wire.receive("ack", ["seq": current, "status": "ok", "reason": "pose_stopped"])
+        state()
+        XCTAssertEqual(wire.messages("pose_start").count, 3)
+        model.link.endHold()
+    }
+
+    func testToolHoldCannotEnterResyncBehindPreviousUnansweredStop() throws {
+        for phoneEntry in [false, true] {
+            bringUp()
+            XCTAssertTrue(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
+            let previous = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+            model.link.endHold()
+            clock += 1
+            state()
+            XCTAssertEqual(model.link.manualTranslationStartRefusal, .busy)
+            if phoneEntry {
+                XCTAssertFalse(model.link.startHold(PoseParams(gain: 1, smoothing: 0, toolCalibrationID: "test-tool")))
+            } else {
+                XCTAssertFalse(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
+            }
+            clock += LiveLinkController.toolResyncAfterMs + 1
+            state()
+            model.link.tick()
+            XCTAssertEqual(wire.messages("pose_start").count, 1)
+            XCTAssertEqual(wire.messages("pose_stop").count, 1)
+            wire.receive("ack", ["seq": previous, "status": "rejected", "reason": "tool_measured_corridor"])
+            XCTAssertFalse(
+                model.cueLog.contains { $0.event == .letGo(.lateRejection) || $0.event == .letGo(.noAnswer) })
+            XCTAssertEqual(wire.messages("pose_start").count, 1)
+            clock += 1
+            state()
+            XCTAssertNil(model.link.manualTranslationStartRefusal)
+            if phoneEntry {
+                XCTAssertTrue(model.link.startHold(PoseParams(gain: 1, smoothing: 0, toolCalibrationID: "test-tool")))
+            } else {
+                XCTAssertTrue(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
+            }
+            XCTAssertEqual(wire.messages("pose_start").count, 2)
+            wire.receive("ack", ["seq": previous, "status": "rejected", "reason": "tool_measured_corridor"])
+            XCTAssertFalse(
+                model.cueLog.contains { $0.event == .letGo(.lateRejection) || $0.event == .letGo(.noAnswer) })
+            model.link.endHold()
+        }
+    }
+
+    func testReleasedResyncDoesNotReportLateServerRefusal() throws {
+        bringUp()
+        XCTAssertTrue(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
+        let start = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        clock += 510
+        state()
+        model.link.tick()
+        model.link.endHold()
+        wire.receive("ack", ["seq": start, "status": "rejected", "reason": "tool_measured_corridor"])
+        clock += LiveLinkController.resyncTimeoutMs + 1
+        state()
+        model.link.tick()
+        XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.lateRejection) || $0.event == .letGo(.noAnswer) })
+        XCTAssertEqual(wire.messages("pose_start").count, 1)
+    }
+
     func testResyncWithMissingToolStateWaitsUntilDeadlineThenCannotRestart() throws {
         bringUp()
         _ = try beginResync()

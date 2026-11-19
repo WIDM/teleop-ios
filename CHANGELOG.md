@@ -9,6 +9,9 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 28 reports a server refusal received during manual-motion resynchronization immediately, instead of
+  later misreporting a response timeout. Released holds and delayed responses from older holds remain inert.
+
 - Build 27 is the frozen manual-control MVP candidate. Existing up/down controls select calibrated coordinated
   height when the server advertises support, preserving one orientation reference through a continuous hold.
   Ordinary XYZ control is unchanged. Tool resynchronization preserves valid control-socket stop confirmations.

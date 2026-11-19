@@ -1,6 +1,6 @@
 # Phone acceptance record
 
-Status: not started. Build candidate: 27. Do not mark this complete from unit tests or simulator wire replay.
+Status: build 27 unscored smoke test failed; scored acceptance has not started. Candidate 28 passed automated verification but is not signed, installed, or phone-tested. The phone remains on build 27. Do not mark this complete from unit tests or simulator wire replay.
 
 The frozen criteria and position order are in `MVP-1.1.1.md`. Checkpoint commits are App `05c8e3e`, earlier worktree `7b894f3`, and isolated server `71aee47`. The validated isolated server integration is `9c7f803`.
 
@@ -25,3 +25,7 @@ The operator must physically perform these actions. Automated wire replay cannot
 ## Results
 
 Pick-and-place: 0/10 recorded. Safety categories: 0/10 phone trials recorded in each category. Reusability demonstration: pending. No success rate or completion claim is available yet.
+
+## Build 27 smoke test
+
+On 2026-11-19 the operator confirmed that gripper and explicit up/down controls responded, but ordinary front/back/left/right movement frequently stopped with refusal or blocked feedback. The captured interval contains 15 ordinary-tool holds rejected with `tool_measured_corridor`; three coordinated-height holds ended normally. These observations do not complete the vertical, release or recovery acceptance criteria. One rejection during resynchronization was incorrectly reported as no response. Preserve this failed smoke test and correct the underlying motion and feedback defects before starting scored trials.

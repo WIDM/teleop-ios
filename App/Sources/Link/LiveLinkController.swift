@@ -110,7 +110,7 @@ final class LiveLinkController {
     private var coordinatedAwaitingFirstTrackingState = false
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
-    private var resync: (sinceMs: Int, stopped: Bool, stoppedServerMs: Int?)?
+    private var resync: (sinceMs: Int, startSeq: Int?, stopped: Bool, stoppedServerMs: Int?)?
     private var lastRefusal: (reason: String, atMs: Int)?
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
@@ -507,7 +507,7 @@ final class LiveLinkController {
         link?.poseStop()
         noteStopSent()
         monitor.resyncBegan()
-        resync = (nowMs(), false, nil)
+        resync = (nowMs(), link?.unfinishedStop?.start, false, nil)
         // No command goes out until the start is re-sent, so none is held at the cap; the re-sent start is the pause.
         leadCapped = false
     }
@@ -962,6 +962,16 @@ final class LiveLinkController {
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
             if type == "estop_reset" { resetSentAtMs = nil }
+            if type == "pose_start", let pending = resync, let startSeq = pending.startSeq,
+                let data = text.data(using: .utf8),
+                let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let payload = envelope["payload"] as? [String: Any], payload["seq"] as? Int == startSeq
+            {
+                lastRefusal = (reason, nowMs())
+                endedTranslation(monitor.startRefused(reason: reason, at: nowMs()), serverReason: reason)
+                holdEnded()
+                onAction?(.holdArmEnd)
+            }
         case .gripperRefused(let reason):
             // A refused start and a live hold the watchdog ended both come back as a rejected final answer.
             onLog?("link: gripper hold ended by server: \(reason)")
