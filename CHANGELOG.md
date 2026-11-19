@@ -9,6 +9,9 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 30 carries the words of build 29's refusal kinds to the phone; build 29 as first installed had only the
+  free phone move and the hidden voice control.
+
 - Build 29 no longer offers the voice control on the operating screen. Voice input is an unfinished experiment;
   with it switched on, every move by the volume key was refused with "Wait." until an axis had been spoken. The
   control appears only when the app is launched with `-voiceEntry YES`.
