@@ -183,6 +183,29 @@ target gets more than 10 cm ahead of the arm (`pose_tracking_safety_stop`). When
 the server hold and starts a new one from where the arm really got to, every 1.5 s, for as long as the hold goes
 on (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
 
+### Explicit pinch-point height holds
+
+A calibrated server may advertise `tool_motion_modes: ["coordinated_height"]` in `welcome`, alongside its
+`tool_calibration_id`. This is a capability, not the default controller. A height hold explicitly adds
+`control_point: "tool"`, the matching `calibration_id`, and `tool_motion: "coordinated_height"` to the translation
+`pose_start`. The server refuses unsupported modes or incompatible control points before queuing movement.
+Omitting `tool_motion` preserves ordinary translation. Updates cannot change the mode selected by the start.
+
+Existing up/down buttons select this mode only when the server advertises it. An already selected phone height
+axis uses the same path. General XYZ movement, tap movement and experimental voice steps do not opt in.
+Older servers retain their existing controls without being treated as supporting coordinated height.
+
+The server coordinates wrist flex with the arm to keep the actual pinch point on its original vertical line and
+preserve gripper world orientation. The App sends zero X/Y displacement and at most 5 mm of height lead from the
+fresh measured pinch point toward the operator's request. It retains one hold and its original reference; the
+ordinary tool-path resynchronization does not reset a coordinated height hold's reference.
+Release and all existing freshness, stop, workspace and joint limits remain effective.
+
+During an active coordinated hold, state includes `tool_control_mode: "coordinated_height"`,
+`tool_world_quat` and `tool_joint_pos_rad`. These fields are cleared when the hold ends or ordinary movement
+starts, so a previous hold cannot label a subsequent XYZ movement. Motion records pair tool intent and applied
+targets with `tool_base`; generic link-origin measurements must not be compared against pinch-point targets.
+
 ### `gripper_jog_start`, `jog_keepalive`, `gripper_jog_stop`: the jaws
 
 ```json

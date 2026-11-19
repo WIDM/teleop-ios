@@ -38,7 +38,9 @@ final class ManualToolControlTests: XCTestCase {
         super.tearDown()
     }
 
-    private func bringUp(tool: Bool = true, mode: ControlMode = .screenTurns, aids: Bool = false) {
+    private func bringUp(
+        tool: Bool = true, mode: ControlMode = .screenTurns, aids: Bool = false, coordinated: Bool = false
+    ) {
         clock = 10_000
         camera = TestPose.portrait
         UserDefaults.standard.set(false, forKey: AppModel.taskAidKey)
@@ -55,8 +57,10 @@ final class ManualToolControlTests: XCTestCase {
         model.session.state.sensitivity = 1
         model.session.state.serverAddress = "127.0.0.1:8765"
         model.connect()
-        wire.receive(
-            "welcome", tool ? ["control_points": ["link_origin", "tool"], "tool_calibration_id": "test-tool"] : [:])
+        var welcome: [String: Any] =
+            tool ? ["control_points": ["link_origin", "tool"], "tool_calibration_id": "test-tool"] : [:]
+        if coordinated { welcome["tool_motion_modes"] = ["coordinated_height"] }
+        wire.receive("welcome", welcome)
         state()
         model.surfaceChanged(width: 375, height: 667, safeTop: 20, safeBottom: 0)
     }
@@ -69,6 +73,202 @@ final class ManualToolControlTests: XCTestCase {
 
     private func lastPayload(_ type: String) throws -> [String: Any] {
         try XCTUnwrap(wire.messages(type).last?["payload"] as? [String: Any])
+    }
+
+    func testCoordinatedHeightKeepsOneHoldBeyondFiveMillimetersWithAidsOnOrOff() throws {
+        for aids in [false, true] {
+            bringUp(aids: aids, coordinated: true)
+            model.setPrecisionPanelOpen(true)
+            model.buttonDown(.down)
+            XCTAssertEqual(try lastPayload("pose_start")["tool_motion"] as? String, "coordinated_height")
+            for index in 1...12 {
+                clock += 100
+                wire.receive(
+                    "state",
+                    [
+                        "estop": false, "ik": "pose_tracking", "gripper": "open",
+                        "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07 - Double(index) * 0.001],
+                    ])
+                model.controller.tick()
+                model.link.tick()
+            }
+            let delta = try XCTUnwrap(try lastPayload("pose_update")["p_rel_m"] as? [Double])
+            XCTAssertEqual(delta[0], 0)
+            XCTAssertEqual(delta[1], 0)
+            XCTAssertGreaterThan(delta[2], 0.005)
+            XCTAssertLessThanOrEqual(delta[2], 0.0171)
+            XCTAssertEqual(wire.messages("pose_start").count, 1)
+            XCTAssertEqual(wire.messages("pose_stop").count, 0)
+            model.buttonUp(.down)
+            XCTAssertEqual(wire.messages("pose_stop").count, 1)
+            let updates = wire.messages("pose_update").count
+            clock += 100
+            model.link.tick()
+            XCTAssertEqual(wire.messages("pose_update").count, updates)
+        }
+    }
+
+    func testCoordinatedHeightCanReverseAfterRefusalBeforeNewTrackingState() throws {
+        bringUp(coordinated: true)
+        model.setPrecisionPanelOpen(true)
+        model.buttonDown(.down)
+        let first = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        wire.receive("ack", ["seq": first, "status": "rejected", "reason": "tool_no_converged_path"])
+        model.buttonUp(.down)
+        clock += 100
+        wire.receive(
+            "state",
+            [
+                "estop": false, "ik": "no_solution", "gripper": "open",
+                "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+            ])
+        model.buttonDown(.up)
+        XCTAssertEqual(wire.messages("pose_start").count, 2)
+        let stops = wire.messages("pose_stop").count
+        clock += 100
+        model.controller.tick()
+        model.link.tick()
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertEqual(wire.messages("pose_stop").count, stops)
+        let delta = try XCTUnwrap(try lastPayload("pose_update")["p_rel_m"] as? [Double])
+        XCTAssertLessThan(delta[2], 0)
+        let second = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        wire.receive("ack", ["seq": second, "status": "rejected", "reason": "tool_no_converged_path"])
+        let updates = wire.messages("pose_update").count
+        clock += 100
+        model.link.tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(wire.messages("pose_update").count, updates)
+    }
+
+    func testCoordinatedHeightRejectsNoSolutionAfterTrackingBegins() {
+        bringUp(coordinated: true)
+        model.setPrecisionPanelOpen(true)
+        wire.receive(
+            "state",
+            [
+                "estop": false, "ik": "no_solution", "gripper": "open",
+                "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+            ])
+        model.buttonDown(.up)
+        for activity in ["pose_tracking", "no_solution"] {
+            clock += 100
+            wire.receive(
+                "state",
+                [
+                    "estop": false, "ik": activity, "gripper": "open",
+                    "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                ])
+        }
+        model.controller.tick()
+        model.link.tick()
+        XCTAssertEqual(wire.messages("pose_stop").count, 1)
+        XCTAssertFalse(model.session.state.armMoving)
+    }
+
+    func testCoordinatedRefusalCueIsTruthfulOnceForEitherObserverAndAckOrder() throws {
+        for observerFirst in [true, false] {
+            bringUp(coordinated: true)
+            model.setPrecisionPanelOpen(true)
+            model.buttonDown(.up)
+            let sequence = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+            clock += 100
+            wire.receive(
+                "state",
+                [
+                    "estop": false, "ik": "pose_tracking", "gripper": "open",
+                    "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                ])
+            model.controller.tick()
+            model.link.tick()
+            let updates = wire.messages("pose_update").count
+            func observerRefusal() {
+                clock += 100
+                model.link.stateArrived(
+                    ServerState(
+                        estop: false, gripper: .open,
+                        activity: .other("no_solution"), endEffector: SIMD3(0, -0.14, 0.16),
+                        toolPoint: SIMD3(0.01, -0.17, 0.07)), serverMs: clock, onControl: false)
+                model.link.tick()
+            }
+            func rejectedAck() {
+                wire.receive("ack", ["seq": sequence, "status": "rejected", "reason": "tool_no_converged_path"])
+            }
+            if observerFirst { observerRefusal(); rejectedAck() } else { rejectedAck(); observerRefusal() }
+            XCTAssertFalse(model.session.state.armMoving)
+            XCTAssertEqual(wire.messages("pose_update").count, updates)
+            XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
+            XCTAssertEqual(
+                model.cueLog.filter {
+                    $0.event == .letGo(.lateRejection) || $0.event == .refused(.serverRefused)
+                }.count, 1)
+            clock += 100
+            model.link.tick()
+            XCTAssertEqual(wire.messages("pose_update").count, updates)
+            XCTAssertEqual(
+                model.cueLog.filter {
+                    $0.event == .letGo(.lateRejection) || $0.event == .refused(.serverRefused)
+                }.count, 1)
+        }
+    }
+
+    func testCoordinatedRecoveryGraceExpiresDespiteRefreshedNoSolutionState() {
+        bringUp(coordinated: true)
+        model.setPrecisionPanelOpen(true)
+        func refusedState() {
+            wire.receive(
+                "state",
+                [
+                    "estop": false, "ik": "no_solution", "gripper": "open",
+                    "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                ])
+        }
+        refusedState()
+        model.buttonDown(.up)
+        for _ in 0..<4 {
+            clock += 100
+            refusedState()
+            model.controller.tick()
+            model.link.tick()
+            XCTAssertTrue(model.session.state.armMoving)
+        }
+        let updates = wire.messages("pose_update").count
+        clock += 1
+        refusedState()
+        model.controller.tick()
+        model.link.tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
+        XCTAssertEqual(wire.messages("pose_stop").count, 1)
+        XCTAssertEqual(wire.messages("pose_update").count, updates)
+    }
+
+    func testCoordinatedMotionLogKeepsToolTargetsSeparateFromOriginMeasurement() throws {
+        bringUp(coordinated: true)
+        var logs: [String] = []
+        model.link.onLog = { logs.append($0) }
+        model.setPrecisionPanelOpen(true)
+        model.buttonDown(.down)
+        clock += 100
+        model.controller.tick()
+        model.link.tick()
+        let motion = try XCTUnwrap(logs.last { $0.hasPrefix("motion source=") })
+        XCTAssertTrue(motion.contains("sent_target_base=none"), motion)
+        XCTAssertTrue(motion.contains("measured_base=[0.0000,-0.1400,0.1600]"), motion)
+        XCTAssertTrue(motion.contains("tool_intent_base=["), motion)
+        XCTAssertTrue(motion.contains("tool_applied_base=["), motion)
+        XCTAssertTrue(motion.contains("tool_base=[0.0100,-0.1700,0.0700]"), motion)
+    }
+
+    func testCoordinatedHeightStopsOnStaleState() throws {
+        bringUp(coordinated: true)
+        model.setPrecisionPanelOpen(true)
+        model.buttonDown(.down)
+        clock += 1000
+        model.controller.tick()
+        model.link.tick()
+        XCTAssertEqual(wire.messages("pose_stop").count, 1)
+        XCTAssertFalse(model.session.state.armMoving)
     }
 
     func testPhoneTranslationUsesCalibratedToolWithoutVoiceOrAidAndStopsOnRelease() throws {

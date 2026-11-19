@@ -45,6 +45,36 @@ final class TeleopLinkTests: XCTestCase {
 
     private let params = PoseParams(gain: 1, smoothing: 0.3)
 
+    func testCoordinatedHeightRequiresSeparateCapabilityAndClearsOnReconnect() {
+        let coordinated = PoseParams(
+            gain: 1, smoothing: 0, toolCalibrationID: "test-tool", toolMotion: .coordinatedHeight)
+        link.hello(name: "test")
+        _ = server("welcome", ["control_points": ["link_origin", "tool"], "tool_calibration_id": "test-tool"])
+        _ = server("state", ["estop": false])
+        XCTAssertFalse(link.poseStart(coordinated))
+        XCTAssertFalse(types.contains("pose_start"))
+        link.transportClosed()
+        link.hello(name: "test")
+        _ = server(
+            "welcome",
+            [
+                "control_points": ["link_origin", "tool"], "tool_calibration_id": "test-tool",
+                "tool_motion_modes": ["coordinated_height"],
+            ])
+        _ = server("state", ["estop": false])
+        XCTAssertTrue(link.supportsCoordinatedHeight)
+        XCTAssertTrue(link.poseStart(coordinated))
+        XCTAssertEqual((sent.last?["payload"] as? [String: Any])?["tool_motion"] as? String, "coordinated_height")
+        link.transportClosed()
+        XCTAssertFalse(link.supportsCoordinatedHeight)
+        link.hello(name: "test")
+        _ = server("welcome", ["control_points": ["link_origin", "tool"], "tool_calibration_id": "test-tool"])
+        _ = server("state", ["estop": false])
+        XCTAssertFalse(link.poseStart(coordinated))
+        XCTAssertTrue(link.poseStart(PoseParams(gain: 1, smoothing: 0, toolCalibrationID: "test-tool")))
+        XCTAssertNil((sent.last?["payload"] as? [String: Any])?["tool_motion"])
+    }
+
     func testHelloThenWelcomeAndStateMakesTheLinkReady() {
         link.hello(name: "test")
         XCTAssertEqual(sent[0]["v"] as? Int, 1)

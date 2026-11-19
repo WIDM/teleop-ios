@@ -27,7 +27,9 @@ Only defects that prevent the acceptance criteria below belong to this version. 
 
 ### Pick and place
 
-Use one fixed object and three named reachable starting positions, P1/P2/P3, frozen with simulator coordinates before scored testing. Use the same placement region and starting arm pose. Run ten scored attempts in this fixed order:
+Use the existing 25 mm cube and the following frozen spawn positions in simulator world coordinates, in metres: P1 `(0.005, -0.200, 0.1035)`, P2 `(-0.015, -0.200, 0.1035)`, P3 `(0.025, -0.200, 0.1035)`. Gravity settles the cube onto the table before a trial. The robot base is 0.050 m above the world origin; world and robot-base heights must not be mixed. Offline approach/descent qualification supports all three positions, but does not count as a successful grasp.
+
+Keep the existing placement-region centre `(0.075, -0.200, 0.1035)` and half-extents `(0.025, 0.025, 0.020)`, and the existing initial arm pose. Use manual controls only. Keep automatic/latched assistance off; toggle the separate assistance-diagram setting according to the trial table. Run ten scored attempts in this fixed order:
 
 | Trial | Position | Assistance diagrams |
 | --- | --- | --- |
@@ -48,7 +50,7 @@ Pass: at least eight successes; each successful attempt finishes within two minu
 
 Ten trials each for release, emergency stop, disconnection, and blocked-direction reversal. Each trial must stop accepting the old movement command. Reconnection or delayed packets must not resume old motion. A deliberate fresh opposite-direction action must recover after a recoverable geometric limit; emergency-stop reset remains explicit. Any unsafe continuation fails the safety gate. Record command, acknowledgement and measured-state timing separately; do not infer physical stopping from an acknowledgement alone.
 
-Keep existing freshness, timeout, workspace, joint, corridor and orientation thresholds. Never loosen assertions, skip failing tests or reset the measurement reference to hide drift.
+Keep existing freshness, timeout, workspace, joint, corridor and orientation thresholds. Never loosen assertions, skip failing tests or reset the measurement reference to hide drift. The existing isolated height-path checks require at most 1 mm horizontal excursion, 0.5 degrees orientation change, 1 mm endpoint error and 1 mm settled release drift on unobstructed feasible paths. A refused or contact-obstructed target is retained as such, not reported as reached.
 
 ### Reusability
 

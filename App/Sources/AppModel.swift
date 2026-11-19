@@ -1403,7 +1403,11 @@ final class AppModel {
                 if case .step(let offset, _)? = voiceMotion?.goal {
                     if !link.startButtonHold(useToolPoint: true, { offset }) { buttonHoldNotStarted() }
                 } else if !link.startButtonHold(
-                    useToolPoint: link.toolCalibrationID != nil, { [weak self] in self?.controller.buttonTarget() })
+                    useToolPoint: link.toolCalibrationID != nil,
+                    toolMotion: link.supportsCoordinatedHeight
+                        && (controller.buttons.engaged == .up || controller.buttons.engaged == .down)
+                        ? .coordinatedHeight : nil,
+                    { [weak self] in self?.controller.buttonTarget() })
                 {
                     buttonHoldNotStarted()
                 }
@@ -1421,7 +1425,8 @@ final class AppModel {
                 let axis = controller.arbiter.translationAxis
                 let params = PoseParams(
                     gain: axis == nil ? after.sensitivity : 0.2, smoothing: axis == nil ? after.smoothing : 0,
-                    toolCalibrationID: link.toolCalibrationID)
+                    toolCalibrationID: link.toolCalibrationID,
+                    toolMotion: axis == .height && link.supportsCoordinatedHeight ? .coordinatedHeight : nil)
                 let held = PhonePosture.of(pose())
                 if held == .tilted || !link.startHold(params, axis: axis) {
                     let why = held == .tilted ? "phone held wrong" : "no tracking, no link or a reset"

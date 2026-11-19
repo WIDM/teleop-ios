@@ -9,6 +9,14 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 27 is the frozen manual-control MVP candidate. Existing up/down controls select calibrated coordinated
+  height when the server advertises support, preserving one orientation reference through a continuous hold.
+  Ordinary XYZ control is unchanged. Tool resynchronization preserves valid control-socket stop confirmations.
+  A previous refusal no longer cancels a fresh reverse hold before tracking starts. Fresh server failures use
+  refusal feedback even when their state arrives before the acknowledgement; missing or stale data still stops
+  with no-response feedback. Tool and link-origin measurements remain separate in diagnostics.
+  Scope and acceptance are in `docs/MVP-1.1.1.md`; phone acceptance remains pending.
+
 - Build 18 shows the rear view's height-only touch column. At the minimum automatic height, a lower tap explains
   how to descend with the upper volume key instead of reporting arrival or an unrelated work-area error.
 - Adds bounded manual-motion diagnostics for comparing requested, transmitted and measured motion. Manual gain,

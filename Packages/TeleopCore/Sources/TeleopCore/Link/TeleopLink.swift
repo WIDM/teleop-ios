@@ -36,16 +36,24 @@ public struct SentStart: Equatable, Sendable {
     public let atMs: Int
 }
 
+public enum PoseToolMotion: String, Equatable, Sendable {
+    case coordinatedHeight = "coordinated_height"
+}
+
 public struct PoseParams: Equatable, Sendable {
     public var gain: Double
     public var smoothing: Double
     public var toolCalibrationID: String?
+    public var toolMotion: PoseToolMotion?
 
-    public init(gain: Double, smoothing: Double, toolCalibrationID: String? = nil) {
+    public init(
+        gain: Double, smoothing: Double, toolCalibrationID: String? = nil, toolMotion: PoseToolMotion? = nil
+    ) {
         // Ranges the server accepts; outside them it rejects pose_start.
         self.gain = min(max(gain, 0.1), 2.0)
         self.smoothing = min(max(smoothing, 0), 0.95)
         self.toolCalibrationID = toolCalibrationID
+        self.toolMotion = toolMotion
     }
 }
 
@@ -107,6 +115,7 @@ public final class TeleopLink {
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
     public private(set) var toolCalibrationID: String?
+    public private(set) var supportsCoordinatedHeight = false
     public private(set) var telemetryVersion: Int?
     public var onReceivedEnvelope: ((String, [String: Any]) -> Void)?
 
@@ -164,6 +173,9 @@ public final class TeleopLink {
         guard ready, !holdActive, !resetPending else { return false }
         if let requested = params.toolCalibrationID {
             guard !requested.isEmpty, requested == toolCalibrationID else { return false }
+        }
+        if params.toolMotion != nil {
+            guard params.toolCalibrationID != nil, supportsCoordinatedHeight else { return false }
         }
         // The server runs one held control at a time.
         gripperJogStop()
@@ -397,6 +409,7 @@ public final class TeleopLink {
         ready = false
         welcomed = false
         toolCalibrationID = nil
+        supportsCoordinatedHeight = false
         telemetryVersion = nil
         holdActive = false
         holdSeq = nil
@@ -433,6 +446,9 @@ public final class TeleopLink {
             let points = payload["control_points"] as? [String] ?? []
             let calibration = payload["tool_calibration_id"] as? String
             toolCalibrationID = points.contains("tool") && calibration?.isEmpty == false ? calibration : nil
+            supportsCoordinatedHeight =
+                toolCalibrationID != nil
+                && (payload["tool_motion_modes"] as? [String] ?? []).contains(PoseToolMotion.coordinatedHeight.rawValue)
             telemetryVersion = payload["telemetry_version"] as? Int
             return nil
         case "state":
@@ -535,6 +551,7 @@ public final class TeleopLink {
                 payload["control_point"] = "tool"
                 payload["calibration_id"] = calibration
             }
+            if let motion = params.toolMotion { payload["tool_motion"] = motion.rawValue }
             holdSeq = emit("pose_start", payload)
             lastStart = SentStart(seq: seq, kind: .pose, atMs: now())
         case .gripperJog(let target):

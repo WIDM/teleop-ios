@@ -107,6 +107,7 @@ final class LiveLinkController {
     /// Arm position (robot base) when the current server hold started; nil if the server has not reported one.
     private var armAtSegmentStart: SIMD3<Float>?
     private var segmentStartedMs = 0
+    private var coordinatedAwaitingFirstTrackingState = false
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
     private var resync: (sinceMs: Int, stopped: Bool, stoppedServerMs: Int?)?
@@ -187,6 +188,7 @@ final class LiveLinkController {
 
     var isOpen: Bool { transport != nil }
     var toolCalibrationID: String? { link?.toolCalibrationID }
+    var supportsCoordinatedHeight: Bool { link?.supportsCoordinatedHeight == true }
     @discardableResult
     func sendDiagnostic(type: String, payload: [String: Any]) -> Bool {
         link?.sendDiagnostic(type: type, payload: payload) ?? false
@@ -430,10 +432,15 @@ final class LiveLinkController {
 
     /// A translation hold that follows `target` instead of the phone: no pose, gain, smoothing or speed guard, but
     /// the same lead cap and resync. False when the hold could not start.
-    func startButtonHold(useToolPoint: Bool = false, _ target: @escaping () -> SIMD3<Double>?) -> Bool {
+    func startButtonHold(
+        useToolPoint: Bool = false, toolMotion: PoseToolMotion? = nil,
+        _ target: @escaping () -> SIMD3<Double>?
+    ) -> Bool {
         guard let link else { return false }
         if useToolPoint, toolCalibrationID == nil || manualTranslationStartRefusal != nil { return false }
-        let params = PoseParams(gain: 1, smoothing: 0, toolCalibrationID: useToolPoint ? link.toolCalibrationID : nil)
+        let params = PoseParams(
+            gain: 1, smoothing: 0, toolCalibrationID: useToolPoint ? link.toolCalibrationID : nil,
+            toolMotion: toolMotion)
         guard link.poseStart(params) else { return false }
         holdParams = params
         noteStopSent()
@@ -446,7 +453,7 @@ final class LiveLinkController {
         resync = nil
         segmentStartedMs = nowMs()
         // With an aid on the start point is taken when the start goes on the wire, which may be later.
-        if !anyAidOn { armAtSegmentStart = measuredControlPoint }
+        if !anyAidOn || params.toolCalibrationID != nil { armAtSegmentStart = measuredControlPoint }
         translationStarted()
         return true
     }
@@ -454,6 +461,8 @@ final class LiveLinkController {
     /// The operator's translation hold has started (not a resync's restart, which stays the same hold): the work-area
     /// rule may tell every side again.
     private func translationStarted() {
+        coordinatedAwaitingFirstTrackingState =
+            holdParams.toolMotion == .coordinatedHeight && newestArmState?.activity == .other("no_solution")
         motionRequest = nil
         motionUpdate = nil
         workAreaCue?.holdStarted()
@@ -471,6 +480,7 @@ final class LiveLinkController {
     private var translating: Bool { holdStart != nil || buttonTarget != nil }
 
     private func holdEnded() {
+        coordinatedAwaitingFirstTrackingState = false
         holdStart = nil
         holdAxis = nil
         buttonTarget = nil
@@ -698,6 +708,10 @@ final class LiveLinkController {
         guard link.holdActive, let wanted = wantedOffset() else { return }
         let now = nowMs()
         motionRequest = (wanted, now)
+        if holdParams.toolMotion == .coordinatedHeight {
+            updateCoordinatedHeight(wanted, link: link, at: now)
+            return
+        }
         // What is still to do, measured from where the arm was when this server hold started.
         let remaining = wanted - armProgress
         let distance = simd_length(remaining)
@@ -727,6 +741,56 @@ final class LiveLinkController {
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
         let resyncAfter = toolControl ? Self.toolResyncAfterMs : Self.resyncAfterMs
         if catchingUp, now - segmentStartedMs >= resyncAfter { beginResync() }
+    }
+
+    private func updateCoordinatedHeight(_ wanted: SIMD3<Float>, link: TeleopLink, at now: Int) {
+        func stop(_ events: [FeedbackEvent]) {
+            link.poseStop()
+            noteStopSent()
+            endedTranslation(events)
+            holdEnded()
+            onAction?(.holdArmEnd)
+        }
+        let recoveringPriorRefusal =
+            coordinatedAwaitingFirstTrackingState
+            && (0...FeedbackMonitor.freshStateMs).contains(now - segmentStartedMs)
+            && newestArmState?.activity == .other("no_solution")
+        guard let start = armAtSegmentStart, let state = newestArmState,
+            let measured = state.toolPoint, let age = newestArmAgeMs,
+            (0...FeedbackMonitor.freshStateMs).contains(age), !state.estop, !state.simBusy,
+            newestState?.estop != true, newestState?.simBusy != true,
+            wanted.x == 0, wanted.y == 0, wanted.z.isFinite
+        else {
+            onLog?("link: coordinated height has no fresh vertical tracking state, hold ended")
+            stop(monitor.endedByApp(.noAnswer))
+            return
+        }
+        guard state.activity == .ok || state.activity == .poseTracking || recoveringPriorRefusal else {
+            if state.activity == .other("no_solution"), !coordinatedAwaitingFirstTrackingState {
+                onLog?("link: coordinated height ended by server no_solution")
+                lastRefusal = ("no_solution", now)
+                stop(monitor.startRefused(reason: "no_solution", at: now))
+            } else {
+                onLog?("link: coordinated height has no current tracking state, hold ended")
+                stop(monitor.endedByApp(.noAnswer))
+            }
+            return
+        }
+        let progress = start.z - Float(measured.z)
+        let remaining = wanted.z - progress
+        let lead = min(max(remaining, -Self.toolMaxLeadMeters), Self.toolMaxLeadMeters)
+        let delta = SIMD3<Float>(0, 0, progress + lead)
+        leadCapped = abs(remaining) > Self.toolMaxLeadMeters
+        link.poseUpdate(positionMeters: [0, 0, Double(delta.z)])
+        syncStart()
+        if !link.startHeldBack {
+            let intent = start + SIMD3<Float>(0, 0, -wanted.z)
+            let target = start + SIMD3<Float>(0, 0, -delta.z)
+            toolTargets = (intent, target)
+            monitor.commanded(SIMD3<Double>(intent), point: .tool)
+            motionUpdate = (delta, commandedArm, now)
+        }
+        onCatchingUp?(leadCapped)
     }
 
     private func recordMotion() {
@@ -955,6 +1019,7 @@ final class LiveLinkController {
         if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
         if let serverMs { newestStateServerMs = serverMs }
         newestState = state
+        if state.activity != .other("no_solution") { coordinatedAwaitingFirstTrackingState = false }
         newestStateAtMs = nowMs()
         if state.endEffector != nil {
             newestArmState = state
