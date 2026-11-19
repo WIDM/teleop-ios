@@ -3,7 +3,16 @@ name: ios
 on:
   push:
   pull_request:
+  # Every night at 02:00 Asia/Taipei, on the default branch: the full Default plan, every UI test included.
+  schedule:
+    - cron: "0 18 * * *"
   workflow_dispatch:
+    inputs:
+      plan:
+        description: Test plan for the app job
+        type: choice
+        options: [Critical, Default]
+        default: Critical
 
 # A newer push to the same branch cancels the run still going for the older one.
 concurrency:
@@ -66,9 +75,12 @@ jobs:
       - name: Session safety checker (every action in every reachable state)
         run: tools/session-safety/scripts/check.sh
 
-  # The app's unit and UI tests: the long job.
+  # The app's unit tests and UI tests. A push or pull request runs the Critical plan (every unit test, only the
+  # critical-path UI tests); the nightly run runs Default (every UI test). See docs/TESTING.md.
   app:
     runs-on: macos-15
+    env:
+      TEST_PLAN: ${{ github.event_name == 'schedule' && 'Default' || inputs.plan || 'Critical' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -92,13 +104,13 @@ jobs:
       - name: Prepare build dir
         run: mkdir -p build
 
-      - name: xcodebuild test
+      - name: xcodebuild test (${{ env.TEST_PLAN }} plan)
         run: |
           set -o pipefail
           xcodebuild test \
             -project Teleop.xcodeproj \
             -scheme Teleop \
-            -testPlan Default \
+            -testPlan "$TEST_PLAN" \
             -destination "platform=iOS Simulator,name=$SIM_NAME" \
             -resultBundlePath build/Teleop.xcresult \
             CODE_SIGNING_ALLOWED=NO \
