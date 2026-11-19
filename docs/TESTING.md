@@ -237,6 +237,11 @@ stop, a stop from the server, a restarted server, an owed STOP released before c
 release that must not confirm the STOP pressed right after it, and a reset from the stop that the server carried out
 but whose answer the lost link kept back.
 
+Before the app connects again, and before a server stops, these tests wait until the local server has read the close
+of every socket the app closed (`LocalTeleopServer.openSockets` back to 0). On a CI runner, closing a socket
+sometimes held up all networking in the test process for several seconds (3.7 s and 6.4 s were seen), so a connect
+made right after a close did not start in time; the server only reads such a close after the hold-up has passed.
+
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,
 the app leaves the foreground or the camera stops.

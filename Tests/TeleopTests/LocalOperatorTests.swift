@@ -14,6 +14,9 @@ final class LocalOperatorTests: XCTestCase {
 
     override func tearDown() {
         hand?.finish()
+        if hand != nil, let server {
+            XCTAssertTrue(server.waitForTheAppsSocketsToClose(), "the server still holds \(server.openSockets) sockets")
+        }
         hand = nil
         server?.stop()
         server = nil
