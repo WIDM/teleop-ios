@@ -35,6 +35,10 @@ final class AppModel {
     @ObservationIgnored private let axisRecognizer: AxisSpeechRecognizing
     @ObservationIgnored private var voiceResume: DispatchWorkItem?
     @ObservationIgnored let voiceActionsPrototype: Bool
+    /// Whether the operating screen offers the voice control. Off unless the app is launched with `-voiceEntry YES`:
+    /// voice input is an unfinished experiment, and a control on the screen would present it as a feature.
+    @ObservationIgnored let voiceEntryShown: Bool =
+        UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["voiceEntry"] as? String == "YES"
     @ObservationIgnored private var voiceMotion: VoiceMotion?
 
     private enum VoiceGoal {
@@ -126,6 +130,7 @@ final class AppModel {
     @ObservationIgnored private var lastWelcomeSession: String?
     /// The newest refusal the operator heard, and when, for the one-second display.
     @ObservationIgnored private var lastRefusal: (refusal: Refusal, atMs: Int)?
+    @ObservationIgnored private var lastServerRefusal: (refusalClass: ServerRefusalClass, moveEnded: Bool, atMs: Int)?
     /// The newest ending of a follow or a move nobody held that the operator did not cause, and when, shown as a
     /// refusal is.
     @ObservationIgnored private var lastEnded: (end: DriveEnd, atMs: Int)?
@@ -976,6 +981,10 @@ final class AppModel {
         cues.raise(event)
         switch event {
         case .refused(let refusal): lastRefusal = (refusal, nowMs())
+        // A server's refusal of a start is shown as a refusal is, and its ending of a move nobody holds as that move's
+        // ending; its ending of a hold someone holds, as a let-go, is not.
+        case .serverRefusal(let refusalClass, accepted: false): lastServerRefusal = (refusalClass, false, nowMs())
+        case .drive(.endedByServer(let refusalClass)): lastServerRefusal = (refusalClass, true, nowMs())
         // The operator's own ending and an arrival are not shown: the operator knows why.
         case .drive(.ended(let end)): lastEnded = (end, nowMs())
         case .takeSaved(let count): lastSaved = (count, nowMs())
@@ -1212,6 +1221,7 @@ final class AppModel {
             facts.serverResetting = link.resetPending || serverState?.activity == .resetting
         }
         facts.lastRefusal = lastRefusal
+        facts.lastServerRefusal = lastServerRefusal
         facts.lastEnded = lastEnded
         facts.lastSaved = lastSaved
         facts.nowMs = nowMs()
@@ -1425,7 +1435,9 @@ final class AppModel {
                 let axis = controller.arbiter.translationAxis
                 let params = PoseParams(
                     gain: axis == nil ? after.sensitivity : 0.2, smoothing: axis == nil ? after.smoothing : 0,
-                    toolCalibrationID: link.toolCalibrationID,
+                    // A free move follows the hand, which turns and curves; the tool-point path holds each server
+                    // hold to one straight line and a fixed wrist, so it is asked for only when one axis is chosen.
+                    toolCalibrationID: axis == nil ? nil : link.toolCalibrationID,
                     toolMotion: axis == .height && link.supportsCoordinatedHeight ? .coordinatedHeight : nil)
                 let held = PhonePosture.of(pose())
                 if held == .tilted || !link.startHold(params, axis: axis) {

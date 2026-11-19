@@ -1136,6 +1136,8 @@ final class LiveLinkController {
                 onFeedback?(.drive(.ended(DriveEnd(byLink: reason))))
             case (true, .refused(let refusal)):
                 if let end = DriveEnd(refused: refusal) { onFeedback?(.drive(.ended(end))) }
+            case (true, .serverRefusal(let refusalClass, _)):
+                onFeedback?(.drive(DriveCue(server: refusalClass)))
             default:
                 onFeedback?(event)
             }
@@ -1160,7 +1162,7 @@ final class LiveLinkController {
     /// A let-go or a refusal: what the link says when a hold it ran has ended.
     private static func endsTheHold(_ event: FeedbackEvent) -> Bool {
         switch event {
-        case .letGo, .refused: return true
+        case .letGo, .refused, .serverRefusal: return true
         default: return false
         }
     }

@@ -34,6 +34,9 @@ struct OperatingFacts {
     var serverResetting = false
     /// The newest refusal the operator heard and the newest saved take, with when (ms on the model's clock).
     var lastRefusal: (refusal: Refusal, atMs: Int)?
+    /// A server's refusal of a start (`moveEnded` false) or ending of a move nobody holds, by what the operator can do
+    /// about it. Shown in a refusal's place and time.
+    var lastServerRefusal: (refusalClass: ServerRefusalClass, moveEnded: Bool, atMs: Int)?
     /// The newest ending of a follow or a move nobody held that the operator heard and did not cause, with when.
     var lastEnded: (end: DriveEnd, atMs: Int)?
     var lastSaved: (count: Int, atMs: Int)?
@@ -65,9 +68,15 @@ enum OperatingRules {
         if let saved = f.lastSaved, f.nowMs - saved.atMs < savedShownMs { return .saved(count: saved.count) }
         if let held = f.engaged { return holding(held, f) }
         // Why a follow or a move nobody held ended takes a refusal's place and time; of the two, the newer is shown.
+        // A server's refusal is a refusal too: of the three, the newest is shown.
         let refused = f.lastRefusal.flatMap { f.nowMs - $0.atMs < refusalShownMs ? $0 : nil }
+        let serverRefused = f.lastServerRefusal.flatMap { f.nowMs - $0.atMs < refusalShownMs ? $0 : nil }
         let ended = f.lastEnded.flatMap { f.nowMs - $0.atMs < refusalShownMs ? $0 : nil }
-        if let ended, ended.atMs > refused?.atMs ?? Int.min { return .ended(ended.end) }
+        let refusedAtMs = max(refused?.atMs ?? Int.min, serverRefused?.atMs ?? Int.min)
+        if let ended, ended.atMs > refusedAtMs { return .ended(ended.end) }
+        if let serverRefused, serverRefused.atMs > refused?.atMs ?? Int.min {
+            return .serverRefused(serverRefused.refusalClass, moveEnded: serverRefused.moveEnded)
+        }
         if let refused { return .refused(refused.refusal) }
         if f.serverResetting { return .wait(.resetting) }
         if f.serverSaving { return .wait(.saving) }

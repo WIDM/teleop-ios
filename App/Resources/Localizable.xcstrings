@@ -1569,6 +1569,54 @@
         }
       }
     },
+    "refusal.contact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touching something"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碰到東西"
+          }
+        }
+      }
+    },
+    "refusal.joint_limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arm at its limit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂彎到底"
+          }
+        }
+      }
+    },
+    "refusal.reach": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach that way"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個方向到不了"
+          }
+        }
+      }
+    },
     "refusal.slow_link": {
       "localizations": {
         "en": {

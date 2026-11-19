@@ -9,6 +9,16 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 29 no longer offers the voice control on the operating screen. Voice input is an unfinished experiment;
+  with it switched on, every move by the volume key was refused with "Wait." until an axis had been spoken. The
+  control appears only when the app is launched with `-voiceEntry YES`.
+
+- Build 29 says what to do when the server refuses or ends a manual arm hold because the arm touched something
+  ("Touching something. Open the gripper or lift."), reached a joint's limit ("Arm at its limit. Move the other
+  way.") or cannot get there along its path ("Can't reach that way. Back off a little."), instead of "The server
+  refused that move." A refused start shows a short form on the screen, such as "Touching something". Other reasons keep the general words. The hold still ends
+  and nothing restarts by itself.
+
 - Build 28 reports a server refusal received during manual-motion resynchronization immediately, instead of
   later misreporting a response timeout. Released holds and delayed responses from older holds remain inert.
 

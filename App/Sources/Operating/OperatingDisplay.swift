@@ -22,6 +22,9 @@ enum OperatingState: Equatable, Sendable {
     case wait(WaitReason)
     case trackingLost  // the camera stopped: the keys and the phone's movement do nothing
     case refused(Refusal)  // shown for 1 s
+    /// The server refused a start, or ended a move nobody held (`moveEnded`), for a reason of this class. Shown as a
+    /// refusal is, for 1 s, in words that say what to do.
+    case serverRefused(ServerRefusalClass, moveEnded: Bool)
     /// A follow or a move nobody held ended for this reason, which the operator did not give. Shown as a refusal is,
     /// for 1 s, in the words spoken.
     case ended(DriveEnd)
@@ -46,6 +49,8 @@ enum OperatingState: Equatable, Sendable {
         case .wait(let reason): return "wait \(reason)"
         case .trackingLost: return "tracking lost"
         case .refused(let reason): return "refused \(reason)"
+        case .serverRefused(let refusalClass, let moveEnded):
+            return moveEnded ? "ended by server \(refusalClass)" : "server refused \(refusalClass)"
         case .ended(let reason): return "ended \(reason)"
         case .slowLink: return "slow link"
         case .stopped: return "stopped"

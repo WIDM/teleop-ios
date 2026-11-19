@@ -21,6 +21,13 @@ private final class ManualToolTransport: LinkTransport {
 }
 
 final class ManualToolControlTests: XCTestCase {
+    /// Whether an event tells the operator that the server refused or ended a hold: the general words, or the words
+    /// of a reason that has its own class.
+    private static func tellsAServerRefusal(_ event: CueKey) -> Bool {
+        if case .serverRefusal = event { return true }
+        return event == .letGo(.lateRejection) || event == .refused(.serverRefused)
+    }
+
     private var model: AppModel!
     private var wire: ManualToolTransport!
     private var clock = 10_000
@@ -200,14 +207,14 @@ final class ManualToolControlTests: XCTestCase {
             XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
             XCTAssertEqual(
                 model.cueLog.filter {
-                    $0.event == .letGo(.lateRejection) || $0.event == .refused(.serverRefused)
+                    Self.tellsAServerRefusal($0.event)
                 }.count, 1)
             clock += 100
             model.link.tick()
             XCTAssertEqual(wire.messages("pose_update").count, updates)
             XCTAssertEqual(
                 model.cueLog.filter {
-                    $0.event == .letGo(.lateRejection) || $0.event == .refused(.serverRefused)
+                    Self.tellsAServerRefusal($0.event)
                 }.count, 1)
         }
     }
@@ -271,15 +278,17 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertFalse(model.session.state.armMoving)
     }
 
-    func testPhoneTranslationUsesCalibratedToolWithoutVoiceOrAidAndStopsOnRelease() throws {
+    /// A free move follows the hand, which turns and curves. The tool-point path holds each server hold to one
+    /// straight line with a fixed wrist and refuses a turn, so a free move does not ask for it.
+    func testAFreePhoneMoveDoesNotAskForTheToolPointAndStopsOnRelease() throws {
         for mode in [ControlMode.screenTurns, .keyTurns] {
             bringUp(mode: mode)
             XCTAssertFalse(model.operating.taskAid)
             XCTAssertFalse(model.voiceAxisSession.enabled)
             model.keyEvent(.upper, down: true)
             let start = try lastPayload("pose_start")
-            XCTAssertEqual(start["control_point"] as? String, "tool")
-            XCTAssertEqual(start["calibration_id"] as? String, "test-tool")
+            XCTAssertNil(start["control_point"])
+            XCTAssertNil(start["calibration_id"])
             var lowered = TestPose.portrait
             lowered.columns.3.y -= 0.005
             camera = lowered
@@ -318,13 +327,9 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertEqual(wire.messages("pose_stop").count, 1)
     }
 
-    func testMissingToolMeasurementRefusesManualPhoneAndPadRatherThanUsingOrigin() {
+    func testMissingToolMeasurementRefusesThePadRatherThanUsingOrigin() {
         bringUp()
         state(tool: nil)
-        model.keyEvent(.upper, down: true)
-        XCTAssertTrue(wire.messages("pose_start").isEmpty)
-        XCTAssertFalse(model.session.state.armMoving)
-        model.keyEvent(.upper, down: false)
         model.setPrecisionPanelOpen(true)
         model.buttonDown(.down)
         XCTAssertTrue(wire.messages("pose_start").isEmpty)
@@ -332,13 +337,9 @@ final class ManualToolControlTests: XCTestCase {
         model.buttonUp(.down)
     }
 
-    func testStaleToolMeasurementRefusesManualPhoneAndPad() {
+    func testStaleToolMeasurementRefusesThePad() {
         bringUp()
         clock += FeedbackMonitor.freshStateMs + 1
-        model.keyEvent(.upper, down: true)
-        XCTAssertTrue(wire.messages("pose_start").isEmpty)
-        XCTAssertFalse(model.session.state.armMoving)
-        model.keyEvent(.upper, down: false)
         model.setPrecisionPanelOpen(true)
         model.buttonDown(.down)
         XCTAssertTrue(wire.messages("pose_start").isEmpty)
@@ -490,7 +491,10 @@ final class ManualToolControlTests: XCTestCase {
         for aids in [false, true] {
             for progresses in [false, true] {
                 bringUp(aids: aids)
-                model.keyEvent(.upper, down: true)
+                // A phone hold on the tool point, started at the link: a free move by the key no longer asks for it.
+                XCTAssertTrue(
+                    model.link.startHold(
+                        PoseParams(gain: 1, smoothing: 0, toolCalibrationID: "test-tool", toolMotion: nil), axis: nil))
                 var raised = TestPose.portrait
                 raised.columns.3.y += 0.03
                 camera = raised
@@ -516,7 +520,7 @@ final class ManualToolControlTests: XCTestCase {
                 XCTAssertEqual(blocked, progresses ? 0 : 1, "aids = \(aids), progresses = \(progresses)")
                 XCTAssertNil(
                     model.link.commandedArm, "tool coordinates must not be interpreted as origin workspace commands")
-                model.keyEvent(.upper, down: false)
+                model.link.endHold()
                 clock += 200
                 model.link.tick()
                 XCTAssertEqual(model.cueLog.filter { $0.event == .limit(.blocked) }.count, blocked)
@@ -669,14 +673,14 @@ final class ManualToolControlTests: XCTestCase {
             ]
             wire.receive("ack", stopFirst ? rejectedStop : rejectedStart)
             wire.receive("ack", stopFirst ? rejectedStart : rejectedStop)
-            let refusals = model.cueLog.filter { $0.event == .letGo(.lateRejection) }.count
+            let refusals = model.cueLog.filter { Self.tellsAServerRefusal($0.event) }.count
             XCTAssertEqual(refusals, 1, "stopFirst = \(stopFirst)")
             let updates = wire.messages("pose_update").count
             clock += LiveLinkController.resyncTimeoutMs + 1
             state()
             model.link.tick()
             XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
-            XCTAssertEqual(model.cueLog.filter { $0.event == .letGo(.lateRejection) }.count, 1)
+            XCTAssertEqual(model.cueLog.filter { Self.tellsAServerRefusal($0.event) }.count, 1)
             XCTAssertEqual(wire.messages("pose_start").count, 1)
             XCTAssertEqual(wire.messages("pose_update").count, updates)
         }

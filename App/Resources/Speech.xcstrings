@@ -1028,6 +1028,54 @@
           }
         }
       }
+    },
+    "say.refused.contact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touching something. Open the gripper or lift."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碰到東西了。打開夾爪或抬高再試。"
+          }
+        }
+      }
+    },
+    "say.refused.joint_limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arm at its limit. Move the other way."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂彎到底了。請往反方向移。"
+          }
+        }
+      }
+    },
+    "say.refused.reach": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach that way. Back off a little."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個方向到不了。請退回一點。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

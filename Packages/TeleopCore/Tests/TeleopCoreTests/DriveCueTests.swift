@@ -13,7 +13,7 @@ final class DriveCueTests: XCTestCase {
     }
 
     func testEveryDriveRowSpeaksAtP2AndHasAHaptic() {
-        XCTAssertEqual(driveRows.count, 4 + DriveEnd.allCases.count)
+        XCTAssertEqual(driveRows.count, 4 + DriveEnd.allCases.count + ServerRefusalClass.allCases.count)
         XCTAssertEqual(Set(driveRows.map(\.key)), Set(DriveCue.allCases.map(CueKey.drive)))
         for row in driveRows {
             XCTAssertNotNil(row.haptic, "\(row.key)")

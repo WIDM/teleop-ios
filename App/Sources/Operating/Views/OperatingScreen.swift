@@ -676,24 +676,27 @@ private struct OperatingControls: View {
                             width: cs.width - 32, height: ReleaseButton.height(scale)
                         ))
             } else if display.linkUp {
-                Button {
-                    model.toggleVoiceAxis()
-                } label: {
-                    Text(verbatim: model.voiceAxisLabel)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(TeleopColors.card, in: Capsule())
+                if model.voiceEntryShown {
+                    Button {
+                        model.toggleVoiceAxis()
+                    } label: {
+                        Text(verbatim: model.voiceAxisLabel)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(TeleopColors.card, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(TeleopColors.textPrimary)
+                    .accessibilityHint(
+                        Text(verbatim: L10n.string(model.voiceActionsPrototype ? "voice.action.hint" : "voice.hint"))
+                    )
+                    .accessibilityIdentifier("voice.axis")
+                    .place(
+                        SurfaceLayout.Rect(x: cs.x + 16, y: cs.maxY - 52, width: max(100, cs.width - 176), height: 44))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(TeleopColors.textPrimary)
-                .accessibilityHint(
-                    Text(verbatim: L10n.string(model.voiceActionsPrototype ? "voice.action.hint" : "voice.hint"))
-                )
-                .accessibilityIdentifier("voice.axis")
-                .place(SurfaceLayout.Rect(x: cs.x + 16, y: cs.maxY - 52, width: max(100, cs.width - 176), height: 44))
                 Button {
                     model.setPrecisionPanelOpen(true)
                 } label: {

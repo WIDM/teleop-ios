@@ -83,11 +83,12 @@ enum OperatingWords {
                 colour: TeleopColors.stateAmber)
         case .refused(let refusal):
             return Look(word: reason(refusal), details: [], colour: TeleopColors.stateAmber)
+        case .serverRefused(let refusalClass, moveEnded: false):
+            return Look(word: reason(refusalClass), details: [], colour: TeleopColors.stateAmber)
+        case .serverRefused(let refusalClass, moveEnded: true):
+            return endedLook(.endedByServer(refusalClass))
         case .ended(let end):
-            // The words the operator heard, "Stopped here" and then why, in the place and colour of a refusal.
-            let words = CueTable.row(for: .drive(.ended(end))).speech.map(spoken)
-            return Look(
-                word: words.first ?? "", details: Array(words.dropFirst()), colour: TeleopColors.stateAmber)
+            return endedLook(.ended(end))
         case .slowLink(let ms):
             return Look(
                 word: L10n.string("state.slow_link"), details: [String(format: L10n.string("detail.latency"), ms)],
@@ -140,6 +141,23 @@ enum OperatingWords {
         case .tapStill: return L10n.string("refusal.tap_still")
         case .tapLetGo: return L10n.string("refusal.tap_let_go")
         case .tapViewAbove: return L10n.string("refusal.tap_view_above")
+        }
+    }
+
+    /// How a move nobody held ended: the words the operator heard, "Stopped here" and then why, in the place and colour
+    /// of a refusal.
+    private static func endedLook(_ cue: DriveCue) -> Look {
+        let words = CueTable.row(for: .drive(cue)).speech.map(spoken)
+        return Look(word: words.first ?? "", details: Array(words.dropFirst()), colour: TeleopColors.stateAmber)
+    }
+
+    /// A server's refusal by what the operator can do; the general class says what `.serverRefused` says.
+    static func reason(_ refusalClass: ServerRefusalClass) -> String {
+        switch refusalClass {
+        case .contact: return L10n.string("refusal.contact")
+        case .jointLimit: return L10n.string("refusal.joint_limit")
+        case .reach: return L10n.string("refusal.reach")
+        case .other: return reason(.serverRefused)
         }
     }
 

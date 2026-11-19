@@ -188,15 +188,21 @@ public struct FeedbackMonitor {
         // A success is told by the recorder narration, and an emergency stop by its own event; neither is a
         // refusal or a let-go.
         if reason == TeleopLink.successReason || Self.emergencyStopReasons.contains(reason) { return [] }
+        // A reason the operator can act on is told by what to do; any other keeps the general words.
+        let refusalClass = ServerRefusalClass(reason: reason)
         if !current.accepted {
             switch reason {
             case "busy": return [.refused(.busy)]
             case "sim_not_ready": return [.refused(.notReady)]
             case "estop_active": return [.refused(.emergencyStop)]
-            default: return [.refused(.serverRefused)]
+            default:
+                return [
+                    refusalClass == .other ? .refused(.serverRefused) : .serverRefusal(refusalClass, accepted: false)
+                ]
             }
         }
-        return [.letGo(reason.hasSuffix("_watchdog_timeout") ? .watchdog : .lateRejection)]
+        if reason.hasSuffix("_watchdog_timeout") { return [.letGo(.watchdog)] }
+        return [refusalClass == .other ? .letGo(.lateRejection) : .serverRefusal(refusalClass, accepted: true)]
     }
 
     /// The operator let go of `kind` and the app sent its stop; nil: whatever is engaged. A stop for another kind

@@ -33,12 +33,25 @@ final class VoiceAxisEntryUITests: XCTestCase {
         exerciseEntry(aids: true, shortScreen: true, mode: "screenTurns")
     }
 
+    func testTheOperatingScreenOffersNoVoiceControlUnlessAskedFor() {
+        let app = XCUIApplication.teleop([
+            "-liveLink", "YES", "-serverAddress", server.address, "-startRoute", "p4_standby",
+            "-controlMode", "screenTurns", "-assist", "YES", "-lockVariant", "off",
+        ])
+        app.launch()
+        defer { app.terminate() }
+        expectLabel(app.element("operating.state"), "Available", timeout: 8)
+        XCTAssertFalse(app.element("voice.axis").exists, "voice input is an experiment and must not be offered")
+        XCTAssertTrue(app.element("precision.open").isHittable)
+        XCTAssertTrue(app.element("operating.stop").isHittable)
+    }
+
     private func exerciseEntry(aids: Bool, shortScreen: Bool, mode: String) {
         let app = XCUIApplication.teleop(
             [
                 "-liveLink", "YES", "-serverAddress", server.address, "-startRoute", "p4_standby",
                 "-controlMode", mode, "-assist", aids ? "YES" : "NO", "-taskAid", aids ? "YES" : "NO",
-                "-lockVariant", "off",
+                "-lockVariant", "off", "-voiceEntry", "YES",
             ] + (shortScreen ? ["-screenFrame", "375x667x20x0"] : []))
         app.launch()
         defer { app.terminate() }

@@ -142,9 +142,19 @@ public enum DriveCue: Hashable, Sendable {
     case stoppedByYouTapOnce
     /// Anything else ended it.
     case ended(DriveEnd)
+    /// The server refused or ended it for a reason of this class, told by what the operator can do. The general
+    /// class says what `.ended(.serverRefused)` says.
+    case endedByServer(ServerRefusalClass)
+
+    /// How a server's refusal or ending of a move nobody holds is told: by its class, or, for the general class,
+    /// as the ending it has always been.
+    public init(server refusalClass: ServerRefusalClass) {
+        self = refusalClass == .other ? .ended(.serverRefused) : .endedByServer(refusalClass)
+    }
 
     public static var allCases: [DriveCue] {
         [.latched, .arrived, .stoppedByYou, .stoppedByYouTapOnce] + DriveEnd.allCases.map(DriveCue.ended)
+            + ServerRefusalClass.allCases.map(DriveCue.endedByServer)
     }
 }
 
@@ -162,6 +172,10 @@ public enum FeedbackEvent: Equatable, Sendable {
     case onTarget
     /// E3
     case letGo(LetGoReason)
+    /// The server refused (`accepted` false) or ended (`accepted` true) the operator's hold for a reason of this class.
+    /// `FeedbackMonitor` uses it for the classes the operator can act on; the general class keeps `.refused` and
+    /// `.letGo`, and its rows here say the same as those.
+    case serverRefusal(ServerRefusalClass, accepted: Bool)
     /// E7. `takeDiscarded`: a take was being captured, so the stop threw it away.
     case emergencyStop(EmergencyCause, takeDiscarded: Bool)
     /// E8. `holdEngaged`: a hold was running when the link went.
@@ -204,6 +218,7 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .contact: return .contact
         case .onTarget: return .onTarget
         case .letGo(let reason): return .letGo(reason)
+        case .serverRefusal(let refusalClass, let accepted): return .serverRefusal(refusalClass, accepted: accepted)
         case .emergencyStop(let cause, let discarded): return .emergencyStop(cause, takeDiscarded: discarded)
         case .linkLost(let engaged): return .linkLost(holdEngaged: engaged)
         case .reconnected: return .reconnected
@@ -243,6 +258,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case contact
     case onTarget
     case letGo(LetGoReason)
+    case serverRefusal(ServerRefusalClass, accepted: Bool)
     case emergencyStop(EmergencyCause, takeDiscarded: Bool)
     case linkLost(holdEngaged: Bool)
     case reconnected
@@ -271,7 +287,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     enum Kind: CaseIterable {
         case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
-        case ready, voiceAxis, recordingSession, notRecording, notReset, drive, commandOutside
+        case ready, voiceAxis, recordingSession, notRecording, notReset, drive, commandOutside, serverRefusal
     }
 
     var kind: Kind {
@@ -282,6 +298,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .contact: return .contact
         case .onTarget: return .onTarget
         case .letGo: return .letGo
+        case .serverRefusal: return .serverRefusal
         case .emergencyStop: return .emergencyStop
         case .linkLost: return .linkLost
         case .reconnected: return .reconnected
@@ -332,6 +349,10 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .notReset: return [.notReset]
         case .drive: return DriveCue.allCases.map(CueKey.drive)
         case .commandOutside: return OperatorDirection.allCases.map(CueKey.commandOutside)
+        case .serverRefusal:
+            return ServerRefusalClass.allCases.flatMap { refusalClass in
+                [false, true].map { CueKey.serverRefusal(refusalClass, accepted: $0) }
+            }
         }
     }
 }

@@ -60,6 +60,12 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case noAnswer = "say.letgo.no_answer"
     case linkHiccup = "say.letgo.link_hiccup"
     case refusedMove = "say.letgo.refused"
+    /// What to do when the server refused or ended a hold because the arm touched something.
+    case refusedContact = "say.refused.contact"
+    /// What to do when the server refused or ended a hold at a joint's limit.
+    case refusedJointLimit = "say.refused.joint_limit"
+    /// What to do when the server refused or ended a hold because the arm cannot get there this way.
+    case refusedReach = "say.refused.reach"
     case blocked = "say.blocked"
     case empty = "say.empty"
     case alreadyGripping = "say.already_gripping"
@@ -191,6 +197,19 @@ public enum CueTable {
         CueRow(.letGo(.lateRejection), .letGo, say: [.refusedMove], .p4),
         CueRow(.letGo(.slowLink), .letGo, say: [.slowLink], .p4),
 
+        // The server refused a hold's start (NO, as any refusal) or ended a running hold (LET GO, as any let-go), told
+        // by what the operator can do. The general class says what `.refused(.serverRefused)` and
+        // `.letGo(.lateRejection)` say.
+        // The words of a classed refusal say what to do, so they wait for the voice instead of being dropped.
+        CueRow(.serverRefusal(.contact, accepted: false), .no, say: [.refusedContact], .p2),
+        CueRow(.serverRefusal(.jointLimit, accepted: false), .no, say: [.refusedJointLimit], .p2),
+        CueRow(.serverRefusal(.reach, accepted: false), .no, say: [.refusedReach], .p2),
+        CueRow(.serverRefusal(.other, accepted: false), .no),
+        CueRow(.serverRefusal(.contact, accepted: true), .letGo, say: [.refusedContact], .p2),
+        CueRow(.serverRefusal(.jointLimit, accepted: true), .letGo, say: [.refusedJointLimit], .p2),
+        CueRow(.serverRefusal(.reach, accepted: true), .letGo, say: [.refusedReach], .p2),
+        CueRow(.serverRefusal(.other, accepted: true), .letGo, say: [.refusedMove], .p4),
+
         CueRow(.emergencyStop(.button, takeDiscarded: false), .alarm, say: [.estop, .causeButton, .resetPrompt], .p1),
         CueRow(
             .emergencyStop(.button, takeDiscarded: true), .alarm,
@@ -251,6 +270,10 @@ public enum CueTable {
         ending(.linkHiccup),
         ending(.serverRefused),
         ending(.serverBusy),
+        serverEnding(.contact),
+        serverEnding(.jointLimit),
+        serverEnding(.reach),
+        serverEnding(.other),
     ]
 
     /// An ending the operator did not cause says "Stopped here." and then why, or "Stopped here." alone when nobody
@@ -278,6 +301,23 @@ public enum CueTable {
         case .linkHiccup: return [.linkHiccup]
         case .serverRefused: return [.refusedMove]
         case .serverBusy: return [.driveServerBusy]
+        }
+    }
+
+    /// A move nobody holds that the server refused or ended says "Stopped here." and then what to do about it.
+    private static func serverEnding(_ refusalClass: ServerRefusalClass) -> CueRow {
+        CueRow(
+            .drive(.endedByServer(refusalClass)), .letGo, say: [.driveStoppedHere] + serverReason(refusalClass), .p2)
+    }
+
+    /// What to do about a server's refusal of this class; the general class keeps the general refusal words. A total
+    /// switch, so a new class does not compile without its words.
+    private static func serverReason(_ refusalClass: ServerRefusalClass) -> [SpeechKey] {
+        switch refusalClass {
+        case .contact: return [.refusedContact]
+        case .jointLimit: return [.refusedJointLimit]
+        case .reach: return [.refusedReach]
+        case .other: return [.refusedMove]
         }
     }
 
