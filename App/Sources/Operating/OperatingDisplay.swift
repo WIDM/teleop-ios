@@ -119,4 +119,7 @@ struct OperatingDisplay: Equatable, Sendable {
     /// nothing, and the screen says so.
     var aidsOff = false
     var precisionPanelOpen = false
+    /// A translation just started with the jaws still closed as the episode began: a line under the moving state says
+    /// to open them before moving in (`JawsClosedReminder`).
+    var openJawsFirst = false
 }

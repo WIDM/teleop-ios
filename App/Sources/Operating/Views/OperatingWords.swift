@@ -15,6 +15,8 @@ enum OperatingWords {
 
     static func look(_ display: OperatingDisplay) -> Look {
         var look = stateLook(display)
+        // Only a translation's state carries it (`OperatingRules.showsOpenJawsFirst`); last, under its own lines.
+        if display.openJawsFirst { look.details.append(L10n.string("detail.open_jaws_first")) }
         if display.practice, look.details.isEmpty { look.details = [L10n.string("detail.no_robot")] }
         look.note = aidsOffNote(display)
         return look

@@ -3616,6 +3616,22 @@
           }
         }
       }
+    },
+    "detail.open_jaws_first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gripper is closed. Open it before moving in."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪是合著的。先打開再靠近。"
+          }
+        }
+      }
     }
   },
   "sourceLanguage": "en",

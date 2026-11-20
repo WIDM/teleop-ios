@@ -145,6 +145,8 @@ final class AppModel {
     @ObservationIgnored private var lastEnded: (end: DriveEnd, atMs: Int)?
     /// The newest saved take, and when, for the two-second display.
     @ObservationIgnored private var lastSaved: (count: Int, atMs: Int)?
+    /// When the screen last told the operator to open the jaws before moving in, for the line under the moving state.
+    @ObservationIgnored private(set) var lastOpenJawsFirstAtMs: Int?
     /// Where the arm hold being started takes its motion from: the phone, a pad button, or a move to a point the
     /// operator tapped. The phone unless a caller says otherwise.
     @ObservationIgnored private var pendingArmSource: ArmSource = .phone
@@ -391,6 +393,7 @@ final class AppModel {
         cues.isReady = { [weak self] in self?.readyToAnnounce == true }
         cues.onLog = { [weak self] in self?.log("~ \($0)") }
         link.onFeedback = { [weak self] in self?.raise($0) }
+        link.onOpenJawsFirst = { [weak self] in self?.showOpenJawsFirst() }
         link.onState = { [weak self] in self?.stateArrived($0) }
         link.onWelcome = { [weak self] in self?.welcomed(session: $0) }
         link.onGripping = { [weak self] _ in self?.refreshOperating() }
@@ -1028,6 +1031,12 @@ final class AppModel {
         refreshOperating()
     }
 
+    /// The line under the moving state that says to open the jaws before moving in: shown only, never a cue.
+    private func showOpenJawsFirst() {
+        lastOpenJawsFirstAtMs = nowMs()
+        refreshOperating()
+    }
+
     /// The cues decided so far, newest last.
     var cueLog: [CueLogEntry] { cues.log }
 
@@ -1241,15 +1250,17 @@ final class AppModel {
                 lowestPinchZ: link.lowestPinchSeen.map { Float($0) }) : nil
         // The guide's aids in force draw into the one picture; nil draws version 1.0.1's.
         let aids = assist
+        let facts = operatingFacts
         let display = OperatingDisplay(
-            mode: modeSetting, hand: handSetting, state: OperatingRules.state(operatingFacts), layout: surfaceLayout,
+            mode: modeSetting, hand: handSetting, state: OperatingRules.state(facts), layout: surfaceLayout,
             engaged: controller.engagedHold ?? Self.heldControl(s).map(Self.holdKind),
             resetCountdown: controller.resetCountdown, heldButton: controller.buttons.engaged,
             speed: controller.buttons.speed, recorder: recorder, stopExits: stopExits, linkUp: s.connected,
             latencyMs: s.latencyMs, address: s.serverAddress, arm: arm, practice: !s.liveLink, taskAid: taskAidSetting,
             guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids.guide, views: aids.views) },
             aidsOff: s.liveLink && !assistSetting && profile.assist != .none,
-            precisionPanelOpen: controller.precisionPanelOpen
+            precisionPanelOpen: controller.precisionPanelOpen,
+            openJawsFirst: OperatingRules.showsOpenJawsFirst(facts)
         )
         if operating.state != display.state {
             let summary = display.state.recordSummary
@@ -1322,6 +1333,8 @@ final class AppModel {
         facts.lastServerRefusal = lastServerRefusal
         facts.lastEnded = lastEnded
         facts.lastSaved = lastSaved
+        // The line is taken down as soon as it is no longer true: the jaws opened, or they hold something.
+        facts.lastOpenJawsFirstAtMs = link.jawsClosedWithNothingHeld ? lastOpenJawsFirstAtMs : nil
         facts.nowMs = nowMs()
         facts.turnLimit = profile.inputConstants.rollClampDeg
         facts.tiltLimit = profile.inputConstants.tiltClampDeg

@@ -52,6 +52,9 @@ final class LiveLinkController {
     var onStopSeen: (() -> Void)?
     /// What the operator should feel or hear about the engaged hold and the scene reset.
     var onFeedback: ((FeedbackEvent) -> Void)?
+    /// The first translation of an episode started with the jaws still closed (`JawsClosedReminder`): the screen says
+    /// to open them before moving in. Not a cue: nothing is felt or spoken.
+    var onOpenJawsFirst: (() -> Void)?
     /// Every `state` from either connection, in the order the server sent them, before the actions it leads to.
     var onState: ((ServerState) -> Void)?
     /// The control connection's `welcome`, with the server run it names.
@@ -180,6 +183,8 @@ final class LiveLinkController {
     private(set) var serverSaysStopped = false
     /// Whether the jaws hold an object, which decides the path of the pad's holds (`startPadHold`).
     private var objectHold = ObjectHold()
+    /// Whether the operator is still owed this episode's reminder to open the jaws before moving in.
+    private var jawsReminder: JawsClosedReminder
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -198,6 +203,7 @@ final class LiveLinkController {
         self.pose = pose
         self.nowMs = nowMs
         monitor = FeedbackMonitor(limits: gripperLimits)
+        jawsReminder = JawsClosedReminder(limits: gripperLimits)
     }
 
     var isOpen: Bool { transport != nil }
@@ -1118,6 +1124,7 @@ final class LiveLinkController {
             onLog?("link: scene reset")
             monitor.sceneReset()
             objectHold.apply(.sceneReset)
+            jawsReminder.sceneReset()
             leadBound.sceneReset()
             noteGripping()
             onAction?(.sceneResetDone)
@@ -1130,6 +1137,7 @@ final class LiveLinkController {
 
     private func welcomed(_ link: TeleopLink) {
         monitor.welcomed(session: link.serverSession)
+        jawsReminder.reconnected()
         noteGripping()
         onWelcome?(link.serverSession)
         openObserver()
@@ -1171,6 +1179,7 @@ final class LiveLinkController {
         }
         var events = monitor.observe(state, at: nowMs())
         objectHold.stateArrived(state)
+        jawsReminder.stateArrived(state)
         if events.contains(.contact) { objectHold.apply(.contactReported) }
         // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
         // ending. So the server's clamp of it plays no END and tells no side, and an arm held short of the command is
@@ -1255,9 +1264,11 @@ final class LiveLinkController {
                 ? newestArmState?.endEffector.map { SIMD3<Float>($0) }
                 : measuredControlPoint
         }
+        let operatorStart = !restarting
         feedbackStartSent(start.kind, restart: restarting, at: start.atMs)
         restarting = false
         noteGripping()
+        if start.kind == .pose, operatorStart { remindToOpenJawsFirst() }
         if start.kind == .wrist, wristTarget != nil {
             leadBound.holdStarted(measured: measuredWrist)
             onWristStartSent?()
@@ -1307,6 +1318,24 @@ final class LiveLinkController {
         monitor.startSent(kind, restart: restart, at: now)
         // The open lets go of the object only once a state shows the jaws opening (`ObjectHold.stateArrived`).
         if kind == .gripper(.open) { objectHold.apply(.openSent) }
+    }
+
+    /// What the reminder says still holds: the newest state shows the jaws closed, and they hold nothing.
+    var jawsClosedWithNothingHeld: Bool {
+        !objectHold.holding && !monitor.gripping
+            && JawsClosedReminder.jawsClosed(
+                newestState?.gripper, degrees: newestState?.gripperDeg, limits: jawsReminder.limits) == true
+    }
+
+    /// A translation the operator started has gone on the wire: the first of an episode with the jaws still closed as
+    /// it began shows, once, to open them before moving in. Shown only, never a cue; decided after the start, so the
+    /// move is never held back.
+    private func remindToOpenJawsFirst() {
+        let look = JawsClosedReminder.Look(
+            jaws: newestState?.gripper, jawDeg: newestState?.gripperDeg, holding: objectHold.holding,
+            gripping: monitor.gripping, stopped: serverSaysStopped || newestState?.estop == true,
+            simulatorHalted: stall.stalled)
+        if jawsReminder.translationStarted(look) { onOpenJawsFirst?() }
     }
 
     /// Hands events to AppModel. While the hold is one nobody holds, a let-go or a refusal of it becomes the move's own

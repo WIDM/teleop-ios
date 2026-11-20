@@ -45,6 +45,8 @@ struct OperatingFacts {
     /// The newest ending of a follow or a move nobody held that the operator heard and did not cause, with when.
     var lastEnded: (end: DriveEnd, atMs: Int)?
     var lastSaved: (count: Int, atMs: Int)?
+    /// When the screen last told the operator to open the jaws before moving in.
+    var lastOpenJawsFirstAtMs: Int?
     var nowMs = 0
     /// The per-hold wrist clamps, degrees.
     var turnLimit = 55.0
@@ -57,6 +59,8 @@ enum OperatingRules {
     /// How long a refusal and a saved take stay on screen.
     static let refusalShownMs = 1000
     static let savedShownMs = 2000
+    /// How long the reminder to open the jaws stays under a moving state.
+    static let openJawsFirstShownMs = 4000
 
     /// The rows of §7.2 that version 1 has, highest first: a simulator that is not responding or paused while the link
     /// is up, which says why the stop stays and what to do, then the stop, the link, the camera, a take just saved, the
@@ -90,6 +94,17 @@ enum OperatingRules {
         if f.serverSaving { return .wait(.saving) }
         if f.commandsBlocked { return .slowLink(ms: f.latencyMs ?? 0) }
         return .ready
+    }
+
+    /// The reminder to open the jaws shows under a translation's state (moving, locked, going) for a while after the
+    /// move that raised it started. Every other state keeps its own lines: a stop, a stalled simulator, a lost link or
+    /// a refusal is never covered by it.
+    static func showsOpenJawsFirst(_ f: OperatingFacts) -> Bool {
+        guard let shown = f.lastOpenJawsFirstAtMs, f.nowMs - shown < openJawsFirstShownMs else { return false }
+        switch state(f) {
+        case .moving, .locked, .going: return true
+        default: return false
+        }
     }
 
     /// A follow or a move nobody holds sits where moving sits: under the stop, the link, the camera and a saved take,
