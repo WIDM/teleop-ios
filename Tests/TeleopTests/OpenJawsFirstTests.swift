@@ -65,7 +65,7 @@ final class OpenJawsFirstTests: XCTestCase {
             pose: { TestPose.portrait }, liveLink: true,
             makeTransport: { [unowned self] _ in wire }, makeObserverTransport: { _ in JawsTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: false, lockChoice: .off, voiceActionsPrototype: false)
+            assistOn: false, lockChoice: .off)
         model.controlMode = .screenTurns
         model.session.state.setSmoothing(0)
         model.session.state.serverAddress = "127.0.0.1:8765"

@@ -223,8 +223,12 @@ final class LiveLinkController {
         if holdParams.toolCalibrationID != nil { return newestArmState?.toolPoint.map { SIMD3<Float>($0) } }
         return Self.vector(link?.lastEndEffector)
     }
+    /// The tool point a tool-point resync restarts from: the newest arm position, fresh, with the simulator running,
+    /// the last stop answered and the arm heard since, and the newest state fresh, idle and not stopped. Nil otherwise.
     var freshToolPointForStep: SIMD3<Double>? {
-        guard toolCalibrationID != nil, voiceMotionStartStamp != nil,
+        guard toolCalibrationID != nil, !stall.stalled, armHeardAfterLastStop, link?.unfinishedStop == nil,
+            let state = newestState, !state.estop, state.activity == .ok, newestStateServerMs != nil,
+            let receivedAt = newestStateAtMs, (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt),
             let age = newestArmAgeMs, (0...FeedbackMonitor.freshStateMs).contains(age)
         else { return nil }
         return newestArmState?.toolPoint
@@ -235,11 +239,35 @@ final class LiveLinkController {
     /// The same for a pad or precision-panel button. It differs in one case: a clamp left by a hold that has ended.
     var padStartRefusal: Refusal? { translationStartRefusal(padStart: true) }
 
-    private func translationStartRefusal(padStart: Bool) -> Refusal? {
+    /// Why a free move by the phone (no axis chosen, on the gripper link's path) may not start now; nil when it may:
+    /// no link, a simulator that does not run, a scene reset or a success on show, or a stopped server. Unlike a hold
+    /// on the tool point it may be pressed while the last stop still waits for its answer: its start waits on the wire
+    /// for that answer, as in version 1.0.1, and with an aid on takes its start point when it goes out. The server's
+    /// activity label is no reason to refuse it either: the server clamps such a move at a limit, and the label a
+    /// clamped hold leaves behind must not keep the next one waiting.
+    /// A stop is not judged here either. The newest state can still say stopped for a moment after a release or a
+    /// reset the server has already answered, and refusing on it would swallow the first press after the release; the
+    /// session knows whether the stop is latched, and a server that is still stopped refuses the start itself.
+    var freePhoneStartRefusal: Refusal? { linkStartRefusal }
+
+    /// What keeps every translation hold from starting whatever its path: no link, a simulator that does not run, a
+    /// scene reset or a success on show.
+    private var linkStartRefusal: Refusal? {
         guard isUp else { return .noLink }
         if stall.stalled { return .simulatorStalled }
         if resetPending || newestState?.simBusy == true { return .notReady }
+        return nil
+    }
+
+    /// The same, and a stop the newest state reports: the checks of a hold on the tool point.
+    private var serverStartRefusal: Refusal? {
+        if let refusal = linkStartRefusal { return refusal }
         if newestState?.estop == true { return .emergencyStop }
+        return nil
+    }
+
+    private func translationStartRefusal(padStart: Bool) -> Refusal? {
+        if let refusal = serverStartRefusal { return refusal }
         guard armHeardAfterLastStop, link?.unfinishedStop == nil else { return .busy }
         guard toolCalibrationID != nil else { return nil }
         guard let state = newestState, let receivedAt = newestStateAtMs,
@@ -261,15 +289,6 @@ final class LiveLinkController {
         }
     }
 
-    var voiceMotionStartStamp: Int? {
-        guard !stall.stalled, armHeardAfterLastStop, link?.unfinishedStop == nil, let state = newestState, !state.estop,
-            state.activity == .ok, let receivedAt = newestStateAtMs,
-            (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt)
-        else { return nil }
-        return newestStateServerMs
-    }
-
-    var latestVoiceMotionStateStamp: Int? { newestStateServerMs }
     /// The control connection is welcomed and has had its first state.
     var isUp: Bool { link?.ready == true }
     /// The listening connection is up and receiving state.
@@ -461,6 +480,8 @@ final class LiveLinkController {
             guard let calibration = link.toolCalibrationID, params.toolCalibrationID == calibration,
                 manualTranslationStartRefusal == nil
             else { return false }
+        } else if freePhoneStartRefusal != nil {
+            return false
         }
         holdAxis = axis
         holdParams = params
@@ -597,6 +618,7 @@ final class LiveLinkController {
         {
             return
         }
+        if holdParams.toolCalibrationID == nil, !confirmsOriginResync(state, serverMs: serverMs) { return }
         let now = measuredControlPoint
         if let now, let before = armAtSegmentStart {
             // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
@@ -624,6 +646,16 @@ final class LiveLinkController {
         syncStart()
         armAtSegmentStart = now
         segmentStartedMs = nowMs()
+    }
+
+    /// A resync on the gripper link's path restarts only from an arm position in a state the server wrote after the
+    /// stop it answered: an older state, or one without an arm position, would leave the travel of the stopped hold
+    /// uncounted, and the restart would ask for it again. The state's activity label is no reason to wait: a hold
+    /// held at a limit leaves `pose_clamped` behind.
+    private func confirmsOriginResync(_ state: ServerState, serverMs: Int?) -> Bool {
+        guard state.endEffector != nil else { return false }
+        guard let stoppedAt = resync?.stoppedServerMs, let serverMs else { return true }
+        return serverMs >= stoppedAt
     }
 
     private func confirmsToolResync(_ state: ServerState, serverMs: Int?) -> Bool {

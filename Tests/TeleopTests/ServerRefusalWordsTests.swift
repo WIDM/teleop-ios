@@ -55,7 +55,7 @@ final class ServerRefusalWordsTests: XCTestCase {
             pose: { TestPose.portrait }, liveLink: true,
             makeTransport: { [unowned self] _ in wire }, makeObserverTransport: { _ in RefusalWordsTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: aids, lockChoice: lock, voiceActionsPrototype: false)
+            assistOn: aids, lockChoice: lock)
         model.controlMode = .screenTurns
         model.session.state.setSmoothing(0)
         model.session.state.sensitivity = 1

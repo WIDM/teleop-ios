@@ -101,12 +101,11 @@ for path in APP.rglob("*.swift"):
 allowed_outside = {
     # connect: the fake link's S1 Connect. holdArmEnd, wristEnd: a hold the link could not start.
     # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
-    # sceneResetDone: the top band's reset (the practice link confirms it at once). The one-shot voice prototype
-    # uses the same arm and gripper session actions and ends the hold when the command finishes or times out.
+    # sceneResetDone: the top band's reset (the practice link confirms it at once).
     # stop, disconnect and changeServer: the operating screen's Reconnect (see "model.reconnect()" in sends).
     "AppModel.swift": {
-        "connect", "holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristEnd", "switchLink", "resetScene",
-        "sceneResetDone", "stop", "disconnect", "changeServer",
+        "connect", "holdArmStart", "holdArmEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone", "stop",
+        "disconnect", "changeServer",
     },
     "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
     # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS); touches on the bands (STOP,

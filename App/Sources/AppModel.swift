@@ -34,24 +34,10 @@ final class AppModel {
     private(set) var voiceAxisFailure: AxisSpeechFailure?
     @ObservationIgnored private let axisRecognizer: AxisSpeechRecognizing
     @ObservationIgnored private var voiceResume: DispatchWorkItem?
-    @ObservationIgnored let voiceActionsPrototype: Bool
     /// Whether the operating screen offers the voice control. Off unless the app is launched with `-voiceEntry YES`:
     /// voice input is an unfinished experiment, and a control on the screen would present it as a feature.
     @ObservationIgnored let voiceEntryShown: Bool =
         UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["voiceEntry"] as? String == "YES"
-    @ObservationIgnored private var voiceMotion: VoiceMotion?
-
-    private enum VoiceGoal {
-        case step(offset: SIMD3<Double>, target: SIMD3<Double>)
-        case gripper(GripperState)
-    }
-
-    private struct VoiceMotion {
-        let action: VoiceAction
-        let goal: VoiceGoal
-        let deadline: Int
-        let startStamp: Int
-    }
     @ObservationIgnored var onVoiceEvent: ((String, [String: Any]) -> Void)?
     @ObservationIgnored private var readyAfterWelcome = false
     @ObservationIgnored private var holdStartPose: simd_float4x4?
@@ -313,16 +299,12 @@ final class AppModel {
         assistOn: Bool? = nil,
         lockChoice: LockChoice? = nil,
         sessionRecord: SessionRecord = .shared,
-        experimentTiming: ExperimentTiming? = nil,
-        voiceActionsPrototype: Bool = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[
-            "voiceActionsPrototype"
-        ] as? String == "YES"
+        experimentTiming: ExperimentTiming? = nil
     ) {
         self.profile = profile
         self.sessionRecord = sessionRecord
         self.experimentTiming = experimentTiming ?? ExperimentTiming()
         self.axisRecognizer = axisRecognizer ?? AxisSpeechRecognizer()
-        self.voiceActionsPrototype = voiceActionsPrototype
         var state = FakeTeleopState()
         state.liveLink = liveLink
         // Loaded in practice too, so leaving practice connects to it.
@@ -557,9 +539,6 @@ final class AppModel {
             case .leftRight: return L10n.string("voice.axis.left_right")
             }
         }
-        if voiceActionsPrototype {
-            return L10n.string(voiceAxisSession.enabled ? "voice.action.listening" : "voice.action.enable")
-        }
         return L10n.string(voiceAxisSession.enabled ? "voice.listening" : "voice.enable")
     }
 
@@ -577,7 +556,6 @@ final class AppModel {
     }
 
     func disableVoiceAxis(reason: String) {
-        if voiceMotion != nil { finishVoiceMotion(reason: reason) }
         guard voiceAxisSession.enabled else { return }
         voiceAxisSession.disable()
         voiceResume?.cancel()
@@ -590,7 +568,7 @@ final class AppModel {
 
     private var voiceInputIdle: Bool {
         guard let controller else { return false }
-        return voiceMotion == nil && !controller.isEngaged && !controller.arbiter.isHoldingAnInput
+        return !controller.isEngaged && !controller.arbiter.isHoldingAnInput
             && controller.buttons.down.isEmpty
             && !controller.precisionPanelOpen && !session.state.armMoving && !session.state.wristMoving
             && session.state.gripperMoving == nil
@@ -637,14 +615,6 @@ final class AppModel {
         case .transcript(let text, let final, let captured):
             let now = controller.now()
             let inputIdle = voiceInputIdle
-            if voiceActionsPrototype, voiceMayListen, !stopOwed,
-                let action = voiceAxisSession.acceptAction(
-                    text, final: final, epoch: epoch, capturedAt: captured, now: now, inputIdle: inputIdle)
-            {
-                disableVoiceAxis(reason: "action_consumed")
-                startVoiceMotion(action)
-                return
-            }
             guard
                 let axis = voiceAxisSession.accept(
                     text, final: final, epoch: epoch, capturedAt: captured, now: now, inputIdle: inputIdle)
@@ -723,78 +693,6 @@ final class AppModel {
 
     func measurementTick() {
         experimentTiming.tick()
-        if let voiceMotion, nowMs() >= voiceMotion.deadline {
-            finishVoiceMotion(reason: "timeout")
-            raise(.letGo(.noAnswer))
-        }
-    }
-
-    private func startVoiceMotion(_ action: VoiceAction) {
-        guard let startStamp = link.voiceMotionStartStamp else {
-            voiceRecord("action_refused", ["reason": "no_fresh_idle_state"])
-            raise(.refused(.notReady))
-            return
-        }
-        let goal: VoiceGoal
-        let timeout: Int
-        switch action {
-        case .forward, .up:
-            guard let start = link.freshToolPointForStep else {
-                voiceRecord("action_refused", ["reason": "tool_state_unavailable"])
-                raise(.refused(.notReady))
-                return
-            }
-            let direction: OperatorDirection = action == .forward ? .forward : .up
-            let offset = direction.linkVector * 0.005
-            goal = .step(offset: offset, target: start + OperatorFrame.base(fromLink: offset))
-            timeout = 2_000
-        case .open, .close:
-            goal = .gripper(action == .open ? .open : .closed)
-            timeout = 7_000
-        }
-        voiceMotion = VoiceMotion(action: action, goal: goal, deadline: nowMs() + timeout, startStamp: startStamp)
-        voiceRecord("action_requested", ["action": action.rawValue])
-        switch goal {
-        case .step:
-            startArmHold(.pad)
-            if !session.state.armMoving { finishVoiceMotion(reason: "start_refused", sendEnd: false) }
-        case .gripper(let target):
-            send(.gripperStart(target))
-            if session.state.gripperMoving != target { finishVoiceMotion(reason: "start_refused", sendEnd: false) }
-        }
-    }
-
-    private func finishVoiceMotion(reason: String, sendEnd: Bool = true) {
-        guard let motion = voiceMotion else { return }
-        voiceMotion = nil
-        voiceRecord("action_ended", ["action": motion.action.rawValue, "reason": reason])
-        guard sendEnd else { return }
-        switch motion.goal {
-        case .step: send(.holdArmEnd)
-        case .gripper: send(.gripperEnd)
-        }
-    }
-
-    private func observeVoiceMotion(_ state: ServerState) {
-        guard let motion = voiceMotion, !state.estop,
-            let stamp = link.latestVoiceMotionStateStamp, stamp > motion.startStamp
-        else { return }
-        switch motion.goal {
-        case .step(_, let target):
-            if state.activity == .poseTracking, let point = state.toolPoint,
-                simd_distance(point, target) <= 0.001
-            {
-                finishVoiceMotion(reason: "target_reached")
-            }
-        case .gripper(let target):
-            if target == .closed, state.activity == .gripperContact {
-                finishVoiceMotion(reason: "contact")
-            } else if state.activity == .gripperJogging, let angle = state.gripperDeg,
-                target == .open ? angle >= profile.gripperLimits.openDeg : angle <= profile.gripperLimits.emptyDeg
-            {
-                finishVoiceMotion(reason: "gripper_limit")
-            }
-        }
     }
 
     // MARK: What the input rules are told
@@ -973,9 +871,6 @@ final class AppModel {
                 raise(.refused(.letGoFirst))
                 return
             }
-        }
-        if case .gripperStart = action, session.state.gripperMoving != nil, case .gripper? = voiceMotion?.goal {
-            finishVoiceMotion(reason: "manual_override", sendEnd: false)
         }
         if action == .stop { stopEpoch += 1 }
         // A reset is refused while anything is held: the operator lets go first.
@@ -1165,7 +1060,6 @@ final class AppModel {
     /// A `state` from either connection.
     private func stateArrived(_ state: ServerState) {
         if serverState != state { serverState = state }
-        observeVoiceMotion(state)
         // Only a state the server wrote after reading this STOP's `estop` confirms it, never one from before the press.
         // Once a reset has been asked for from the stop, which clears the server's stop even when refused, none does:
         // only a new STOP can be confirmed again.
@@ -1534,16 +1428,13 @@ final class AppModel {
         if action == .resetScene, after.resetClearsStop, pressedStop == .confirmed { pressedStop = .sent }
         if before.armMoving, !after.armMoving {
             link.endHold()
-            if case .step? = voiceMotion?.goal { finishVoiceMotion(reason: "interrupted", sendEnd: false) }
         }
         // Release, keep scene. A reset that cleared the stop needs no estop_reset.
         if before.emergencyStop, !after.emergencyStop, action == .releaseStop { link.estopReset() }
         if !before.armMoving, after.armMoving {
             switch pendingArmSource {
             case .pad:
-                if case .step(let offset, _)? = voiceMotion?.goal {
-                    if !link.startButtonHold(useToolPoint: true, { offset }) { buttonHoldNotStarted() }
-                } else if !link.startPadHold(
+                if !link.startPadHold(
                     vertical: controller.buttons.engaged == .up || controller.buttons.engaged == .down,
                     { [weak self] in self?.controller.buttonTarget() })
                 {
@@ -1576,7 +1467,8 @@ final class AppModel {
                     } else if held == .unknown {
                         pendingRefusal = .notTracking
                     } else {
-                        pendingRefusal = link.manualTranslationStartRefusal ?? .busy
+                        pendingRefusal =
+                            (axis == nil ? link.freePhoneStartRefusal : link.manualTranslationStartRefusal) ?? .busy
                     }
                     session.perform(.holdArmEnd)
                     session.pendingCue(.commandBlocked)
@@ -1608,7 +1500,6 @@ final class AppModel {
                 }
             } else {
                 link.stopGripper()
-                if case .gripper? = voiceMotion?.goal { finishVoiceMotion(reason: "interrupted", sendEnd: false) }
             }
         }
         switch action {

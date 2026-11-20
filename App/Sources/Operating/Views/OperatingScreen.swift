@@ -721,9 +721,7 @@ private struct OperatingControls: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(TeleopColors.textPrimary)
-                    .accessibilityHint(
-                        Text(verbatim: L10n.string(model.voiceActionsPrototype ? "voice.action.hint" : "voice.hint"))
-                    )
+                    .accessibilityHint(Text(verbatim: L10n.string("voice.hint")))
                     .accessibilityIdentifier("voice.axis")
                     .place(
                         SurfaceLayout.Rect(x: cs.x + 16, y: cs.maxY - 52, width: max(100, cs.width - 176), height: 44))

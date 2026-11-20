@@ -19,30 +19,6 @@ final class VoiceActionTests: XCTestCase {
         }
     }
 
-    func testDuplicateAndStaleTranscriptsCannotTriggerActions() throws {
-        var session = VoiceAxisSession()
-        session.enable()
-        let first = try XCTUnwrap(session.beginListening())
-        XCTAssertEqual(
-            session.accept("只調高度", final: true, epoch: first, capturedAt: 10, now: 11, inputIdle: true),
-            .height)
-        let second = try XCTUnwrap(session.beginListening())
-        XCTAssertNil(session.acceptAction("開爪", final: false, epoch: second, capturedAt: 12, now: 13, inputIdle: true))
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: first, capturedAt: 12, now: 13, inputIdle: true))
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: second, capturedAt: 12, now: 16, inputIdle: true))
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: second, capturedAt: 12, now: 11, inputIdle: true))
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: second, capturedAt: 12, now: 13, inputIdle: false))
-        XCTAssertEqual(
-            session.acceptAction("開爪", final: true, epoch: second, capturedAt: 12, now: 13, inputIdle: true), .open)
-        XCTAssertEqual(session.axis, .height)
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: second, capturedAt: 12, now: 13, inputIdle: true))
-
-        let third = try XCTUnwrap(session.beginListening())
-        XCTAssertNil(session.acceptAction("開爪", final: true, epoch: second, capturedAt: 13, now: 14, inputIdle: true))
-        XCTAssertEqual(
-            session.acceptAction("開爪", final: true, epoch: third, capturedAt: 13, now: 14, inputIdle: true), .open)
-    }
-
     func testRecognizedActionUsesTheExistingShortCaptureWindow() {
         var endpoint = VoiceAxisEndpoint(startedAt: 0)
         XCTAssertEqual(endpoint.deadlines(for: "往前", capturedAt: 1, now: 1.1), endpoint.hardDeadlines)

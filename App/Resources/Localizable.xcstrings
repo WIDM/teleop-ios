@@ -3579,27 +3579,6 @@
         }
       }
     },
-    "voice.action.enable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {"stringUnit": {"state": "translated", "value": "Voice control"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "語音控制"}}
-      }
-    },
-    "voice.action.hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {"stringUnit": {"state": "translated", "value": "Say forward a little, up a little, open gripper, or close gripper. Tap again for the next command."}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "說「往前一點」、「往上一點」、「開爪」或「關爪」。下一個指令請再點一下。"}}
-      }
-    },
-    "voice.action.listening": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {"stringUnit": {"state": "translated", "value": "Say one command · Tap to exit"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "請說一個指令 · 點此關閉"}}
-      }
-    },
     "voice.hint": {
       "extractionState": "manual",
       "localizations": {

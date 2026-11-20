@@ -48,7 +48,7 @@ final class VoiceAxisControlTests: XCTestCase {
         super.tearDown()
     }
 
-    private func bringUp(tool: Bool = true, lock: LockChoice = .off, voiceActions: Bool = false) {
+    private func bringUp(tool: Bool = true, lock: LockChoice = .off) {
         recognition = AxisRecognitionSpy()
         speech = SpySpeech()
         wire = AxisTransport()
@@ -58,7 +58,7 @@ final class VoiceAxisControlTests: XCTestCase {
             pose: { [unowned self] in camera }, liveLink: true,
             makeTransport: { [unowned self] _ in wire }, makeObserverTransport: { _ in AxisTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: !voiceActions, lockChoice: lock, voiceActionsPrototype: voiceActions)
+            assistOn: true, lockChoice: lock)
         model.controlMode = .screenTurns
         model.session.state.serverAddress = "127.0.0.1:8765"
         model.connect()
@@ -151,74 +151,6 @@ final class VoiceAxisControlTests: XCTestCase {
         choose("只 调 高 度。")
         XCTAssertEqual(model.voiceAxisSession.axis, .height)
         XCTAssertTrue(wire.messages("pose_start").isEmpty)
-    }
-
-    func testPrototypeSendsEachSpokenStepOnceAndStopsAtTheMeasuredToolPoint() throws {
-        let cases = [
-            ("往前一點", [0.0, -0.005, 0.0], [0.01, -0.175, 0.07]),
-            ("往上一點", [0.0, 0.0, -0.005], [0.01, -0.17, 0.075]),
-        ]
-        for (phrase, wanted, measured) in cases {
-            bringUp(voiceActions: true)
-            listen()
-            let epoch = try XCTUnwrap(recognition.epochs.last)
-            choose(phrase)
-            recognition.onEvent?(epoch, .transcript(phrase, final: true, capturedAt: Double(clock) / 1000))
-            XCTAssertFalse(model.voiceAxisSession.enabled)
-            XCTAssertEqual(wire.messages("pose_start").count, 1)
-            let start = try XCTUnwrap(wire.messages("pose_start").last?["payload"] as? [String: Any])
-            XCTAssertEqual(start["control_point"] as? String, "tool")
-            clock += 100
-            model.link.tick()
-            let update = try XCTUnwrap(wire.messages("pose_update").last?["payload"] as? [String: Any])
-            XCTAssertEqual(update["p_rel_m"] as? [Double], wanted)
-            XCTAssertTrue(wire.messages("pose_stop").isEmpty)
-            wire.receive("state", ["ik": "pose_tracking", "ee_pos": [0.0, -0.14, 0.16], "tool_pos": measured])
-            XCTAssertEqual(wire.messages("pose_stop").count, 1)
-            XCTAssertFalse(model.session.state.armMoving)
-        }
-    }
-
-    func testPrototypeStartsEachGripperCommandOnceAndStopsAtLimitOrContact() throws {
-        for (phrase, activity, angle) in [("開爪", "gripper_jogging", 98.0), ("關爪", "gripper_contact", 40.0)] {
-            bringUp(voiceActions: true)
-            listen()
-            let epoch = try XCTUnwrap(recognition.epochs.last)
-            choose(phrase)
-            recognition.onEvent?(epoch, .transcript(phrase, final: true, capturedAt: Double(clock) / 1000))
-            XCTAssertEqual(wire.messages("gripper_jog_start").count, 1)
-            XCTAssertTrue(wire.messages("gripper_jog_stop").isEmpty)
-            wire.receive("state", ["ik": activity, "gripper_deg": angle])
-            XCTAssertTrue(wire.messages("gripper_jog_stop").isEmpty, "a state from the start timestamp is not new")
-            clock += 100
-            wire.receive("state", ["ik": activity, "gripper_deg": angle])
-            XCTAssertEqual(wire.messages("gripper_jog_stop").count, 1)
-            XCTAssertNil(model.session.state.gripperMoving)
-        }
-    }
-
-    func testPrototypeStepTimesOutIfTheServerNeverReportsArrival() {
-        bringUp(voiceActions: true)
-        listen()
-        choose("往上一點")
-        XCTAssertTrue(model.session.state.armMoving)
-        clock += 2_001
-        model.measurementTick()
-        XCTAssertFalse(model.session.state.armMoving)
-        XCTAssertEqual(wire.messages("pose_stop").count, 1)
-    }
-
-    func testVoiceTimeoutCannotStopManualGripperAfterTakeover() {
-        bringUp(voiceActions: true)
-        listen()
-        choose("開爪")
-        XCTAssertEqual(model.session.state.gripperMoving, .open)
-        model.send(.gripperStart(.closed))
-        clock += 7_001
-        model.measurementTick()
-        XCTAssertEqual(model.session.state.gripperMoving, .closed)
-        XCTAssertEqual(wire.messages("gripper_jog_stop").count, 1, "only the replaced open command was stopped")
-        model.send(.gripperEnd)
     }
 
     func testPartialOldAndMidHoldTranscriptsCannotChangeAxis() {

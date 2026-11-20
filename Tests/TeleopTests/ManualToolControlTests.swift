@@ -58,7 +58,7 @@ final class ManualToolControlTests: XCTestCase {
             pose: { [unowned self] in camera }, liveLink: true,
             makeTransport: { [unowned self] _ in wire }, makeObserverTransport: { _ in ManualToolTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: aids, lockChoice: .off, voiceActionsPrototype: false)
+            assistOn: aids, lockChoice: .off)
         model.controlMode = mode
         model.session.state.setSmoothing(0)
         model.session.state.sensitivity = 1
@@ -683,7 +683,7 @@ final class ManualToolControlTests: XCTestCase {
             ])
     }
 
-    func testRejectedToolMoveAllowsFreshManualReverseAfterReleaseButNotVoice() throws {
+    func testRejectedToolMoveAllowsFreshManualReverseAfterRelease() throws {
         bringUp()
         model.setPrecisionPanelOpen(true)
         model.buttonDown(.down)
@@ -694,7 +694,6 @@ final class ManualToolControlTests: XCTestCase {
         failedState()
         XCTAssertFalse(model.session.state.armMoving)
         XCTAssertTrue(model.link.isUp)
-        XCTAssertNil(model.link.voiceMotionStartStamp)
         XCTAssertNil(model.link.freshToolPointForStep)
         model.buttonUp(.down)
         model.buttonDown(.up)
@@ -1092,5 +1091,73 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertEqual(wire.messages("pose_start").count, 1)
         XCTAssertEqual(wire.messages("pose_update").count, updates)
         XCTAssertTrue(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
+    }
+
+    // A free phone move: the upper key with no axis chosen, following the hand on the gripper link's path.
+
+    func testAFreePhoneMoveIsRefusedByABusyServerButNotByAnActivityLabelOrAStaleStop() {
+        let cases: [(String, [String: Any], Bool)] = [
+            // A state can lag a release the server has answered: the press goes out, and a server still stopped
+            // refuses it itself.
+            ("a state still saying stopped", ["estop": true], true),
+            ("success shown", ["task_success": true], false),
+            ("resetting", ["ik": "resetting"], false),
+            ("clamped", ["ik": "pose_clamped"], true),
+            ("no solution", ["ik": "no_solution"], true),
+            ("tracking", ["ik": "pose_tracking"], true),
+            ("turn clamped", ["ik": "orient_clamped"], true),
+            ("contact", ["ik": "gripper_contact"], true),
+            ("unknown label", ["ik": "unrecognized"], true),
+        ]
+        for (name, change, starts) in cases {
+            bringUp()
+            var payload: [String: Any] = [
+                "estop": false, "ik": "ok", "gripper": "open", "ee_pos": [0.0, -0.14, 0.16],
+                "tool_pos": [0.01, -0.17, 0.07],
+            ]
+            payload.merge(change) { $1 }
+            wire.receive("state", payload)
+            XCTAssertEqual(model.link.startHold(PoseParams(gain: 1, smoothing: 0)), starts, name)
+            XCTAssertEqual(wire.messages("pose_start").count, starts ? 1 : 0, name)
+            model.link.endHold()
+        }
+    }
+
+    /// Lowers the phone 1 cm every 100 ms during a free phone move until the arm has been held at the lead cap long
+    /// enough for a resync, then answers the resync's stop.
+    private func freePhoneMoveIntoResync() throws {
+        model.keyEvent(.upper, down: true)
+        let sequence = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
+        XCTAssertNil(try lastPayload("pose_start")["control_point"])
+        var lowered = TestPose.portrait
+        for _ in 0..<16 {
+            lowered.columns.3.y -= 0.01
+            camera = lowered
+            clock += 100
+            model.link.tick()
+        }
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertEqual(wire.messages("pose_stop").count, 1, "the resync's stop")
+        wire.receive("ack", ["seq": sequence, "status": "ok", "reason": "pose_stopped"])
+    }
+
+    func testAFreePhoneResyncWaitsForAnArmPositionNewerThanItsStop() throws {
+        bringUp()
+        try freePhoneMoveIntoResync()
+        wire.receive(
+            "state", ["estop": false, "ik": "ok", "gripper": "open", "ee_pos": [0.0, -0.14, 0.13]],
+            serverTime: clock - 1)
+        XCTAssertEqual(wire.messages("pose_start").count, 1, "a state the server wrote before the stop")
+        clock += 10
+        wire.receive("state", ["estop": false, "ik": "ok", "gripper": "open"])
+        XCTAssertEqual(wire.messages("pose_start").count, 1, "a state without an arm position")
+        XCTAssertTrue(model.session.state.armMoving)
+        clock += 10
+        wire.receive("state", ["estop": false, "ik": "pose_clamped", "gripper": "open", "ee_pos": [0.0, -0.14, 0.12]])
+        XCTAssertEqual(wire.messages("pose_start").count, 2, "a clamp label left by the stopped hold does not wait")
+        XCTAssertNil(try lastPayload("pose_start")["control_point"])
+        XCTAssertTrue(model.session.state.armMoving)
+        XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
+        model.keyEvent(.upper, down: false)
     }
 }

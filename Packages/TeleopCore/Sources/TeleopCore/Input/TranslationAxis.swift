@@ -108,16 +108,6 @@ public struct VoiceAxisSession: Equatable, Sendable {
         return chosen
     }
 
-    public mutating func acceptAction(
-        _ text: String, final: Bool, epoch: Int, capturedAt: TimeInterval, now: TimeInterval, inputIdle: Bool
-    ) -> VoiceAction? {
-        guard canAccept(final: final, epoch: epoch, capturedAt: capturedAt, now: now, inputIdle: inputIdle),
-            let action = VoiceAction.recognized(text)
-        else { return nil }
-        suspend()
-        return action
-    }
-
     private func canAccept(
         final: Bool, epoch: Int, capturedAt: TimeInterval, now: TimeInterval, inputIdle: Bool
     ) -> Bool {
