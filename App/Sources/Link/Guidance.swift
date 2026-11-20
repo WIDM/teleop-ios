@@ -80,7 +80,7 @@ struct RobotProfile: Equatable {
     var goalSize: Float = 0.05
     /// A measured jaw angle at or above this while opening is fully open. The joint's limit is 100 degrees.
     var gripperOpenDeg = 97.0
-    /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
+    /// At or below this when a close has ended with no contact, the jaws closed on nothing. An empty close settled at
     /// 0.4 degrees on the S4 simulator (recording s15); this is that plus 2, until the device check sets it.
     var gripperEmptyDeg = 2.0
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it

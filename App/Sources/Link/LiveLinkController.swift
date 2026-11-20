@@ -112,7 +112,9 @@ final class LiveLinkController {
     /// Arm position (robot base) when the current server hold started; nil if the server has not reported one.
     private var armAtSegmentStart: SIMD3<Float>?
     private var segmentStartedMs = 0
-    private var coordinatedAwaitingFirstTrackingState = false
+    /// The label the newest state carried when a coordinated-height hold started, when it is one an earlier command
+    /// left (`no_solution`, `pose_clamped`) rather than this hold's own. Cleared by the first state with another label.
+    private var coordinatedLeftOverLabel: ServerActivity?
     /// Set while the old server hold is being ended and a new one has not started. `stopped` turns true when
     /// the server confirms the old one finished; the next `state` after that carries the arm position.
     private var resync: (sinceMs: Int, startSeq: Int?, stopped: Bool, stoppedServerMs: Int?)?
@@ -176,6 +178,8 @@ final class LiveLinkController {
     private var stall = SimStallDetector()
     /// The newest state handed to the stall decision said the server is stopped.
     private(set) var serverSaysStopped = false
+    /// Whether the jaws hold an object, which decides the path of the pad's holds (`startPadHold`).
+    private var objectHold = ObjectHold()
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -220,7 +224,12 @@ final class LiveLinkController {
         return newestArmState?.toolPoint
     }
 
-    var manualTranslationStartRefusal: Refusal? {
+    /// Why a translation hold on the tool point may not start now; nil when it may.
+    var manualTranslationStartRefusal: Refusal? { translationStartRefusal(padStart: false) }
+    /// The same for a pad or precision-panel button. It differs in one case: a clamp left by a hold that has ended.
+    var padStartRefusal: Refusal? { translationStartRefusal(padStart: true) }
+
+    private func translationStartRefusal(padStart: Bool) -> Refusal? {
         guard isUp else { return .noLink }
         if stall.stalled { return .simulatorStalled }
         if resetPending || newestState?.simBusy == true { return .notReady }
@@ -233,6 +242,13 @@ final class LiveLinkController {
         else { return .noArmData }
         switch state.activity {
         case .ok?, .other("no_solution")?: return nil
+        // These labels say the server still runs a control: a start now would be refused as busy, or a tool-point
+        // hold would take its start point from an arm still moving. The server keeps `pose_clamped` after a hold that
+        // ended clamped until another command writes a new label, though. With no translation hold of this phone
+        // running and its last stop answered (checked above), that hold is over and the arm stands where the clamp
+        // held it, so the label is no reason to refuse a pad button. Only the pad is let through: its buttons could
+        // never clear the label themselves, while a move by the phone can.
+        case .poseClamped? where padStart && link?.holdActive != true && !translating: return nil
         case .poseTracking?, .poseClamped?, .orienting?, .orientClamped?, .gripperJogging?, .gripperContact?:
             return .busy
         default: return .notReady
@@ -259,6 +275,10 @@ final class LiveLinkController {
     var engagedHold: Int? { monitor.engagedHold }
     /// A close ended in contact and nothing has opened since, no scene reset and no new server run.
     var gripping: Bool { monitor.gripping }
+    /// The server reported contact for the last close and nothing has let go since: no open the server ran, no scene
+    /// reset and no reconnect. An emergency stop keeps it: the jaws stay closed on the object. While it holds, the
+    /// pad's holds take the gripper link's path.
+    var holdingObject: Bool { objectHold.holding }
     /// A scene reset is waiting to go out or for its answer; every start is refused meanwhile.
     var resetPending: Bool { link?.resetPending == true }
     /// Arm tip position from the server's newest state, in the robot base frame. Stale during a hold.
@@ -418,6 +438,7 @@ final class LiveLinkController {
         stall = SimStallDetector()
         serverSaysStopped = false
         closeAfterStop = nil
+        objectHold.apply(.reconnected)
     }
 
     /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing,
@@ -457,11 +478,13 @@ final class LiveLinkController {
     /// A translation hold that follows `target` instead of the phone: no pose, gain, smoothing or speed guard, but
     /// the same lead cap and resync. False when the hold could not start.
     func startButtonHold(
-        useToolPoint: Bool = false, toolMotion: PoseToolMotion? = nil,
+        useToolPoint: Bool = false, toolMotion: PoseToolMotion? = nil, padStart: Bool = false,
         _ target: @escaping () -> SIMD3<Double>?
     ) -> Bool {
         guard let link else { return false }
-        if useToolPoint, toolCalibrationID == nil || manualTranslationStartRefusal != nil { return false }
+        if useToolPoint, toolCalibrationID == nil || translationStartRefusal(padStart: padStart) != nil {
+            return false
+        }
         let params = PoseParams(
             gain: 1, smoothing: 0, toolCalibrationID: useToolPoint ? link.toolCalibrationID : nil,
             toolMotion: toolMotion)
@@ -482,11 +505,25 @@ final class LiveLinkController {
         return true
     }
 
+    /// A hold of a pad or precision-panel direction button, up and down included, following the button's ramp. Its path
+    /// is `ObjectHold.padHoldPath`: the tool point while nothing is held, the gripper link's once the jaws hold an
+    /// object. Wherever the server has a tool calibration the start is refused for the reasons of
+    /// `padStartRefusal` on either path. False when the hold could not start.
+    func startPadHold(vertical: Bool, _ target: @escaping () -> SIMD3<Double>?) -> Bool {
+        if toolCalibrationID != nil, padStartRefusal != nil { return false }
+        let path = objectHold.padHoldPath(
+            toolCalibrated: toolCalibrationID != nil, coordinatedHeight: supportsCoordinatedHeight, vertical: vertical)
+        return startButtonHold(
+            useToolPoint: path.useToolPoint, toolMotion: path.toolMotion, padStart: true, target)
+    }
+
     /// The operator's translation hold has started (not a resync's restart, which stays the same hold): the work-area
     /// rule may tell every side again.
     private func translationStarted() {
-        coordinatedAwaitingFirstTrackingState =
-            holdParams.toolMotion == .coordinatedHeight && newestArmState?.activity == .other("no_solution")
+        let label = newestArmState?.activity
+        coordinatedLeftOverLabel =
+            holdParams.toolMotion == .coordinatedHeight && (label == .other("no_solution") || label == .poseClamped)
+            ? label : nil
         motionRequest = nil
         motionUpdate = nil
         workAreaCue?.holdStarted()
@@ -504,7 +541,7 @@ final class LiveLinkController {
     private var translating: Bool { holdStart != nil || buttonTarget != nil }
 
     private func holdEnded() {
-        coordinatedAwaitingFirstTrackingState = false
+        coordinatedLeftOverLabel = nil
         holdStart = nil
         holdAxis = nil
         buttonTarget = nil
@@ -818,10 +855,12 @@ final class LiveLinkController {
             holdEnded()
             onAction?(.holdArmEnd)
         }
-        let recoveringPriorRefusal =
-            coordinatedAwaitingFirstTrackingState
+        // Until the first state with a label of its own, for at most the freshness time, the label an earlier command
+        // left says nothing about this hold: a refusal before it, or the clamp that ended the hold before.
+        let waitingOutLeftOverLabel =
+            coordinatedLeftOverLabel != nil
             && (0...FeedbackMonitor.freshStateMs).contains(now - segmentStartedMs)
-            && newestArmState?.activity == .other("no_solution")
+            && newestArmState?.activity == coordinatedLeftOverLabel
         guard let start = armAtSegmentStart, let state = newestArmState,
             let measured = state.toolPoint, let age = newestArmAgeMs,
             (0...FeedbackMonitor.freshStateMs).contains(age), !state.estop, !state.simBusy,
@@ -832,8 +871,8 @@ final class LiveLinkController {
             stop(monitor.endedByApp(.noAnswer))
             return
         }
-        guard state.activity == .ok || state.activity == .poseTracking || recoveringPriorRefusal else {
-            if state.activity == .other("no_solution"), !coordinatedAwaitingFirstTrackingState {
+        guard state.activity == .ok || state.activity == .poseTracking || waitingOutLeftOverLabel else {
+            if state.activity == .other("no_solution"), coordinatedLeftOverLabel != .other("no_solution") {
                 onLog?("link: coordinated height ended by server no_solution")
                 lastRefusal = ("no_solution", now)
                 stop(monitor.startRefused(reason: "no_solution", at: now))
@@ -1057,6 +1096,7 @@ final class LiveLinkController {
         case .gripperRefused(let reason):
             // A refused start and a live hold the watchdog ended both come back as a rejected final answer.
             onLog?("link: gripper hold ended by server: \(reason)")
+            if link.lastStart?.kind == .gripper(.open) { objectHold.apply(.openRefused) }
             observeStall(.refused(request: "gripper_jog_start", reason: reason))
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
@@ -1077,6 +1117,7 @@ final class LiveLinkController {
         case .resetDone:
             onLog?("link: scene reset")
             monitor.sceneReset()
+            objectHold.apply(.sceneReset)
             leadBound.sceneReset()
             noteGripping()
             onAction?(.sceneResetDone)
@@ -1121,7 +1162,7 @@ final class LiveLinkController {
             observeStall(.state(health))
         }
         newestState = state
-        if state.activity != .other("no_solution") { coordinatedAwaitingFirstTrackingState = false }
+        if state.activity != coordinatedLeftOverLabel { coordinatedLeftOverLabel = nil }
         newestStateAtMs = nowMs()
         if state.endEffector != nil {
             newestArmState = state
@@ -1129,6 +1170,8 @@ final class LiveLinkController {
             if !toolResync { armHeard(onControl: onControl) }
         }
         var events = monitor.observe(state, at: nowMs())
+        objectHold.stateArrived(state)
+        if events.contains(.contact) { objectHold.apply(.contactReported) }
         // During a move to a tapped point the operator steers nothing: a limit the move meets is told once, by its own
         // ending. So the server's clamp of it plays no END and tells no side, and an arm held short of the command is
         // not told "Blocked." either: after a re-sent start the server can say it clamped before the monitor takes
@@ -1232,7 +1275,8 @@ final class LiveLinkController {
                 endedTranslation(stalledRefusal(), serverReason: TeleopLink.simulatorStalledReason)
                 holdEnded()
                 onAction?(.holdArmEnd)
-            case .start(.gripper):
+            case .start(.gripper(let target)):
+                if target == .open { objectHold.apply(.openRefused) }
                 emit(stalledRefusal())
                 onAction?(.gripperEnd)
             case .start(.wrist):
@@ -1261,6 +1305,8 @@ final class LiveLinkController {
     /// Starts feedback for a command sent on the wire, keeping the operator hold across resyncs.
     func feedbackStartSent(_ kind: ControlKind, restart: Bool, at now: Int) {
         monitor.startSent(kind, restart: restart, at: now)
+        // The open lets go of the object only once a state shows the jaws opening (`ObjectHold.stateArrived`).
+        if kind == .gripper(.open) { objectHold.apply(.openSent) }
     }
 
     /// Hands events to AppModel. While the hold is one nobody holds, a let-go or a refusal of it becomes the move's own

@@ -141,6 +141,12 @@ final class FeedbackFromModelTests: XCTestCase {
             phone.send("jog_keepalive")
             pumpObserver()
         }
+        // Empty is decided when the close has ended without contact, not while it still runs.
+        XCTAssertFalse(events.contains { $0.event == .limit(.empty) }, "\(events)")
+        phone.send("gripper_jog_stop")
+        monitor.released(.gripper(.closed))
+        bench.wait(0.6)
+        pumpObserver()
         XCTAssertEqual(events.map(\.event).filter { $0 == .limit(.empty) }.count, 1, "\(events)")
         XCTAssertFalse(events.contains { $0.event == .contact })
         XCTAssertFalse(monitor.gripping)

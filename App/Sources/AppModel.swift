@@ -1530,11 +1530,8 @@ final class AppModel {
             case .pad:
                 if case .step(let offset, _)? = voiceMotion?.goal {
                     if !link.startButtonHold(useToolPoint: true, { offset }) { buttonHoldNotStarted() }
-                } else if !link.startButtonHold(
-                    useToolPoint: link.toolCalibrationID != nil,
-                    toolMotion: link.supportsCoordinatedHeight
-                        && (controller.buttons.engaged == .up || controller.buttons.engaged == .down)
-                        ? .coordinatedHeight : nil,
+                } else if !link.startPadHold(
+                    vertical: controller.buttons.engaged == .up || controller.buttons.engaged == .down,
                     { [weak self] in self?.controller.buttonTarget() })
                 {
                     buttonHoldNotStarted()
@@ -1622,7 +1619,7 @@ final class AppModel {
 
     /// A hold on the pad's path the link could not start: the session drops it, and the operator hears why.
     private func buttonHoldNotStarted() {
-        let reason = link.manualTranslationStartRefusal ?? .busy
+        let reason = link.padStartRefusal ?? .busy
         log("link: button hold not started reason=\(reason.rawValue)")
         pendingRefusal = reason
         session.perform(.holdArmEnd)

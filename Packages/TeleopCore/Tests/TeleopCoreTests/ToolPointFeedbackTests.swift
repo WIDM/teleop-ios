@@ -123,4 +123,23 @@ final class ToolPointFeedbackTests: XCTestCase {
         XCTAssertEqual(monitor.lowestSeen, origin.z)
         XCTAssertEqual(monitor.lowestPinchSeen, tool.z)
     }
+
+    /// A pinch point that stands still while the command lies 20 mm to the side and alternately 12 and 4 mm lower. The
+    /// lowest rule never judges such a window (it needs every state of the second asked at least 5 mm lower), so
+    /// "Blocked." is not left to it and comes after the second, as without the lowest rule.
+    func testASidewaysStallWithAnUnevenAskForLowerIsStillBlocked() {
+        var monitor = monitor(aids: true)
+        var events: [FeedbackEvent] = []
+        var toldAt: Int?
+        for (index, time) in stride(from: 0, through: 2000, by: 200).enumerated() {
+            let lower = index % 2 == 0 ? 0.012 : 0.004
+            monitor.commanded(tool + SIMD3(0.02, 0, -lower), point: .tool)
+            let new = monitor.observe(
+                ServerState(activity: .poseTracking, endEffector: origin, toolPoint: tool), at: time)
+            if !new.isEmpty, toldAt == nil { toldAt = time }
+            events += new
+        }
+        XCTAssertEqual(events, [.limit(.blocked)])
+        XCTAssertEqual(toldAt, 1000)
+    }
 }

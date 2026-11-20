@@ -327,6 +327,322 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertEqual(wire.messages("pose_stop").count, 1)
     }
 
+    /// The server's final answer to the newest start of `type`, then a state written after it.
+    private func answerFinal(_ type: String, _ reason: String, ik: String = "ok", gripperDeg: Double? = nil) throws {
+        let seq = try XCTUnwrap(wire.messages(type).last?["seq"] as? Int)
+        wire.receive("ack", ["seq": seq, "status": "ok", "reason": reason])
+        var payload: [String: Any] = [
+            "estop": false, "ik": ik, "gripper": "closed", "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+        ]
+        if let gripperDeg { payload["gripper_deg"] = gripperDeg }
+        wire.receive("state", payload)
+    }
+
+    /// Closes the jaws on the cube: the server reports contact while the close is held, then the close is let go.
+    private func grip() throws {
+        model.buttonDown(.close)
+        XCTAssertEqual(try lastPayload("gripper_jog_start")["action"] as? String, "close")
+        clock += 100
+        model.link.tick()
+        wire.receive(
+            "state",
+            [
+                "estop": false, "ik": "gripper_contact", "gripper": "closed", "gripper_deg": 1.5,
+                "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+            ])
+        model.buttonUp(.close)
+        try answerFinal("gripper_jog_start", "gripper_jog_stopped", gripperDeg: 1.5)
+    }
+
+    /// A pad press, with the start it sent; nil when none went out.
+    private func press(_ button: ButtonID) throws -> [String: Any]? {
+        let starts = wire.messages("pose_start").count
+        model.buttonDown(button)
+        guard wire.messages("pose_start").count > starts else { return nil }
+        return try lastPayload("pose_start")
+    }
+
+    private func release(_ button: ButtonID) throws {
+        model.buttonUp(button)
+        clock += 50
+        try answerFinal("pose_start", "pose_stopped")
+    }
+
+    /// Carrying (the carry measurements of 2026-11-20: 0 of 10 on the tool point, 9 of 10 with the gripper link's
+    /// path once the jaws hold the cube). After the server reports contact, every pad direction and up and down start on
+    /// the gripper link's path as version 1.1.0 sent it: no control point, no calibration, no coordinated height, gain
+    /// 1 and no smoothing, with the 8 cm lead and a resync every 1.5 s. Opening the jaws brings back the tool point.
+    func testAHeldObjectIsCarriedOnTheGripperLinkPathUntilTheJawsOpen() throws {
+        for aids in [false, true] {
+            bringUp(aids: aids, coordinated: true)
+            model.setPrecisionPanelOpen(true)
+            try grip()
+            XCTAssertTrue(model.link.holdingObject, "aids \(aids)")
+            for button in [ButtonID.left, .forward, .up, .down] {
+                let start = try XCTUnwrap(try press(button), "\(button), aids \(aids)")
+                XCTAssertNil(start["control_point"], "\(button)")
+                XCTAssertNil(start["calibration_id"], "\(button)")
+                XCTAssertNil(start["tool_motion"], "\(button)")
+                XCTAssertEqual(start["gain"] as? Double, 1, "\(button)")
+                XCTAssertEqual(start["smoothing"] as? Double, 0, "\(button)")
+                try release(button)
+            }
+
+            // Held for 1.4 s: the target runs more than 5 mm ahead and no resync has ended the server hold yet.
+            _ = try XCTUnwrap(try press(.left))
+            for _ in 0..<14 {
+                clock += 100
+                state()
+                model.controller.tick()
+                model.link.tick()
+            }
+            let delta = try XCTUnwrap(try lastPayload("pose_update")["p_rel_m"] as? [Double])
+            let lead = simd_length(SIMD3(delta[0], delta[1], delta[2]))
+            XCTAssertGreaterThan(lead, Double(LiveLinkController.toolMaxLeadMeters))
+            XCTAssertLessThanOrEqual(lead, Double(LiveLinkController.maxLeadMeters) + 1e-6)
+            XCTAssertEqual(wire.messages("pose_stop").count, 4, "no resync within 1.5 s, aids \(aids)")
+            try release(.left)
+
+            model.buttonDown(.open)
+            XCTAssertTrue(model.link.holdingObject, "sent, not yet started, aids \(aids)")
+            jawsOpening()
+            XCTAssertFalse(model.link.holdingObject, "an open lets go, aids \(aids)")
+            model.buttonUp(.open)
+            try answerFinal("gripper_jog_start", "gripper_jog_stopped", gripperDeg: 60)
+            XCTAssertEqual(try press(.left)?["control_point"] as? String, "tool", "aids \(aids)")
+            try release(.left)
+            XCTAssertEqual(try press(.down)?["tool_motion"] as? String, "coordinated_height", "aids \(aids)")
+            try release(.down)
+        }
+    }
+
+    /// A state the server wrote while it opens the jaws.
+    private func jawsOpening() {
+        clock += 50
+        wire.receive(
+            "state",
+            [
+                "estop": false, "ik": "gripper_jogging", "gripper": "open", "gripper_deg": 20,
+                "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+            ])
+    }
+
+    /// An open the server refuses (another phone has control) leaves the jaws shut on the cube: the carry stays on the
+    /// gripper link's path. An open the server runs lets go once a state shows it opening the jaws.
+    func testARefusedOpenKeepsTheObjectHeld() throws {
+        bringUp(coordinated: true)
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        model.buttonDown(.open)
+        let open = try XCTUnwrap(wire.messages("gripper_jog_start").last?["seq"] as? Int)
+        XCTAssertEqual(try lastPayload("gripper_jog_start")["action"] as? String, "open")
+        wire.receive("ack", ["seq": open, "status": "rejected", "reason": "busy"])
+        model.buttonUp(.open)
+        clock += 100
+        state()
+        XCTAssertTrue(model.link.holdingObject, "the open was refused")
+        let start = try XCTUnwrap(try press(.left))
+        XCTAssertNil(start["control_point"])
+        try release(.left)
+
+        model.buttonDown(.open)
+        XCTAssertTrue(model.link.holdingObject, "sent, not yet started")
+        jawsOpening()
+        XCTAssertFalse(model.link.holdingObject, "the server opens the jaws")
+    }
+
+    /// An empty close followed at once by a wrist turn: the turn's start waits for the close's final answer, goes out
+    /// with it, and the state after the answer still tells the close was empty.
+    func testAnEmptyCloseFollowedAtOnceByAWristTurnStillSaysEmpty() throws {
+        for contact in [false, true] {
+            bringUp()
+            model.setPrecisionPanelOpen(true)
+            model.buttonDown(.close)
+            clock += 100
+            model.link.tick()
+            wire.receive(
+                "state",
+                [
+                    "estop": false, "ik": "gripper_jogging", "gripper": "closed", "gripper_deg": contact ? 3 : 0.4,
+                    "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                ])
+            model.buttonUp(.close)
+            model.setPrecisionPanelOpen(false)
+            model.send(.wristStart)
+            let close = try XCTUnwrap(wire.messages("gripper_jog_start").last?["seq"] as? Int)
+            wire.receive("ack", ["seq": close, "status": "ok", "reason": "gripper_jog_stopped"])
+            XCTAssertEqual(wire.messages("orient_start").count, 1, "contact \(contact)")
+            clock += 50
+            wire.receive(
+                "state",
+                [
+                    "estop": false, "ik": contact ? "gripper_contact" : "orienting", "gripper": "closed",
+                    "gripper_deg": contact ? 1.5 : 0.4, "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                ])
+            XCTAssertEqual(
+                model.cueLog.filter { $0.event == .limit(.empty) }.count, contact ? 0 : 1, "contact \(contact)")
+            XCTAssertEqual(model.link.holdingObject, contact, "contact reported after the turn started")
+            model.send(.wristEnd)
+        }
+    }
+
+    /// After a hold that ended clamped the server keeps `pose_clamped` until the next command writes a new label. An up
+    /// or down hold on coordinated height started then goes on through a tick before the first new state, and a clamp
+    /// that arises during the hold, after its own tracking label, still ends it.
+    func testALeftOverClampDoesNotEndACoordinatedHeightHold() throws {
+        for button in [ButtonID.up, .down] {
+            bringUp(coordinated: true)
+            model.keyEvent(.upper, down: true)
+            clock += 100
+            model.link.tick()
+            model.keyEvent(.upper, down: false)
+            clock += 100
+            try answerFinal("pose_start", "pose_stopped", ik: "pose_clamped")
+            clock += 100
+            failedState(activity: "pose_clamped")
+            model.setPrecisionPanelOpen(true)
+            XCTAssertEqual(try press(button)?["tool_motion"] as? String, "coordinated_height", "\(button)")
+            let stops = wire.messages("pose_stop").count
+            clock += 100
+            model.controller.tick()
+            model.link.tick()
+            XCTAssertTrue(model.session.state.armMoving, "\(button)")
+            XCTAssertEqual(wire.messages("pose_stop").count, stops, "\(button)")
+            let delta = try XCTUnwrap(try lastPayload("pose_update")["p_rel_m"] as? [Double])
+            if button == .up { XCTAssertLessThan(delta[2], 0) } else { XCTAssertGreaterThan(delta[2], 0) }
+
+            clock += 100
+            failedState(activity: "pose_tracking")
+            model.controller.tick()
+            model.link.tick()
+            XCTAssertEqual(wire.messages("pose_stop").count, stops, "\(button)")
+            clock += 100
+            failedState(activity: "pose_clamped")
+            model.controller.tick()
+            model.link.tick()
+            XCTAssertEqual(wire.messages("pose_stop").count, stops + 1, "a clamp during the hold, \(button)")
+            XCTAssertFalse(model.session.state.armMoving, "\(button)")
+        }
+    }
+
+    /// The wait for a new label is bounded: a hold that hears nothing but the left-over clamp ends as before.
+    func testALeftOverClampIsWaitedOutOnlyBriefly() throws {
+        bringUp(coordinated: true)
+        model.keyEvent(.upper, down: true)
+        clock += 100
+        model.link.tick()
+        model.keyEvent(.upper, down: false)
+        clock += 100
+        try answerFinal("pose_start", "pose_stopped", ik: "pose_clamped")
+        clock += 100
+        failedState(activity: "pose_clamped")
+        model.setPrecisionPanelOpen(true)
+        _ = try XCTUnwrap(try press(.up))
+        let stops = wire.messages("pose_stop").count
+        for _ in 0..<4 {
+            clock += 100
+            failedState(activity: "pose_clamped")
+            model.controller.tick()
+            model.link.tick()
+            XCTAssertTrue(model.session.state.armMoving)
+        }
+        clock += 1
+        failedState(activity: "pose_clamped")
+        model.controller.tick()
+        model.link.tick()
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertEqual(wire.messages("pose_stop").count, stops + 1)
+    }
+
+    /// The free phone move and the chosen axis keep their paths while an object is held.
+    func testAHeldObjectLeavesThePhoneMovesOnTheirPaths() throws {
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        model.setPrecisionPanelOpen(false)
+        model.keyEvent(.upper, down: true)
+        XCTAssertNil(try lastPayload("pose_start")["control_point"], "a free move")
+        model.keyEvent(.upper, down: false)
+        XCTAssertTrue(model.link.holdingObject)
+    }
+
+    /// A scene reset, a new episode and a reconnect each let go of the held object; a stop, the server's or the phone's
+    /// own, keeps it.
+    func testHoldingEndsWithAResetOrAReconnectAndOutlivesAStop() throws {
+        let arm: [String: Any] = ["ik": "ok", "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07]]
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        wire.receive("state", arm.merging(["estop": false, "episode": 1]) { $1 })
+        XCTAssertTrue(model.link.holdingObject)
+        wire.receive("state", arm.merging(["estop": false, "episode": 2]) { $1 })
+        XCTAssertFalse(model.link.holdingObject, "a new episode")
+
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        XCTAssertTrue(model.link.resetScene())
+        let reset = try XCTUnwrap(wire.messages("reset_scene").last?["seq"] as? Int)
+        wire.receive("ack", ["seq": reset, "status": "ok", "reason": "scene_reset"])
+        XCTAssertFalse(model.link.holdingObject, "the server's answer to a reset")
+
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        wire.receive("state", arm.merging(["estop": true]) { $1 })
+        XCTAssertTrue(model.link.holdingObject, "a stop keeps what the jaws hold")
+
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        model.link.estop()
+        XCTAssertTrue(model.link.holdingObject, "the phone's own stop keeps it too")
+
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        try grip()
+        model.link.closeQuietly()
+        XCTAssertFalse(model.link.holdingObject, "the connection closed")
+    }
+
+    /// The operator's log at 10:53:52: a free phone move ended clamped at the work area's edge, the server's label stayed
+    /// `pose_clamped`, and ten pad presses were refused as busy although the arm had stopped. The hold that clamped has
+    /// ended and been answered, so the pad starts.
+    func testAPhoneMoveThatEndedClampedDoesNotBlockThePad() throws {
+        bringUp()
+        model.keyEvent(.upper, down: true)
+        clock += 100
+        model.link.tick()
+        model.keyEvent(.upper, down: false)
+        clock += 100
+        try answerFinal("pose_start", "pose_stopped", ik: "pose_clamped")
+        clock += 300
+        failedState(activity: "pose_clamped")
+        XCTAssertNil(model.link.padStartRefusal)
+        XCTAssertEqual(model.link.manualTranslationStartRefusal, .busy, "only the pad is let through")
+        XCTAssertFalse(
+            model.link.startHold(PoseParams(gain: 1, smoothing: 0, toolCalibrationID: "test-tool"), axis: .leftRight),
+            "a chosen-axis move by the phone still waits, as before")
+        XCTAssertTrue(wire.messages("pose_start").count == 1)
+        model.setPrecisionPanelOpen(true)
+        XCTAssertEqual(try press(.left)?["control_point"] as? String, "tool")
+        XCTAssertTrue(model.session.state.armMoving)
+        model.buttonUp(.left)
+    }
+
+    /// Clamped while a hold of this phone still runs, or before the server has answered its stop, is still busy.
+    func testAClampWhileAHoldRunsOrBeforeItsAnswerStillRefuses() throws {
+        bringUp()
+        model.keyEvent(.upper, down: true)
+        failedState(activity: "pose_clamped")
+        XCTAssertEqual(model.link.manualTranslationStartRefusal, .busy, "the hold runs")
+        XCTAssertEqual(model.link.padStartRefusal, .busy, "the hold runs, for the pad too")
+        model.keyEvent(.upper, down: false)
+        failedState(activity: "pose_clamped")
+        XCTAssertEqual(model.link.manualTranslationStartRefusal, .busy, "its stop is not answered")
+        XCTAssertEqual(model.link.padStartRefusal, .busy, "its stop is not answered, for the pad too")
+    }
+
     func testMissingToolMeasurementRefusesThePadRatherThanUsingOrigin() {
         bringUp()
         state(tool: nil)

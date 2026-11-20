@@ -4,7 +4,7 @@ import simd
 public struct GripperLimits: Equatable, Sendable {
     /// A measured jaw angle at or above this while opening is fully open.
     public var openDeg: Double
-    /// A measured jaw angle at or below this while closing, with no contact, closed on nothing.
+    /// A measured jaw angle at or below this when a close has ended with no contact: closed on nothing.
     public var emptyDeg: Double
 
     public init(openDeg: Double, emptyDeg: Double) {
@@ -18,8 +18,8 @@ public struct GripperLimits: Equatable, Sendable {
 ///
 /// - GO when a start went out and no refusal came within the acceptance time (I-4).
 /// - NO for a start the server refused within that time; LETGO for a refusal after it, or for a hold the app ends.
-/// - END at a workspace or wrist clamp the server reports, at fully open, on an empty close, and when the arm is
-///   blocked: during a translation hold the commanded point is at least 10 mm ahead and the measured arm makes
+/// - END at a workspace or wrist clamp the server reports, at fully open, on a close that ended empty, and when the
+///   arm is blocked: during a translation hold the commanded point is at least 10 mm ahead and the measured arm makes
 ///   little progress in 1.0 s.
 /// - GRIP on contact while closing, or in the states that follow letting go of a close; from then on the jaws count
 ///   as gripping until an open, a scene reset or a new server run.
@@ -50,6 +50,12 @@ public struct FeedbackMonitor {
     /// With the lowest rule on, no two states of a window it judges arrived further apart than this: states held back
     /// and delivered together say nothing about how the arm stood between them.
     public static let arrivalGapMs = 400
+    /// The lowest rule tells no stall while the height judged is still falling at least this fast over the stall's
+    /// window (`isComingDown`). A slow simulator moves the arm slowly in wall time: at
+    /// about 12 passes a second an arm asked down at the fine speed came down 1.4 to 2.0 mm a second, inside the
+    /// 2 mm the full stall allows, while the height of an arm that had stopped moved less than 0.1 mm. A rate, unlike a
+    /// distance, is judged the same over the full stall's second and the quicker stall's 0.3 s.
+    public static let lowestDescentMetersPerSecond = 0.0005
 
     public let limits: GripperLimits
     /// Gripper-link bounds in the active robot profile. Never applied to tool-point targets.
@@ -117,7 +123,6 @@ public struct FeedbackMonitor {
         var ownLabelSeen = false
         var clamped = false
         var contact = false
-        var empty = false
         var fullyOpen = false
         var blocked = false
         var workspaceExplainsStall = false
@@ -134,7 +139,8 @@ public struct FeedbackMonitor {
     private var engaged: Engaged?
     /// A close the operator let go of before any contact showed. The server handles the stop a step later, and
     /// with the listening connection down the first state comes only after the stop, so contact in the states
-    /// that follow still counts (§5.7).
+    /// that follow still counts (§5.7). Kept apart from the engaged hold: a translation or wrist hold started before
+    /// that state leaves it to be decided, and only a new jog of the jaws takes over from it.
     private var releasedClose = false
     private var nextHold = 1
     private var roundTrips: [Int] = []
@@ -165,7 +171,7 @@ public struct FeedbackMonitor {
     /// A start went on the wire. `restart`: the app restarted a hold the operator still holds, as a translation
     /// resync does; it has already had its GO.
     public mutating func startSent(_ kind: ControlKind, restart: Bool, at now: Int) {
-        releasedClose = false
+        if case .gripper = kind { releasedClose = false }
         if kind == .gripper(.open) { gripping = false }
         if restart, var current = engaged {
             current.kind = kind
@@ -267,20 +273,28 @@ public struct FeedbackMonitor {
             if let before = episode, before != number { gripping = false }
             episode = number
         }
+        // The outcome of the close let go of, told before whatever the hold engaged since makes of this state.
+        var closeOutcome: [FeedbackEvent] = []
         if releasedClose {
             switch state.activity {
             case .gripperContact? where !state.estop:
                 releasedClose = false
                 gripping = true
-                return [.contact]
+                closeOutcome = [.contact]
             // The server has not handled the stop yet: the jaws are still closing.
             case .gripperJogging? where !state.estop: break
-            default: releasedClose = false
+            default:
+                // The close has ended without contact. Only now are shut jaws empty: while they close, contact can
+                // still come after the angle has passed the limit, and a grip on a small object rests under it.
+                releasedClose = false
+                if !state.estop, let angle = state.gripperDeg, angle <= limits.emptyDeg {
+                    closeOutcome = [.limit(.empty)]
+                }
             }
         }
         // While the success shows nothing moves on purpose, and the hold has ended or is about to.
-        guard var current = engaged, now >= current.sentAtMs, !state.estop, !state.simBusy else { return [] }
-        var events: [FeedbackEvent] = []
+        guard var current = engaged, now >= current.sentAtMs, !state.estop, !state.simBusy else { return closeOutcome }
+        var events = closeOutcome
         switch current.kind {
         case .pose:
             if state.activity == .poseTracking { current.ownLabelSeen = true }
@@ -311,7 +325,15 @@ public struct FeedbackMonitor {
                     current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
                 }
                 if reportsLowest { events += judgeHeight(&current, at: now) }
-                if !current.blocked, blockedWorkspace != nil || current.point == .tool,
+                // With the lowest rule on, a pinch point asked at least 10 mm lower is that rule's to judge, as on the
+                // gripper link's path (`isBlockedWithoutAskingLower`). It waits until the arm has stopped coming down;
+                // an arm a slow simulator brings down under 2 mm a second is otherwise taken here for one that does
+                // not follow. Only asks that rule can judge are left to it (`lowestRuleCanJudge`): any other ask would
+                // get neither cue.
+                let lowestRuleJudges =
+                    reportsLowest && current.point == .tool && Self.asksLowerThisSecond(current)
+                    && lowestRuleCanJudge(current)
+                if !current.blocked, blockedWorkspace != nil || current.point == .tool, !lowestRuleJudges,
                     Self.isNotFollowing(&current, workspace: current.point == .tool ? nil : blockedWorkspace, at: now),
                     let newest = current.samples.last
                 {
@@ -335,13 +357,11 @@ public struct FeedbackMonitor {
                 events.append(.limit(.wrist))
             }
         case .gripper(.closed):
+            // Empty is decided after the close ends (above), never from the angle while it runs.
             if state.activity == .gripperContact, !current.contact {
                 current.contact = true
                 gripping = true
                 events.append(.contact)
-            } else if !current.contact, !current.empty, let angle = state.gripperDeg, angle <= limits.emptyDeg {
-                current.empty = true
-                events.append(.limit(.empty))
             }
         case .gripper(.open):
             if !current.fullyOpen, let angle = state.gripperDeg, angle >= limits.openDeg {
@@ -485,7 +505,8 @@ public struct FeedbackMonitor {
     /// The fresh measured arm stands against the operator's ask for lower. The full stall: the newest state sent at
     /// least 10 mm lower, every state of the last second at least 5 mm lower, arriving regularly, and the height
     /// within 2 mm over that second. Or the quicker one, back within 2 mm of the lowest height found of the same kind:
-    /// every state of the last 0.3 s at least 5 mm lower, arriving regularly, and the height within 1 mm.
+    /// every state of the last 0.3 s at least 5 mm lower, arriving regularly, and the height within 1 mm. Neither while
+    /// the height is still coming down over its window (`lowestDescentMetersPerSecond`).
     private func isLowestStall(_ hold: Engaged, at now: Int) -> Bool {
         guard hold.target != nil, let newest = hold.samples.last, now - newest.atMs < Self.freshStateMs else {
             return false
@@ -493,7 +514,7 @@ public struct FeedbackMonitor {
         if let below = newest.below, below >= Self.blockedShortMeters,
             let window = Self.window(of: hold.samples, ms: Self.blockedWindowMs),
             Self.asks(window, atLeast: Self.lowestSustainMeters), Self.arrivesRegularly(window),
-            Self.isStill(window, within: Self.blockedMovedMeters)
+            Self.isStill(window, within: Self.blockedMovedMeters), !Self.isComingDown(window)
         {
             return true
         }
@@ -503,7 +524,7 @@ public struct FeedbackMonitor {
             let window = Self.window(of: hold.samples, ms: Self.lowestQuickMs),
             Self.asks(window, atLeast: Self.lowestQuickShortMeters), Self.arrivesRegularly(window)
         else { return false }
-        return Self.isStill(window, within: Self.lowestQuickMovedMeters)
+        return Self.isStill(window, within: Self.lowestQuickMovedMeters) && !Self.isComingDown(window)
     }
 
     /// Version 1.0.1's blocked stall, silent while any state of its second was sent at least 10 mm lower (the operator
@@ -521,6 +542,31 @@ public struct FeedbackMonitor {
     private static func asksLowerNow(_ hold: Engaged) -> Bool {
         guard let target = hold.target, let newest = hold.samples.last else { return false }
         return newest.position.z - target.z >= blockedShortMeters
+    }
+
+    /// The command held now, or one held when a state of the last second arrived, is at least 10 mm under the measured
+    /// point.
+    private static func asksLowerThisSecond(_ hold: Engaged) -> Bool {
+        guard let newest = hold.samples.last else { return false }
+        return asksLowerNow(hold)
+            || hold.samples.contains {
+                newest.atMs - $0.atMs <= blockedWindowMs && ($0.below.map { $0 >= blockedShortMeters } ?? false)
+            }
+    }
+
+    /// The asks of the newest states are ones the lowest rule can judge, whatever the arm does: every state of the last
+    /// second asked at least 5 mm lower (the full stall), or, back within 2 mm of the lowest height found of the same
+    /// kind, every state of the last 0.3 s asked as much as the quicker stall needs. True while there is no second of
+    /// states yet: nothing is judged as blocked before then either.
+    private func lowestRuleCanJudge(_ hold: Engaged) -> Bool {
+        guard let window = Self.window(of: hold.samples, ms: Self.blockedWindowMs) else { return true }
+        if Self.asks(window, atLeast: Self.lowestSustainMeters) { return true }
+        guard let newest = hold.samples.last,
+            let lowest = newest.pinch == nil ? lowestSeen : lowestPinchSeen,
+            abs((newest.pinch?.z ?? newest.position.z) - lowest) <= Self.blockedMovedMeters,
+            let quick = Self.window(of: hold.samples, ms: Self.lowestQuickMs)
+        else { return false }
+        return Self.asks(quick, atLeast: Self.lowestQuickShortMeters)
     }
 
     /// Rising 10 mm rearms the lowest cue. After a downward Blocked, a lower height or a new direction also rearms it.
@@ -563,12 +609,32 @@ public struct FeedbackMonitor {
     /// Every sample's height is less than `meters` from the oldest's: the pinch point's when every sample carries it,
     /// the gripper link's for all of them otherwise.
     private static func isStill(_ window: [Sample], within meters: Double) -> Bool {
-        let pinchHeights = window.compactMap { $0.pinch?.z }
-        let heights = pinchHeights.count == window.count ? pinchHeights : window.map(\.position.z)
+        let heights = heights(of: window)
         // Every height is measured against the window's first sample: of several that arrived in its first
         // millisecond, the one that arrived first.
         guard let oldest = heights.first else { return false }
         return heights.allSatisfy { abs($0 - oldest) < meters }
+    }
+
+    /// The window's heights fall at least `lowestDescentMetersPerSecond`, by the least-squares line through them: the
+    /// arm is still coming down, however slowly the simulator runs. A line, not the first and newest heights alone,
+    /// so one state that wavers decides nothing.
+    private static func isComingDown(_ window: [Sample]) -> Bool {
+        let heights = heights(of: window)
+        guard let first = window.first, heights.count >= 2 else { return false }
+        let seconds = window.map { Double($0.atMs - first.atMs) / 1000 }
+        let meanTime = seconds.reduce(0, +) / Double(seconds.count)
+        let meanHeight = heights.reduce(0, +) / Double(heights.count)
+        let spread = seconds.reduce(0) { $0 + ($1 - meanTime) * ($1 - meanTime) }
+        guard spread > 0 else { return false }
+        let covariance = zip(seconds, heights).reduce(0) { $0 + ($1.0 - meanTime) * ($1.1 - meanHeight) }
+        return covariance / spread <= -lowestDescentMetersPerSecond
+    }
+
+    /// The pinch point's heights when every sample carries it, the gripper link's for all of them otherwise.
+    private static func heights(of window: [Sample]) -> [Double] {
+        let pinchHeights = window.compactMap { $0.pinch?.z }
+        return pinchHeights.count == window.count ? pinchHeights : window.map(\.position.z)
     }
 
     private static func length(_ vector: SIMD3<Double>) -> Double { (vector * vector).sum().squareRoot() }
