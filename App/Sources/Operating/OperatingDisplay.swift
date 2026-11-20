@@ -30,6 +30,13 @@ enum OperatingState: Equatable, Sendable {
     case ended(DriveEnd)
     case slowLink(ms: Int)
     case stopped(cause: EmergencyCause?)
+    /// The simulator behind the server stopped responding: shown in a refusal's place for as long as it lasts, with
+    /// the way back to Connect, in place of the release. `stopped`: the stop is latched under it and stays so;
+    /// otherwise Reconnect latches it before the connection goes.
+    case simulatorStalled(stopped: Bool)
+    /// The simulator paused, perhaps only for seconds: a quiet line in a refusal's place, no button. `stopped`: the
+    /// stop is latched under it, and the state still says so.
+    case simulatorPaused(stopped: Bool)
     case linkLost
     case saved(count: Int)  // shown for 2 s after a take is saved
 
@@ -54,6 +61,9 @@ enum OperatingState: Equatable, Sendable {
         case .ended(let reason): return "ended \(reason)"
         case .slowLink: return "slow link"
         case .stopped: return "stopped"
+        case .simulatorStalled(let stopped):
+            return stopped ? "simulator not responding" : "simulator not responding, not stopped"
+        case .simulatorPaused(let stopped): return stopped ? "stopped, simulator paused" : "simulator paused"
         case .linkLost: return "link lost"
         case .saved: return "saved"
         }

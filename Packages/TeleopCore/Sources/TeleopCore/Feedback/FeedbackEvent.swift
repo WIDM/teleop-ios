@@ -30,6 +30,9 @@ public enum Refusal: String, CaseIterable, Sendable {
     case tapLetGo
     /// A quick still tap on the guide outside the view from above, the only picture a tap is judged against.
     case tapViewAbove
+    /// The simulator is not responding: no move and no release goes out. The screen already says why, and the
+    /// announcement was spoken once, so nothing is spoken.
+    case simulatorStalled
 }
 
 /// As far as it goes (E4).
@@ -122,7 +125,7 @@ public enum DriveEnd: Hashable, Sendable, CaseIterable {
         case .serverRefused: self = .serverRefused
         case .emergencyStop: return nil
         case .noLink, .notStopped, .slowLink, .notTracking, .posture, .letGoFirst, .deadInput, .outsideWorkArea,
-            .noArmData, .tapStill, .tapLetGo, .tapViewAbove, .useUpperKey:
+            .noArmData, .tapStill, .tapLetGo, .tapViewAbove, .useUpperKey, .simulatorStalled:
             self = .unnamed
         }
     }
@@ -208,6 +211,16 @@ public enum FeedbackEvent: Equatable, Sendable {
     /// The position the phone commands left the work area on this side, in the operator's words. A case of its own,
     /// not a `Limit`, because a `Limit` carries no side.
     case commandOutside(OperatorDirection)
+    /// The simulator stopped responding while the server still answers (`SimStallDetector`, not responding): said once
+    /// each time that level is reached, never per press.
+    case simulatorStalled
+    /// The same, reached while no stop is on: what Reconnect does is said in place of the stop staying on.
+    case simulatorStalledUnstopped
+    /// The simulator runs again after it had stopped responding: said once.
+    case simulatorBack
+    /// The simulator runs again after a pause during which the server latched the stop itself: said once, with how to
+    /// go on.
+    case simulatorAutoStopped
 
     /// The table row this event plays.
     public var key: CueKey {
@@ -237,6 +250,10 @@ public enum FeedbackEvent: Equatable, Sendable {
         case .notReset: return .notReset
         case .drive(let cue): return .drive(cue)
         case .commandOutside(let side): return .commandOutside(side)
+        case .simulatorStalled: return .simulatorStalled
+        case .simulatorStalledUnstopped: return .simulatorStalledUnstopped
+        case .simulatorBack: return .simulatorBack
+        case .simulatorAutoStopped: return .simulatorAutoStopped
         }
     }
 
@@ -277,6 +294,10 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
     case notReset
     case drive(DriveCue)
     case commandOutside(OperatorDirection)
+    case simulatorStalled
+    case simulatorStalledUnstopped
+    case simulatorBack
+    case simulatorAutoStopped
 
     /// Every key. Built from `Kind`, whose cases the compiler lists, so a key cannot be left out by hand: a new case
     /// here does not compile until `kind` names its kind, and a new kind does not compile until `keys(of:)` lists
@@ -288,6 +309,7 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case holdLive, refused, limit, contact, onTarget, letGo, emergencyStop, linkLost, reconnected, serverRestarted
         case takeContinues, offlineSaved, offlineDiscarded, taskSuccess, takeSaved, successNotSaved, takeDiscarded
         case ready, voiceAxis, recordingSession, notRecording, notReset, drive, commandOutside, serverRefusal
+        case simulatorStalled, simulatorStalledUnstopped, simulatorBack, simulatorAutoStopped
     }
 
     var kind: Kind {
@@ -317,6 +339,10 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
         case .notReset: return .notReset
         case .drive: return .drive
         case .commandOutside: return .commandOutside
+        case .simulatorStalled: return .simulatorStalled
+        case .simulatorStalledUnstopped: return .simulatorStalledUnstopped
+        case .simulatorBack: return .simulatorBack
+        case .simulatorAutoStopped: return .simulatorAutoStopped
         }
     }
 
@@ -353,6 +379,10 @@ public enum CueKey: Hashable, Sendable, CaseIterable {
             return ServerRefusalClass.allCases.flatMap { refusalClass in
                 [false, true].map { CueKey.serverRefusal(refusalClass, accepted: $0) }
             }
+        case .simulatorStalled: return [.simulatorStalled]
+        case .simulatorStalledUnstopped: return [.simulatorStalledUnstopped]
+        case .simulatorBack: return [.simulatorBack]
+        case .simulatorAutoStopped: return [.simulatorAutoStopped]
         }
     }
 }

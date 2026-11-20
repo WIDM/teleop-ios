@@ -97,6 +97,14 @@ public enum SpeechKey: String, CaseIterable, Sendable {
     case tapViewAbove = "say.tap_view_above"
     /// Said after "Stopped here." when a touch on the tapped spot right after the tap ended the move.
     case tapOnce = "say.tap_once"
+    /// The simulator is not responding: the stop stays on, and the server must be restarted.
+    case simulatorStalled = "say.sim_stalled"
+    /// The simulator is not responding and no stop is on: Reconnect, then restart the server.
+    case simulatorStalledUnstopped = "say.sim_stalled_unstopped"
+    /// The simulator runs again after it had stopped responding.
+    case simulatorBack = "say.sim_back"
+    /// The simulator paused and the server latched the stop itself; it runs again, so the stop may be released.
+    case simulatorAutoStopped = "say.sim_auto_stopped"
 
     /// The phrase has one `%d`, filled from the event's number.
     public var takesNumber: Bool {
@@ -166,6 +174,8 @@ public enum CueTable {
         CueRow(.refused(.tapStill), .no, say: [.tapStill], .p2),
         CueRow(.refused(.tapLetGo), .no, say: [.tapLetGo], .p2),
         CueRow(.refused(.tapViewAbove), .no, say: [.tapViewAbove], .p2),
+        // Felt only: the screen says why and the announcement was spoken once, so a press never repeats it.
+        CueRow(.refused(.simulatorStalled), .no),
 
         CueRow(.limit(.workspace), .end),
         CueRow(.limit(.wrist), .end),
@@ -209,6 +219,9 @@ public enum CueTable {
         CueRow(.serverRefusal(.jointLimit, accepted: true), .letGo, say: [.refusedJointLimit], .p2),
         CueRow(.serverRefusal(.reach, accepted: true), .letGo, say: [.refusedReach], .p2),
         CueRow(.serverRefusal(.other, accepted: true), .letGo, say: [.refusedMove], .p4),
+        // A stopped simulator is told once by its own announcement, never by each refusal.
+        CueRow(.serverRefusal(.simulatorStalled, accepted: false), .no),
+        CueRow(.serverRefusal(.simulatorStalled, accepted: true), .letGo),
 
         CueRow(.emergencyStop(.button, takeDiscarded: false), .alarm, say: [.estop, .causeButton, .resetPrompt], .p1),
         CueRow(
@@ -248,6 +261,12 @@ public enum CueTable {
         CueRow(.recordingSession, say: [.recordingSession, .savedCount], .p2),
         CueRow(.notRecording, say: [.notRecording], .p2),
         CueRow(.notReset, say: [.notReset], .p2),
+        // Said once as the simulator stops responding, and once as it comes back; queued, never dropped, so they
+        // follow the alarm instead of cutting it.
+        CueRow(.simulatorStalled, .no, say: [.simulatorStalled], .p2),
+        CueRow(.simulatorStalledUnstopped, .no, say: [.simulatorStalledUnstopped], .p2),
+        CueRow(.simulatorBack, say: [.simulatorBack], .p2),
+        CueRow(.simulatorAutoStopped, say: [.simulatorAutoStopped], .p2),
 
         // A move nobody holds announces its start and ending. A waiting latch is cancelled when that move ends.
         // Latching has its own pattern, so it is never taken for GO.
@@ -273,6 +292,7 @@ public enum CueTable {
         serverEnding(.contact),
         serverEnding(.jointLimit),
         serverEnding(.reach),
+        serverEnding(.simulatorStalled),
         serverEnding(.other),
     ]
 
@@ -317,6 +337,8 @@ public enum CueTable {
         case .contact: return [.refusedContact]
         case .jointLimit: return [.refusedJointLimit]
         case .reach: return [.refusedReach]
+        // The announcement that the simulator is not responding says the rest, once.
+        case .simulatorStalled: return []
         case .other: return [.refusedMove]
         }
     }

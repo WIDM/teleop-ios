@@ -61,10 +61,11 @@ final class AppModel {
     /// Why the press the session just refused was refused, when the app decided it.
     @ObservationIgnored private var pendingRefusal: Refusal?
     /// Where a STOP pressed here stands, from the press that latched the stop until the stop is released (J7). Nil
-    /// when no stop is latched, or when the server latched it. Observed, for `practiceBlockedReason`.
+    /// when no stop is latched, or when the server latched it. Reconnect's stop the server did not confirm before its
+    /// connection closed is owed too. Observed, for `practiceBlockedReason`.
     private var pressedStop: PressedStop?
     /// The pressed STOP reached no server: `estop` goes out first after the next `welcome`, and until then the robot
-    /// is not stopped.
+    /// is not stopped. Reconnect's owed stop is not released here until then either (`send`).
     private var stopOwed: Bool { pressedStop == .owed }
     /// A hold was engaged when the link was last lost, so a stopped server found on reconnect is the link's doing.
     @ObservationIgnored private var holdEngagedAtLoss = false
@@ -92,6 +93,14 @@ final class AppModel {
     private(set) var catchingUp = false
     /// Why E-stop is latched, for S4. Nil when not latched.
     private(set) var stopCause: StopCause?
+    /// The server latched the stop itself while the simulator was paused, and the operator has not been told: said once
+    /// when the simulator runs again, with how to go on. True when the stall is known to be its cause (the server
+    /// refused this phone's hold `sim_stalled`, or the state that brought the stop said `sim_stalled`): then it is said
+    /// to have stopped automatically. False when the cause is unknown, as another client's STOP: then it is told as any
+    /// server stop. Nil again once said or the stop is released.
+    @ObservationIgnored private var stopLatchedWhilePaused: Bool?
+    /// True only while **Reconnect** presses STOP (`stopBeforeReconnect`): the stop it latches has Reconnect as its cause.
+    @ObservationIgnored private var reconnectPressingStop = false
     /// Developer mode log: actions and haptics with times, newest last.
     private(set) var debugLog: [String] = []
     /// The newest `state` from either connection: measured wrist and gripper angles, the arm, the recorder.
@@ -397,6 +406,7 @@ final class AppModel {
         link.onServerStop = { [weak self] in self?.pendingServerCause = StopCause(serverReason: $0) }
         link.onStopSeen = { [weak self] in self?.stopEpoch += 1 }
         link.onWristStartSent = { [weak self] in self?.controller.wristStartSent() }
+        link.onSimulatorLevel = { [weak self] in self?.simulatorLevelChanged(from: $0, to: $1) }
         controller = OperatingController(
             model: self, mode: mode, hand: hand, constants: profile.inputConstants, assist: assist, now: inputClock
         )
@@ -505,9 +515,13 @@ final class AppModel {
     }
 
     /// What Connect and Settings say while practice is refused for the latched stop. An owed STOP has reached no robot
-    /// yet (J7): the robot is not stopped then, and the way out starts with connecting.
+    /// yet (J7): the robot is not stopped then, and the way out starts with connecting. Reconnect's unconfirmed stop is
+    /// not said to have stopped the robot either: only that it goes out again on connecting.
     var practiceBlockedReason: LocalizedStringKey {
-        stopOwed ? "settings.practice_blocked_unsent" : "settings.practice_blocked"
+        if stopCause == .reconnect, pressedStop == .owed || pressedStop == .sent {
+            return "settings.practice_blocked_unconfirmed"
+        }
+        return stopOwed ? "settings.practice_blocked_unsent" : "settings.practice_blocked"
     }
 
     /// Drops the current link and starts the other, so no session spans both.
@@ -693,7 +707,7 @@ final class AppModel {
         cues.refreshReadiness()
         if !active { recordedTouches.removeAll() }
         controller.activeChanged(active)
-        link.foregroundChanged()
+        link.foregroundChanged(active)
         if !active {
             experimentTiming.event(kind: "app_suspended", details: [:])
             experimentTiming.reset()
@@ -911,6 +925,12 @@ final class AppModel {
             return
         }
         let s = session.state
+        // A stopped simulator could never run the reset, and a server may clear its stop for one.
+        if s.liveLink, link.simulatorStalled {
+            log("→ reset refused: the simulator is not responding")
+            raise(.refused(.simulatorStalled))
+            return
+        }
         guard s.liveLink else {
             send(.resetScene)
             perform(.sceneResetDone, fromServer: false)
@@ -961,6 +981,21 @@ final class AppModel {
             raise(.refused(.letGoFirst))
             return
         }
+        // With the simulator not responding the server could never release its stop, or would release one nothing
+        // holds: the stop stays latched here, and the press is felt, not spoken, since the screen already says why.
+        if action == .releaseStop, session.state.liveLink, link.simulatorStalled {
+            log("→ \(action) refused: the simulator is not responding")
+            raise(.refused(.simulatorStalled))
+            return
+        }
+        // Reconnect's owed stop may have reached the server unconfirmed: releasing it here would leave that server
+        // stopped by nothing the phone still holds, and the stop would never be sent again. It is released once a
+        // server has it. A STOP pressed with no link reached no server, so it may still be released here.
+        if action == .releaseStop, session.state.emergencyStop, stopOwed, stopCause == .reconnect {
+            log("→ \(action) refused: no server has confirmed Reconnect's stop")
+            raise(.refused(.noLink))
+            return
+        }
         // §6.5: with a recorder, estop_reset would leave it off, so the release is not offered at all and the reset is
         // the way out of the stop. The screen shows no release then; this keeps the rule whatever sends it.
         if action == .releaseStop, session.state.emergencyStop, !stopExits.exits.contains(.releaseKeepScene) {
@@ -995,6 +1030,63 @@ final class AppModel {
 
     /// The cues decided so far, newest last.
     var cueLog: [CueLogEntry] { cues.log }
+
+    /// The simulator paused, stopped responding or runs again. A pause is only shown; not responding is said once, and
+    /// so is the simulator coming back from it.
+    private func simulatorLevelChanged(from before: SimStallDetector.Level, to after: SimStallDetector.Level) {
+        if after == .notResponding {
+            // The server's own newest state counts too: a stop it reports latches here a moment later.
+            let stopped = (session.state.emergencyStop && !stopOwed) || link.serverSaysStopped
+            raise(stopped ? .simulatorStalled : .simulatorStalledUnstopped)
+        }
+        if after == .running {
+            if before == .notResponding { raise(.simulatorBack) }
+            if let automatic = stopLatchedWhilePaused, session.state.emergencyStop {
+                raise(
+                    automatic
+                        ? .simulatorAutoStopped
+                        : .emergencyStop(.other, takeDiscarded: session.state.liveLink && narrator.stopDiscardsTake))
+            }
+            stopLatchedWhilePaused = nil
+        }
+        refreshOperating()
+    }
+
+    /// **Reconnect** while the simulator is not responding leaves the server stopped: a stop not latched yet is pressed
+    /// here as STOP is, so it is recorded as sent, then confirmed, or owed when its connection closes first, and it goes
+    /// out again after the next welcome. Only the cause differs: no alarm and no "you pressed stop".
+    /// True when it sent an `estop`.
+    @discardableResult
+    func stopBeforeReconnect() -> Bool {
+        guard session.state.liveLink, link.isOpen, !session.state.emergencyStop else { return false }
+        log("link: Reconnect latches the stop and sends it before disconnecting")
+        reconnectPressingStop = true
+        defer { reconnectPressingStop = false }
+        send(.stop)
+        return true
+    }
+
+    /// **Reconnect**: the server is left stopped before the connection goes, then Connect opens. A stop sent now keeps
+    /// the connection until the server confirms it, for at most `LiveLinkController.reconnectStopWaitMs`: closing at
+    /// once could cancel the `estop` before it leaves. Closed before it was confirmed, by the wait's end or any other
+    /// way, the stop is owed as any pressed STOP is.
+    func reconnect() {
+        guard !link.waitingToCloseAfterStop else { return }
+        guard stopBeforeReconnect() else {
+            leaveForConnect()
+            return
+        }
+        link.whenStopConfirmed { [weak self] confirmed in
+            guard let self else { return }
+            if !confirmed { log("link: Reconnect's stop was not confirmed; it is sent again after the next welcome") }
+            leaveForConnect()
+        }
+    }
+
+    private func leaveForConnect() {
+        send(.disconnect)
+        send(.changeServer)
+    }
 
     /// Live link only: opens the socket to the saved server, so standby is ready without a trip to the connect
     /// screen. Called at launch and when practice ends.
@@ -1116,8 +1208,10 @@ final class AppModel {
         let owed = stopOwed
         // This server has not confirmed a STOP pressed here yet.
         if pressedStop != nil { pressedStop = .sent }
-        guard owed else {
+        // Reconnect's stop was never announced: the operator pressed Reconnect, not STOP.
+        guard owed, stopCause != .reconnect else {
             log("link: the stop is latched, so estop is sent again")
+            if owed { refreshOperating() }
             return
         }
         narrator.emergencyStopLearned()
@@ -1189,7 +1283,8 @@ final class AppModel {
         let facts = operatingFacts
         let needsCamera = session.state.liveLink && modeSetting != .buttons && !controller.precisionPanelOpen
         let connected = session.state.liveLink ? link.isUp : facts.connected
-        return connected && !facts.emergencyStop && !facts.stopOwed && !facts.cameraStopped
+        return connected && !facts.emergencyStop && !facts.stopOwed && !facts.cameraStopped && !facts.simulatorStalled
+            && !facts.simulatorPaused
             && !facts.commandsBlocked && facts.engaged == nil && !facts.serverSaving && !facts.serverResetting
             && (!session.state.liveLink || (serverState?.estop != true && serverState?.simBusy != true))
             && (!needsCamera || pose() != nil)
@@ -1204,7 +1299,10 @@ final class AppModel {
         facts.address = s.serverAddress
         facts.emergencyStop = s.emergencyStop
         facts.stopOwed = stopOwed
-        facts.stopCause = s.emergencyStop ? emergencyCause : nil
+        // Reconnect's stop names no cause: none of the causes the screen knows is what happened.
+        facts.stopCause = s.emergencyStop && stopCause != .reconnect ? emergencyCause : nil
+        facts.simulatorPaused = s.liveLink && link.simulatorLevel == .paused
+        facts.simulatorStalled = s.liveLink && link.simulatorLevel == .notResponding
         // Buttons mode pauses the tracking on purpose, so no frame can come there to show the camera runs. The pad
         // needs no camera, and the screen does not say it stopped.
         facts.cameraStopped = controller.isCameraStopped && modeSetting != .buttons && !controller.precisionPanelOpen
@@ -1298,14 +1396,17 @@ final class AppModel {
             pressedStop = nil
         } else if pressedStop == .sent, !session.state.connected, !link.isOpen {
             // The connection went before the server confirmed the STOP: it is owed, as if pressed with no link, and the
-            // operator, who heard the alarm, hears that it has reached no robot.
+            // operator, who heard the alarm, hears that it has reached no robot. Reconnect's stop played no alarm and
+            // may have reached the server: nothing is said, and Connect says it goes out again on connecting.
             pressedStop = .owed
-            raise(.refused(.notStopped))
+            if stopCause != .reconnect { raise(.refused(.notStopped)) }
         }
         if !before.emergencyStop, session.state.emergencyStop {
-            stopCause = fromServer ? (pendingServerCause ?? .server("unknown")) : .button
+            stopCause =
+                fromServer ? (pendingServerCause ?? .server("unknown")) : reconnectPressingStop ? .reconnect : .button
         } else if !session.state.emergencyStop {
             stopCause = nil
+            stopLatchedWhilePaused = nil
         }
         pendingServerCause = nil
         // The latency probe ticks every second; logging it would bury everything else.
@@ -1354,6 +1455,21 @@ final class AppModel {
                 return
             }
             narrator.emergencyStopLearned()
+            // Reconnect latched it on the way to Connect: the operator pressed Reconnect, not STOP.
+            if stopCause == .reconnect {
+                log("link: the stop is latched for Reconnect, without the alarm")
+                return
+            }
+            // A stop the server reports while the simulator is paused or not responding is one its loop never ran: it
+            // latches without the alarm, and the screen says why. A STOP pressed here is still heard.
+            if session.state.liveLink, link.simulatorStalled, stopCause != .button {
+                log("link: the stop is kept, not announced again: the simulator is \(link.simulatorLevel)")
+                // The server's own stop, not the phone's refused release latching again.
+                if case .server(let reason) = stopCause, reason != LiveLinkController.releaseRefusedStallReason {
+                    stopLatchedWhilePaused = reason == TeleopLink.simulatorStalledReason
+                }
+                return
+            }
             raise(.emergencyStop(emergencyCause, takeDiscarded: session.state.liveLink && narrator.stopDiscardsTake))
         case .cancel:
             cues.stopHaptics()
@@ -1373,6 +1489,8 @@ final class AppModel {
         case .armBehind: return .behind
         case .onConnect: return holdEngagedAtLoss ? .link : .onConnect
         case .server: return .other
+        // Never told: Reconnect's stop plays no alarm and the screen names no cause for it.
+        case .reconnect: return .other
         }
     }
 
@@ -1459,7 +1577,8 @@ final class AppModel {
             if after.wristMoving {
                 if !link.startWristHold() {
                     log("link: wrist hold not started (no link or a reset)")
-                    pendingRefusal = link.resetPending ? .notReady : .noLink
+                    pendingRefusal =
+                        link.simulatorStalled ? .simulatorStalled : link.resetPending ? .notReady : .noLink
                     session.perform(.wristEnd)
                     session.pendingCue(.commandBlocked)
                 }
@@ -1470,7 +1589,13 @@ final class AppModel {
         if before.gripperMoving != after.gripperMoving {
             if let target = after.gripperMoving {
                 // The session keeps the press until it is released; nothing goes out, and the operator hears why.
-                if !link.startGripper(target), link.resetPending { raise(.refused(.notReady)) }
+                if !link.startGripper(target) {
+                    if link.simulatorStalled {
+                        raise(.refused(.simulatorStalled))
+                    } else if link.resetPending {
+                        raise(.refused(.notReady))
+                    }
+                }
             } else {
                 link.stopGripper()
                 if case .gripper? = voiceMotion?.goal { finishVoiceMotion(reason: "interrupted", sendEnd: false) }
@@ -1615,6 +1740,8 @@ enum StopCause: Equatable {
     case armBehind
     /// The server was already stopped when the link came up, as it is after a connection dropped mid-command.
     case onConnect
+    /// Reconnect pressed STOP, with the simulator not responding, before the connection went.
+    case reconnect
     case server(String)
 
     init(serverReason: String) {
@@ -1630,6 +1757,7 @@ enum StopCause: Equatable {
         case .button: return L10n.string("stop.cause_button")
         case .armBehind: return L10n.string("stop.cause_arm_behind")
         case .onConnect: return L10n.string("stop.cause_on_connect")
+        case .reconnect: return L10n.string("stop.cause_reconnect")
         case .server(let reason): return String(format: L10n.string("stop.cause_server"), reason)
         }
     }

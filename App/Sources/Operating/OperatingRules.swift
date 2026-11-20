@@ -14,6 +14,11 @@ struct OperatingFacts {
     /// the server confirmed it. Its estop goes out after the next welcome.
     var stopOwed = false
     var stopCause: EmergencyCause?
+    /// The simulator behind the server paused (`SimStallDetector`): nothing new is sent and the stop is kept until it
+    /// runs again.
+    var simulatorPaused = false
+    /// The simulator stopped responding: nothing moves and the stop cannot be released until the server is restarted.
+    var simulatorStalled = false
     /// ARKit stopped the camera, so the volume keys change the volume and the phone's movement does nothing.
     var cameraStopped = false
     var commandsBlocked = false
@@ -53,12 +58,15 @@ enum OperatingRules {
     static let refusalShownMs = 1000
     static let savedShownMs = 2000
 
-    /// The rows of §7.2 that version 1 has, highest first: the stop, the link, the camera, a take just saved, the
+    /// The rows of §7.2 that version 1 has, highest first: a simulator that is not responding or paused while the link
+    /// is up, which says why the stop stays and what to do, then the stop, the link, the camera, a take just saved, the
     /// engaged hold, a refusal just heard (or why a follow or a move nobody held just ended), the server not ready, a
     /// slow link, ready. A STOP that reached no server is
     /// not shown as stopped: the robot is not (§2.8, J7). Until it goes out the screen shows the link as it does with no
     /// link up, also while Connect replaces a link that is up: never ready, a hold, a wait or a refusal.
     static func state(_ f: OperatingFacts) -> OperatingState {
+        if f.simulatorStalled, f.connected { return .simulatorStalled(stopped: f.emergencyStop && !f.stopOwed) }
+        if f.simulatorPaused, f.connected { return .simulatorPaused(stopped: f.emergencyStop && !f.stopOwed) }
         if f.emergencyStop, !f.stopOwed { return .stopped(cause: f.stopCause) }
         if !f.connected || f.stopOwed {
             if f.connecting { return .connecting(address: f.address) }

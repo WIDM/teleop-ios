@@ -50,8 +50,9 @@ ROOT_VIEW_ACTIONS = set()
 # so it can cause whatever those send; the top band's reset reaches the session through AppModel.runReset.
 TOUCH_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings", "resetScene"}
 BUTTON_ACTIONS = {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd"}
-# What the operating screen sends itself: Release, keep scene, and the not-connected word, which opens Connect.
-OWN_ACTIONS = {"releaseStop", "changeServer"}
+# What the operating screen sends itself: Release, keep scene, the not-connected word, which opens Connect, and
+# Reconnect while the simulator is not responding, which latches the stop when none is, disconnects and opens Connect.
+OWN_ACTIONS = {"releaseStop", "changeServer", "disconnect", "stop"}
 STRUCT = re.compile(
     r"^(?:(?:private|fileprivate|public|internal) )?struct (\w+)\b.*?^\}", re.M | re.S
 )
@@ -66,6 +67,10 @@ def sends(text):
     # Practice on and off: AppModel.startPractice and leavePractice flip the flag, then send switchLink.
     if "model.startPractice()" in text or "model.leavePractice()" in text:
         found.add("toggleLiveLink")
+    # Reconnect: AppModel.reconnect sends stop when none is latched, then disconnect and changeServer, once that stop is
+    # confirmed or has waited.
+    if "model.reconnect()" in text:
+        found |= {"stop", "disconnect", "changeServer"}
     # LiveLinkController reports what the server did.
     found |= set(re.findall(r"onAction\?\(\.(\w+)", text))
     return found
@@ -98,9 +103,10 @@ allowed_outside = {
     # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
     # sceneResetDone: the top band's reset (the practice link confirms it at once). The one-shot voice prototype
     # uses the same arm and gripper session actions and ends the hold when the command finishes or times out.
+    # stop, disconnect and changeServer: the operating screen's Reconnect (see "model.reconnect()" in sends).
     "AppModel.swift": {
         "connect", "holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristEnd", "switchLink", "resetScene",
-        "sceneResetDone",
+        "sceneResetDone", "stop", "disconnect", "changeServer",
     },
     "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
     # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS); touches on the bands (STOP,

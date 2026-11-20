@@ -30,6 +30,12 @@ public struct ServerModelConfig: Equatable, Sendable {
     public var session = "00000000-0000-4000-8000-000000000000"
     /// `ts` of the first instant, in milliseconds. Every message carries `ts` = this + the model's time.
     public var clockOriginMs = 0
+    /// The simulation loop counts as stalled once its last pass is this old while the server is ready. A pass takes
+    /// about 17 ms; a rendered one well under 0.1 s.
+    public var loopStallSeconds: Double = 1.0
+    /// `state` carries `sim_stalled` and `loop_age_ms`, as a server with the loop heartbeat does. Off by default: the
+    /// recordings the model is checked against come from a server without them.
+    public var reportsLoopHealth = false
 
     // MARK: Scene
 

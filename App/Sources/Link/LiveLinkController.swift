@@ -35,6 +35,9 @@ final class LiveLinkController {
     /// silence and no probe's round trip across it counts. The server's watchdog still ends a hold whose updates
     /// stopped.
     static let stalledTickMs = 250
+    /// The cause handed on when a release refused during a paused simulator latches the stop here again: the stop was
+    /// the operator's, not one the server latched by itself.
+    static let releaseRefusedStallReason = "sim_stalled_release"
 
     var onAction: ((TeleopAction) -> Void)?
     var onWireEvent: ((String, [String: Any], UInt64) -> Void)?
@@ -57,6 +60,8 @@ final class LiveLinkController {
     var onGripping: ((Bool) -> Void)?
     /// A wrist hold's `orient_start` has just gone on the wire, perhaps after waiting behind a finishing hold.
     var onWristStartSent: (() -> Void)?
+    /// The simulator's level changed, from the first to the second, as `SimStallDetector` decides.
+    var onSimulatorLevel: ((SimStallDetector.Level, SimStallDetector.Level) -> Void)?
 
     /// How the control connection names itself in the server's log; the listening one adds " observer".
     let clientName: String
@@ -166,6 +171,11 @@ final class LiveLinkController {
     private var stopUnanswered: (start: Int?, sentAtMs: Int)?
     /// The start whose stop was noted last, so one stop still waiting for its answer is noted once.
     private var lastNotedStop: Int?
+    /// Whether the simulator behind this connection's server has stopped responding. Starts afresh with every
+    /// connection: a reconnect may reach a restarted server.
+    private var stall = SimStallDetector()
+    /// The newest state handed to the stall decision said the server is stopped.
+    private(set) var serverSaysStopped = false
 
     /// - Parameters:
     ///   - makeObserverTransport: the listening connection's socket; `makeTransport` when nil.
@@ -187,6 +197,12 @@ final class LiveLinkController {
     }
 
     var isOpen: Bool { transport != nil }
+    /// The simulator is paused or not responding: no move, release or reset goes out while it lasts, and the stop
+    /// stays latched.
+    var simulatorStalled: Bool { stall.stalled }
+    var simulatorLevel: SimStallDetector.Level { stall.level }
+    /// What paused the simulator; nil while it runs.
+    var simulatorStallTrigger: SimStallDetector.Trigger? { stall.trigger }
     var toolCalibrationID: String? { link?.toolCalibrationID }
     var supportsCoordinatedHeight: Bool { link?.supportsCoordinatedHeight == true }
     @discardableResult
@@ -206,6 +222,7 @@ final class LiveLinkController {
 
     var manualTranslationStartRefusal: Refusal? {
         guard isUp else { return .noLink }
+        if stall.stalled { return .simulatorStalled }
         if resetPending || newestState?.simBusy == true { return .notReady }
         if newestState?.estop == true { return .emergencyStop }
         guard armHeardAfterLastStop, link?.unfinishedStop == nil else { return .busy }
@@ -223,7 +240,7 @@ final class LiveLinkController {
     }
 
     var voiceMotionStartStamp: Int? {
-        guard armHeardAfterLastStop, link?.unfinishedStop == nil, let state = newestState, !state.estop,
+        guard !stall.stalled, armHeardAfterLastStop, link?.unfinishedStop == nil, let state = newestState, !state.estop,
             state.activity == .ok, let receivedAt = newestStateAtMs,
             (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt)
         else { return nil }
@@ -398,10 +415,17 @@ final class LiveLinkController {
         leadCapped = false
         stopUnanswered = nil
         lastNotedStop = nil
+        stall = SimStallDetector()
+        serverSaysStopped = false
+        closeAfterStop = nil
     }
 
-    /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing.
-    func foregroundChanged() { link?.dropProbes() }
+    /// The app is leaving or returning to the foreground: timers were or will be frozen, so old probes mean nothing,
+    /// and time away does not count toward the simulator's waits.
+    func foregroundChanged(_ active: Bool) {
+        link?.dropProbes()
+        observeStall(active ? .foreground : .background)
+    }
 
     /// False when the hold could not start (no link, or no tracked pose to measure from).
     func startHold(_ params: PoseParams, axis: TranslationAxis? = nil) -> Bool {
@@ -540,6 +564,14 @@ final class LiveLinkController {
         restarting = true
         guard link.poseStart(holdParams) else {
             restarting = false
+            if link.startsBlocked {
+                // The simulator stopped while the old hold finished: the hold ends as the server's refusal would end it.
+                onLog?("link: the simulator stopped, the hold is not continued after a resync")
+                endedTranslation(stalledRefusal(), serverReason: TeleopLink.simulatorStalledReason)
+                holdEnded()
+                onAction?(.holdArmEnd)
+                return
+            }
             onLog?("link: could not continue the hold after a resync")
             endedTranslation(monitor.endedByApp(.noAnswer))
             holdEnded()
@@ -576,14 +608,46 @@ final class LiveLinkController {
     }
 
     func estopReset() {
-        link?.estopReset()
+        guard link?.estopReset() == true else { return }
         resetSentAtMs = nowMs()
     }
 
-    /// Asks for a scene reset. False when the link cannot send one now (not ready, or a control still active).
+    /// How long Reconnect waits for the server to confirm its `estop` before the connection closes all the same.
+    static let reconnectStopWaitMs = 1000
+    /// Reconnect's wait: the connection stays until the server confirms the `estop` or `reconnectStopWaitMs` has
+    /// passed, since closing at once can cancel the message before it leaves. `done` runs once, with whether the server
+    /// confirmed it.
+    private var closeAfterStop: (sinceMs: Int, done: (Bool) -> Void)?
+    /// True while Reconnect waits for its stop to be confirmed.
+    var waitingToCloseAfterStop: Bool { closeAfterStop != nil }
+
+    /// Runs `done` once the server has confirmed the stop just sent, or after `reconnectStopWaitMs` without it; the
+    /// caller closes the connection then. A connection closed first in any other way ends the wait without it: the
+    /// stop it carried is owed then, as any unconfirmed STOP is.
+    func whenStopConfirmed(_ done: @escaping (_ confirmed: Bool) -> Void) {
+        closeAfterStop = (nowMs(), done)
+        settleCloseAfterStop()
+    }
+
+    /// Ends Reconnect's wait when the server has confirmed the stop or the wait is over. True when it ended.
+    @discardableResult
+    private func settleCloseAfterStop() -> Bool {
+        guard let wait = closeAfterStop else { return false }
+        let confirmed = estopConfirmed
+        guard confirmed || nowMs() - wait.sinceMs >= Self.reconnectStopWaitMs else { return false }
+        closeAfterStop = nil
+        wait.done(confirmed)
+        return true
+    }
+
+    /// Asks for a scene reset. False when the link cannot send one now (not ready, a control still active, or the
+    /// simulator not responding: a server could clear its stop for a reset that never runs).
     @discardableResult
     func resetScene() -> Bool {
-        link?.resetScene() == true
+        guard link?.resetScene() == true else { return false }
+        // The loop is silent for seconds while the scene resets: that silence is no sign.
+        observeStall(.resetRequested)
+        return true
     }
 
     /// The scene was reset (an `ok scene_reset`, a new episode or a new server run): no wrist lead is left.
@@ -666,6 +730,8 @@ final class LiveLinkController {
     /// Runs at the pose rate. Internal so tests can drive it without a timer.
     func tick() {
         guard let link else { return }
+        // Reconnect's wait may end here, closing the connection.
+        if settleCloseAfterStop() { return }
         defer {
             recordMotion()
             recordGripper()
@@ -687,6 +753,7 @@ final class LiveLinkController {
             drop("server went quiet")
             return
         }
+        observeStall(.tick)
         link.service()
         // A start held back past its wait may have just gone out: the lead bound and the input rules learn of it
         // before this tick's wrist update is worked out.
@@ -901,6 +968,7 @@ final class LiveLinkController {
         guard let link else { return }
         let wasWelcomed = link.welcomed
         let received = link.receive(text)
+        if let seq = link.lastAckSeq { observeStall(.stopAnswered(start: seq)) }
         switch received {
         case .up?, .state?:
             if let state = link.lastState { observeStop(state, last: &controlStopped) }
@@ -913,7 +981,9 @@ final class LiveLinkController {
         guard let event = received else { return }
         switch event {
         case .up, .state:
-            if let state = link.lastState { stateArrived(state, serverMs: link.lastStateServerMs, onControl: true) }
+            if let state = link.lastState {
+                stateArrived(state, serverMs: link.lastStateServerMs, onControl: true, health: link.lastStateHealth)
+            }
         default:
             break
         }
@@ -947,6 +1017,9 @@ final class LiveLinkController {
                 // A refusal just before the E-stop is its cause.
                 if let refusal = lastRefusal, nowMs() - refusal.atMs < 3000 {
                     onServerStop?(refusal.reason)
+                } else if link.lastStateHealth?.simStalled == true {
+                    // The state that brought the stop says the server's simulation loop has stopped.
+                    onServerStop?(TeleopLink.simulatorStalledReason)
                 } else {
                     onServerStop?("unknown")
                 }
@@ -961,7 +1034,16 @@ final class LiveLinkController {
             onAction?(.linkLatency(ms: ms))
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
-            if type == "estop_reset" { resetSentAtMs = nil }
+            observeStall(.refused(request: type, reason: reason))
+            if type == "estop_reset" {
+                resetSentAtMs = nil
+                // The server is still stopped, and with the simulator not responding it will stay so: the stop latches
+                // again here at once, without waiting for a state to say it.
+                if stall.stalled {
+                    onServerStop?(Self.releaseRefusedStallReason)
+                    onAction?(.stop)
+                }
+            }
             if type == "pose_start", let pending = resync, let startSeq = pending.startSeq,
                 let data = text.data(using: .utf8),
                 let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -975,15 +1057,18 @@ final class LiveLinkController {
         case .gripperRefused(let reason):
             // A refused start and a live hold the watchdog ended both come back as a rejected final answer.
             onLog?("link: gripper hold ended by server: \(reason)")
+            observeStall(.refused(request: "gripper_jog_start", reason: reason))
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             onAction?(.gripperEnd)
         case .turnRefused(let reason):
             onLog?("link: wrist hold ended by server: \(reason)")
+            observeStall(.refused(request: "orient_start", reason: reason))
             emit(monitor.startRefused(reason: reason, at: nowMs()))
             endWristTarget()
             onAction?(.wristEnd)
         case .holdRefused(let reason):
             onLog?("link: hold ended by server: \(reason)")
+            observeStall(.refused(request: "pose_start", reason: reason))
             // A success is not the cause of a later emergency stop.
             if reason != TeleopLink.successReason { lastRefusal = (reason, nowMs()) }
             endedTranslation(monitor.startRefused(reason: reason, at: nowMs()), serverReason: reason)
@@ -997,6 +1082,7 @@ final class LiveLinkController {
             onAction?(.sceneResetDone)
         case .resetRefused(let reason):
             onLog?("link: scene reset refused: \(reason)")
+            observeStall(.refused(request: "reset_scene", reason: reason))
             emit([.notReset])
         }
     }
@@ -1021,13 +1107,19 @@ final class LiveLinkController {
         onStopSeen?()
     }
 
-    func stateArrived(_ state: ServerState, serverMs: Int?, onControl: Bool) {
+    func stateArrived(_ state: ServerState, serverMs: Int?, onControl: Bool, health: StateHealth? = nil) {
         let toolResync = resync != nil && holdParams.toolCalibrationID != nil
         if onControl, toolResync, confirmsToolResync(state, serverMs: serverMs) {
             armHeard(onControl: true)
         }
         if let serverMs, let newest = newestStateServerMs, serverMs < newest { return }
         if let serverMs { newestStateServerMs = serverMs }
+        // Only a state not older than one already seen tells how the simulator is: the other connection's late copy,
+        // without timing of its own, would otherwise report a stall long over.
+        if let health {
+            serverSaysStopped = state.estop
+            observeStall(.state(health))
+        }
         newestState = state
         if state.activity != .other("no_solution") { coordinatedAwaitingFirstTrackingState = false }
         newestStateAtMs = nowMs()
@@ -1080,6 +1172,20 @@ final class LiveLinkController {
         guard let stop = link?.unfinishedStop, stop.start != lastNotedStop else { return }
         lastNotedStop = stop.start
         stopUnanswered = (stop.start, stop.sentAtMs)
+        observeStall(.stopSent(start: stop.start))
+    }
+
+    /// Hands one input to the stall decision and reports a change of the fact.
+    private func observeStall(_ input: SimStallDetector.Input) {
+        let before = stall.level
+        let changed = stall.observe(input, at: nowMs())
+        // Every start, reset and release is checked against this where it would go on the wire.
+        link?.startsBlocked = stall.stalled
+        guard changed else { return }
+        let why = stall.trigger.map { " (\($0.rawValue))" } ?? ""
+        let loopAge = link?.lastStateHealth?.loopAgeMs.map { " loop_age_ms=\(Int($0))" } ?? ""
+        onLog?("link: simulator \(before) -> \(stall.level)\(why)\(loopAge)")
+        onSimulatorLevel?(before, stall.level)
     }
 
     /// A state with an arm position was handed on. It ends the wait for the last stop's answer when it came on the
@@ -1096,6 +1202,7 @@ final class LiveLinkController {
     /// Tells the monitor about a start that has just gone on the wire and, with an aid on, takes a translation hold's
     /// start point then.
     private func syncStart() {
+        endDroppedStarts()
         guard let start = link?.lastStart, start.seq != announcedStart else { return }
         announcedStart = start.seq
         // A resync's restart takes its start point from the answer it waited for, as it always has.
@@ -1112,6 +1219,37 @@ final class LiveLinkController {
             leadBound.holdStarted(measured: measuredWrist)
             onWristStartSent?()
         }
+    }
+
+    /// What the link kept off the wire because the simulator stopped, after it had been accepted to wait: each control
+    /// ends here as the server's `sim_stalled` refusal would end it, and a waiting reset is told as not done.
+    private func endDroppedStarts() {
+        guard let link else { return }
+        for dropped in link.takeDropped() {
+            onLog?("link: \(dropped) not sent: the simulator stopped")
+            switch dropped {
+            case .start(.pose):
+                endedTranslation(stalledRefusal(), serverReason: TeleopLink.simulatorStalledReason)
+                holdEnded()
+                onAction?(.holdArmEnd)
+            case .start(.gripper):
+                emit(stalledRefusal())
+                onAction?(.gripperEnd)
+            case .start(.wrist):
+                emit(stalledRefusal())
+                endWristTarget()
+                onAction?(.wristEnd)
+            case .resetScene:
+                emit([.notReset])
+            }
+        }
+    }
+
+    /// How a press the stopped simulator kept back is told: as the server's refusal of an engaged hold, or felt as a
+    /// refusal when nothing was engaged yet.
+    private func stalledRefusal() -> [FeedbackEvent] {
+        let events = monitor.startRefused(reason: TeleopLink.simulatorStalledReason, at: nowMs())
+        return events.isEmpty ? [.refused(.simulatorStalled)] : events
     }
 
     private func noteGripping() {
@@ -1210,7 +1348,8 @@ final class LiveLinkController {
         switch event {
         case .up, .state:
             if let state = observer.lastState {
-                stateArrived(state, serverMs: observer.lastStateServerMs, onControl: false)
+                stateArrived(
+                    state, serverMs: observer.lastStateServerMs, onControl: false, health: observer.lastStateHealth)
             }
         default:
             break

@@ -153,4 +153,108 @@ final class TeleopLinkHeldBackTests: XCTestCase {
             XCTAssertNil(link.unfinishedStop, kind)
         }
     }
+
+    // MARK: While the simulator has stopped
+
+    /// A start waiting behind a stop when the simulator stops is checked where it would go on the wire: it is dropped,
+    /// the control ends here, and the owner is told, whether the final ack or the end of the wait would have sent it.
+    func testABlockedStartIsDroppedWhereItWouldGoOnTheWire() {
+        for byAck in [true, false] {
+            for kind in ["pose_start", "gripper_jog_start", "orient_start"] {
+                setUp()
+                bringUp()
+                link.poseStart(params)
+                let first = seq(ofLast: "pose_start")
+                link.poseStop()
+                switch kind {
+                case "pose_start": XCTAssertTrue(link.poseStart(params))
+                case "gripper_jog_start": XCTAssertTrue(link.gripperJogStart(.open))
+                default: XCTAssertTrue(link.orientStart())
+                }
+                XCTAssertTrue(link.startHeldBack, kind)
+                let before = sent.count
+                link.startsBlocked = true
+                if byAck {
+                    finish(first)
+                } else {
+                    clock += TeleopLink.finishWaitMs
+                    link.service()
+                }
+                XCTAssertEqual(sent.count, before, "\(kind), by ack \(byAck): nothing went on the wire")
+                XCTAssertFalse(link.startHeldBack, kind)
+                XCTAssertFalse(link.holdActive || link.gripperJogActive || link.turnActive, "\(kind): ended here")
+                let expected: TeleopLink.Dropped =
+                    kind == "pose_start"
+                    ? .start(.pose) : kind == "orient_start" ? .start(.wrist) : .start(.gripper(.open))
+                XCTAssertEqual(link.takeDropped(), [expected], kind)
+                XCTAssertEqual(link.takeDropped(), [], "told once")
+            }
+        }
+    }
+
+    func testEveryStartAndReleaseIsRefusedWhileBlocked() {
+        bringUp()
+        link.startsBlocked = true
+        XCTAssertFalse(link.poseStart(params))
+        XCTAssertFalse(link.gripperJogStart(.closed))
+        XCTAssertFalse(link.orientStart())
+        XCTAssertFalse(link.resetScene())
+        XCTAssertFalse(link.estopReset())
+        XCTAssertEqual(types, ["hello"], "nothing went out")
+        XCTAssertFalse(link.holdActive || link.gripperJogActive || link.turnActive || link.resetPending)
+        link.startsBlocked = false
+        XCTAssertTrue(link.poseStart(params))
+        XCTAssertEqual(types.last, "pose_start", "once it runs again, starts go out")
+    }
+
+    /// A scene reset waiting behind a stop, or for its retry after `busy`, is dropped too.
+    func testAQueuedSceneResetIsDroppedWhileBlocked() {
+        bringUp()
+        link.poseStart(params)
+        link.poseStop()
+        XCTAssertTrue(link.resetScene())
+        XCTAssertFalse(types.contains("reset_scene"), "waiting for the stopped hold to finish")
+        link.startsBlocked = true
+        clock += TeleopLink.finishWaitMs
+        link.service()
+        XCTAssertFalse(types.contains("reset_scene"))
+        XCTAssertFalse(link.resetPending)
+        XCTAssertEqual(link.takeDropped(), [.resetScene])
+
+        setUp()
+        bringUp()
+        XCTAssertTrue(link.resetScene())
+        let reset = seq(ofLast: "reset_scene")
+        server("ack", seq: reset, ["seq": reset, "status": "rejected", "reason": "busy"])
+        link.startsBlocked = true
+        clock += TeleopLink.resetRetryMs
+        link.service()
+        XCTAssertEqual(types.filter { $0 == "reset_scene" }.count, 1, "the retry did not go out")
+        XCTAssertEqual(link.takeDropped(), [.resetScene])
+    }
+
+    /// Stops, the release of a hold whose start went out, and an emergency stop always go out.
+    func testStopsAlwaysGoOutWhileBlocked() {
+        let stops = [
+            ("pose_start", "pose_stop"), ("gripper_jog_start", "gripper_jog_stop"), ("orient_start", "orient_stop"),
+        ]
+        for (start, stop) in stops {
+            setUp()
+            bringUp()
+            switch start {
+            case "pose_start": link.poseStart(params)
+            case "gripper_jog_start": link.gripperJogStart(.closed)
+            default: link.orientStart()
+            }
+            link.startsBlocked = true
+            switch stop {
+            case "pose_stop": link.poseStop()
+            case "gripper_jog_stop": link.gripperJogStop()
+            default: link.orientStop()
+            }
+            XCTAssertEqual(types.last, stop, start)
+            link.estop()
+            XCTAssertEqual(types.last, "estop", start)
+        }
+    }
 }

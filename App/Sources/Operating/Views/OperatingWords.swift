@@ -25,6 +25,8 @@ enum OperatingWords {
     private static func aidsOffNote(_ display: OperatingDisplay) -> String? {
         guard display.aidsOff, !display.practice, display.mode != .buttons else { return nil }
         if case .stopped = display.state { return nil }
+        if case .simulatorStalled = display.state { return nil }
+        if case .simulatorPaused(stopped: true) = display.state { return nil }
         return L10n.string("detail.aids_off")
     }
 
@@ -100,6 +102,18 @@ enum OperatingWords {
                 details.append(L10n.string("detail.release_warning"))
             }
             return Look(word: L10n.string("state.stopped"), details: details, colour: TeleopColors.stateRed)
+        case .simulatorStalled(let stopped):
+            // Each line true as it stands: with no stop on yet, what Reconnect will do instead.
+            return Look(
+                word: L10n.string("state.sim_stalled"),
+                details: [L10n.string(stopped ? "detail.sim_stalled" : "detail.sim_stalled_unstopped")],
+                colour: TeleopColors.stateRed)
+        case .simulatorPaused(let stopped):
+            // Quiet: the stop or the wait, and one line why. It often passes in seconds.
+            return Look(
+                word: L10n.string(stopped ? "state.stopped" : "state.wait"),
+                details: [L10n.string("detail.sim_paused")],
+                colour: stopped ? TeleopColors.stateRed : TeleopColors.stateAmber)
         case .linkLost:
             // Nothing reconnects by itself: the way back is Connect in Settings, behind the gear on this screen.
             return Look(
@@ -110,6 +124,14 @@ enum OperatingWords {
                 word: String(format: L10n.string("state.saved"), count), details: [], colour: TeleopColors.stateGold,
                 darkText: true)
         }
+    }
+
+    /// A simulator that is not responding offers **Reconnect** in the release's place: it leaves the server stopped,
+    /// latching the stop first when none is on, drops the connection and opens Connect. Practice has no server to
+    /// stall.
+    static func offersReconnect(_ display: OperatingDisplay) -> Bool {
+        guard case .simulatorStalled = display.state else { return false }
+        return !display.practice
     }
 
     /// The stopped state shows **Release, keep scene** only when the stop exits offer it (§6.5).
@@ -141,6 +163,7 @@ enum OperatingWords {
         case .tapStill: return L10n.string("refusal.tap_still")
         case .tapLetGo: return L10n.string("refusal.tap_let_go")
         case .tapViewAbove: return L10n.string("refusal.tap_view_above")
+        case .simulatorStalled: return L10n.string("state.sim_stalled")
         }
     }
 
@@ -157,6 +180,7 @@ enum OperatingWords {
         case .contact: return L10n.string("refusal.contact")
         case .jointLimit: return L10n.string("refusal.joint_limit")
         case .reach: return L10n.string("refusal.reach")
+        case .simulatorStalled: return L10n.string("state.sim_stalled")
         case .other: return reason(.serverRefused)
         }
     }

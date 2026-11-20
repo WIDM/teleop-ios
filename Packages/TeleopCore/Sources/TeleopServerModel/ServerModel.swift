@@ -40,6 +40,10 @@ public final class ServerModel {
     private var completions: [(seq: Int, owner: Int, status: String, reason: String)] = []
     /// When the loop's next pass runs.
     private var nextStepTime: Double
+    /// When the loop last began a pass: its heartbeat.
+    private var lastBeat: Double
+    /// False once `stallLoop` has been called: the loop never passes again, while the front end goes on answering.
+    public private(set) var loopRuns = true
 
     // The front end's shared state (the server's `Bridge`).
     /// The one command queued or running. A new one is `busy` until it has finished.
@@ -70,6 +74,7 @@ public final class ServerModel {
         reportsToolPoint = config.reportsToolPoint
         time = startTime
         nextStepTime = startTime + 1 / config.stepsPerSecond
+        lastBeat = startTime
         world = World(config)
         recorder = config.recorder.map(Recorder.init)
         recorder?.arm()
@@ -114,6 +119,26 @@ public final class ServerModel {
         return drain()
     }
 
+    /// The simulation loop stops for good, blocked inside the simulator, as it did on the real server on 2026-11-19.
+    /// The front end keeps answering and sending states, with the loop's last state in them.
+    public func stallLoop() {
+        loopRuns = false
+    }
+
+    /// The front end's judgement that the loop has stopped: ready, and no pass for `loopStallSeconds`.
+    var loopStalled: Bool { ready && time - lastBeat > config.loopStallSeconds }
+
+    /// With the loop stalled and a command still queued that it never took, the front end latches the stop itself
+    /// and answers that command `sim_stalled`: nothing will ever run it. Later commands are refused `estop_active`.
+    private func latchStopIfStalled() {
+        guard loopStalled, let queued = pending, !queued.taken, !queued.finished else { return }
+        estopFrozen = false
+        estop = true
+        stopRequested = Command.holdKinds
+        update(["estop": .bool(true), "ik": "stopped"])
+        finish(queued, "rejected", "sim_stalled")
+    }
+
     /// Runs the simulation and the state timers up to `time`.
     public func advance(to time: Double) -> [ServerOutput] {
         run(until: time)
@@ -146,7 +171,12 @@ public final class ServerModel {
             guard min(step, timer) <= target else { break }
             if step <= timer {
                 time = max(time, step)
-                loopPass()
+                if loopRuns {
+                    lastBeat = time
+                    loopPass()
+                } else {
+                    latchStopIfStalled()
+                }
                 sendCompletions()
                 nextStepTime = time + passInterval
             } else {
@@ -185,7 +215,13 @@ public final class ServerModel {
             "ack", seq: seq, .object(["seq": .int(seq), "status": .string(status), "reason": .string(reason)]), to: id)
     }
 
-    func sendState(seq: Int, to id: Int) { send("state", seq: seq, state, to: id) }
+    func sendState(seq: Int, to id: Int) {
+        guard config.reportsLoopHealth else { return send("state", seq: seq, state, to: id) }
+        let ageMs = Int(((time - lastBeat) * 1000).rounded(.down))
+        send(
+            "state", seq: seq,
+            state.setting("sim_stalled", .bool(loopStalled)).setting("loop_age_ms", .int(ageMs)), to: id)
+    }
 
     private func error(_ code: String, _ msg: String, seq: Int, to id: Int) {
         send("error", seq: seq, .object(["code": .string(code), "msg": .string(msg)]), to: id)
@@ -325,6 +361,12 @@ public final class ServerModel {
                 ack(seq, "rejected", "invalid_reset_scene", to: id)
                 return
             }
+            // A stalled loop could never run the reset, and clearing the stop for it would leave a stop released
+            // that nothing holds: it is refused before anything changes.
+            if loopStalled {
+                ack(seq, "rejected", "sim_stalled", to: id)
+                return
+            }
             // A reset clears the E-stop before it is checked against the running command, so even a reset that
             // is then refused `busy` has cleared it. It leaves the stops alone: a stop waiting to land still lands.
             estop = false
@@ -341,6 +383,13 @@ public final class ServerModel {
         }
         guard ready else {
             ack(seq, "rejected", "sim_not_ready", to: id)
+            return
+        }
+        // With the loop stalled every start is told so, not `busy`, and a command the loop never took gets its final
+        // answer now: it never ran, so answering it is safe. One the loop took stays the loop's.
+        if loopStalled {
+            if let queued = pending, !queued.taken, !queued.finished { finish(queued, "rejected", "sim_stalled") }
+            ack(seq, "rejected", "sim_stalled", to: id)
             return
         }
         if let running = pending, !running.finished {
@@ -393,6 +442,8 @@ public final class ServerModel {
 
     private func resetEstop() -> (String, String) {
         guard estop else { return ("rejected", "estop_not_active") }
+        // A stalled loop holds nothing, frozen flag or not: the stop stays latched and the refusal says why.
+        guard !loopStalled else { return ("rejected", "sim_stalled") }
         guard estopFrozen else { return ("rejected", "estop_not_frozen") }
         estop = false
         estopFrozen = false

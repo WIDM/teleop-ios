@@ -204,7 +204,9 @@ final class ServerRefusalWordsTests: XCTestCase {
             state()
             model.link.tick()
             let stop = try XCTUnwrap(wire.messages("pose_stop").last?["seq"] as? Int)
-            let rejectedStart: [String: Any] = ["seq": start, "status": "rejected", "reason": "tool_actuator_joint_limit"]
+            let rejectedStart: [String: Any] = [
+                "seq": start, "status": "rejected", "reason": "tool_actuator_joint_limit",
+            ]
             let rejectedStop: [String: Any] = ["seq": stop, "status": "rejected", "reason": "pose_not_active"]
             wire.receive("ack", stopFirst ? rejectedStop : rejectedStart)
             wire.receive("ack", stopFirst ? rejectedStart : rejectedStop)
@@ -279,8 +281,10 @@ final class ServerRefusalWordsTests: XCTestCase {
         L10n.language = .zhHant
         XCTAssertEqual(
             SpeechText.string(CueTable.phrases(for: .drive(.endedByServer(.contact)))), "停在這裡。碰到東西了。打開夾爪或抬高再試。")
-        XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .serverRefusal(.jointLimit, accepted: true))), "手臂彎到底了。請往反方向移。")
-        XCTAssertEqual(SpeechText.string(CueTable.phrases(for: .serverRefusal(.reach, accepted: false))), "這個方向到不了。請退回一點。")
+        XCTAssertEqual(
+            SpeechText.string(CueTable.phrases(for: .serverRefusal(.jointLimit, accepted: true))), "手臂彎到底了。請往反方向移。")
+        XCTAssertEqual(
+            SpeechText.string(CueTable.phrases(for: .serverRefusal(.reach, accepted: false))), "這個方向到不了。請退回一點。")
         L10n.language = .en
         XCTAssertEqual(
             SpeechText.string(CueTable.phrases(for: .drive(.endedByServer(.reach)))),

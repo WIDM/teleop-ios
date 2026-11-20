@@ -78,6 +78,9 @@ public final class TeleopLink {
     static let resetAnswerMs = 10_000
     /// The final ack reason of a control the server ended because the task succeeded while it was held.
     public static let successReason = "task_success"
+    /// The reason a server gives when its simulation loop has stopped; the owner ends a start `startsBlocked` dropped
+    /// with it too.
+    public static let simulatorStalledReason = "sim_stalled"
 
     /// A control's start, built when it goes out.
     private enum HeldStart {
@@ -112,6 +115,10 @@ public final class TeleopLink {
     public private(set) var lastState: ServerState?
     public private(set) var lastStateAtMs: Int?
     public private(set) var lastStateServerMs: Int?
+    /// Whether the simulation behind the newest `state` on this connection still ran, as far as that state says.
+    public private(set) var lastStateHealth: StateHealth?
+    /// The seq the message just received acknowledged, known or not; nil when that message was not an `ack`.
+    public private(set) var lastAckSeq: Int?
     /// `welcome.session`: names the server run.
     public private(set) var serverSession: String?
     public private(set) var toolCalibrationID: String?
@@ -170,7 +177,7 @@ public final class TeleopLink {
     /// reset is pending.
     @discardableResult
     public func poseStart(_ params: PoseParams) -> Bool {
-        guard ready, !holdActive, !resetPending else { return false }
+        guard ready, !startsBlocked, !holdActive, !resetPending else { return false }
         if let requested = params.toolCalibrationID {
             guard !requested.isEmpty, requested == toolCalibrationID else { return false }
         }
@@ -224,7 +231,36 @@ public final class TeleopLink {
         estopSeq = emit("estop", [:])
     }
 
-    public func estopReset() { emit("estop_reset", [:]) }
+    /// Asks the server to release its stop. False, sending nothing, while `startsBlocked`.
+    @discardableResult
+    public func estopReset() -> Bool {
+        guard !startsBlocked else { return false }
+        emit("estop_reset", [:])
+        return true
+    }
+
+    /// The simulation behind the server has stopped, perhaps only for seconds: no start of any control, no scene
+    /// reset and no stop release goes on the wire, and each is checked here, where it would go out, so a start or a
+    /// reset that was waiting when the simulation stopped is held to the same rule as a new one. Stops, the ends of
+    /// holds and an emergency stop are never held back. The owner sets it.
+    public var startsBlocked = false
+
+    /// What `startsBlocked` kept off the wire after it had been accepted to wait.
+    public enum Dropped: Equatable, Sendable {
+        /// A start that waited behind a finishing control: that control has ended here, as if the server had refused
+        /// its start.
+        case start(ControlKind)
+        /// A scene reset that waited behind a finishing control, or for its retry after `busy`.
+        case resetScene
+    }
+
+    private var dropped: [Dropped] = []
+
+    /// What was dropped since the last call, oldest first. The owner reads it after anything that may send.
+    public func takeDropped() -> [Dropped] {
+        defer { dropped = [] }
+        return dropped
+    }
 
     /// The owner saw the server begin a stop (another client's STOP, or the server's own safety stop), on either
     /// connection. A reset asked for before it must not clear it: one still waiting to go out is dropped, and a busy
@@ -266,7 +302,7 @@ public final class TeleopLink {
     /// `resetRetryMs`. The answer arrives as `resetDone` or `resetRefused`.
     @discardableResult
     public func resetScene() -> Bool {
-        guard ready, !holdActive, !gripperJogActive, !turnActive else { return false }
+        guard ready, !startsBlocked, !holdActive, !gripperJogActive, !turnActive else { return false }
         // One reset at a time.
         if resetPending { return true }
         reset = (now(), nil, nil, false, stopEpoch)
@@ -288,6 +324,11 @@ public final class TeleopLink {
         } else if let stopping, now() - stopping.sentAtMs < Self.finishWaitMs {
             return
         }
+        guard !startsBlocked else {
+            reset = nil
+            dropped.append(.resetScene)
+            return
+        }
         stopping = nil
         pending.retryAtMs = nil
         pending.seq = emit("reset_scene", [:])
@@ -301,7 +342,7 @@ public final class TeleopLink {
     /// Returns false, sending nothing, if the link is not ready, an arm hold is active or a scene reset is pending.
     @discardableResult
     public func gripperJogStart(_ target: GripperState) -> Bool {
-        guard ready, !holdActive, !resetPending else { return false }
+        guard ready, !startsBlocked, !holdActive, !resetPending else { return false }
         orientStop()
         gripperJogStop()
         gripperJogActive = true
@@ -331,7 +372,7 @@ public final class TeleopLink {
     /// hold is active or a scene reset is pending.
     @discardableResult
     public func orientStart() -> Bool {
-        guard ready, !holdActive, !resetPending else { return false }
+        guard ready, !startsBlocked, !holdActive, !resetPending else { return false }
         // The server runs one held control at a time.
         gripperJogStop()
         orientStop()
@@ -416,6 +457,7 @@ public final class TeleopLink {
         stopping = nil
         heldBack = nil
         reset = nil
+        dropped = []
         gripperJogActive = false
         gripperJogSeq = nil
         turnActive = false
@@ -429,6 +471,7 @@ public final class TeleopLink {
     }
 
     public func receive(_ text: String) -> LinkEvent? {
+        lastAckSeq = nil
         guard let data = text.data(using: .utf8),
             let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let type = message["type"] as? String
@@ -460,6 +503,7 @@ public final class TeleopLink {
             lastState = parsed
             lastStateAtMs = now()
             lastStateServerMs = message["ts"] as? Int
+            lastStateHealth = StateHealth(payload: payload)
             if let gripper = parsed.gripper { lastGripper = gripper }
             if parsed.estop, let sent = estopSeq, let seq = message["seq"] as? Int, seq >= sent {
                 estopConfirmed = true
@@ -475,6 +519,7 @@ public final class TeleopLink {
             guard let seq = message["seq"] as? Int, let sent = probes.removeValue(forKey: seq) else { return nil }
             return .latency(ms: max(0, now() - sent))
         case "ack":
+            lastAckSeq = payload["seq"] as? Int
             guard let seq = payload["seq"] as? Int, let sentType = sentTypes.removeValue(forKey: seq) else {
                 return nil
             }
@@ -540,6 +585,21 @@ public final class TeleopLink {
         guard let start = heldBack else { return }
         if !force, let stopping, now() - stopping.sentAtMs < Self.finishWaitMs { return }
         heldBack = nil
+        guard !startsBlocked else {
+            // The control the stop ended may still be finishing: that wait stands.
+            switch start {
+            case .pose:
+                holdActive = false
+                dropped.append(.start(.pose))
+            case .gripperJog(let target):
+                gripperJogActive = false
+                dropped.append(.start(.gripper(target)))
+            case .orient:
+                turnActive = false
+                dropped.append(.start(.wrist))
+            }
+            return
+        }
         stopping = nil
         switch start {
         case .pose(let params):

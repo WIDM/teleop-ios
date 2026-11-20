@@ -19,6 +19,7 @@ final class ServerRefusalClassTests: XCTestCase {
         "tool_no_converged_path": .reach,
         "tool_path_corridor": .reach,
         "tool_origin_workspace": .reach,
+        "sim_stalled": .simulatorStalled,
         "tool_target_lead": .other,
         "tool_gripper_change_during_translation": .other,
         "tool_height_only": .other,

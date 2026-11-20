@@ -1076,6 +1076,70 @@
           }
         }
       }
+    },
+    "say.sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator not responding. Stop stays on. Restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器沒有回應，停止會保持。請重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "say.sim_stalled_unstopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator not responding. Press Reconnect, then restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器沒有回應。請按重新連線，再重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "say.sim_back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The simulator is back."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器恢復了。"
+          }
+        }
+      }
+    },
+    "say.sim_auto_stopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator paused and stopped. Follow the screen to continue."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器暫停過，已自動停止。請照畫面指示繼續。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

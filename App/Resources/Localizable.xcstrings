@@ -1617,6 +1617,86 @@
         }
       }
     },
+    "state.sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator not responding"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器沒有回應"
+          }
+        }
+      }
+    },
+    "detail.sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The stop stays on. Restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止會保持。請重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "detail.sim_stalled_unstopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect turns the stop on. Then restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按「重新連線」會先停止。然後請重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "detail.sim_paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator paused. Please wait."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器暫停中，請稍候。"
+          }
+        }
+      }
+    },
+    "btn.reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新連線"
+          }
+        }
+      }
+    },
     "refusal.slow_link": {
       "localizations": {
         "en": {
@@ -2113,6 +2193,22 @@
         }
       }
     },
+    "settings.practice_blocked_unconfirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not while the stop is on. The server has not confirmed it; it is sent again on connecting."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "急停開著時不能切換。伺服器還沒確認急停，連線後會再送一次。"
+          }
+        }
+      }
+    },
     "settings.practice_blocked_unsent": {
       "localizations": {
         "en": {
@@ -2333,6 +2429,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "機器人已急停。點「完成」，再按住螢幕頂端重置。"
+          }
+        }
+      }
+    },
+    "settings.stopped_sim_paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. The simulator is paused: wait for it to run again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。模擬器暫停中，請等它恢復。"
+          }
+        }
+      }
+    },
+    "settings.stopped_sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. The simulator is not responding: tap Done, then Reconnect, or restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。模擬器沒有回應：點「完成」再按「重新連線」，或重新啟動伺服器。"
           }
         }
       }
@@ -2749,6 +2877,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "機器人自己急停（%@）。"
+          }
+        }
+      }
+    },
+    "stop.cause_reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app turned the stop on when Reconnect was pressed: the simulator was not responding."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下重新連線時模擬器沒有回應，所以程式先停止了。"
           }
         }
       }

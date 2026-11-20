@@ -7,6 +7,9 @@ public enum ServerRefusalClass: String, CaseIterable, Sendable {
     case jointLimit
     /// The arm cannot get there along this path: back off a little.
     case reach
+    /// The server's simulation loop has stopped, perhaps only for seconds. Told by the simulator's own line on screen,
+    /// and by its one announcement if it does not come back, never per refusal.
+    case simulatorStalled
     /// Any other reason, and any reason the app does not know: told with the general refusal words.
     case other
 
@@ -19,6 +22,8 @@ public enum ServerRefusalClass: String, CaseIterable, Sendable {
             self = .jointLimit
         case "tool_no_converged_path", "tool_path_corridor", "tool_origin_workspace":
             self = .reach
+        case "sim_stalled":
+            self = .simulatorStalled
         default:
             self = .other
         }

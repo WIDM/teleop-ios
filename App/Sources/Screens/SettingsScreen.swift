@@ -26,6 +26,10 @@ struct SettingsScreen: View {
         VStack(spacing: 0) {
             PracticeBanner(practice: practice)
             if case .stopped = model.operating.state { stoppedBand }
+            // A simulator that is paused or not responding takes the operating screen's words; the stop under it stays
+            // shown, with a way out that can be taken then.
+            if case .simulatorPaused(stopped: true) = model.operating.state { stoppedBand }
+            if case .simulatorStalled(stopped: true) = model.operating.state { stoppedBand }
             header
                 .padding(.horizontal, TeleopMetrics.margin)
             if showsAids {
@@ -98,11 +102,24 @@ struct SettingsScreen: View {
 
     /// While the robot is stopped, Settings says so above everything and where the way out is, as the operating screen
     /// does: the stop is never hidden behind Settings.
+    /// The stopped band's line under STOPPED, with the way out the operator can take now; nil when no stop is shown.
+    /// While the simulator is paused or not responding a reset is refused, so the band does not offer it then: a pause
+    /// is waited out, and a simulator that is not responding needs Reconnect or the server restarted. Shown only where
+    /// the operating screen shows the stop too: a stop that reached no server is not.
+    static func stoppedBandDetail(_ state: OperatingState) -> String? {
+        switch state {
+        case .stopped: return "settings.stopped"
+        case .simulatorPaused(stopped: true): return "settings.stopped_sim_paused"
+        case .simulatorStalled(stopped: true): return "settings.stopped_sim_stalled"
+        default: return nil
+        }
+    }
+
     private var stoppedBand: some View {
         VStack(spacing: 2) {
             Text("state.stopped")
                 .font(.system(size: 20, weight: .heavy))
-            Text("settings.stopped")
+            Text(LocalizedStringKey(Self.stoppedBandDetail(model.operating.state) ?? "settings.stopped"))
                 .font(.system(size: 15, weight: .semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

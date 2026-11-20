@@ -246,10 +246,14 @@ private struct OperatingDrawing: View {
     static func strip(_ display: OperatingDisplay, layout: SurfaceLayout, scale: Double) -> SurfaceLayout.Rect {
         var height = 96 * scale
         if display.practice { height += 24 * scale }
+        if case .simulatorPaused(stopped: true) = display.state { height += 34 * scale }
         if case .stopped = display.state {
             height += 34 * scale
             if display.stopExits.recordingMayStayOff, OperatingWords.offersRelease(display) { height += 44 * scale }
             if OperatingWords.offersRelease(display) { height += ReleaseButton.height(scale) + 12 * scale }
+        }
+        if OperatingWords.offersReconnect(display) {
+            height += 34 * scale + ReconnectButton.height(scale) + 12 * scale
         }
         let cs = layout.controlSurface
         return SurfaceLayout.Rect(x: cs.x, y: cs.y, width: cs.width, height: min(height, cs.height))
@@ -424,12 +428,13 @@ private struct PhoneSurface: View {
     }
 
     private var precisionFooterHeight: Double {
-        display.linkUp && !OperatingWords.offersRelease(display) ? 48 : 0
+        display.linkUp && !OperatingWords.offersRelease(display) && !OperatingWords.offersReconnect(display) ? 48 : 0
     }
 
     private var usesFixedLayout: Bool {
         switch display.state {
-        case .notConnected, .connecting, .linkLost, .stopped: return false
+        case .notConnected, .connecting, .linkLost, .stopped, .simulatorStalled, .simulatorPaused(stopped: true):
+            return false
         default: return true
         }
     }
@@ -477,7 +482,13 @@ private struct PhoneSurface: View {
     }
 
     private var flowing: some View {
-        let stopped = { if case .stopped = display.state { return true } else { return false } }()
+        // A simulator that is not responding is drawn as a stop is: no scheme hints, room for its button.
+        let stopped = {
+            switch display.state {
+            case .stopped, .simulatorStalled, .simulatorPaused(stopped: true): return true
+            default: return false
+            }
+        }()
         // While a follow or a move nobody holds runs, the hints' touches would stop it: they are hidden, keeping their
         // room so the guide does not move.
         let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
@@ -497,6 +508,8 @@ private struct PhoneSurface: View {
                 }
                 if OperatingWords.offersRelease(display) {
                     Color.clear.frame(height: ReleaseButton.height(scale))
+                } else if OperatingWords.offersReconnect(display) {
+                    Color.clear.frame(height: ReconnectButton.height(scale))
                 } else if display.mode == .screenTurns, !stopped {
                     Text("hint.scheme_a")
                         .font(.system(size: max(12, 14 * scale), weight: .medium))
@@ -584,6 +597,8 @@ private struct ButtonsStrip: View {
             Spacer(minLength: 0)
             if OperatingWords.offersRelease(display) {
                 Color.clear.frame(height: ReleaseButton.height(scale))
+            } else if OperatingWords.offersReconnect(display) {
+                Color.clear.frame(height: ReconnectButton.height(scale))
             }
         }
         .padding(.horizontal, 16)
@@ -652,6 +667,22 @@ private struct OperatingControls: View {
                                 width: cs.width - 32, height: ReleaseButton.height(scale)
                             ))
                 }
+                if OperatingWords.offersReconnect(display) {
+                    ReconnectButton(scale: scale) { reconnect() }
+                        .place(
+                            SurfaceLayout.Rect(
+                                x: cs.x + 16, y: strip.maxY - 8 * scale - ReconnectButton.height(scale),
+                                width: cs.width - 32, height: ReconnectButton.height(scale)
+                            ))
+                }
+            } else if OperatingWords.offersReconnect(display) {
+                // Above the precision panel too: it is the one way on while the simulator is not responding.
+                ReconnectButton(scale: scale) { reconnect() }
+                    .place(
+                        SurfaceLayout.Rect(
+                            x: cs.x + 16, y: cs.maxY - 10 * scale - ReconnectButton.height(scale),
+                            width: cs.width - 32, height: ReconnectButton.height(scale)
+                        ))
             } else if display.precisionPanelOpen {
                 let height = min(400.0, cs.height - 64)
                 ButtonPadView(
@@ -711,6 +742,34 @@ private struct OperatingControls: View {
                 .place(SurfaceLayout.Rect(x: cs.maxX - 144, y: cs.maxY - 52, width: 128, height: 44))
             }
         }
+    }
+
+    /// Reconnect: the server is left stopped before the connection goes, then Connect opens.
+    private func reconnect() {
+        model.reconnect()
+    }
+}
+
+/// **Reconnect**, while the simulator is not responding: leaves the server stopped, then drops the connection and
+/// opens Connect, the way a new connection is made from Settings. A plain tap: it moves nothing, and the stop stays
+/// latched.
+private struct ReconnectButton: View {
+    let scale: Double
+    let action: () -> Void
+
+    /// As tall as the release it stands in for.
+    static func height(_ scale: Double) -> Double { ReleaseButton.height(scale) }
+
+    var body: some View {
+        Button(action: action) {
+            Text("btn.reconnect")
+                .font(.system(size: max(17, 20 * scale), weight: .semibold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(TeleopColors.textPrimary)
+        .accessibilityIdentifier("stall.reconnect")
     }
 }
 
