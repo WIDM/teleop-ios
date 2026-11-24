@@ -514,4 +514,32 @@ final class LooseEndingsTests: XCTestCase {
         XCTAssertEqual(rig.send(.wristStartSent, after: 0.1), [])
         XCTAssertTrue(rig.isGoing)
     }
+
+    // MARK: A control the rules do not see
+
+    /// The fine panel's entry button ends a follow latched by a press, or a move to a tapped point, as a press would.
+    /// No input of the rules is down afterwards, so the next press starts afresh.
+    func testTheFinePanelEntryEndsAMoveNobodyHolds() {
+        for (name, start) in [("latched", latched()), ("going", going())] {
+            var rig = start
+            XCTAssertEqual(rig.send(.controlPressed, after: 0.2), stoppedByYou, name)
+            XCTAssertNil(rig.arbiter.engagement, name)
+            XCTAssertFalse(rig.arbiter.isHoldingAnInput, name)
+            XCTAssertEqual(rig.send(.controlPressed, after: 0.1), [], "\(name): nothing left to end")
+            XCTAssertEqual(rig.wait(1), [], name)
+        }
+    }
+
+    /// It ends nothing else: a hold tied to a key that is down, and the idle rules, are untouched.
+    func testTheFinePanelEntryLeavesAHeldHoldAlone() {
+        var held = Rig(.screenTurns)
+        XCTAssertEqual(held.press(.upper, after: 0.1), [.startTranslation])
+        XCTAssertEqual(held.send(.controlPressed, after: 0.1), [])
+        XCTAssertEqual(held.arbiter.engagedHold, .translation)
+        XCTAssertEqual(held.release(.upper, after: 0.1), [.stopTranslation])
+
+        var idle = Rig(.screenTurns)
+        XCTAssertEqual(idle.send(.controlPressed, after: 0.1), [])
+        XCTAssertNil(idle.arbiter.engagement)
+    }
 }

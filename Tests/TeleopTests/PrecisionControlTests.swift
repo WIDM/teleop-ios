@@ -39,7 +39,7 @@ final class PrecisionControlTests: XCTestCase {
         super.tearDown()
     }
 
-    private func bringUp(_ mode: ControlMode = .screenTurns, tracking: Bool = true) {
+    private func bringUp(_ mode: ControlMode = .screenTurns, tracking: Bool = true, lock: LockChoice = .off) {
         clock = 10_000
         UserDefaults.standard.set(false, forKey: AppModel.taskAidKey)
         model = AppModel(
@@ -53,7 +53,7 @@ final class PrecisionControlTests: XCTestCase {
             },
             makeObserverTransport: { _ in PrecisionTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: false, lockChoice: .off
+            assistOn: lock != .off, lockChoice: lock
         )
         model.controlMode = mode
         model.session.state.serverAddress = "100.64.0.1:8765"
@@ -290,5 +290,226 @@ final class PrecisionControlTests: XCTestCase {
         model.setPrecisionPanelOpen(true)
         XCTAssertFalse(model.operating.precisionPanelOpen)
         touch(9, .ended, x: 200, y: band.maxY - 20)
+    }
+
+    // MARK: The entry while a move nobody holds runs
+
+    /// The upper key's press starts the follow and its release leaves it running.
+    private func latch(line: UInt = #line) {
+        clock += 100
+        model.keyEvent(.upper, down: true)
+        clock += 100
+        model.keyEvent(.upper, down: false)
+        XCTAssertTrue(model.session.state.armMoving, line: line)
+        guard case .latched? = model.controller.arbiter.engagement else {
+            return XCTFail("not latched", line: line)
+        }
+    }
+
+    private func heard(since mark: Int) -> [CueKey] { model.cueLog.dropFirst(mark).map(\.event) }
+
+    func testEntryStopsALatchedFollowAndOpensOnceTheStopIsHeard() {
+        bringUp(lock: .pressPress)
+        latch()
+        let mark = model.cueLog.count
+        model.setPrecisionPanelOpen(true)
+        XCTAssertEqual(wire.count("pose_stop"), 1, "one press stops the follow")
+        XCTAssertNil(model.controller.arbiter.engagement)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertFalse(model.operating.precisionPanelOpen, "not before the stop is heard")
+        XCTAssertEqual(heard(since: mark), [.drive(.stoppedByYou)])
+        tick(3)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        acknowledgeStop()
+        tick()
+        XCTAssertTrue(model.operating.precisionPanelOpen, "opens with no second press")
+        XCTAssertEqual(model.operating.speed, .fine)
+        XCTAssertEqual(wire.count("pose_stop"), 1)
+        XCTAssertEqual(heard(since: mark), [.drive(.stoppedByYou)], "no NO and no Let go first")
+    }
+
+    func testEntryOpensOnAFreshArmReadingAfterTheStopWithoutItsAck() {
+        bringUp(lock: .pressPress)
+        latch()
+        model.setPrecisionPanelOpen(true)
+        tick(26)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        wire.server("state", ["estop": false, "gripper": "open", "ee_pos": [0.0, -0.14, 0.16]])
+        XCTAssertTrue(model.link.armHeardAfterLastStop, "the link's own rule after 0.8 s")
+        tick()
+        XCTAssertTrue(model.operating.precisionPanelOpen)
+    }
+
+    func testEntryGivesUpWithNoWhenTheStopIsNotHeardInTime() {
+        bringUp(lock: .pressPress)
+        latch()
+        model.setPrecisionPanelOpen(true)
+        let mark = model.cueLog.count
+        tick(44)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        XCTAssertEqual(heard(since: mark), [], "still waiting at 1.45 s")
+        tick(3)
+        XCTAssertEqual(heard(since: mark), [.refused(.deadInput)])
+        acknowledgeStop()
+        tick(5)
+        XCTAssertFalse(model.operating.precisionPanelOpen, "a late stop opens nothing")
+        XCTAssertEqual(wire.count("pose_stop"), 1)
+    }
+
+    func testAnythingElseWhileWaitingDropsTheEntry() {
+        let interruptions: [(String, (PrecisionControlTests) -> Void)] = [
+            (
+                "STOP",
+                { test in
+                    let band = test.model.operating.layout!.bottomBand
+                    test.touch(9, .began, x: band.x + band.width / 2, y: band.y + band.height / 2)
+                }
+            ),
+            (
+                "background",
+                { test in
+                    test.model.activeChanged(false)
+                    test.model.activeChanged(true)
+                }
+            ),
+            ("settings", { $0.model.send(.openSettings) }),
+            (
+                "slow link",
+                { test in
+                    test.model.session.state.commandsBlocked = true
+                    test.model.controller.sessionChanged()
+                }
+            ),
+            (
+                "disconnect",
+                { test in
+                    test.model.session.state.connected = false
+                    test.model.controller.sessionChanged()
+                }
+            ),
+            ("scene reset", { $0.model.controller.sceneReset() }),
+            ("mode change", { $0.model.controlMode = .keyTurns }),
+            (
+                "a key",
+                { test in
+                    test.clock += 50
+                    test.model.keyEvent(.lower, down: true)
+                    test.clock += 50
+                    test.model.keyEvent(.lower, down: false)
+                }
+            ),
+            (
+                "a touch",
+                { test in
+                    test.touch(5, .began)
+                    test.clock += 50
+                    test.touch(5, .ended)
+                }
+            ),
+            (
+                "the reset band",
+                { test in
+                    let band = test.model.operating.layout!.topBand
+                    test.touch(6, .began, x: 200, y: band.maxY - 20)
+                    test.clock += 50
+                    test.touch(6, .ended, x: 200, y: band.maxY - 20)
+                }
+            ),
+        ]
+        for (name, interrupt) in interruptions {
+            bringUp(lock: .pressPress)
+            latch()
+            model.setPrecisionPanelOpen(true)
+            XCTAssertFalse(model.operating.precisionPanelOpen, name)
+            interrupt(self)
+            if model.session.route == .s6 { model.send(.settingsDone) }
+            acknowledgeStopIfOwed()
+            tick(5)
+            XCTAssertFalse(model.operating.precisionPanelOpen, "\(name): dropped, never opened later")
+            tick(50)
+            XCTAssertFalse(model.operating.precisionPanelOpen, "\(name): not after the wait either")
+        }
+    }
+
+    /// Answers the newest arm start's stop, if one is outstanding, with its ack and a fresh reading.
+    private func acknowledgeStopIfOwed() {
+        guard model.session.state.connected, !model.link.armHeardAfterLastStop,
+            let start = wire.sent.last(where: { $0["type"] as? String == "pose_start" })?["seq"] as? Int
+        else { return }
+        wire.server("ack", seq: start, ["seq": start, "status": "ok", "reason": "pose_stopped"])
+        wire.server(
+            "state", ["estop": model.session.state.emergencyStop, "gripper": "open", "ee_pos": [0.0, -0.14, 0.16]])
+    }
+
+    func testEntryStillRefusesAHeldFollowAndLeavesItRunning() {
+        bringUp()
+        model.keyEvent(.upper, down: true)
+        let mark = model.cueLog.count
+        model.setPrecisionPanelOpen(true)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        XCTAssertTrue(model.session.state.armMoving, "the held follow goes on")
+        XCTAssertEqual(wire.count("pose_stop"), 0)
+        XCTAssertEqual(heard(since: mark), [.refused(.letGoFirst)])
+        model.keyEvent(.upper, down: false)
+        XCTAssertEqual(wire.count("pose_stop"), 1)
+    }
+
+    func testEntryStillRefusesTheJawsAndLeavesThemMoving() {
+        bringUp()
+        model.keyEvent(.lower, down: true)
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        model.setPrecisionPanelOpen(true)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        XCTAssertEqual(model.session.state.gripperMoving, .closed)
+        model.keyEvent(.lower, down: false)
+    }
+
+    func testSecondPressWhileWaitingIsSilentAndOpensOnce() {
+        bringUp(lock: .pressPress)
+        latch()
+        model.setPrecisionPanelOpen(true)
+        let mark = model.cueLog.count
+        model.setPrecisionPanelOpen(true)
+        XCTAssertEqual(heard(since: mark), [])
+        acknowledgeStop()
+        tick()
+        XCTAssertTrue(model.operating.precisionPanelOpen)
+        XCTAssertEqual(wire.count("pose_stop"), 1)
+    }
+}
+
+final class PrecisionPracticeTests: XCTestCase {
+    private var saved: [String: Any] = [:]
+    private let keys = [AppModel.controlModeKey, AppModel.taskAidKey, AppModel.assistKey, AppModel.lockChoiceKey]
+
+    override func setUp() {
+        super.setUp()
+        for key in keys { saved[key] = UserDefaults.standard.object(forKey: key) }
+    }
+
+    override func tearDown() {
+        for key in keys { UserDefaults.standard.set(saved[key], forKey: key) }
+        super.tearDown()
+    }
+
+    func testWithoutARobotTheEntryStopsTheFollowAndOpensAtOnce() {
+        var clock = 10_000
+        UserDefaults.standard.set(false, forKey: AppModel.taskAidKey)
+        let model = AppModel(
+            start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(),
+            pose: { TestPose.portrait }, liveLink: false, nowMs: { clock },
+            inputClock: { Double(clock) / 1000 }, assistOn: true, lockChoice: .pressPress
+        )
+        model.controlMode = .screenTurns
+        model.surfaceChanged(width: 375, height: 667, safeTop: 20, safeBottom: 0)
+        clock += 100
+        model.keyEvent(.upper, down: true)
+        clock += 100
+        model.keyEvent(.upper, down: false)
+        guard case .latched? = model.controller.arbiter.engagement else { return XCTFail("not latched") }
+        model.setPrecisionPanelOpen(true)
+        XCTAssertNil(model.controller.arbiter.engagement)
+        XCTAssertFalse(model.session.state.armMoving)
+        XCTAssertTrue(model.operating.precisionPanelOpen, "no server to wait for")
     }
 }

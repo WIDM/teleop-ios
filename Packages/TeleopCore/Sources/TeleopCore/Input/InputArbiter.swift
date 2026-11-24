@@ -339,6 +339,8 @@ public struct InputArbiter: Sendable {
                         for: .tilt, readings: .unknown, commandedTiltSinceResetDeg: -tiltAtReset, constants: constants
                     ))
             }
+        case .controlPressed:
+            endLoose(.byYou)
         case .wristStartSent:
             guard case .held(_, .wrist)? = engaged, let q = attitude, var mapper = wrist else { return }
             // The target streamed from now on drops the rotation made while the start waited.

@@ -73,6 +73,9 @@ public enum InputEvent: Equatable, Sendable {
     /// The engaged wrist hold's `orient_start` went on the wire now. If it waited behind a finishing hold, the
     /// rotation made meanwhile is dropped (I-8.1), and the call returns the target to stream from now on.
     case wristStartSent
+    /// A control the rules do not see was pressed: the fine panel's entry button. It ends a move nobody holds as a
+    /// press does ("You stopped it.") and does nothing else; a hold tied to an input that is down goes on.
+    case controlPressed
 
     /// Every hold ends with no reason named. A path that knows why should say so with `holdsEnded(_:)`. A move nobody
     /// holds that ends this way says "Stopped here.": a new ending path written with it is heard, never silent.

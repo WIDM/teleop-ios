@@ -21,6 +21,10 @@ final class OperatingController {
     private(set) var precisionPanelOpen = false
     private var precisionKeys: Set<InputKey> = []
     private var savedButtonSpeed: ButtonSpeed?
+    /// When the fine panel's entry stopped a move nobody holds. The panel opens once that stop is heard, as a second
+    /// press would; anything else started meanwhile drops the ask, and a stop not heard in `panelAskWaitS` gives up.
+    private var panelAskedAt: TimeInterval?
+    static let panelAskWaitS = 1.5
     private var active = true
     private var hand: Hand
     /// When the reset countdown began, while it runs.
@@ -355,6 +359,7 @@ final class OperatingController {
             case .endButtonHold:
                 endButtonHold()
             }
+            settleAskedPanel()
             model.inputsChanged()
         }
     }
@@ -371,16 +376,18 @@ final class OperatingController {
     }
 
     private func changePrecisionPanel(_ open: Bool) {
-        guard open != precisionPanelOpen else { return }
+        if !open { dropAskedPanel() }
+        guard open != precisionPanelOpen, panelAskedAt == nil else { return }
         if open {
             model.disableVoiceAxis(reason: "fine_panel")
-            let state = model.session.state
-            guard mode != .buttons, active, Self.operatingRoutes.contains(model.session.route),
-                !isEngaged, !arbiter.isHoldingAnInput, buttons.down.isEmpty,
-                precisionKeys.isEmpty, padTouches.isEmpty, topBandTouchEpochs.isEmpty,
-                !state.armMoving, state.gripperMoving == nil, !state.wristMoving,
-                !state.liveLink || model.link.armHeardAfterLastStop
-            else {
+            if loose != nil, panelMayOpen(beforeTheArmStops: true), model.inputFacts().refusal == nil {
+                handle([.controlPressed], at: now())
+                panelAskedAt = now()
+                model.sessionRecord.note("precision panel asked: the move nobody holds stopped")
+                settleAskedPanel()
+                return
+            }
+            guard panelMayOpen(beforeTheArmStops: false) else {
                 model.raise(.refused(.letGoFirst))
                 return
             }
@@ -388,15 +395,57 @@ final class OperatingController {
                 model.raise(.refused(Self.refusal(refusal)))
                 return
             }
-            savedButtonSpeed = buttons.speed
-            _ = buttons.selectSpeed(.fine)
-            precisionPanelOpen = true
+            openPanel()
         } else {
             endButtonHold()
             precisionPanelOpen = false
             restoreButtonSpeed()
+            model.sessionRecord.note("precision panel closed")
         }
-        model.sessionRecord.note("precision panel \(open ? "opened" : "closed")")
+    }
+
+    /// Whether the panel may open now. `beforeTheArmStops`: the press is about to stop a move nobody holds, so that
+    /// move, the arm's motion and the link's word on its stop are not judged yet.
+    private func panelMayOpen(beforeTheArmStops: Bool) -> Bool {
+        let state = model.session.state
+        guard mode != .buttons, active, Self.operatingRoutes.contains(model.session.route),
+            countdownStartedAt == nil, buttons.engaged == nil, !arbiter.isHoldingAnInput, buttons.down.isEmpty,
+            precisionKeys.isEmpty, padTouches.isEmpty, topBandTouchEpochs.isEmpty,
+            state.gripperMoving == nil, !state.wristMoving
+        else { return false }
+        if beforeTheArmStops { return true }
+        return arbiter.engagedHold == nil && !state.armMoving
+            && (!state.liveLink || model.link.armHeardAfterLastStop)
+    }
+
+    private func openPanel() {
+        savedButtonSpeed = buttons.speed
+        _ = buttons.selectSpeed(.fine)
+        precisionPanelOpen = true
+        model.sessionRecord.note("precision panel opened")
+    }
+
+    /// The asked panel opens once the stop is heard. Anything the operator or the session starts meanwhile, or a
+    /// refusal, drops the ask in silence: that event is heard on its own. A stop not heard in time plays NO.
+    private func settleAskedPanel() {
+        guard let askedAt = panelAskedAt else { return }
+        if arbiter.engagement != nil || !panelMayOpen(beforeTheArmStops: true) || model.inputFacts().refusal != nil {
+            return dropAskedPanel()
+        }
+        if panelMayOpen(beforeTheArmStops: false) {
+            panelAskedAt = nil
+            openPanel()
+        } else if now() - askedAt >= Self.panelAskWaitS {
+            panelAskedAt = nil
+            model.sessionRecord.note("precision panel ask timed out")
+            model.raise(.refused(.deadInput))
+        }
+    }
+
+    private func dropAskedPanel() {
+        guard panelAskedAt != nil else { return }
+        panelAskedAt = nil
+        model.sessionRecord.note("precision panel ask dropped")
     }
 
     private func restoreButtonSpeed() {

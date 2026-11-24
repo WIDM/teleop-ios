@@ -9,6 +9,13 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 35 (1.2.0): "Fine controls" now stops a follow nobody holds, a lock follow or a move to a tapped point,
+  as any key or touch already did ("You stopped it."), and opens the panel once the stop is confirmed, with no
+  second press. If the stop is not confirmed within 1.5 s it plays NO and the panel stays closed. STOP, any other
+  key or touch, a lost or slow link, Settings, a scene reset, a mode change or leaving the app in the meantime
+  drops the request. A follow held by the upper key is still refused until the key is released, and the panel
+  opens on the same condition as before: the arm has stopped and the server has confirmed it.
+
 - Build 30 carries the words of build 29's refusal kinds to the phone; build 29 as first installed had only the
   free phone move and the hidden voice control.
 

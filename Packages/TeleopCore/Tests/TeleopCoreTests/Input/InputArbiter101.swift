@@ -217,7 +217,8 @@ public struct InputArbiter101: Sendable {
         case .keyUp(let key): keyUp(key)
         case .touch(let sample): touch(sample)
         case .attitude(let q): attitudeSample(q)
-        case .tick: break
+        // 1.0.1 had no move nobody holds for the fine panel's entry to end.
+        case .tick, .controlPressed: break
         case .holdsEnded: endAllHolds()
         case .assistChanged: endAllHolds()
         case .becameActive: becameActive()
