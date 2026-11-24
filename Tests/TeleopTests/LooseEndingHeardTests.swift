@@ -107,6 +107,9 @@ final class LooseEndingHeardTests: XCTestCase {
             Row(name: "a re-sent start the server never finished, on a move", starts: [.going]) { test in
                 test.run(ticks: 120)
             },
+            Row(name: "Fine controls pressed") { test in
+                test.model.setPrecisionPanelOpen(true)
+            },
             Row(name: "the watchdog after GO") { test in
                 test.run(ticks: 10)
                 test.serverAnswers("rejected", "pose_watchdog_timeout")
@@ -248,6 +251,22 @@ final class LooseEndingHeardTests: XCTestCase {
     }
 
     /// A move's endings, the alarm, link loss during a hold, and a success's narration.
+    /// Fine controls stop each kind of move nobody holds and open, with no second press, once the stop is confirmed.
+    func testFineControlsOpenOnceTheStoppedMoveIsConfirmed() {
+        for start in Start.allCases {
+            bringUp(profile: .so101Simulator, start: start)
+            begin(start, "\(start)")
+            model.setPrecisionPanelOpen(true)
+            XCTAssertEqual(transport.types.filter { $0 == "pose_stop" }.count, 1, "\(start)")
+            XCTAssertFalse(model.operating.precisionPanelOpen, "\(start)")
+            serverAnswers("ok", "pose_stopped")
+            reportArm(atPinch: goStart)
+            clock += 33
+            model.controller.tick()
+            XCTAssertTrue(model.operating.precisionPanelOpen, "\(start)")
+        }
+    }
+
     static func isEndingCue(_ key: CueKey) -> Bool {
         switch key {
         case .drive(.stoppedByYou), .drive(.arrived), .drive(.ended): return true

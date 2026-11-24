@@ -415,13 +415,33 @@ final class PrecisionControlTests: XCTestCase {
                     test.touch(6, .ended, x: 200, y: band.maxY - 20)
                 }
             ),
+            (
+                "the gear, still held",
+                { test in
+                    let gear = test.model.operating.layout!.gear
+                    test.touch(7, .began, x: gear.x + gear.width / 2, y: gear.y + gear.height / 2)
+                }
+            ),
+            (
+                "the server busy with a success",
+                { test in
+                    test.acknowledgeStopIfOwed()
+                    test.wire.server(
+                        "state",
+                        ["estop": false, "gripper": "open", "ee_pos": [0.0, -0.14, 0.16], "task_success": true])
+                }
+            ),
         ]
         for (name, interrupt) in interruptions {
             bringUp(lock: .pressPress)
             latch()
             model.setPrecisionPanelOpen(true)
             XCTAssertFalse(model.operating.precisionPanelOpen, name)
+            XCTAssertTrue(model.controller.panelAsked, name)
             interrupt(self)
+            tick()
+            XCTAssertFalse(model.operating.precisionPanelOpen, "\(name): never opened")
+            XCTAssertFalse(model.controller.panelAsked, "\(name): the ask is dropped by the next tick")
             if model.session.route == .s6 { model.send(.settingsDone) }
             acknowledgeStopIfOwed()
             tick(5)
@@ -462,6 +482,34 @@ final class PrecisionControlTests: XCTestCase {
         XCTAssertFalse(model.operating.precisionPanelOpen)
         XCTAssertEqual(model.session.state.gripperMoving, .closed)
         model.keyEvent(.lower, down: false)
+    }
+
+    func testTheDeadlineWinsOverAStopHeardJustAfterIt() {
+        bringUp(lock: .pressPress)
+        latch()
+        model.setPrecisionPanelOpen(true)
+        let mark = model.cueLog.count
+        tick(45)
+        clock += 20
+        acknowledgeStop()
+        tick()
+        XCTAssertFalse(model.operating.precisionPanelOpen, "heard at 1.505 s, past the wait")
+        XCTAssertEqual(heard(since: mark), [.refused(.deadInput)])
+    }
+
+    func testClosingTheAutoOpenedPanelPutsTheSpeedBack() {
+        bringUp(lock: .pressPress)
+        model.selectSpeed(.coarse)
+        latch()
+        model.setPrecisionPanelOpen(true)
+        acknowledgeStop()
+        tick()
+        XCTAssertTrue(model.operating.precisionPanelOpen)
+        XCTAssertFalse(model.controller.panelAsked)
+        tick(3)
+        model.setPrecisionPanelOpen(false)
+        XCTAssertFalse(model.operating.precisionPanelOpen)
+        XCTAssertEqual(model.operating.speed, .coarse)
     }
 
     func testSecondPressWhileWaitingIsSilentAndOpensOnce() {

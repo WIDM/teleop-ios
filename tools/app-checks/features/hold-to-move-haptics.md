@@ -35,7 +35,8 @@ the screen is rarely needed.
   stopped itself, a success and a start that was refused are each told by their own cue alone: let go with the lost
   link's sound and "Link lost."; the alarm; the success's sound and words; the refusal. Any other ending plays let
   go, "Stopped here." and why, when a reason was named, once, and the screen shows the same words for a second. A
-  limit that a move to a tapped point meets is told by the move's ending alone. The tutorial's last page teaches the
+  limit that a move to a tapped point meets is told by the move's ending alone. Fine controls end such a move as a
+  touch does and open once its stop is confirmed. The tutorial's last page teaches the
   lock chosen and the tap.
 
 ## How to check it
@@ -52,6 +53,7 @@ the screen is rarely needed.
   tests around it, `LocalOperatorTests` (the wrist in each scheme, holds ended by Settings, the background and the
   camera), and `LocalPickAndPlaceTests`, which picks up and places the task object in every mode against the local
   server. With the aids: `LooseEndingHeardTests` (every ending of a follow or a move nobody holds heard once),
+  `PrecisionControlTests` (Fine controls ending a follow nobody holds, then opening, timing out or being dropped),
   `AssistControllerTests`, `AssistLinkTests` and `LocalAssistTests` (lock and taps through raw inputs against the
   local server), and `LocalFollowTests` (moves to a tapped point against a local server whose pinch point turns with
   the arm's posture). The AssistOff test plan runs every app test again with the aids off.

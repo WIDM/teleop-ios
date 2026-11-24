@@ -211,6 +211,7 @@ Settings → Control → Mode picks one of three control modes (`ControlMode`), 
 | a thumb slid up the control surface while vol+ is held, with lock set to hold then slide (aid) | the follow goes on with no key held, until any key or touch stops it | the same, the centre band included | nothing |
 | a short, still tap on the guide's view from above (aid) | the jaws go to the point tapped, at a travel height above the table; not while the camera is stopped | the same; on a half the tap must lift before the half's dwell | nothing: no guide is drawn |
 | any key press or new touch while a follow or a move nobody holds runs (aid) | stops it, and does nothing else until released | the same | cannot happen |
+| Fine controls while a follow or a move nobody holds runs (aid) | stops it, and opens the panel once the stop is confirmed (1.5 s at most, else no) | the same | cannot happen |
 | the bottom band | STOP, at touch-down | STOP, at touch-down | STOP, at touch-down |
 | a touch that begins in the bottom safe area, under the band | nothing | nothing | nothing |
 | the top band held 2 s | reset the scene | reset the scene | reset the scene |
@@ -220,7 +221,10 @@ Settings → Hand says which hand holds the phone: scheme B closes on the half u
 Close on that side. One input at a time: a press that begins while another hold runs is dead until it is released.
 A follow or a move nobody holds has no input to release, so for it the rule works the other way: the next key
 press, or the next touch that passes the palm and edge filters on the control surface, the top band or the gear,
-ends it, and that input is then dead and silent until it is released. Inputs that were already down when such a
+ends it, and that input is then dead and silent until it is released. Fine controls end it too, and the panel opens
+on the condition it always needs, the arm stopped and the server's word on that stop, with no second press; if that
+word does not come within 1.5 s the press plays no, and any other input, STOP, a lost or slow link, Settings, a scene
+reset, a mode change or leaving the app meanwhile drops it. Inputs that were already down when such a
 move began end nothing and stay silent. A wrist hold commits to one axis, turn or tilt, and follows the phone's
 rotation on it from where the hold began, within per-hold limits (`InputConstants.rollClampDeg`, `tiltClampDeg`).
 

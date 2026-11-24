@@ -25,6 +25,7 @@ final class OperatingController {
     /// press would; anything else started meanwhile drops the ask, and a stop not heard in `panelAskWaitS` gives up.
     private var panelAskedAt: TimeInterval?
     static let panelAskWaitS = 1.5
+    var panelAsked: Bool { panelAskedAt != nil }
     private var active = true
     private var hand: Hand
     /// When the reset countdown began, while it runs.
@@ -106,6 +107,7 @@ final class OperatingController {
 
     func key(_ key: InputKey, down: Bool) {
         guard mode != .buttons else { return }
+        if down { dropAskedPanel() }
         if down, precisionPanelOpen || precisionKeys.contains(key) || !buttons.down.isEmpty {
             precisionKeys.insert(key)
             return
@@ -115,6 +117,8 @@ final class OperatingController {
     }
 
     func touch(_ sample: TouchSample, at time: TimeInterval) {
+        // Any new touch, the gear and the bands included, is the operator doing something else.
+        if sample.phase == .began { dropAskedPanel() }
         if mode == .buttons || precisionPanelOpen || !buttons.down.isEmpty {
             if sample.phase == .began, arbiter.layout.zone(x: sample.x, y: sample.y) == .controlSurface {
                 padTouches.insert(sample.id)
@@ -432,13 +436,13 @@ final class OperatingController {
         if arbiter.engagement != nil || !panelMayOpen(beforeTheArmStops: true) || model.inputFacts().refusal != nil {
             return dropAskedPanel()
         }
-        if panelMayOpen(beforeTheArmStops: false) {
-            panelAskedAt = nil
-            openPanel()
-        } else if now() - askedAt >= Self.panelAskWaitS {
+        if now() - askedAt >= Self.panelAskWaitS {
             panelAskedAt = nil
             model.sessionRecord.note("precision panel ask timed out")
             model.raise(.refused(.deadInput))
+        } else if panelMayOpen(beforeTheArmStops: false) {
+            panelAskedAt = nil
+            openPanel()
         }
     }
 
