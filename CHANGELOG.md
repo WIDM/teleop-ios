@@ -19,7 +19,8 @@ version is tagged `vX.Y.Z` on the commit that carries it.
   so the connection was closed", on Connect and on the stopped and link-lost states.
 - Build 36 names itself to the server with an install code, `teleop-ios/1.3.0 (36) install=<8 hex digits>`, made
   at random on the first connection and kept until the app is deleted, so the server's log can tell one phone's
-  sessions from another's. Nothing in it comes from the phone or the person.
+  sessions from another's. Nothing in it comes from the phone or the person; the privacy manifest declares it as an
+  identifier used for analytics, not linked to the person and not used for tracking.
 
 - Build 35 (1.2.0): "Fine controls" now stops a follow nobody holds, a lock follow or a move to a tapped point,
   as any key or touch already did ("You stopped it."), and opens the panel once the stop is confirmed, with no

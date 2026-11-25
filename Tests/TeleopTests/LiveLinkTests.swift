@@ -164,8 +164,9 @@ final class LiveLinkTests: XCTestCase {
     /// The app names itself to the server by its version and build, read from the bundle, and this install's code:
     /// never a person's name.
     func testTheAppsNameComesFromTheBundle() {
-        let defaults = UserDefaults(suiteName: "install-code-name")!
-        defaults.removePersistentDomain(forName: "install-code-name")
+        let suite = "install-code-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         let info = Bundle.main.infoDictionary ?? [:]
         let version = try! XCTUnwrap(info["CFBundleShortVersionString"] as? String)
         let build = try! XCTUnwrap(info["CFBundleVersion"] as? String)
@@ -179,15 +180,19 @@ final class LiveLinkTests: XCTestCase {
     /// The code stays the same for one install and differs between installs, so the server's log can group one
     /// phone's sessions; a fresh install starts a new code.
     func testTheInstallCodeIsKeptAndDiffersBetweenInstalls() {
-        let one = UserDefaults(suiteName: "install-code-one")!
-        let two = UserDefaults(suiteName: "install-code-two")!
-        one.removePersistentDomain(forName: "install-code-one")
-        two.removePersistentDomain(forName: "install-code-two")
+        let suiteOne = "install-code-" + UUID().uuidString
+        let suiteTwo = "install-code-" + UUID().uuidString
+        let one = UserDefaults(suiteName: suiteOne)!
+        let two = UserDefaults(suiteName: suiteTwo)!
+        defer {
+            one.removePersistentDomain(forName: suiteOne)
+            two.removePersistentDomain(forName: suiteTwo)
+        }
         let first = LiveLinkController.installCode(defaults: one)
         XCTAssertEqual(LiveLinkController.installCode(defaults: one), first)
         XCTAssertEqual(LiveLinkController.clientName(defaults: one), LiveLinkController.clientName(defaults: one))
         XCTAssertNotEqual(LiveLinkController.installCode(defaults: two), first)
-        one.removePersistentDomain(forName: "install-code-one")
+        one.removePersistentDomain(forName: suiteOne)
         XCTAssertNotEqual(LiveLinkController.installCode(defaults: one), first)
     }
 

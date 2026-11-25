@@ -95,8 +95,9 @@ The first message on a connection must be `hello`, with exactly these two fields
 `name` is how the server's log names the connection. The app names its control connection
 `teleop-ios/<version> (<build>) install=<code>`, from the bundle's version and build numbers and eight random hex
 digits made on the first connection and kept until the app is deleted (`LiveLinkController.clientName`), and its
-listening connection the same followed by ` observer`. The code tells one phone's sessions from another's in the log;
-nothing in it comes from the phone or the person. Any other field in the payload, or any other message
+listening connection the same followed by ` observer`. The code tells one install's sessions from another's in the
+log (a phone restored from another phone's backup keeps that phone's code); nothing in it comes from the phone or the
+person. Any other field in the payload, or any other message
 before `hello`, is answered with an `error` message.
 
 The server answers with `welcome`, then a first `state` (described below):

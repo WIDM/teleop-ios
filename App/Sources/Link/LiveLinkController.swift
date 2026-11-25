@@ -374,7 +374,8 @@ final class LiveLinkController {
     static let installCodeKey = "installCode"
 
     /// Eight random hex digits made the first time they are asked for and kept until the app is deleted. Nothing in
-    /// it comes from the phone or the person.
+    /// it comes from the phone or the person. It lives in the app's settings, so a phone restored from another's
+    /// backup carries the same code; declared in PrivacyInfo.xcprivacy as an identifier not linked to the person.
     static func installCode(defaults: UserDefaults = .standard) -> String {
         if let code = defaults.string(forKey: installCodeKey) { return code }
         let code = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
