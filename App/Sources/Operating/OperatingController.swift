@@ -139,6 +139,14 @@ final class OperatingController {
                 padTouches.insert(sample.id)
             }
         }
+        // The input rules do not see the pad's holds: a gear touch that begins during one is dead until it lifts, so
+        // it cannot open Settings once the hold is over.
+        if sample.phase == .began, buttons.engaged != nil || wristRamp != nil,
+            arbiter.layout.zone(x: sample.x, y: sample.y) == .gear
+        {
+            padTouches.insert(sample.id)
+            model.raise(.refused(.letGoFirst))
+        }
         if padTouches.contains(sample.id) {
             if sample.phase == .ended || sample.phase == .cancelled { padTouches.remove(sample.id) }
             return

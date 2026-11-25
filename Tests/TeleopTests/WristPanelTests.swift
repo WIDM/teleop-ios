@@ -330,26 +330,26 @@ final class WristPanelTests: XCTestCase {
         let band = model.operating.layout!.topBand
         model.touch(
             TouchSample(id: 7, phase: .began, x: 200, y: band.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
-        tick(70)
+        tick(30)  // inside the 2 s a countdown would take
         XCTAssertNil(model.operating.resetCountdown, "no countdown while the wrist moves")
         model.wristButtonUp(.turnRight)
-        tick(70)
-        XCTAssertEqual(wire.count("reset_scene"), 0, "the refused touch stays dead after the wrist button lifts")
+        tick(80)  // the band still held, past when a countdown begun at the touch would have fired
+        XCTAssertNil(model.operating.resetCountdown, "the refused touch stays dead after the wrist button lifts")
+        XCTAssertEqual(wire.count("reset_scene"), 0)
         model.touch(
             TouchSample(id: 7, phase: .ended, x: 200, y: band.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
         XCTAssertTrue(heard(since: mark).contains(.refused(.letGoFirst)))
-        model.wristButtonDown(.turnRight)
+
         let gear = model.operating.layout!.gear
+        let centre = (x: gear.x + gear.width / 2, y: gear.y + gear.height / 2)
+        model.wristButtonDown(.turnRight)
         model.touch(
-            TouchSample(
-                id: 8, phase: .began, x: (gear.x + gear.width / 2), y: (gear.y + gear.height / 2), majorRadius: 8),
-            at: Double(clock) / 1000)
+            TouchSample(id: 8, phase: .began, x: centre.x, y: centre.y, majorRadius: 8), at: Double(clock) / 1000)
+        model.wristButtonUp(.turnRight)  // the wrist lets go first, the gear touch after
         model.touch(
-            TouchSample(
-                id: 8, phase: .ended, x: (gear.x + gear.width / 2), y: (gear.y + gear.height / 2), majorRadius: 8),
+            TouchSample(id: 8, phase: .ended, x: centre.x, y: centre.y, majorRadius: 8),
             at: Double(clock) / 1000 + 0.05)
-        XCTAssertNotEqual(model.session.route, .s6, "no Settings while the wrist moves")
-        model.wristButtonUp(.turnRight)
+        XCTAssertNotEqual(model.session.route, .s6, "a gear touch begun during the wrist hold stays dead")
     }
 
     func testAKeyOrATouchStillDownMakesAWristButtonDead() {
@@ -425,6 +425,25 @@ final class WristPanelTests: XCTestCase {
         XCTAssertEqual(wire.count("orient_update"), 0)
     }
 
+    func testTheAngleCountsFromWhenAWaitingStartWentOut() {
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        model.buttonDown(.close)
+        model.buttonUp(.close)
+        model.setPanelPage(.wrist)
+        let starts = wire.count("orient_start")
+        model.wristButtonDown(.tiltDown)
+        tick(15)  // half a second waiting behind the finishing jaws
+        XCTAssertEqual(wire.count("orient_start"), starts)
+        let jog = wire.last("gripper_jog_start")!["seq"] as! Int
+        wire.server("ack", seq: jog, ["seq": jog, "status": "ok", "reason": "gripper_jog_stopped"])
+        tickFollowing(3)
+        XCTAssertEqual(wire.count("orient_start"), starts + 1)
+        guard let (_, degrees) = lastAngle() else { return XCTFail("no update") }
+        XCTAssertLessThan(degrees, 2.0, "the half second of waiting is not counted")
+        model.wristButtonUp(.tiltDown)
+    }
+
     func testTurnStaysInsideTheRollWindow() {
         bringUp()
         var near = state
@@ -434,11 +453,14 @@ final class WristPanelTests: XCTestCase {
         model.wristButtonDown(.turnRight)
         for _ in 0..<45 {
             tick()
-            wire.server("state", near)
+            var now = near
+            if let (_, degrees) = lastAngle() { now["wrist_roll_deg"] = 140.0 + degrees }
+            wire.server("state", now)  // the wrist follows, so the lead bound holds nothing back
         }
         guard let (axis, degrees) = lastAngle() else { return XCTFail("no update") }
         XCTAssertEqual(axis, .turn)
-        XCTAssertLessThanOrEqual(degrees, 10.0 + 1e-6, "150 degrees either way of zero, from a roll of 140")
+        XCTAssertLessThanOrEqual(degrees, 10.0 + 1e-3, "150 degrees either way of zero, from a roll of 140")
+        XCTAssertGreaterThan(degrees, 9.0, "and it gets there")
         model.wristButtonUp(.turnRight)
     }
 
