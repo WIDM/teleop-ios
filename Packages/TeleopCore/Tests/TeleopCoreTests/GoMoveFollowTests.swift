@@ -84,6 +84,33 @@ final class GoMoveFollowTests: XCTestCase {
         XCTAssertGreaterThan(move.deadline, before)
     }
 
+    /// A reading that changes the pace, slower or faster, leaves the command where it is at that instant: only how fast
+    /// it goes on changes. What the link sends changes then by the reading's half of the offset's change and nothing
+    /// more.
+    func testAChangeOfPaceLeavesTheCommandWhereItIs() {
+        let gripper0 = start - tapOffset
+        // 3 mm of link travel while the offset turns by 7.5 mm, then by 0.2 mm: from half speed to 0.15 of it, and to all
+        // of it.
+        let paces = [
+            "slower": (offset: SIMD3(0.0075, 0, 0), share: 0.15),
+            "faster": (offset: SIMD3(0.0002, 0, 0), share: 1.0),
+        ]
+        for (name, pace) in paces {
+            var move = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+            XCTAssertNil(move.observe(reading(gripper: gripper0, offset: tapOffset), at: 0.1), name)
+            let commanded = move.commanded(at: 0.4)
+            let sent = move.linkOffset(at: 0.4)
+            let gripper1 = gripper0 + SIMD3(0, 0, -0.003)
+            XCTAssertNil(move.observe(reading(gripper: gripper1, offset: tapOffset + pace.offset), at: 0.4), name)
+            let stepped = simd_distance(move.commanded(at: 0.5), move.commanded(at: 0.4))
+            XCTAssertEqual(stepped, 0.04 * pace.share * 0.1, accuracy: 1e-9, "\(name): the pace changed")
+            XCTAssertEqual(simd_distance(move.commanded(at: 0.4), commanded), 0, accuracy: 1e-12, name)
+            XCTAssertEqual(
+                simd_distance(move.linkOffset(at: 0.4) - sent, OperatorFrame.link(fromBase: -pace.offset * 0.5)), 0,
+                accuracy: 1e-12, name)
+        }
+    }
+
     func testAReadingOffTheLegAheadEndsTheMoveStoppedShort() {
         var near = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         var far = near
