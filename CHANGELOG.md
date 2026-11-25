@@ -7,7 +7,7 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
-## Unreleased
+## 1.3.0 (2026-11-25)
 
 - Build 36 (1.3.0): Fine controls has two pages, switched at the bottom: Move, as before, and Wrist, where the
   cross's four buttons become Tilt up, Tilt down, Turn left and Turn right. Hold one to turn the wrist at 20 degrees
@@ -22,6 +22,8 @@ version is tagged `vX.Y.Z` on the commit that carries it.
   sessions from another's (a phone restored from another phone's backup keeps that phone's code). Nothing in it comes
   from the phone or the person; the privacy manifest declares it as a device identifier used for analytics, linked to
   the install and not used for tracking.
+
+## 1.2.0 (2026-11-21)
 
 - Build 35 (1.2.0): "Fine controls" now stops a follow nobody holds, a lock follow or a move to a tapped point,
   as any key or touch already did ("You stopped it."), and opens the panel once the stop is confirmed, with no
