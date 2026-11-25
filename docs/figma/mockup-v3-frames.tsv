@@ -28,6 +28,8 @@ O17	Buttons · ready	320:89	320:154	320:219
 O17a	Buttons · moving	320:284	320:349	320:414
 O17b	Buttons · stopped · left hand	320:479	320:548	320:617
 O17c	Buttons · practice	320:686	320:788	320:892
+O18	Fine controls · Move	355:227	355:296	355:365
+O18a	Fine controls · Wrist	355:434	355:515	355:596
 S2	Permissions	321:107	321:125	-
 T1	Tutorial 1 of 3	321:143	321:159	-
 T2	Tutorial 2 of 3	321:175	321:190	-
@@ -43,6 +45,7 @@ S1a	Connect · connection lost	322:203	322:222	-
 S1b	Connect · practice	322:241	322:278	-
 S1c	Connect · STOP not sent	322:315	322:335	-
 S1d	Connect · before an attempt	322:355	322:373	-
+S1e	Connect · simulator in use	355:683	355:702	355:721
 S6	Settings · practice	322:391	322:485	-
 S6a	Settings · practice, lower rows	322:579	322:650	-
 S6b	Settings · connected, lower rows	322:721	322:789	-
