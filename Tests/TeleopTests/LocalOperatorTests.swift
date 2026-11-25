@@ -23,7 +23,7 @@ final class LocalOperatorTests: XCTestCase {
         server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, recorder: recorder))
         try server.start()
         hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
-        XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
+        XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")
         hand.pump(1)
     }
 

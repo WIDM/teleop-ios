@@ -46,8 +46,8 @@ final class LocalFollowTests: XCTestCase {
         // Through the setters, which set the model's own value whatever a launch argument says.
         hand.model.assistOn = true
         hand.model.lockChoice = .off
-        XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
-        XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection is up")
+        XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")
+        XCTAssertTrue(hand.wait(TestWaits.linkUp, until: { model.link.observerUp }), "the listening connection is up")
         hand.pump(1)
         hand.reportGuidePanel()
     }

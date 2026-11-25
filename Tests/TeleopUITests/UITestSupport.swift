@@ -24,8 +24,10 @@ extension XCUIApplication {
 }
 
 extension XCTestCase {
+    /// Waits for `id` to appear. The wait ends as soon as it does, so the default only has to outlast a slow CI
+    /// machine, where a page after a system prompt took over 5 s.
     func expect(
-        _ app: XCUIApplication, _ id: String, timeout: TimeInterval = 5, file: StaticString = #filePath,
+        _ app: XCUIApplication, _ id: String, timeout: TimeInterval = 15, file: StaticString = #filePath,
         line: UInt = #line
     ) {
         XCTAssertTrue(app.element(id).waitForExistence(timeout: timeout), "missing \(id)", file: file, line: line)
