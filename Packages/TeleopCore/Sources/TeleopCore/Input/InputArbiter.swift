@@ -37,7 +37,9 @@ public struct InputArbiter: Sendable {
     private var attitude: simd_quatd?
     /// The attitude frame of the facts the newest call carried (`InputFacts.attitudeFrame`).
     private var attitudeFrame = 0
-    private var commandedTiltSinceReset = 0.0
+    /// Tilt commanded since the last scene reset, for a server that reports no wrist angles. The fine panel's
+    /// wrist buttons read it and add their own tilts (`addPanelTilt`).
+    public private(set) var commandedTiltSinceReset = 0.0
     /// The engaged wrist hold's commanded tilt when the last reset came during it; only what it commands after that
     /// counts toward the window.
     private var tiltAtReset = 0.0
@@ -193,6 +195,11 @@ public struct InputArbiter: Sendable {
 
     /// What is engaged now: a hold and the input it is tied to, a follow nobody holds, or the countdown.
     public var engagement: Engagement? { engaged }
+
+    /// A wrist button's tilt hold ended with `degrees` commanded; the tilt window counts it as it counts a phone's.
+    public mutating func addPanelTilt(_ degrees: Double) {
+        commandedTiltSinceReset += degrees
+    }
 
     /// A follow nobody holds reports `.translation`, the hold the session runs for it.
     public var engagedHold: HoldKind? { engaged?.holdKind }

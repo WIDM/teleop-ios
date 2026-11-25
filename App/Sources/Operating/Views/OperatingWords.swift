@@ -99,6 +99,7 @@ enum OperatingWords {
                 colour: TeleopColors.stateAmber)
         case .stopped(let cause):
             var details = cause.map { [self.cause($0)] } ?? []
+            if let dismissal = display.dismissal { details.insert(Self.dismissal(dismissal), at: 0) }
             details.append(L10n.string("detail.reset_prompt"))
             if display.stopExits.recordingMayStayOff, offersRelease(display) {
                 details.append(L10n.string("detail.release_warning"))
@@ -119,12 +120,24 @@ enum OperatingWords {
         case .linkLost:
             // Nothing reconnects by itself: the way back is Connect in Settings, behind the gear on this screen.
             return Look(
-                word: L10n.string("state.link_lost"), details: [L10n.string("detail.connect_in_settings")],
+                word: L10n.string("state.link_lost"),
+                details: (display.dismissal.map { [Self.dismissal($0)] } ?? []) + [
+                    L10n.string("detail.connect_in_settings")
+                ],
                 colour: TeleopColors.stateDarkGrey)
         case .saved(let count):
             return Look(
                 word: String(format: L10n.string("state.saved"), count), details: [], colour: TeleopColors.stateGold,
                 darkText: true)
+        }
+    }
+
+    /// Why the server refused this phone or let it go, in the words S1 uses too.
+    static func dismissal(_ reason: SessionDismissal) -> String {
+        switch reason {
+        case .inUse: return L10n.string("connect.dismissed_in_use")
+        case .taken: return L10n.string("connect.dismissed_taken")
+        case .idle: return L10n.string("connect.dismissed_idle")
         }
     }
 

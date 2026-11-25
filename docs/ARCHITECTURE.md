@@ -212,6 +212,7 @@ Settings → Control → Mode picks one of three control modes (`ControlMode`), 
 | a short, still tap on the guide's view from above (aid) | the jaws go to the point tapped, at a travel height above the table; not while the camera is stopped | the same; on a half the tap must lift before the half's dwell | nothing: no guide is drawn |
 | any key press or new touch while a follow or a move nobody holds runs (aid) | stops it, and does nothing else until released | the same | cannot happen |
 | Fine controls while a follow or a move nobody holds runs (aid) | stops it, and opens the panel once the stop is confirmed (1.5 s at most, else no) | the same | cannot happen |
+| Fine controls, Wrist page: Tilt up, Tilt down, Turn left, Turn right held (aid) | the wrist turns at 20°/s or tilts at 10°/s within the wrist gesture's limits until released | the same | cannot happen |
 | the bottom band | STOP, at touch-down | STOP, at touch-down | STOP, at touch-down |
 | a touch that begins in the bottom safe area, under the band | nothing | nothing | nothing |
 | the top band held 2 s | reset the scene | reset the scene | reset the scene |

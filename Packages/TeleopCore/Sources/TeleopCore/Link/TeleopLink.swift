@@ -20,6 +20,8 @@ public enum LinkEvent: Equatable, Sendable {
     case resetDone
     /// The server refused the scene reset, after the one retry a `busy` gets.
     case resetRefused(reason: String)
+    /// The server refused this phone or let it go, and is closing the connection.
+    case dismissed(SessionDismissal)
 }
 
 /// Which held control a start begins.
@@ -482,6 +484,11 @@ public final class TeleopLink {
         }
         if welcomed { lastHeardAt = now() }
         switch type {
+        case "error":
+            guard let code = payload["code"] as? String, let dismissal = SessionDismissal(rawValue: code) else {
+                return nil
+            }
+            return .dismissed(dismissal)
         case "welcome":
             welcomed = true
             lastHeardAt = now()

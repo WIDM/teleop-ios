@@ -53,13 +53,15 @@ struct TutorialScreen: View {
             // are on screen only where the guide is, in the phone modes with the task aid on.
             let arrows = mode != .buttons && model.taskAid && model.assist.guide?.directionLabels == true
             let onTarget: LocalizedStringKey = arrows ? "tutorial.cue.on_target_arrows" : "tutorial.cue.on_target"
+            // The fine panel, and so its wrist page, is in the phone modes only.
+            let wristPage: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.wrist_page"]
             return Page(
                 title: "tutorial.cues.title",
                 lines: ["tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go"]
                     + holdStill + [
                         "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", onTarget, "tutorial.cue.grip",
                         "tutorial.cue.alarm",
-                    ] + tap + lock)
+                    ] + tap + lock + wristPage)
         }
     }
 

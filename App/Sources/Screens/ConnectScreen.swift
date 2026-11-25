@@ -16,7 +16,13 @@ struct ConnectScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("connect.title")
                         .font(.system(size: 28, weight: .bold))
-                    if state.connectionLost {
+                    if let dismissal = state.dismissal {
+                        Text(verbatim: OperatingWords.dismissal(dismissal))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TeleopColors.emergency)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("connect.dismissed")
+                    } else if state.connectionLost {
                         Text("connect.connection_lost")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(TeleopColors.emergency)
@@ -109,6 +115,8 @@ struct ConnectScreen: View {
 
     /// Why the last attempt failed, as the link reported it; or that the address cannot be read.
     private var failure: String? {
+        // The server's own reason is said above; "cannot reach this address" would be wrong.
+        if model.session.state.dismissal != nil { return nil }
         if model.session.state.serverInputError { return L10n.string("connect.input_error") }
         if case .notConnected(let reason?) = model.operating.state { return reason }
         return nil

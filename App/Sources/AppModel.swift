@@ -136,6 +136,9 @@ final class AppModel {
     /// Where the arm hold being started takes its motion from: the phone, a pad button, or a move to a point the
     /// operator tapped. The phone unless a caller says otherwise.
     @ObservationIgnored private var pendingArmSource: ArmSource = .phone
+    /// The fine panel's wrist page starts the wrist hold the next `.wristStart` carries; the phone's rotation
+    /// otherwise.
+    @ObservationIgnored private var pendingWristFromPad = false
     /// Where the guide's view from above is drawn, in the operating screen's coordinates, which touches arrive in, as
     /// the screen reported it; nil while it is not drawn. Not observed: the screen reports it while laying out.
     @ObservationIgnored private(set) var guidePanelRect: SurfaceLayout.Rect?
@@ -473,6 +476,10 @@ final class AppModel {
         controller.setPrecisionPanelOpen(open)
     }
 
+    func setPanelPage(_ page: PanelPage) { controller.setPanelPage(page) }
+    func wristButtonDown(_ button: WristButton) { controller.wristButtonDown(button) }
+    func wristButtonUp(_ button: WristButton) { controller.wristButtonUp(button) }
+
     /// Buttons mode: a finger came down on `button`.
     func buttonDown(_ button: ButtonID) {
         controller.buttonDown(button)
@@ -798,6 +805,15 @@ final class AppModel {
         startArmHold(.pad)
     }
 
+    /// The fine panel's wrist button: a wrist hold whose angle the panel sets, with no phone rotation behind it. True
+    /// when the hold started.
+    func startPadWrist() -> Bool {
+        pendingWristFromPad = true
+        send(.wristStart)
+        pendingWristFromPad = false
+        return session.state.wristMoving
+    }
+
     /// The input rules latched the arm hold: it goes on with no input held. Marks the link's hold as one nobody holds,
     /// so the endings the link causes are told as the follow's own, and plays the latch cue. False, and silent, when
     /// the session runs no arm hold: the start the latch came with was refused, and that refusal is what the operator
@@ -863,7 +879,7 @@ final class AppModel {
             case .gripperStart(let target):
                 allowed = controller.buttons.engaged == (target == .open ? .open : .close)
             case .wristStart:
-                allowed = false
+                allowed = pendingWristFromPad && controller.wristRamp != nil
             default:
                 allowed = true
             }
@@ -1154,7 +1170,10 @@ final class AppModel {
             guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids.guide, views: aids.views) },
             aidsOff: s.liveLink && !assistSetting && profile.assist != .none,
             precisionPanelOpen: controller.precisionPanelOpen,
-            openJawsFirst: OperatingRules.showsOpenJawsFirst(facts)
+            openJawsFirst: OperatingRules.showsOpenJawsFirst(facts),
+            dismissal: s.dismissal,
+            panelPage: controller.panelPage,
+            heldWrist: controller.wristRamp?.button
         )
         if operating.state != display.state {
             let summary = display.state.recordSummary
@@ -1477,7 +1496,7 @@ final class AppModel {
         }
         if before.wristMoving != after.wristMoving {
             if after.wristMoving {
-                if !link.startWristHold() {
+                if !link.startWristHold(fromPad: pendingWristFromPad) {
                     log("link: wrist hold not started (no link or a reset)")
                     pendingRefusal =
                         link.simulatorStalled ? .simulatorStalled : link.resetPending ? .notReady : .noLink

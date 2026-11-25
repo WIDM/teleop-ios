@@ -24,6 +24,14 @@ final class OperatingController {
     /// When the fine panel's entry stopped a move nobody holds. The panel opens once that stop is heard, as a second
     /// press would; anything else started meanwhile drops the ask, and a stop not heard in `panelAskWaitS` gives up.
     private var panelAskedAt: TimeInterval?
+    /// The fine panel's page: the move buttons, or the wrist buttons in the cross's place.
+    private(set) var panelPage: PanelPage = .move
+    /// The wrist button whose hold runs now.
+    private(set) var wristRamp: WristButtonRamp?
+    /// Wrist buttons with a finger on them, running a hold or dead until lifted.
+    private(set) var wristDown: Set<WristButton> = []
+    /// The running wrist button's hold has played its limit cue.
+    private var wristLimitCued = false
     static let panelAskWaitS = 1.5
     var panelAsked: Bool { panelAskedAt != nil }
     private var active = true
@@ -66,6 +74,9 @@ final class OperatingController {
         case release(ButtonID)
         case speed(ButtonSpeed)
         case precision(Bool)
+        case page(PanelPage)
+        case wristPress(WristButton)
+        case wristRelease(WristButton)
         case axis(TranslationAxis?)
         /// The pad's running hold ends with its stop, and its button stays dead until lifted (I-11).
         case endButtonHold
@@ -144,10 +155,14 @@ final class OperatingController {
     func buttonUp(_ button: ButtonID) { enqueue(.release(button)) }
     func selectSpeed(_ speed: ButtonSpeed) { enqueue(.speed(speed)) }
     func setPrecisionPanelOpen(_ open: Bool) { enqueue(.precision(open)) }
+    func setPanelPage(_ page: PanelPage) { enqueue(.page(page)) }
+    func wristButtonDown(_ button: WristButton) { enqueue(.wristPress(button)) }
+    func wristButtonUp(_ button: WristButton) { enqueue(.wristRelease(button)) }
     func selectTranslationAxis(_ axis: TranslationAxis?) { enqueue(.axis(axis)) }
 
     func tick() {
         model.measurementTick()
+        tickWristButton()
         feed([.tick], at: now())
     }
 
@@ -236,6 +251,10 @@ final class OperatingController {
 
     /// The wrist hold's `orient_start` went on the wire.
     func wristStartSent() {
+        if wristRamp != nil {
+            wristRamp?.started(at: now())
+            return
+        }
         feed([.wristStartSent], at: now())
     }
 
@@ -281,11 +300,12 @@ final class OperatingController {
 
     /// Something is engaged: a hold of either set of rules, or the reset countdown.
     var isEngaged: Bool {
-        arbiter.engagedHold != nil || countdownStartedAt != nil || buttons.engaged != nil
+        arbiter.engagedHold != nil || countdownStartedAt != nil || buttons.engaged != nil || wristRamp != nil
     }
 
     var engagedHold: HoldKind? {
         if let kind = arbiter.engagedHold { return kind }
+        if wristRamp != nil { return .wrist }
         switch buttons.engaged {
         case .open?: return .gripper(.open)
         case .close?: return .gripper(.closed)
@@ -356,6 +376,12 @@ final class OperatingController {
                 for command in buttons.selectSpeed(speed) { carry(command) }
             case .precision(let open):
                 changePrecisionPanel(open)
+            case .page(let page):
+                changePage(page)
+            case .wristPress(let button):
+                pressWrist(button)
+            case .wristRelease(let button):
+                releaseWrist(button)
             case .axis(let axis):
                 let commands = arbiter.selectTranslationAxis(axis, at: now(), facts: model.inputFacts())
                 var starts = ArraySlice<ArmSource>()
@@ -403,6 +429,7 @@ final class OperatingController {
         } else {
             endButtonHold()
             precisionPanelOpen = false
+            panelPage = .move
             restoreButtonSpeed()
             model.sessionRecord.note("precision panel closed")
         }
@@ -467,7 +494,7 @@ final class OperatingController {
         if starts,
             !active || !Self.operatingRoutes.contains(model.session.route)
                 || (mode != .buttons && !precisionPanelOpen) || arbiter.isHoldingAnInput
-                || arbiter.engagedHold != nil || countdownStartedAt != nil
+                || arbiter.engagedHold != nil || countdownStartedAt != nil || !wristDown.isEmpty
                 || model.session.state.armMoving || model.session.state.gripperMoving != nil
                 || model.session.state.wristMoving
                 || (precisionPanelOpen && model.session.state.liveLink && !model.link.armHeardAfterLastStop)
@@ -557,9 +584,85 @@ final class OperatingController {
 
     /// Stops the pad's running hold as a lift would. Its button stays down and dead until it is lifted.
     private func endButtonHold() {
+        endWristButtonHold()
         guard let held = buttons.engaged else { return }
         buttons.holdEnded()
         carry(held.direction == nil ? ButtonCommand.stopGripper : .stopTranslation)
+    }
+
+    // MARK: The wrist page
+
+    private func changePage(_ page: PanelPage) {
+        guard page != panelPage else { return }
+        guard precisionPanelOpen, buttons.down.isEmpty, wristDown.isEmpty, buttons.engaged == nil, wristRamp == nil
+        else {
+            model.raise(.refused(.letGoFirst))
+            return
+        }
+        panelPage = page
+        model.sessionRecord.note("precision panel page \(page.rawValue)")
+    }
+
+    private func pressWrist(_ button: WristButton) {
+        guard wristDown.insert(button).inserted else { return }
+        model.sessionRecord.note("wrist button \(button.rawValue) down")
+        let state = model.session.state
+        guard precisionPanelOpen, panelPage == .wrist, active, Self.operatingRoutes.contains(model.session.route),
+            wristDown.count == 1, buttons.down.isEmpty, !isEngaged, !arbiter.isHoldingAnInput,
+            !state.armMoving, state.gripperMoving == nil, !state.wristMoving
+        else {
+            model.raise(.refused(.deadInput))
+            return
+        }
+        let facts = model.inputFacts()
+        if let refusal = facts.refusal {
+            model.raise(.refused(Self.refusal(refusal)))
+            return
+        }
+        let range = RotationMapper.limits(
+            for: button.axis, readings: facts.wrist, commandedTiltSinceResetDeg: arbiter.commandedTiltSinceReset,
+            constants: arbiter.constants)
+        wristRamp = WristButtonRamp(button: button, range: range)
+        wristLimitCued = false
+        wristTarget = WristTarget(axis: button.axis, degrees: 0)
+        if !model.startPadWrist() {
+            wristRamp = nil
+            wristTarget = .identity
+        }
+    }
+
+    private func releaseWrist(_ button: WristButton) {
+        guard wristDown.remove(button) != nil else { return }
+        model.sessionRecord.note("wrist button \(button.rawValue) up")
+        guard wristRamp?.button == button else { return }
+        endWristButtonHold()
+    }
+
+    /// Ends the running wrist button's hold, as a lift does. A finger still on the button keeps it dead until lifted.
+    private func endWristButtonHold() {
+        guard let ramp = wristRamp else { return }
+        wristRamp = nil
+        wristTarget = .identity
+        if ramp.button.axis == .tilt { arbiter.addPanelTilt(ramp.target(at: now()).degrees) }
+        if model.session.state.wristMoving { model.send(.wristEnd) }
+    }
+
+    /// The running wrist button's angle for this tick, and the limit cue once when it reaches the end of its range.
+    private func tickWristButton() {
+        guard let ramp = wristRamp else { return }
+        guard model.session.state.wristMoving else {
+            // The server, the link or a STOP ended the hold: nothing more goes out for it.
+            endWristButtonHold()
+            return
+        }
+        let time = now()
+        let target = ramp.target(at: time)
+        wristTarget = target
+        model.link.setWristTarget(target)
+        if ramp.atLimit(at: time), !wristLimitCued {
+            wristLimitCued = true
+            model.raise(.limit(.wrist))
+        }
     }
 
     /// A mode or hand change, refused while a hold runs: the pad goes away, so nothing on it stays down.

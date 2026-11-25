@@ -3611,6 +3611,74 @@
           }
         }
       }
+    },
+    "connect.dismissed_in_use": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Someone is using this simulator. Pick another one, or try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一台有人在用。請換另一台，或稍後再試。"
+          }
+        }
+      }
+    },
+    "connect.dismissed_taken": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another phone took this simulator while yours was away. Pick another one, or try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的手機離開太久，這一台已經給別人用了。請換另一台，或稍後再試。"
+          }
+        }
+      }
+    },
+    "connect.dismissed_idle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No operation for over 10 minutes, so the connection was closed. Connect again to go on."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超過 10 分鐘沒有操作，已中斷連線。要繼續請重新連線。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.wrist_page": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine controls has a Wrist page: hold a button to turn or tilt the wrist. Check the jaws' position after."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精細微調有「手腕」頁：按住按鈕轉動或傾斜手腕。動完要再對一下夾爪的位置。"
+          }
+        }
+      }
     }
   },
   "sourceLanguage": "en",

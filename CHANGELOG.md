@@ -9,6 +9,15 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 
 ## Unreleased
 
+- Build 36 (1.3.0): Fine controls has two pages, switched at the bottom: Move, as before, and Wrist, where the
+  cross's four buttons become Tilt up, Tilt down, Turn left and Turn right. Hold one to turn the wrist at 20 degrees
+  a second or tilt it at 10, let go to stop; the limits of the phone's wrist gesture apply, with the long buzz at the
+  end. Up, Down, Open and Close stay on both pages. The pages switch only with no finger on a button. The jaws' point
+  moves when the wrist does (about 26 mm for 10 degrees of tilt), so check the position after.
+- Build 36 says why a server that keeps one phone per simulator refused or let go of this phone: "Someone is using
+  this simulator", "Another phone took this simulator while yours was away", or "No operation for over 10 minutes,
+  so the connection was closed", on Connect and on the stopped and link-lost states.
+
 - Build 35 (1.2.0): "Fine controls" now stops a follow nobody holds, a lock follow or a move to a tapped point,
   as any key or touch already did ("You stopped it."), and opens the panel once the stop is confirmed, with no
   second press. If the stop is not confirmed within 1.5 s it plays NO and the panel stays closed. STOP, any other

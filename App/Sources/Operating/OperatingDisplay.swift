@@ -95,6 +95,11 @@ struct ArmReading: Equatable, Sendable {
 }
 
 /// Everything the operating screen draws. The screens read this and nothing else about the link.
+/// The fine panel's two pages: the move buttons, or the wrist buttons in the cross's place.
+enum PanelPage: String, Equatable, Sendable {
+    case move, wrist
+}
+
 struct OperatingDisplay: Equatable, Sendable {
     var mode: ControlMode
     var hand: Hand
@@ -122,4 +127,9 @@ struct OperatingDisplay: Equatable, Sendable {
     /// A translation just started with the jaws still closed as the episode began: a line under the moving state says
     /// to open them before moving in (`JawsClosedReminder`).
     var openJawsFirst = false
+    /// Why the server refused this phone or let it go, said on the stopped and link-lost states.
+    var dismissal: SessionDismissal? = nil
+    var panelPage: PanelPage = .move
+    /// The wrist button whose hold runs now, drawn as held.
+    var heldWrist: WristButton? = nil
 }

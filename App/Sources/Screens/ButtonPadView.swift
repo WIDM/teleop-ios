@@ -20,8 +20,20 @@ struct ButtonPadView: View {
     /// One side of the Fine | Coarse switch was tapped.
     let onSpeed: (ButtonSpeed) -> Void
     var onClose: (() -> Void)? = nil
+    /// The fine panel only: which page shows, and the wrist page's buttons. Buttons mode has one page.
+    var page: PanelPage = .move
+    var heldWrist: WristButton? = nil
+    var onWristDown: (WristButton) -> Void = { _ in }
+    var onWristUp: (WristButton) -> Void = { _ in }
+    var onPage: (PanelPage) -> Void = { _ in }
 
     static let space = "buttonPad"
+
+    /// The hold buttons this page draws: on the wrist page the wrist buttons take the cross's cells.
+    var keys: [PadKey] {
+        guard page == .wrist else { return ButtonID.allCases.map(PadKey.move) }
+        return WristButton.allCases.map(PadKey.wrist) + [.up, .down, .open, .close].map(PadKey.move)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -29,10 +41,27 @@ struct ButtonPadView: View {
                 width: proxy.size.width, height: proxy.size.height, nearSideIsRight: nearSideIsRight
             )
             ZStack(alignment: .topLeading) {
-                ForEach(ButtonID.allCases, id: \.self) { button in
+                ForEach(keys, id: \.self) { key in
                     PadHoldButton(
-                        button: button, layout: layout, isHeld: held == button,
-                        onTouchDown: onTouchDown, onTouchUp: onTouchUp, onDragOut: onDragOut
+                        key: key, layout: layout, isHeld: key.isHeld(held: held, heldWrist: heldWrist),
+                        onTouchDown: { key in
+                            switch key {
+                            case .move(let button): onTouchDown(button)
+                            case .wrist(let button): onWristDown(button)
+                            }
+                        },
+                        onTouchUp: { key in
+                            switch key {
+                            case .move(let button): onTouchUp(button)
+                            case .wrist(let button): onWristUp(button)
+                            }
+                        },
+                        onDragOut: { key in
+                            switch key {
+                            case .move(let button): onDragOut(button)
+                            case .wrist(let button): onWristUp(button)
+                            }
+                        }
                     )
                 }
                 // The pad sits on the state colour, so the label carries its own backing.
@@ -49,6 +78,12 @@ struct ButtonPadView: View {
                     // The switch already says the speed.
                     .accessibilityHidden(true)
                 if let onClose {
+                    // The bar's two halves, with a gap between: the page switch, then the way back to the phone.
+                    let pageRect = layout.fineSegment
+                    let closeRect = layout.coarseSegment
+                    PageSwitch(page: page, onPage: onPage)
+                        .frame(width: pageRect.width - 4, height: pageRect.height)
+                        .position(x: pageRect.midX - 2, y: pageRect.midY)
                     Button(action: onClose) {
                         Text("btn.precision_close", tableName: "Buttons")
                             .font(.system(size: 17, weight: .semibold))
@@ -58,8 +93,8 @@ struct ButtonPadView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(TeleopColors.textPrimary)
                     .accessibilityIdentifier("precision.close")
-                    .frame(width: layout.speedSwitch.width, height: layout.speedSwitch.height)
-                    .position(x: layout.speedSwitch.midX, y: layout.speedSwitch.midY)
+                    .frame(width: closeRect.width - 4, height: closeRect.height)
+                    .position(x: closeRect.midX + 2, y: closeRect.midY)
                 } else {
                     SpeedSwitch(layout: layout, speed: speed, onSpeed: onSpeed)
                 }
@@ -79,20 +114,20 @@ struct ButtonPadView: View {
 
 /// One hold button. A touch reports down once, drag-out at most once, and up once, whatever the system does to it.
 private struct PadHoldButton: View {
-    let button: ButtonID
+    let key: PadKey
     let layout: ButtonPadLayout
     let isHeld: Bool
-    let onTouchDown: (ButtonID) -> Void
-    let onTouchUp: (ButtonID) -> Void
-    let onDragOut: (ButtonID) -> Void
+    let onTouchDown: (PadKey) -> Void
+    let onTouchUp: (PadKey) -> Void
+    let onDragOut: (PadKey) -> Void
 
     @GestureState private var pressing = false
     @State private var touching = false
     @State private var slipped = false
 
     var body: some View {
-        let rect = layout.buttons[button] ?? PadRect(x: 0, y: 0, width: 0, height: 0)
-        let look = Self.look(button)
+        let rect = layout.buttons[key.cell] ?? PadRect(x: 0, y: 0, width: 0, height: 0)
+        let look = Self.look(key)
         VStack(spacing: 6) {
             Image(systemName: look.symbol).font(.system(size: 24, weight: .semibold))
             look.label
@@ -119,11 +154,11 @@ private struct PadHoldButton: View {
                     if !touching {
                         touching = true
                         slipped = false
-                        onTouchDown(button)
+                        onTouchDown(key)
                     }
-                    if !slipped, layout.hasSlipped(off: button, x: value.location.x, y: value.location.y) {
+                    if !slipped, layout.hasSlipped(off: key.cell, x: value.location.x, y: value.location.y) {
                         slipped = true
-                        onDragOut(button)
+                        onDragOut(key)
                     }
                 }
                 .onEnded { _ in lift() }
@@ -144,7 +179,20 @@ private struct PadHoldButton: View {
     private func lift() {
         guard touching else { return }
         touching = false
-        onTouchUp(button)
+        onTouchUp(key)
+    }
+
+    private static func look(_ key: PadKey) -> (symbol: String, label: Text, identifier: String) {
+        switch key {
+        case .move(let button): return look(button)
+        case .wrist(.tiltUp): return ("arrow.uturn.up", Text("btn.tilt_up", tableName: "Buttons"), "buttons.tilt_up")
+        case .wrist(.tiltDown):
+            return ("arrow.uturn.down", Text("btn.tilt_down", tableName: "Buttons"), "buttons.tilt_down")
+        case .wrist(.turnLeft):
+            return ("arrow.counterclockwise", Text("btn.turn_left", tableName: "Buttons"), "buttons.turn_left")
+        case .wrist(.turnRight):
+            return ("arrow.clockwise", Text("btn.turn_right", tableName: "Buttons"), "buttons.turn_right")
+        }
     }
 
     private static func look(_ button: ButtonID) -> (symbol: String, label: Text, identifier: String) {
@@ -159,6 +207,68 @@ private struct PadHoldButton: View {
         case .close:
             ("arrow.right.and.line.vertical.and.arrow.left", Text("btn.close", tableName: "Buttons"), "buttons.close")
         }
+    }
+}
+
+/// What a hold button on the pad stands for: a move or gripper button, or a wrist button in a cross cell.
+enum PadKey: Hashable {
+    case move(ButtonID)
+    case wrist(WristButton)
+
+    /// The pad cell it is drawn in and judged by.
+    var cell: ButtonID {
+        switch self {
+        case .move(let button): return button
+        case .wrist(.tiltUp): return .forward
+        case .wrist(.tiltDown): return .back
+        case .wrist(.turnLeft): return .left
+        case .wrist(.turnRight): return .right
+        }
+    }
+
+    func isHeld(held: ButtonID?, heldWrist: WristButton?) -> Bool {
+        switch self {
+        case .move(let button): return held == button
+        case .wrist(let button): return heldWrist == button
+        }
+    }
+}
+
+/// The fine panel's Move | Wrist switch. It reports the side tapped; whether the page changes is the controller's call.
+private struct PageSwitch: View {
+    let page: PanelPage
+    let onPage: (PanelPage) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            segment(.move, Text("btn.page_move", tableName: "Buttons"))
+            segment(.wrist, Text("btn.page_wrist", tableName: "Buttons"))
+        }
+        .background(TeleopColors.gripperCard, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(page == .move ? "btn.page_move" : "btn.page_wrist", tableName: "Buttons"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onPage(page == .move ? .wrist : .move) }
+        .accessibilityActivationPoint(UnitPoint(x: page == .move ? 0.75 : 0.25, y: 0.5))
+        .accessibilityIdentifier("precision.page")
+    }
+
+    private func segment(_ choice: PanelPage, _ label: Text) -> some View {
+        let selected = choice == page
+        return
+            label
+            .font(.system(size: 17, weight: .semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .foregroundStyle(selected ? Color.white : TeleopColors.textPrimary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: TeleopMetrics.corner - 3)
+                    .fill(selected ? TeleopColors.primary : Color.clear)
+                    .padding(3)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { onPage(choice) }
     }
 }
 

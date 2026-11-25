@@ -93,15 +93,27 @@ final class PrecisionPanelUITests: XCTestCase {
         let panel = app.element("precision.panel").frame
         XCTAssertFalse(panel.isEmpty)
         XCTAssertLessThanOrEqual(panel.maxY, band.top)
-        for id in ["up", "down", "left", "right", "forward", "back", "open", "close"] {
-            let button = app.element("buttons.\(id)")
-            XCTAssertTrue(button.isHittable, id)
-            XCTAssertGreaterThanOrEqual(button.frame.width, 44, id)
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44, id)
-            XCTAssertTrue(screen.contains(button.frame), id)
-            XCTAssertLessThanOrEqual(button.frame.maxY, band.top, id)
+        func checkButtons(_ ids: [String]) {
+            for id in ids {
+                let button = app.element("buttons.\(id)")
+                XCTAssertTrue(button.isHittable, id)
+                XCTAssertGreaterThanOrEqual(button.frame.width, 60, id)
+                XCTAssertGreaterThanOrEqual(button.frame.height, 60, id)
+                XCTAssertTrue(screen.contains(button.frame), id)
+                XCTAssertLessThanOrEqual(button.frame.maxY, band.top, id)
+            }
         }
+        checkButtons(["up", "down", "left", "right", "forward", "back", "open", "close"])
         XCTAssertTrue(app.element("precision.close").isHittable)
+        XCTAssertTrue(app.element("precision.page").isHittable)
+        app.element("precision.page").tap()
+        checkButtons(["up", "down", "tilt_up", "tilt_down", "turn_left", "turn_right", "open", "close"])
+        for id in ["left", "right", "forward", "back"] {
+            XCTAssertFalse(app.element("buttons.\(id)").exists, "\(id) gives its cell to a wrist button")
+        }
+        attachScreenshot("precision-667-wrist-page")
+        app.element("precision.page").tap()
+        expect(app, "buttons.forward")
         XCTAssertTrue(stop.isHittable)
         attachScreenshot("precision-667-aids-off-stop-visible")
 

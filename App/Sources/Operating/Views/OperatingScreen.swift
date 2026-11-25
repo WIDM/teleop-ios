@@ -691,7 +691,12 @@ private struct OperatingControls: View {
                     onTouchUp: { model.buttonUp($0) },
                     onDragOut: { model.buttonUp($0) },
                     onSpeed: { _ in },
-                    onClose: { model.setPrecisionPanelOpen(false) }
+                    onClose: { model.setPrecisionPanelOpen(false) },
+                    page: display.panelPage,
+                    heldWrist: display.heldWrist,
+                    onWristDown: { model.wristButtonDown($0) },
+                    onWristUp: { model.wristButtonUp($0) },
+                    onPage: { model.setPanelPage($0) }
                 )
                 .background(TeleopColors.band.opacity(0.97))
                 .contentShape(Rectangle())

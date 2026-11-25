@@ -63,6 +63,8 @@ final class LiveLinkController {
     var onGripping: ((Bool) -> Void)?
     /// A wrist hold's `orient_start` has just gone on the wire, perhaps after waiting behind a finishing hold.
     var onWristStartSent: (() -> Void)?
+    /// The running wrist hold takes its angle from the fine panel's wrist buttons, not the phone's rotation.
+    private var wristFromPad = false
     /// The simulator's level changed, from the first to the second, as `SimStallDetector` decides.
     var onSimulatorLevel: ((SimStallDetector.Level, SimStallDetector.Level) -> Void)?
 
@@ -751,9 +753,10 @@ final class LiveLinkController {
     }
 
     /// A wrist hold whose angle comes from `setWristTarget`. False when the move could not start.
-    func startWristHold() -> Bool {
+    func startWristHold(fromPad: Bool = false) -> Bool {
         guard let link, link.orientStart() else { return false }
         noteStopSent()
+        wristFromPad = fromPad
         wristTarget = .identity
         syncStart()
         return true
@@ -786,8 +789,8 @@ final class LiveLinkController {
     private func tickWrist(_ link: TeleopLink) {
         guard let target = wristTarget, link.turnActive else { return }
         // The target is the phone's rotation; with no tracked pose that is no longer known, so the hold ends, as a
-        // translation hold does.
-        guard pose() != nil else {
+        // translation hold does. The fine panel's wrist buttons set the angle without the phone.
+        guard wristFromPad || pose() != nil else {
             onLog?("link: tracking lost, wrist hold ended")
             emit(monitor.endedByApp(.tracking))
             endWristTarget()
@@ -1109,6 +1112,9 @@ final class LiveLinkController {
                 roundTrips.removeFirst(roundTrips.count - FeedbackMonitor.roundTripWindow)
             }
             onAction?(.linkLatency(ms: ms))
+        case .dismissed(let reason):
+            onLog?("link: server dismissed this phone: \(reason.rawValue)")
+            onAction?(.dismissed(reason))
         case .rejected(let type, let reason):
             onLog?("link: \(type) rejected: \(reason)")
             observeStall(.refused(request: type, reason: reason))
