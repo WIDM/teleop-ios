@@ -321,6 +321,148 @@ final class WristPanelTests: XCTestCase {
         }
     }
 
+    func testTheResetBandAndTheGearAreDeadDuringAWristButtonsHold() {
+        bringUp()
+        openWristPage()
+        model.wristButtonDown(.turnRight)
+        tick(2)
+        let mark = model.cueLog.count
+        let band = model.operating.layout!.topBand
+        model.touch(
+            TouchSample(id: 7, phase: .began, x: 200, y: band.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
+        tick(70)
+        XCTAssertNil(model.operating.resetCountdown, "no countdown while the wrist moves")
+        model.wristButtonUp(.turnRight)
+        tick(70)
+        XCTAssertEqual(wire.count("reset_scene"), 0, "the refused touch stays dead after the wrist button lifts")
+        model.touch(
+            TouchSample(id: 7, phase: .ended, x: 200, y: band.maxY - 20, majorRadius: 8), at: Double(clock) / 1000)
+        XCTAssertTrue(heard(since: mark).contains(.refused(.letGoFirst)))
+        model.wristButtonDown(.turnRight)
+        let gear = model.operating.layout!.gear
+        model.touch(
+            TouchSample(
+                id: 8, phase: .began, x: (gear.x + gear.width / 2), y: (gear.y + gear.height / 2), majorRadius: 8),
+            at: Double(clock) / 1000)
+        model.touch(
+            TouchSample(
+                id: 8, phase: .ended, x: (gear.x + gear.width / 2), y: (gear.y + gear.height / 2), majorRadius: 8),
+            at: Double(clock) / 1000 + 0.05)
+        XCTAssertNotEqual(model.session.route, .s6, "no Settings while the wrist moves")
+        model.wristButtonUp(.turnRight)
+    }
+
+    func testAKeyOrATouchStillDownMakesAWristButtonDead() {
+        bringUp()
+        openWristPage()
+        model.keyEvent(.upper, down: true)
+        model.wristButtonDown(.tiltUp)
+        XCTAssertEqual(wire.count("orient_start"), 0, "the volume key the panel swallowed is still down")
+        model.wristButtonUp(.tiltUp)
+        model.keyEvent(.upper, down: false)
+        let surface = model.operating.layout!.controlSurface
+        model.touch(
+            TouchSample(id: 3, phase: .began, x: (surface.x + surface.width / 2), y: surface.y + 10, majorRadius: 8),
+            at: Double(clock) / 1000)
+        model.wristButtonDown(.tiltUp)
+        XCTAssertEqual(wire.count("orient_start"), 0, "a touch on the panel's margin is still down")
+        model.wristButtonUp(.tiltUp)
+        model.touch(
+            TouchSample(id: 3, phase: .ended, x: (surface.x + surface.width / 2), y: surface.y + 10, majorRadius: 8),
+            at: Double(clock) / 1000)
+        model.wristButtonDown(.tiltUp)
+        XCTAssertEqual(wire.count("orient_start"), 1)
+        model.wristButtonUp(.tiltUp)
+    }
+
+    func testAFingerThatSlidOffKeepsThePageUntilItLifts() {
+        bringUp()
+        openWristPage()
+        model.wristButtonDown(.turnLeft)
+        tick(3)
+        model.wristButtonSlipped(.turnLeft)
+        XCTAssertEqual(wire.count("orient_stop"), 1, "sliding off ends the hold")
+        model.setPanelPage(.move)
+        XCTAssertEqual(model.operating.panelPage, .wrist, "the finger is still down")
+        model.wristButtonUp(.turnLeft)
+        model.setPanelPage(.move)
+        XCTAssertEqual(model.operating.panelPage, .move)
+        model.buttonDown(.open)
+        model.buttonSlipped(.open)
+        model.setPanelPage(.wrist)
+        XCTAssertEqual(model.operating.panelPage, .move, "the same for a move page button")
+        model.buttonUp(.open)
+    }
+
+    func testCameraStopAndLinkLossEndTheWristButtonsHold() {
+        for ending in ["camera", "link"] {
+            bringUp()
+            openWristPage()
+            model.wristButtonDown(.tiltDown)
+            tick(3)
+            if ending == "camera" { model.controller.cameraInterrupted(true) } else { wire.serverCloses() }
+            tick(2)
+            XCTAssertFalse(model.session.state.wristMoving, ending)
+            XCTAssertNil(model.controller.wristRamp, ending)
+            model.wristButtonUp(.tiltDown)
+        }
+    }
+
+    func testReleasingWhileTheStartWaitsSendsNothing() {
+        bringUp()
+        model.setPrecisionPanelOpen(true)
+        model.buttonDown(.close)
+        model.buttonUp(.close)  // its stop is not answered yet, so a new start waits behind it
+        model.setPanelPage(.wrist)
+        let starts = wire.count("orient_start")
+        model.wristButtonDown(.turnRight)
+        XCTAssertEqual(wire.count("orient_start"), starts, "waiting behind the finishing jaws")
+        model.wristButtonUp(.turnRight)
+        let stop = wire.last("gripper_jog_start")!["seq"] as! Int
+        wire.server("ack", seq: stop, ["seq": stop, "status": "ok", "reason": "gripper_jog_stopped"])
+        tick(5)
+        XCTAssertEqual(wire.count("orient_start"), starts, "released before it went out: it never does")
+        XCTAssertEqual(wire.count("orient_update"), 0)
+    }
+
+    func testTurnStaysInsideTheRollWindow() {
+        bringUp()
+        var near = state
+        near["wrist_roll_deg"] = 140.0
+        wire.server("state", near)
+        openWristPage()
+        model.wristButtonDown(.turnRight)
+        for _ in 0..<45 {
+            tick()
+            wire.server("state", near)
+        }
+        guard let (axis, degrees) = lastAngle() else { return XCTFail("no update") }
+        XCTAssertEqual(axis, .turn)
+        XCTAssertLessThanOrEqual(degrees, 10.0 + 1e-6, "150 degrees either way of zero, from a roll of 140")
+        model.wristButtonUp(.turnRight)
+    }
+
+    func testAServerLimitAndThePanelsOwnLimitAreFeltOnceBetweenThem() {
+        bringUp()
+        openWristPage()
+        let mark = model.cueLog.count
+        model.wristButtonDown(.tiltDown)
+        tick(3)
+        model.raise(.limit(.wrist))  // as the feedback monitor does when the server reports orient_clamped
+        tick(80)  // the panel's own range is reached too
+        XCTAssertEqual(heard(since: mark).filter { $0 == .limit(.wrist) }.count, 1)
+        model.wristButtonUp(.tiltDown)
+    }
+
+    func testANewAttemptForgetsTheLastServersReason() {
+        bringUp()
+        wire.server("error", ["code": "session_taken", "msg": "another phone took this simulator"])
+        XCTAssertEqual(model.session.state.dismissal, .taken)
+        wire.serverCloses()
+        model.connect()
+        XCTAssertNil(model.session.state.dismissal, "a new attempt starts without the old reason")
+    }
+
     func testOtherServerErrorsAreNotDismissals() {
         bringUp()
         wire.server("error", ["code": "invalid_json", "msg": "unable to parse JSON"])

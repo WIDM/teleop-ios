@@ -479,6 +479,7 @@ final class AppModel {
     func setPanelPage(_ page: PanelPage) { controller.setPanelPage(page) }
     func wristButtonDown(_ button: WristButton) { controller.wristButtonDown(button) }
     func wristButtonUp(_ button: WristButton) { controller.wristButtonUp(button) }
+    func wristButtonSlipped(_ button: WristButton) { controller.wristButtonSlipped(button) }
 
     /// Buttons mode: a finger came down on `button`.
     func buttonDown(_ button: ButtonID) {
@@ -488,6 +489,11 @@ final class AppModel {
     /// Buttons mode: the finger lifted, the touch was cancelled, or the finger slid off `button`.
     func buttonUp(_ button: ButtonID) {
         controller.buttonUp(button)
+    }
+
+    /// The finger slid off the button: its hold ends, but the finger is still down until `buttonUp`.
+    func buttonSlipped(_ button: ButtonID) {
+        controller.buttonSlipped(button)
     }
 
     /// Buttons mode: the Fine / Coarse switch. Refused while a button is down.
@@ -725,7 +731,7 @@ final class AppModel {
         }
         let camera = pose()
         var resetRefusal: InputRefusal?
-        if controller.buttons.engaged != nil {
+        if controller.buttons.engaged != nil || controller.wristRamp != nil {
             // The input rules do not see the pad's holds, and the top band is dead while one runs (I-3).
             resetRefusal = .letGoFirst
         } else if !s.connected {
@@ -923,6 +929,8 @@ final class AppModel {
     /// Plays an event's cue: felt, heard or both. Other parts raise their own here, as the input does for a dead
     /// input (`.refused(.deadInput)`) or a second close while gripping (`.limit(.alreadyGripping)`).
     func raise(_ event: FeedbackEvent) {
+        // A wrist button's hold is told its limit once, whether the panel's own range or the server found it first.
+        if case .limit(.wrist) = event, controller.wristRamp != nil, !controller.claimWristLimitCue() { return }
         if case .ready = event, session.state.liveLink, link.isUp, !session.state.connected, session.route == .s1 {
             readyAfterWelcome = true
             return
@@ -1038,6 +1046,8 @@ final class AppModel {
             send(.connect)
             return
         }
+        // A new attempt is judged on its own: the last server's reason is not this one's.
+        session.state.dismissal = nil
         let address = session.state.serverAddress
         if link.connect(to: address) {
             session.state.serverInputError = false

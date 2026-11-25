@@ -25,6 +25,7 @@ struct ButtonPadView: View {
     var heldWrist: WristButton? = nil
     var onWristDown: (WristButton) -> Void = { _ in }
     var onWristUp: (WristButton) -> Void = { _ in }
+    var onWristDragOut: (WristButton) -> Void = { _ in }
     var onPage: (PanelPage) -> Void = { _ in }
 
     static let space = "buttonPad"
@@ -59,7 +60,7 @@ struct ButtonPadView: View {
                         onDragOut: { key in
                             switch key {
                             case .move(let button): onDragOut(button)
-                            case .wrist(let button): onWristUp(button)
+                            case .wrist(let button): onWristDragOut(button)
                             }
                         }
                     )

@@ -689,13 +689,14 @@ private struct OperatingControls: View {
                     held: display.heldButton, speed: .fine, nearSideIsRight: display.hand == .right,
                     onTouchDown: { model.buttonDown($0) },
                     onTouchUp: { model.buttonUp($0) },
-                    onDragOut: { model.buttonUp($0) },
+                    onDragOut: { model.buttonSlipped($0) },
                     onSpeed: { _ in },
                     onClose: { model.setPrecisionPanelOpen(false) },
                     page: display.panelPage,
                     heldWrist: display.heldWrist,
                     onWristDown: { model.wristButtonDown($0) },
                     onWristUp: { model.wristButtonUp($0) },
+                    onWristDragOut: { model.wristButtonSlipped($0) },
                     onPage: { model.setPanelPage($0) }
                 )
                 .background(TeleopColors.band.opacity(0.97))

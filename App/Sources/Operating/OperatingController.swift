@@ -32,6 +32,8 @@ final class OperatingController {
     private(set) var wristDown: Set<WristButton> = []
     /// The running wrist button's hold has played its limit cue.
     private var wristLimitCued = false
+    /// Pad buttons a finger slid off: their holds ended, but the finger is down until it lifts.
+    private var slippedFingers: Set<ButtonID> = []
     static let panelAskWaitS = 1.5
     var panelAsked: Bool { panelAskedAt != nil }
     private var active = true
@@ -77,6 +79,8 @@ final class OperatingController {
         case page(PanelPage)
         case wristPress(WristButton)
         case wristRelease(WristButton)
+        case wristSlip(WristButton)
+        case slip(ButtonID)
         case axis(TranslationAxis?)
         /// The pad's running hold ends with its stop, and its button stays dead until lifted (I-11).
         case endButtonHold
@@ -158,6 +162,8 @@ final class OperatingController {
     func setPanelPage(_ page: PanelPage) { enqueue(.page(page)) }
     func wristButtonDown(_ button: WristButton) { enqueue(.wristPress(button)) }
     func wristButtonUp(_ button: WristButton) { enqueue(.wristRelease(button)) }
+    func wristButtonSlipped(_ button: WristButton) { enqueue(.wristSlip(button)) }
+    func buttonSlipped(_ button: ButtonID) { enqueue(.slip(button)) }
     func selectTranslationAxis(_ axis: TranslationAxis?) { enqueue(.axis(axis)) }
 
     func tick() {
@@ -369,6 +375,7 @@ final class OperatingController {
             case .press(let button):
                 press(button)
             case .release(let button):
+                slippedFingers.remove(button)
                 for command in buttons.release(button) { carry(command) }
                 restoreButtonSpeed()
             case .speed(let speed):
@@ -382,6 +389,13 @@ final class OperatingController {
                 pressWrist(button)
             case .wristRelease(let button):
                 releaseWrist(button)
+            case .wristSlip(let button):
+                // The hold ends as a lift ends it; the finger stays down, so the page cannot change under it.
+                if wristRamp?.button == button { endWristButtonHold() }
+            case .slip(let button):
+                slippedFingers.insert(button)
+                for command in buttons.release(button) { carry(command) }
+                restoreButtonSpeed()
             case .axis(let axis):
                 let commands = arbiter.selectTranslationAxis(axis, at: now(), facts: model.inputFacts())
                 var starts = ArraySlice<ArmSource>()
@@ -544,7 +558,7 @@ final class OperatingController {
             model.runReset(stopEpochAtStart: epoch)
         case .openSettings:
             // The input rules do not see the pad's holds: a gear tap during one is dead (§2.2).
-            if buttons.engaged != nil {
+            if buttons.engaged != nil || wristRamp != nil {
                 model.raise(.refused(.letGoFirst))
             } else {
                 model.send(.openSettings)
@@ -594,7 +608,8 @@ final class OperatingController {
 
     private func changePage(_ page: PanelPage) {
         guard page != panelPage else { return }
-        guard precisionPanelOpen, buttons.down.isEmpty, wristDown.isEmpty, buttons.engaged == nil, wristRamp == nil
+        guard precisionPanelOpen, buttons.down.isEmpty, slippedFingers.isEmpty, wristDown.isEmpty,
+            buttons.engaged == nil, wristRamp == nil
         else {
             model.raise(.refused(.letGoFirst))
             return
@@ -608,7 +623,8 @@ final class OperatingController {
         model.sessionRecord.note("wrist button \(button.rawValue) down")
         let state = model.session.state
         guard precisionPanelOpen, panelPage == .wrist, active, Self.operatingRoutes.contains(model.session.route),
-            wristDown.count == 1, buttons.down.isEmpty, !isEngaged, !arbiter.isHoldingAnInput,
+            wristDown.count == 1, buttons.down.isEmpty, slippedFingers.isEmpty, !isEngaged, !arbiter.isHoldingAnInput,
+            precisionKeys.isEmpty, padTouches.isEmpty, topBandTouchEpochs.isEmpty,
             !state.armMoving, state.gripperMoving == nil, !state.wristMoving
         else {
             model.raise(.refused(.deadInput))
@@ -629,6 +645,13 @@ final class OperatingController {
             wristRamp = nil
             wristTarget = .identity
         }
+    }
+
+    /// True once per wrist button hold: the first limit cue of the hold plays, any later one does not.
+    func claimWristLimitCue() -> Bool {
+        guard !wristLimitCued else { return false }
+        wristLimitCued = true
+        return true
     }
 
     private func releaseWrist(_ button: WristButton) {
@@ -659,10 +682,7 @@ final class OperatingController {
         let target = ramp.target(at: time)
         wristTarget = target
         model.link.setWristTarget(target)
-        if ramp.atLimit(at: time), !wristLimitCued {
-            wristLimitCued = true
-            model.raise(.limit(.wrist))
-        }
+        if ramp.atLimit(at: time), !wristLimitCued { model.raise(.limit(.wrist)) }
     }
 
     /// A mode or hand change, refused while a hold runs: the pad goes away, so nothing on it stays down.
