@@ -362,12 +362,24 @@ final class LiveLinkController {
         monitor.blockedWorkspace = directionalBlocked && aids != nil ? gripperBox : nil
     }
 
-    /// `teleop-ios/<version> (<build>)`, from the bundle's version and build numbers.
-    static func clientName(bundle: Bundle = .main) -> String {
+    /// `teleop-ios/<version> (<build>) install=<code>`, from the bundle's version and build numbers and this install's
+    /// code, so a study can tell one phone's sessions from another's without knowing whose phone it is.
+    static func clientName(bundle: Bundle = .main, defaults: UserDefaults = .standard) -> String {
         let info = bundle.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? "?"
         let build = info["CFBundleVersion"] as? String ?? "?"
-        return "teleop-ios/\(version) (\(build))"
+        return "teleop-ios/\(version) (\(build)) install=\(installCode(defaults: defaults))"
+    }
+
+    static let installCodeKey = "installCode"
+
+    /// Eight random hex digits made the first time they are asked for and kept until the app is deleted. Nothing in
+    /// it comes from the phone or the person.
+    static func installCode(defaults: UserDefaults = .standard) -> String {
+        if let code = defaults.string(forKey: installCodeKey) { return code }
+        let code = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
+        defaults.set(code, forKey: installCodeKey)
+        return code
     }
 
     /// "host", "host:port" or a full ws:// URL. Nil when it cannot be a server address.
