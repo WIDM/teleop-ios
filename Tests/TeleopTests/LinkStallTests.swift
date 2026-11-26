@@ -152,9 +152,10 @@ final class LinkStallTests: XCTestCase {
 
     private func start(_ mode: ControlMode) throws {
         try makeTheHand(mode)
-        XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
+        XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")
         // The 3 s with nothing on either connection counts only with the listening connection up.
-        XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection did not come up")
+        XCTAssertTrue(
+            hand.wait(TestWaits.linkUp, until: { model.link.observerUp }), "the listening connection did not come up")
         hand.pump(1)
         shown = []
         hand.watch = { [unowned self] in

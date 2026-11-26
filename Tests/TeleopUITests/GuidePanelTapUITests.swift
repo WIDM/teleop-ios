@@ -50,7 +50,8 @@ final class GuidePanelTapUITests: XCTestCase {
                         && $0.connection == start.connection && $0.status == "ok" && $0.reason == "pose_stopped"
                 }
             }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 3), .completed, file: file, line: line)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [completed], timeout: UITestWaits.serverAnswer), .completed, file: file, line: line)
         let trace = server.commandTrace()
         XCTAssertEqual(trace.droppedCount, 0, "command evidence must be complete", file: file, line: line)
         let events = Array(trace.events.dropFirst(offset))

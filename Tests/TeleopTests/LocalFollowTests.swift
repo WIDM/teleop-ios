@@ -46,8 +46,8 @@ final class LocalFollowTests: XCTestCase {
         // Through the setters, which set the model's own value whatever a launch argument says.
         hand.model.assistOn = true
         hand.model.lockChoice = .off
-        XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
-        XCTAssertTrue(hand.wait(4, until: { model.link.observerUp }), "the listening connection is up")
+        XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")
+        XCTAssertTrue(hand.wait(TestWaits.linkUp, until: { model.link.observerUp }), "the listening connection is up")
         hand.pump(1)
         hand.reportGuidePanel()
     }
@@ -198,6 +198,11 @@ final class LocalFollowTests: XCTestCase {
         XCTAssertLessThan(simd_distance(arm, stopped), 0.001, "the arm stays where it stopped")
         XCTAssertEqual(cues(since: mark), [.holdLive, .drive(.ended(.stoppedShort))], "GO, the ending, nothing more")
         XCTAssertGreaterThan(offsets.count, 2, "readings of a turning pinch point came during the move")
-        XCTAssertLessThanOrEqual(worst.excess, 1e-6, "a jump in what the link is asked to send")
+        // The allowance guesses how many readings came between two looks from the time between them, and on a slow
+        // machine it has been 0.11 mm short. The offset changes by 3 to 5 mm over this move, so a tenth of that is
+        // allowed; a command that leaps when its pace changes measured 2.8 mm here. That the command keeps its place
+        // exactly through a change of pace is `GoMoveFollowTests.testAChangeOfPaceLeavesTheCommandWhereItIs`.
+        XCTAssertLessThanOrEqual(
+            worst.excess, largestChange / 10, "a jump in what the link is asked to send, \(worst.excess) m over")
     }
 }

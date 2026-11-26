@@ -118,8 +118,9 @@ final class ObserverTests: XCTestCase {
     private func connected() throws -> AppModel {
         let model = makeModel()
         model.connect()
-        XCTAssertTrue(wait(3, until: { model.session.state.connected }), "no link")
-        XCTAssertTrue(wait(3, until: { model.link.observerUp }), "the listening connection did not come up")
+        XCTAssertTrue(wait(TestWaits.linkUp, until: { model.session.state.connected }), "no link")
+        XCTAssertTrue(
+            wait(TestWaits.linkUp, until: { model.link.observerUp }), "the listening connection did not come up")
         return try XCTUnwrap(model)
     }
 
@@ -188,7 +189,7 @@ final class ObserverTests: XCTestCase {
         XCTAssertFalse(log.contains { $0.payload["reason"] as? String == "pose_watchdog_timeout" })
         XCTAssertTrue(model.session.state.connected)
         XCTAssertTrue(
-            wait(4, until: { observers.count == 2 && model.link.observerUp }),
+            wait(TestWaits.linkUp, until: { observers.count == 2 && model.link.observerUp }),
             "the listening connection did not come back")
     }
 

@@ -709,9 +709,9 @@ final class GuideAidsLinkTests: XCTestCase {
                 assistOn: aids, lockChoice: .off)
             model.session.state.serverAddress = server.address
             model.connect()
-            XCTAssertTrue(wait(3, until: { model.session.state.connected }), "aids \(aids)")
+            XCTAssertTrue(wait(TestWaits.linkUp, until: { model.session.state.connected }), "aids \(aids)")
             // During a hold only the listening connection hears where the arm is.
-            XCTAssertTrue(wait(3, until: { model.link.observerUp }), "aids \(aids)")
+            XCTAssertTrue(wait(TestWaits.linkUp, until: { model.link.observerUp }), "aids \(aids)")
             model.send(.holdArmStart)
             // 5 cm down (ARKit up is +y) over 0.75 s.
             for step in 1...25 {
