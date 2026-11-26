@@ -161,15 +161,39 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertNil(LiveLinkController.url(from: "http://host"))
     }
 
-    /// The app names itself to the server by its version and build, read from the bundle: never a person's name.
+    /// The app names itself to the server by its version and build, read from the bundle, and this install's code:
+    /// never a person's name.
     func testTheAppsNameComesFromTheBundle() {
+        let suite = "install-code-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         let info = Bundle.main.infoDictionary ?? [:]
         let version = try! XCTUnwrap(info["CFBundleShortVersionString"] as? String)
         let build = try! XCTUnwrap(info["CFBundleVersion"] as? String)
-        XCTAssertEqual(LiveLinkController.clientName(), "teleop-ios/\(version) (\(build))")
+        let name = LiveLinkController.clientName(defaults: defaults)
+        XCTAssertEqual(
+            name, "teleop-ios/\(version) (\(build)) install=\(LiveLinkController.installCode(defaults: defaults))")
         XCTAssertNotNil(
-            LiveLinkController.clientName().range(of: #"^teleop-ios/\d+(\.\d+)+ \(\d+\)$"#, options: .regularExpression)
-        )
+            name.range(of: #"^teleop-ios/\d+(\.\d+)+ \(\d+\) install=[0-9a-f]{8}$"#, options: .regularExpression))
+    }
+
+    /// The code stays the same for one install and differs between installs, so the server's log can group one
+    /// phone's sessions; a fresh install starts a new code.
+    func testTheInstallCodeIsKeptAndDiffersBetweenInstalls() {
+        let suiteOne = "install-code-" + UUID().uuidString
+        let suiteTwo = "install-code-" + UUID().uuidString
+        let one = UserDefaults(suiteName: suiteOne)!
+        let two = UserDefaults(suiteName: suiteTwo)!
+        defer {
+            one.removePersistentDomain(forName: suiteOne)
+            two.removePersistentDomain(forName: suiteTwo)
+        }
+        let first = LiveLinkController.installCode(defaults: one)
+        XCTAssertEqual(LiveLinkController.installCode(defaults: one), first)
+        XCTAssertEqual(LiveLinkController.clientName(defaults: one), LiveLinkController.clientName(defaults: one))
+        XCTAssertNotEqual(LiveLinkController.installCode(defaults: two), first)
+        one.removePersistentDomain(forName: suiteOne)
+        XCTAssertNotEqual(LiveLinkController.installCode(defaults: one), first)
     }
 
     func testConnectSaysHelloAndWaitsForTheServer() {

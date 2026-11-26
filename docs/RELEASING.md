@@ -13,8 +13,8 @@ Two numbers live in `project.yml`, under `settings.base`, and nowhere else:
   of the same version apart. It goes up by one with every version and never goes back: App Store Connect refuses
   an upload whose build number is not higher than every build already uploaded for that version.
 
-`CHANGELOG.md` states the rule for the version number in 0.x: `0.x.0` adds or changes behaviour, `0.x.y` only
-fixes. It has no rule yet for versions after 1.0.0; the first version after it is the moment to write one there.
+`CHANGELOG.md` states the rule for the version number: in 0.x, `0.x.0` adds or changes behaviour and `0.x.y` only
+fixes; from 1.0.0 on the same holds one place up, `1.x.0` adds or changes behaviour and `1.x.y` only fixes.
 
 `App/Info.plist` reads both numbers from the build settings (`$(MARKETING_VERSION)`, `$(CURRENT_PROJECT_VERSION)`).
 After changing either, regenerate the Xcode project, which is not committed, and check what it carries:
@@ -51,12 +51,20 @@ exit 0; `docs/ARCHITECTURE.md` says what it proves. `check-strings.py` fails on 
 catalogs, that lacks English or Traditional Chinese. `check-format.sh` fails on any Swift file not laid out as
 `.swift-format` says; CI only reports it (`docs/TESTING.md` says why), so here is where it counts.
 
-Then the full default test plan, about twenty minutes, on an iPhone simulator nothing else uses and a Mac that
-stays awake (`docs/TESTING.md` explains both):
+Then the full default test plan, the app's unit tests and then the UI tests, about three quarters of an hour with its
+build, on an iPhone simulator nothing else uses and a Mac that stays awake (`docs/TESTING.md` explains both). Use an
+iPhone simulator where the aids' settings were never changed by hand, or erase it first: the unit tests read what it
+has saved.
 
     xcodegen generate
     SIM=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Default \
+      -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
+
+After it, on the same iPhone simulator, the AssistOff plan, about seven minutes: the app's unit tests again with the
+hands-free aids' master switch off, which shows that they pass unedited with the aids off:
+
+    caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan AssistOff \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
 
 Do not set `TEST_RUNNER_TELEOP_MOTION` for a release check. The live tests move the shared arm in Isaac Sim and
@@ -138,5 +146,5 @@ What only the holder of the Apple developer account can do, in order:
    that without one, Connect → "Practice without a robot" shows the app working; that there is no sign-in; and that
    it speaks plain `ws://` because the teleoperation server uses unencrypted WebSocket on a private network. The
    first build for outside testers goes to beta review. A build expires after 90 days.
-6. Later uploads: each needs a build number higher than any already uploaded for that version. A second upload of
-   1.0.0 needs build 14; otherwise ship it as 1.0.1.
+6. Later uploads: each needs a build number higher than any already uploaded for that version. A build that changes
+   anything goes out as a new version with the next build number ("The version number" above).

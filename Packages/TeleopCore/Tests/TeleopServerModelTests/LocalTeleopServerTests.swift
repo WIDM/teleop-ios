@@ -38,6 +38,59 @@ final class LocalTeleopServerTests: XCTestCase {
         XCTAssertEqual(second["type"], "state")
         let third = try client.next()
         XCTAssertEqual(third["type"], "state", "a state every 200 ms while the client is quiet")
+        XCTAssertTrue(server.commandTrace().events.isEmpty)
+        XCTAssertEqual(server.commandTrace().droppedCount, 0)
+    }
+
+    func testCommandCaptureRecordsMatchingStartCompletionWithoutPayloads() throws {
+        server.stop()
+        server = LocalTeleopServer(captureCommands: true)
+        try server.start()
+        let client = try SocketClient(port: server.port)
+        client.send(#"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"test"}}"#)
+        _ = try client.next()
+        client.send(
+            #"{"v":1,"type":"pose_start","ts":0,"seq":2,"payload":{"frame":"webxr_local","rate_hz":30,"gain":1,"deadband_deg":0,"smoothing":0}}"#
+        )
+        XCTAssertTrue(eventually(within: 3) { self.server.inspect { $0.state["ik"]?.stringValue } == "pose_tracking" })
+        client.send(#"{"v":1,"type":"pose_stop","ts":0,"seq":3,"payload":{}}"#)
+        XCTAssertTrue(
+            eventually(within: 3) {
+                self.server.commandTrace().events.contains {
+                    $0.direction == .sent && $0.sequence == 2 && $0.status == "ok" && $0.reason == "pose_stopped"
+                }
+            })
+        let trace = server.commandTrace()
+        XCTAssertEqual(trace.droppedCount, 0)
+        let received = trace.events.filter { $0.direction == .received }
+        XCTAssertEqual(received.map(\.type), ["pose_start", "pose_stop"])
+        XCTAssertEqual(received.map(\.sequence), [2, 3])
+        XCTAssertTrue(received.allSatisfy { $0.status == nil && $0.reason == nil })
+        let start = try XCTUnwrap(received.first)
+        XCTAssertTrue(
+            trace.events.contains {
+                $0.direction == .sent && $0.type == "ack" && $0.connection == start.connection
+                    && $0.sequence == start.sequence && $0.status == "ok" && $0.reason == "pose_stopped"
+            })
+    }
+
+    func testCommandCaptureIsBoundedAndReportsLostEvidence() throws {
+        server.stop()
+        server = LocalTeleopServer(captureCommands: true)
+        try server.start()
+        let client = try SocketClient(port: server.port)
+        client.send(#"{"v":1,"type":"hello","ts":0,"seq":1,"payload":{"client":"phone","name":"test"}}"#)
+        _ = try client.next()
+        for sequence in 2...141 {
+            client.send(#"{"v":1,"type":"pose_stop","ts":0,"seq":\#(sequence),"payload":{}}"#)
+        }
+        XCTAssertTrue(
+            eventually(within: 5) {
+                self.server.commandTrace().events.contains { $0.direction == .sent && $0.sequence == 141 }
+            })
+        let trace = server.commandTrace()
+        XCTAssertEqual(trace.events.count, 256)
+        XCTAssertEqual(trace.droppedCount, 24)
     }
 
     func testAHoldThroughTheSocketMovesTheArmAndASocketClosedDuringItEStops() throws {

@@ -1,4 +1,5 @@
 import Foundation
+import TeleopCore
 
 /// The guide's read-outs in the app's language.
 enum GuideWords {
@@ -6,6 +7,8 @@ enum GuideWords {
         switch line {
         case .height(let cm):
             return format("guide.height", centimetres(cm))
+        case .heightLowest(let cm):
+            return format("guide.height_lowest", centimetres(cm))
         case .jaws(let percent):
             return String(format: L10n.string("guide.jaws"), percent)
         case .wrist(let turn?, let tilt?):
@@ -27,8 +30,22 @@ enum GuideWords {
             return L10n.string("guide.on_target")
         case .holding:
             return L10n.string("guide.holding")
+        case .commandOutside(let side):
+            return L10n.string(commandOutsideKey(side))
         case .outside:
             return L10n.string("guide.outside")
+        }
+    }
+
+    /// One literal key per side, so the string check sees each one used.
+    private static func commandOutsideKey(_ side: OperatorDirection) -> String {
+        switch side {
+        case .forward: return "guide.command_outside.forward"
+        case .back: return "guide.command_outside.back"
+        case .left: return "guide.command_outside.left"
+        case .right: return "guide.command_outside.right"
+        case .up: return "guide.command_outside.up"
+        case .down: return "guide.command_outside.down"
         }
     }
 

@@ -32,7 +32,43 @@ struct RobotProfile: Equatable {
     static let so101Simulator = RobotProfile(
         name: "SO-101 (S4 simulator)",
         toolOffset: SIMD3(0.007, -0.036, -0.088),
-        baseInWorld: SIMD3(0, 0, 0.05)
+        baseInWorld: SIMD3(0, 0, 0.05),
+        usesDirectionalBlockedFeedback: true,
+        assist: AssistProfile(
+            // 30 s from the latch. What would change it: how long latched runs last in the hand sessions; a safety
+            // review.
+            lock: LockLimits(timeLimitS: 30),
+            goTo: GoToLimits(
+                // 5 cm over the table: a held 2.5 cm object's bottom is then 3.75 cm up, and the pinch point at
+                // 0.09 m in the base frame is inside the box's 0.152 m top.
+                travelHeightM: 0.05,
+                // The pad's coarse speed, already proven through the lead cap; near the measured median following
+                // speed (0.034 m/s) and under the simulator's own cap on a moving setpoint (about 0.077 m/s).
+                speedMps: 0.04,
+                // Under the blocked rule's 10 mm; the grasp window's height.
+                arriveToleranceM: 0.008,
+                // One may go to holding the travel height, one to the end.
+                corrections: 2,
+                correctionReachM: 0.03,
+                settleS: 0.6,
+                timeFactor: 1.5,
+                // At least 3 s, and with the factor it leaves room for one re-sent start (the link's resync timeout)
+                // on the longest path in the box: a profile test pins both.
+                allowanceS: 3.0,
+                // The listening connection reports about every 0.2 s; an ordinary wireless network was measured
+                // holding messages back for up to 1.8 s.
+                armDataTimeoutS: 2.0,
+                // A start the server takes late, or an arm that lags at first, is not a stall: no stall is judged
+                // from positions measured in the first 1.5 s, counted from the later of the start and the end of the
+                // last pause of the hold, unless the arm has already moved 2 mm. What would change it: how late a
+                // real arm starts to move after a start.
+                startGraceS: 1.5
+            ),
+            guide: .all,
+            explain: ExplainAids(slowLinkLetGo: true),
+            // Keep the heights used for positioning visible without spending space on the upper workspace.
+            views: ViewAim(behindTopAboveTableM: 0.09, maxRetargetedMoveS: 30)
+        )
     )
 
     /// How close the pinch point must be to an object's centre, across the table and in height, for closing
@@ -44,7 +80,7 @@ struct RobotProfile: Equatable {
     var goalSize: Float = 0.05
     /// A measured jaw angle at or above this while opening is fully open. The joint's limit is 100 degrees.
     var gripperOpenDeg = 97.0
-    /// At or below this while closing, with no contact, the jaws closed on nothing. An empty close settled at
+    /// At or below this when a close has ended with no contact, the jaws closed on nothing. An empty close settled at
     /// 0.4 degrees on the S4 simulator (recording s15); this is that plus 2, until the device check sets it.
     var gripperEmptyDeg = 2.0
     /// The box the server keeps the pinch point inside, robot base frame, metres. The simulator clamps the point it
@@ -53,6 +89,10 @@ struct RobotProfile: Equatable {
     /// With a reported tool point the guide moves it by the measured offset instead (`ArmReading.boxShift`).
     var workspaceMin = SIMD3<Float>(-0.052383, -0.257418, -0.008015)
     var workspaceMax = SIMD3<Float>(0.107617, -0.097418, 0.151985)
+    var gripperWorkspace: (low: SIMD3<Double>, high: SIMD3<Double>) {
+        (SIMD3<Double>(workspaceMin - toolOffset), SIMD3<Double>(workspaceMax - toolOffset))
+    }
+
     /// Height of the table surface in the robot base frame, metres (`TABLE_TOP_Z_M` minus the base height).
     var tableHeight: Float = 0.04
     /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt. +1 until the
@@ -63,6 +103,16 @@ struct RobotProfile: Equatable {
     /// angle; so a second close is refused until they have opened. True for this simulator. A robot that must squeeze
     /// harder to hold would set it false.
     var recloseLoosensGrip = true
+    /// This profile's gripper-link box has been checked against the workspace in the server recording.
+    var usesDirectionalBlockedFeedback = false
+    /// Which hands-free aids this robot allows, with their numbers. A robot allows lock exactly when `assist.lock` is
+    /// set, and cannot allow it without saying how long a follow nobody holds may run. `.none` allows none of them and
+    /// needs no code path of its own.
+    var assist: AssistProfile = .none
+    /// A wider window for the guide's "On target" and its cue (across, height; metres), used when the guide's aids ask
+    /// for it. Nil: the grasp tolerance. `graspTolerance` keeps its other jobs (the level word, the approximate
+    /// threshold, parity with the server model).
+    var onTargetWindow: SIMD2<Float>? = nil
 
     var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
 
@@ -100,8 +150,8 @@ struct RobotProfile: Equatable {
         return millimetres / 1000
     }
 
-    /// The estimate may be off by more than half the on-target window across: the guide draws it approximate. Half,
-    /// because a lift needed the jaws within about 1 cm in the hand sessions and the window is 6 mm. The bound
+    /// The estimate may be off by more than half the grasp tolerance across: the guide draws it approximate. Half,
+    /// because a lift needed the jaws within about 1 cm in the hand sessions and the tolerance is 6 mm. The bound
     /// overestimates by centimetres, so it decides only this and never sizes anything.
     func estimateIsApproximate(gripper: SIMD3<Float>, flexDeg: Double?, rollDeg: Double?) -> Bool {
         guard let error = estimateError(gripper: gripper, flexDeg: flexDeg, rollDeg: rollDeg) else { return true }
@@ -129,7 +179,7 @@ enum PinchSource: Equatable, Sendable {
     /// The server reported it (`tool_pos`). Never approximate.
     case reported
     /// The reported gripper point plus the profile's `toolOffset`. `approximate`: it may be off by more than half the
-    /// on-target window, so the guide draws it hollow, says so, and never says "On target".
+    /// grasp tolerance, so the guide draws it hollow, says so, and never says "On target".
     case estimated(approximate: Bool)
 
     var isApproximate: Bool { self == .estimated(approximate: true) }

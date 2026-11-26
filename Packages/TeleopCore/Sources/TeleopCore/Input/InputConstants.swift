@@ -59,6 +59,25 @@ public struct InputConstants: Equatable, Sendable {
     // Reset (I-3)
     public var resetHoldS: Double
 
+    // Thumb gestures of the aids. Not in Appendix A; kept here so every input threshold has one source.
+
+    /// A thumb sliding toward a lock is under way once it has gone this far up the glass while mostly up, millimetres.
+    /// From then on a NO it owes waits until it latches, lifts or turns away. Evidence that would change it: hand
+    /// traces of the gesture.
+    public var slideUnderWayMm: Double
+    /// A touch that began inside the guide's view from above is a tap only if it lifts within this, seconds. In scheme
+    /// B the dwell (150 ms; 500 ms on the far half while gripping) comes first and keeps its 1.0.1 meaning. Evidence
+    /// that would change it: durations of intended and unintended taps logged on the device.
+    public var tapMaxS: Double
+    /// ... and only if it never went farther than this from its touch-down, straight distance, millimetres. Well under
+    /// the 10 mm that commits a slide. Evidence: tap travel
+    /// logged on the device.
+    public var tapSlopMm: Double
+    /// Longest lift that can still be explained as a missed tap. Evidence: the duration of intended taps.
+    public static let tapSaysWhyMaxS: Double = 1
+    /// Longest gap between a tap's lift and a second contact that may be a bounce. Evidence: gaps between contacts.
+    public static let secondContactS: Double = 0.15
+
     public init(
         rollClampDeg: Double = 55, tiltClampDeg: Double = 20,
         rollWindowDeg: Double = 150, tiltWindowDeg: Double = 25,
@@ -72,7 +91,7 @@ public struct InputConstants: Equatable, Sendable {
         gearMinPt: Double = 44, gearTapS: Double = 0.5, referenceHeightPt: Double = 874,
         referencePointsPerMm: Double = 6.4,
         keyChordMs: Double = 50, keyReplayMs: Double = 150, keyReplayGuard: Bool = true,
-        resetHoldS: Double = 2.0
+        resetHoldS: Double = 2.0, slideUnderWayMm: Double = 3, tapMaxS: Double = 0.30, tapSlopMm: Double = 4
     ) {
         self.rollClampDeg = rollClampDeg
         self.tiltClampDeg = tiltClampDeg
@@ -103,6 +122,9 @@ public struct InputConstants: Equatable, Sendable {
         self.keyReplayMs = keyReplayMs
         self.keyReplayGuard = keyReplayGuard
         self.resetHoldS = resetHoldS
+        self.slideUnderWayMm = slideUnderWayMm
+        self.tapMaxS = tapMaxS
+        self.tapSlopMm = tapSlopMm
     }
 
     /// Appendix A as written. `rollSign` and `tiltSign` are +1 until C-I5 measures them.

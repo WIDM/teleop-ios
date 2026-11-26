@@ -9,7 +9,7 @@ final class OperatingTouchTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication.teleop(["-startRoute", "p4_standby", "-recordHaptics", "YES"])
         app.launch()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
     }
 
     func testATapOnTheStopBandStopsAndAHoldOnReleaseLeavesTheStop() {
@@ -23,7 +23,7 @@ final class OperatingTouchTests: XCTestCase {
         release.press(forDuration: 0.3)
         XCTAssertEqual(app.element("operating.state").label, "STOPPED")
         release.press(forDuration: 1.3)
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         XCTAssertFalse(release.exists)
     }
 
@@ -31,7 +31,7 @@ final class OperatingTouchTests: XCTestCase {
         app.element("operating.gear").tap()
         expect(app, "settings.done")
         app.element("settings.done").tap()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
     }
 
     /// The gear opens Settings while stopped too, and Settings then says plainly that the robot is stopped and how to

@@ -18,7 +18,7 @@ After changing the checker or a guarded code path, also prove the check can stil
 
 It breaks a throwaway copy of `TeleopCore`, never the repo's files. Every line must say `CAUGHT`.
 
-Last mutation run: 2026-11-13, on commit `f820e37`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
+Last mutation run: 2026-11-17, on commit `e64e8e7`. 48 variants, 48 `CAUGHT`, none `MISSED`: 39 changes to
 `TeleopCore`, of which 37 must make a property fail and 2 harmless ones must leave it passing; 1 change to
 `ui-map.tsv`; 8 changes to the screens' source that `drift.py` must report.
 
@@ -87,6 +87,7 @@ Bounds:
 
 Left out:
 
+- Who holds a hold (a held key, a latched follow, a move to a tapped point), what goes on the wire and which cues play are outside the session model. A latched follow and a move to a tapped point are the session's ordinary arm hold, started and ended by the same actions as a held key's.
 - Settings sliders (`setSmoothing`), `serverAddress` and `sensitivity`. No action changes them and no guard reads them.
 - SwiftUI behavior, gesture timing and real haptics. The hold-end on leaving a screen is modelled from `OperatingController`, not run. The simulator has no haptic engine, so the effect of a second loop needs a real iPhone.
 - What the screens draw. U1 counts the operating screen's routes and Settings as showing a latched stop. They show it from `AppModel.operating`, which says connecting, not connected or link lost instead while a pressed STOP is owed (`AppModel.pressedStop`, J7: the robot is not stopped), also while Connect replaces a link that is up. A pressed STOP is sent, confirmed or owed: owed when it was pressed before the control connection's `welcome` with the listening connection not up (`LiveLinkController.estop`), or when the link went before a `state` the server wrote after reading its `estop` said stopped (`LiveLinkController.estopConfirmed`), or before the answer to a reset asked for from the stop (`FakeTeleopState.resetClearsStop`), which puts a confirmed STOP back to sent. Settings draws its band only for the stopped state. The session's latch is the same either way, so the checker cannot tell the two apart; U1 states the exception, `AppModel.robotStopped` makes every press say "No link." then, also while Connect replaces a link that is up, and `OperatingLinkTests`, `LiveLinkTests` and `LinkStallTests` cover it.
@@ -114,7 +115,7 @@ Comparing whole stacks would make the state space unbounded, because `navigate` 
 
 ## Keep it in step
 
-Sync commit: `cbe633c`
+Sync commit: `e64e8e7`
 
 `check.sh` prints `REVIEW` for each covered file changed since that commit. Read the change, confirm that the checker, `ui-map.tsv` and the two stack arguments still describe the code, run `mutants.py`, and only then move the sync commit above to the commit you confirmed.
 
@@ -127,6 +128,6 @@ Sync commit: `cbe633c`
 - `App/Sources/Operating/OperatingController.swift`: the input rules' and the pad's commands (`allowed_outside` in `drift.py`), STOP, the gear (`openSettings`) and the top band's reset (through `AppModel.runReset`) included. It ends every hold, with its stop, when the operating screen's routes go away, which `perform` in `main.swift` models, and when the app leaves the active state or the camera stops, which the end actions offered while a control is held cover.
 - `App/Sources/Operating/Views/OperatingScreen.swift`: draws every operating route (`RootView.operatingRoutes`) from `model.operating`, the stopped state included. Its touch surface and pad reach `OperatingController`; Release, keep scene and the not-connected word send their own actions (`OWN_ACTIONS` in `drift.py`).
 - `App/Sources/Screens`: every `model.send` call, mapped in `ui-map.tsv`; `RootView.operatingRoutes` and Settings' STOPPED band, which U1 counts on (`showsTheStop` in `main.swift`, held to the source by `drift.py`).
-- `App/Sources/VolumeKeys`: `VolumeKeyModifier` hands the keys' raw events to the model and sends no actions itself; the operating screen, which attaches it, is credited with what the keys can do (`KEY_ACTIONS` in `drift.py`). `App/Sources/Pose` only reads the camera pose and sends no actions.
+- `App/Sources/VolumeKeys`: `VolumeKeyModifier` hands the keys' raw events to the model and sends no actions itself; the operating screen, which attaches it, is credited with what the keys can do (`KEY_ACTIONS` in `drift.py`). `App/Sources/Pose` reads the camera pose and reports new tracking runs. The input rules may end a wrist hold when its attitude frame changes. The tracker sends no action itself.
 - `App/Sources/AppModel.swift`, `App/Sources/Link/LiveLinkController.swift`: the actions they send without a screen (`allowed_outside` in `drift.py`, `linkEvents` and `toggleLiveLink` in `main.swift`).
 - `App/Sources/Haptics/HapticsController.swift`: basis for the S8 and U6 harm only.

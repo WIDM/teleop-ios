@@ -1,0 +1,53 @@
+{
+  "configurations" : [
+    {
+      "id" : "12ED5805-511D-4208-9E26-71F1267A6515",
+      "name" : "Assist off",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "commandLineArgumentEntries" : [
+      {
+        "argument" : "-assist"
+      },
+      {
+        "argument" : "NO"
+      },
+      {
+        "argument" : "-appLanguage"
+      },
+      {
+        "argument" : "en"
+      }
+    ],
+    "environmentVariableEntries" : [
+      {
+        "key" : "TELEOP_EXPECT_ASSIST_OFF",
+        "value" : "1"
+      },
+      {
+        "key" : "OS_ACTIVITY_DT_MODE",
+        "value" : "NO"
+      }
+    ],
+    "language" : "en",
+    "region" : "US"
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "OperatorLiveTests",
+        "ServerMotionTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "4CF114B66C1C65C7C850F42D",
+        "name" : "TeleopTests"
+      }
+    }
+  ],
+  "version" : 1
+}

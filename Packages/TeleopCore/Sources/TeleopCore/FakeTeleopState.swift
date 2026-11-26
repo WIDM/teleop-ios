@@ -26,6 +26,8 @@ public struct FakeTeleopState: Equatable, Sendable {
     public var serverInputError = false
     /// Live link only: a working link dropped. S1 says so until the next connection or a Disconnect.
     public var connectionLost = false
+    /// Live link only: why the server refused this phone or let it go. Said on S1 and S4 until the next connection.
+    public var dismissal: SessionDismissal?
     /// True when a real server drives the link. Then only `linkUp` marks the session connected.
     public var liveLink = false
 
@@ -38,6 +40,7 @@ public struct FakeTeleopState: Equatable, Sendable {
     public mutating func markConnected() {
         connected = true
         connectionLost = false
+        dismissal = nil
         latencyMs = nil
         commandsBlocked = false
     }
@@ -63,6 +66,7 @@ public struct FakeTeleopState: Equatable, Sendable {
         wristMoving = false
         connected = false
         connectionLost = false
+        dismissal = nil
         clearLatency()
     }
 

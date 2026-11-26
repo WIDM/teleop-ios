@@ -346,9 +346,9 @@ SOURCE_VARIANTS = [
         "private struct OperatingControls: View {",
         "ReleaseButton(scale: scale) { model.send(.releaseStop) }",
         "ReleaseButton(scale: scale) { model.send(.releaseStop); model.send(.openKeyboard) }",
-        "DRIFT OperatingControls sends ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', 'holdArmStart', "
-        "'openKeyboard', 'releaseStop'], expected ['changeServer', 'gripperEnd', 'gripperStart', 'holdArmEnd', "
-        "'holdArmStart', 'releaseStop']",
+        "DRIFT OperatingControls sends ['changeServer', 'disconnect', 'gripperEnd', 'gripperStart', 'holdArmEnd', "
+        "'holdArmStart', 'openKeyboard', 'releaseStop', 'stop'], expected ['changeServer', 'disconnect', 'gripperEnd', "
+        "'gripperStart', 'holdArmEnd', 'holdArmStart', 'releaseStop', 'stop']",
     ),
 ]
 

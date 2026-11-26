@@ -1,11 +1,20 @@
 import SwiftUI
 import TeleopCore
 
-/// Settings (§7.3), version 1 rows only, with a STOP band pinned to the bottom edge.
+/// Settings (§7.3), version 1 rows only, with a STOP band pinned to the bottom edge. The hands-free aids have a page of
+/// their own, opened from the header, which takes the form's place under the same header and above the same band.
 struct SettingsScreen: View {
     @Bindable var model: AppModel
     /// Five taps on the version show the developer log.
     @State private var versionTaps = 0
+    /// `model.stopEpoch` when the aids' page took the form's place; the page shows until the way back is taken or a
+    /// stop begins. Settings opens on the form every time, and every stop leaves Settings. A STOP on this screen's band
+    /// acts while the finger is still down, and SwiftUI then keeps the screen, this state with it, for the next
+    /// opening, without telling it that it went or came back; so the stop itself closes the page.
+    @State private var aidsOpenedAt: Int?
+
+    /// The aids' page is showing instead of the form.
+    private var showsAids: Bool { aidsOpenedAt == model.stopEpoch }
 
     /// Settings → Control → Smoothing: Off, Low and High (§7.3).
     static let smoothingSteps: [(key: LocalizedStringKey, value: Double)] = [
@@ -17,40 +26,100 @@ struct SettingsScreen: View {
         VStack(spacing: 0) {
             PracticeBanner(practice: practice)
             if case .stopped = model.operating.state { stoppedBand }
-            HStack {
-                Text("settings.title").font(.system(size: 20, weight: .bold))
-                Spacer()
-                Button {
-                    model.send(.settingsDone)
-                } label: {
-                    Text("common.done")
+            // A simulator that is paused or not responding takes the operating screen's words; the stop under it stays
+            // shown, with a way out that can be taken then.
+            if case .simulatorPaused(stopped: true) = model.operating.state { stoppedBand }
+            if case .simulatorStalled(stopped: true) = model.operating.state { stoppedBand }
+            header
+                .padding(.horizontal, TeleopMetrics.margin)
+            if showsAids {
+                aidsPage
+            } else {
+                // The form's last screenful must hold the rows from Recording to the version, as in version 1.0.1, so
+                // nothing is added to the form: the aids' settings, a later aid's included, go on their own page.
+                Form {
+                    control
+                    taskAid
+                    recording
+                    server
+                    practiceSection
+                    tutorial
+                    language
+                    about
+                    if versionTaps >= 5 { developer }
                 }
-                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
-                .accessibilityIdentifier("settings.done")
-            }
-            .padding(.horizontal, TeleopMetrics.margin)
-            Form {
-                control
-                taskAid
-                recording
-                server
-                practiceSection
-                tutorial
-                language
-                about
-                if versionTaps >= 5 { developer }
             }
             StopBand { model.send(.stop) }
         }
     }
 
+    /// The title and Done, with the way to the aids' page beside Done; on that page, the way back to the form in the
+    /// title's place and the page's own title in the middle. Done leaves Settings from either.
+    private var header: some View {
+        HStack {
+            if showsAids {
+                Button {
+                    aidsOpenedAt = nil
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").fontWeight(.semibold)
+                        Text("settings.title")
+                    }
+                }
+                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+                .accessibilityLabel(Text("settings.aids_back"))
+                .accessibilityIdentifier("settings.aids_back")
+            } else {
+                Text("settings.title").font(.system(size: 20, weight: .bold))
+            }
+            Spacer()
+            if !showsAids {
+                Button {
+                    aidsOpenedAt = model.stopEpoch
+                } label: {
+                    Text("settings.assist")
+                }
+                .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+                .accessibilityIdentifier("settings.aids")
+            }
+            Button {
+                model.send(.settingsDone)
+            } label: {
+                Text("common.done")
+            }
+            .buttonStyle(TextActionStyle(color: TeleopColors.primary))
+            .accessibilityIdentifier("settings.done")
+        }
+        .overlay {
+            if showsAids {
+                Text("settings.assist")
+                    .font(.system(size: 20, weight: .bold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("settings.aids_title")
+            }
+        }
+    }
+
     /// While the robot is stopped, Settings says so above everything and where the way out is, as the operating screen
     /// does: the stop is never hidden behind Settings.
+    /// The stopped band's line under STOPPED, with the way out the operator can take now; nil when no stop is shown.
+    /// While the simulator is paused or not responding a reset is refused, so the band does not offer it then: a pause
+    /// is waited out, and a simulator that is not responding needs Reconnect or the server restarted. Shown only where
+    /// the operating screen shows the stop too: a stop that reached no server is not.
+    static func stoppedBandDetail(_ state: OperatingState) -> String? {
+        switch state {
+        case .stopped: return "settings.stopped"
+        case .simulatorPaused(stopped: true): return "settings.stopped_sim_paused"
+        case .simulatorStalled(stopped: true): return "settings.stopped_sim_stalled"
+        default: return nil
+        }
+    }
+
     private var stoppedBand: some View {
         VStack(spacing: 2) {
             Text("state.stopped")
                 .font(.system(size: 20, weight: .heavy))
-            Text("settings.stopped")
+            Text(LocalizedStringKey(Self.stoppedBandDetail(model.operating.state) ?? "settings.stopped"))
                 .font(.system(size: 15, weight: .semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -142,6 +211,63 @@ struct SettingsScreen: View {
         } footer: {
             Text("settings.task_aid_help")
         }
+    }
+
+    /// The aids' page: their master switch, with what Off turns off under it, and, when the robot allows lock, lock's
+    /// choices under their own header, with where lock works under them. Off makes the operating screen, its cues and
+    /// its guide those of version 1.0.1, so the choices are disabled while the switch is off; the page stays reachable
+    /// then, since the switch is turned on here again.
+    private var aidsPage: some View {
+        Form {
+            Section {
+                Toggle(isOn: $model.assistOn) { Text("settings.assist_on") }
+                    .accessibilityIdentifier("settings.assist")
+            } footer: {
+                Text("settings.assist_off_help")
+            }
+            if model.offersLock {
+                Section {
+                    lockChoice(.off, "settings.lock_off")
+                        .accessibilityIdentifier("settings.lock.off")
+                    lockChoice(.pressPress, "settings.lock_press_press")
+                        .accessibilityIdentifier("settings.lock.press_press")
+                    lockChoice(.holdThenSlide, "settings.lock_hold_slide")
+                        .accessibilityIdentifier("settings.lock.hold_slide")
+                } header: {
+                    Text("settings.lock")
+                } footer: {
+                    Text("settings.lock_help")
+                }
+            }
+        }
+    }
+
+    /// One of lock's choices as a row of its own rather than a system picker's, so that on every system version each
+    /// choice has its own identifier, the chosen one carries a mark and the selected trait, and lock's word is the
+    /// section's header, not a row that reads as a fourth choice. The system greys it while the switch is off, when no
+    /// choice can be made.
+    private func lockChoice(_ choice: LockChoice, _ sentence: LocalizedStringKey) -> some View {
+        let chosen = model.lockChoice == choice
+        return Button {
+            model.lockChoice = choice
+        } label: {
+            HStack {
+                Text(sentence)
+                    .foregroundStyle(TeleopColors.textPrimary)
+                Spacer(minLength: 8)
+                if chosen {
+                    Image(systemName: "checkmark")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TeleopColors.primary)
+                }
+            }
+            .contentShape(Rectangle())
+            // Read as the sentence alone: the selected trait says what the mark shows.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(sentence))
+        }
+        .disabled(!model.assistOn)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
     private var recording: some View {

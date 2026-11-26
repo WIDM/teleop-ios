@@ -41,13 +41,36 @@ struct TutorialScreen: View {
         default:
             // Holding still while the arm catches up is for the phone's motion: a held arrow keeps moving the arm.
             let holdStill: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.hold_still"]
+            // A tap needs the guide, which the phone modes draw with the task aid on; lock is a gesture of the keys and
+            // the thumb, and the pad's arrows never latch.
+            let taps = mode != .buttons && model.assist.goTo != nil && model.taskAid
+            let tapKey: LocalizedStringKey =
+                model.assist.views == nil ? "tutorial.cue.tap_to_go" : "tutorial.cue.tap_both_views"
+            let tap: [LocalizedStringKey] = taps ? [tapKey] : []
+            let lock: [LocalizedStringKey] = mode == .buttons ? [] : lockLine(model.assist.lock?.variant)
+            // The guide's arrows name the picture's forward and up, while the arm follows the phone's heading at each
+            // press: where the aids draw them, the guide's line also says they are not the hand's. Like the tap, they
+            // are on screen only where the guide is, in the phone modes with the task aid on.
+            let arrows = mode != .buttons && model.taskAid && model.assist.guide?.directionLabels == true
+            let onTarget: LocalizedStringKey = arrows ? "tutorial.cue.on_target_arrows" : "tutorial.cue.on_target"
+            // The fine panel, and so its wrist page, is in the phone modes only.
+            let wristPage: [LocalizedStringKey] = mode == .buttons ? [] : ["tutorial.cue.wrist_page"]
             return Page(
                 title: "tutorial.cues.title",
                 lines: ["tutorial.cue.stop", "tutorial.cue.reset", "tutorial.cue.go"]
                     + holdStill + [
-                        "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", "tutorial.cue.on_target",
-                        "tutorial.cue.grip", "tutorial.cue.alarm",
-                    ])
+                        "tutorial.cue.dead", "tutorial.cue.end", "tutorial.cue.letgo", onTarget, "tutorial.cue.grip",
+                        "tutorial.cue.alarm",
+                    ] + tap + lock + wristPage)
+        }
+    }
+
+    /// How the chosen lock latches and how it stops; nothing when no lock is in force.
+    private func lockLine(_ variant: LockVariant?) -> [LocalizedStringKey] {
+        switch variant {
+        case .pressPress?: return ["tutorial.cue.lock_press"]
+        case .holdThenSlide?: return ["tutorial.cue.lock_slide"]
+        case nil: return []
         }
     }
 

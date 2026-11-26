@@ -36,6 +36,8 @@ public enum TeleopAction: Equatable, Sendable {
     case switchLink
     /// Live link only: the server welcomed us and sent its state.
     case linkUp(gripper: GripperState?)
+    /// Live link only: the server refused this phone or let it go; `linkLost` follows when it closes.
+    case dismissed(SessionDismissal)
     /// Live link only: the socket closed, failed to open, or the server went quiet.
     case linkLost
     /// Live link only: measured round trip in milliseconds.
@@ -105,6 +107,7 @@ public struct TeleopSession: Equatable, Sendable {
             // Disconnect is on S1, so the operator is already where a new connection starts.
             state.markDisconnected()
             state.connectionLost = false
+            state.dismissal = nil
         case .s1Back:
             go(.p5)
         case .back:
@@ -207,6 +210,9 @@ public struct TeleopSession: Equatable, Sendable {
             state.serverInputError = false
             if let gripper { state.gripper = gripper }
             if route == .s1 { go(.p5) }
+        case .dismissed(let reason):
+            guard state.liveLink else { return }
+            state.dismissal = reason
         case .linkLost:
             guard state.liveLink else { return }
             let wasConnected = state.connected

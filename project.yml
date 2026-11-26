@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.1"
-    CURRENT_PROJECT_VERSION: "14"
+    MARKETING_VERSION: "1.3.0"
+    CURRENT_PROJECT_VERSION: "36"
 packages:
   TeleopCore:
     path: Packages/TeleopCore
@@ -32,6 +32,8 @@ targets:
         UIRequiredDeviceCapabilities:
           - arm64
         NSCameraUsageDescription: The camera tracks the phone pose and detects volume-key hold and release.
+        NSMicrophoneUsageDescription: The microphone recognizes your chosen movement axis on this device. Audio is not saved.
+        NSSpeechRecognitionUsageDescription: Speech recognition selects height, forward/back, or left/right. Movement still requires holding volume up.
         NSLocalNetworkUsageDescription: The app connects to the teleop server on your network.
         # The server speaks plain ws:// on a LAN or Tailscale address, which ATS blocks by default.
         NSAppTransportSecurity:
@@ -87,9 +89,11 @@ schemes:
       config: Debug
       # Default: everything but the live tests. Critical: every unit test and only the critical-path UI tests,
       # what CI runs on each push (docs/TESTING.md). Live: only ServerMotionTests, which drive the lab simulator
-      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1.
+      # through port 8765 and also need TEST_RUNNER_TELEOP_MOTION=1. AssistOff: the app's unit tests again, launched
+      # with the aids' master switch off.
       testPlans:
         - path: TestPlans/Default.xctestplan
           defaultPlan: true
         - path: TestPlans/Critical.xctestplan
         - path: TestPlans/Live.xctestplan
+        - path: TestPlans/AssistOff.xctestplan

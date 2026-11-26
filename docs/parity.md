@@ -19,4 +19,39 @@ strip under it), the fill colours, and the two views of the guide. What differs,
 - The status bar and the home indicator are not drawn, and the gear is drawn as an outline.
 - The Android frames use 36 pt and 24 pt as stand-ins for the system's top and bottom insets.
 
+## Not drawn yet: what version 1.1.0 adds
+
+Version 1.1.0 adds the hands-free aids (`docs/ARCHITECTURE.md`, "The hands-free aids"). None of what they put on
+the screen is drawn in the Figma file yet: the frames show the operating screen and the tutorial as they are with
+the master switch off, and Settings without the Aids button in its header. The Settings form itself is unchanged.
+Until frames are drawn, these screens and states differ from the file:
+
+- Settings: the Aids button in the header, beside Done, and the aids' page it opens in the form's place, under the
+  same header and above the same STOP band: the master switch with what Off turns off under it, a section headed
+  Lock with one row per choice and where lock works under it, and the way back to the form in the title's place. No
+  frame has them.
+- The operating screen's two new states, "Locked on" and "Going", each with "Any key or touch stops it" and no
+  scheme hint.
+- The amber "Stopped here" with the reason, when one was named, on the line under it, shown for a second after a
+  follow or a move ended for a reason the operator did not give, other than an arrival or an ending told by its own
+  cue alone (STOP, a lost link, a robot that stopped itself, a success, a refused start), and the two new refusals
+  of a tap ("Outside the work area", "No arm data").
+- The guide's additions: the Forward and Up arrows on the two views, the shadow under the jaws, the dashed lowest
+  line from behind with "lowest" on the height read-out, the line that names the side the commanded place is
+  outside the work area on, and the white cross where a move to a tapped point is headed.
+- The tutorial's last page: the line for the lock chosen, the line for the tap, and the sentence about the guide's
+  arrows.
+- The reference page: its states, words, cues and strings are those of 1.0.0, without the latch's pattern, the
+  spoken endings and the new strings.
+
 `docs/figma-map.md` maps the file's older Mockup v2 frames, which show the screens the app had before 1.0.0.
+
+
+## Additional operating words in 1.1.1
+
+- With hands-free aids off, the phone modes show “Hands-free aids off: taps do nothing” under the operating state
+  when the robot offers aids and the screen is not stopped. In Traditional Chinese it is 「免持輔助已關閉：點圖不會動」.
+- A missed tap may show “Keep still”, “Tap and let go”, or “Tap the top view”. In Traditional Chinese the words
+  are 「手指別動」、「點一下就放開」 and 「請點上面的圖」. These are refusals and use the existing refusal colour.
+- The first quick second contact that stops a tapped move says “Stopped here. Tap once.” The tutorial's tap
+  instruction also asks the operator to tap once and wait for the move to stop.

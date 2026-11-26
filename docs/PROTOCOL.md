@@ -11,9 +11,12 @@ recordings of the real server back most of what is written here.
 
 ## Words used here
 
-- **Hold**: a control that runs only while the operator keeps a key, a thumb or a button down. The app sends a *start*
-  when the press begins, *updates* or *keepalives* while it lasts, and a *stop* when it ends. The server runs one
-  hold at a time.
+- **Hold**: a control the server runs from a start to a stop. The app sends a *start* when it begins, *updates* or
+  *keepalives* while it lasts, and a *stop* when it ends. The server runs one hold at a time. Most holds run only
+  while the operator keeps a key, a thumb or a button down. With the app's hands-free aids on, an arm hold can also be
+  one the app makes and ends with no press held: a follow the lock latched, or a move to a point tapped on the guide
+  (`docs/ARCHITECTURE.md`). The aids add no message and change none: such a hold is an ordinary arm hold, and the
+  server cannot tell it from one a person keeps down.
 - **Ack** (acknowledgement): the server's answer to one message, naming that message's sequence number.
 - **Final ack**: the ack a start gets when the hold it started has ended, sent from the simulation loop and
   followed by a `state`. A scene reset gets one too, when the reset is done.
@@ -29,8 +32,8 @@ recordings of the real server back most of what is written here.
 - **Gripper link origin**: the point the server reports for the arm (`ee_pos`). It is not where the jaws close.
 - **Pinch point**: where the jaws close. A server can report it as `tool_pos`, the grasp point: the point to put on
   an object's centre before the jaws close. Without it the app estimates the pinch point as the gripper link origin
-  plus a fixed offset (`RobotProfile.toolOffset` in `App/Sources/Link/Guidance.swift`), which holds while the wrist
-  keeps the pose the offset was measured in.
+  plus a fixed offset (`RobotProfile.toolOffset` in `App/Sources/Link/Guidance.swift`), which holds while the gripper
+  keeps the direction it had where the offset was measured: the gripper tilts as the arm moves, and as the wrist turns.
 - **Wrist roll** turns the jaws about the forearm; **wrist pitch** (the server says *flex*) tips them toward or
   away from the table. **Jaws** are the two fingers of the gripper.
 - **Clamp**: the server cuts a target short at a limit, for example the edge of the box the arm must stay in. The
@@ -90,8 +93,11 @@ The first message on a connection must be `hello`, with exactly these two fields
 (`s00_hello`.)
 
 `name` is how the server's log names the connection. The app names its control connection
-`teleop-ios/<version> (<build>)`, from the bundle's version and build numbers (`LiveLinkController.clientName`), and
-its listening connection the same followed by ` observer`. Any other field in the payload, or any other message
+`teleop-ios/<version> (<build>) install=<code>`, from the bundle's version and build numbers and eight random hex
+digits made on the first connection and kept until the app is deleted (`LiveLinkController.clientName`), and its
+listening connection the same followed by ` observer`. The code tells one install's sessions from another's in the
+log (a phone restored from another phone's backup keeps that phone's code); nothing in it comes from the phone or the
+person. Any other field in the payload, or any other message
 before `hello`, is answered with an `error` message.
 
 The server answers with `welcome`, then a first `state` (described below):
@@ -154,13 +160,17 @@ also what keeps the link counted as alive during a hold, when the server sends n
 ```
 
 (`s02_pose_hold`.) The app sends the same `pose_start` with `deadband_deg` 0, `gain` from Settings → Arm speed
-(0.5 to 2) and `smoothing` from Settings → Smoothing (Off 0, Low 0.3, High 0.6). A button hold sends gain 1 and
-smoothing 0.
+(0.5 to 2) and `smoothing` from Settings → Smoothing (Off 0, Low 0.3, High 0.6). A button hold, and a move to a
+point tapped on the guide, send gain 1 and smoothing 0.
 
 `p_rel_m` is the displacement asked for since the hold began, in metres, rounded to 0.1 mm: the hand's movement
 during a vol+ hold, or, in buttons mode, a target that moves from the press in the button's direction at 1 cm/s
-(Fine) or 4 cm/s (Coarse) for as long as the button is held (`ButtonRamp`). It is an absolute target within the
-hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The server turns
+(Fine) or 4 cm/s (Coarse) for as long as the button is held (`ButtonRamp`), or, for a move to a tapped point, the
+path the app plans (`GoMove`) to that point from where the arm was measured, in a reading the input rules accept
+(rule 3 of "A hold from start to final ack"). When that reading carried `tool_pos`, the path is sent less a drift that
+follows how `tool_pos − ee_pos` has changed since, and kept so that the gripper link asked for stays inside the box
+the move was given less that reading's offset (`docs/ARCHITECTURE.md`, "Tap-to-go"). It is an absolute target within
+the hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The server turns
 `[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x, forward as −y
 and up as −z (`OperatorFrame.linkOffset`).
 
@@ -173,8 +183,31 @@ rotation, and `gripper_delta` is always 0 (the jaws do not move during an arm ho
 
 Each server hold is limited to 8 cm from where the arm was when it started, because the server E-stops when its
 target gets more than 10 cm ahead of the arm (`pose_tracking_safety_stop`). When more is asked for, the app ends
-the server hold and starts a new one from where the arm really got to, every 1.5 s, while the operator keeps
-holding (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
+the server hold and starts a new one from where the arm really got to, every 1.5 s, for as long as the hold goes
+on (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
+
+### Explicit pinch-point height holds
+
+A calibrated server may advertise `tool_motion_modes: ["coordinated_height"]` in `welcome`, alongside its
+`tool_calibration_id`. This is a capability, not the default controller. A height hold explicitly adds
+`control_point: "tool"`, the matching `calibration_id`, and `tool_motion: "coordinated_height"` to the translation
+`pose_start`. The server refuses unsupported modes or incompatible control points before queuing movement.
+Omitting `tool_motion` preserves ordinary translation. Updates cannot change the mode selected by the start.
+
+Existing up/down buttons select this mode only when the server advertises it. An already selected phone height
+axis uses the same path. General XYZ movement, tap movement and experimental voice steps do not opt in.
+Older servers retain their existing controls without being treated as supporting coordinated height.
+
+The server coordinates wrist flex with the arm to keep the actual pinch point on its original vertical line and
+preserve gripper world orientation. The App sends zero X/Y displacement and at most 5 mm of height lead from the
+fresh measured pinch point toward the operator's request. It retains one hold and its original reference; the
+ordinary tool-path resynchronization does not reset a coordinated height hold's reference.
+Release and all existing freshness, stop, workspace and joint limits remain effective.
+
+During an active coordinated hold, state includes `tool_control_mode: "coordinated_height"`,
+`tool_world_quat` and `tool_joint_pos_rad`. These fields are cleared when the hold ends or ordinary movement
+starts, so a previous hold cannot label a subsequent XYZ movement. Motion records pair tool intent and applied
+targets with `tool_base`; generic link-origin measurements must not be compared against pinch-point targets.
 
 ### `gripper_jog_start`, `jog_keepalive`, `gripper_jog_stop`: the jaws
 
@@ -295,7 +328,17 @@ Three rules follow from this:
    Recording `s03_busy_handoff` shows it: a gripper start sent right behind a `pose_stop` was refused 18 ms later.
    So `TeleopLink` keeps the next start back until the final ack of the hold just stopped, or for at most 800 ms
    (`finishWaitMs`), and then sends it; if it is still too early, the server's `busy` reaches the operator as a
-   refusal. A stop for a start that was kept back sends nothing, because nothing was started.
+   refusal. A stop for a start that was kept back sends nothing, because nothing was started. With tap-to-go on, a
+   tap waits too, for the `state` after that final ack: a move's path starts from the newest arm position, and the
+   server starts it from where the arm stands when it takes the start, so a position from before the stop's answer
+   would shift the whole path. Until an arm position arrives that the server sent after it finished the last hold the
+   phone ended (any hold, the jaws' and the wrist's included, and a resync's), a tap is refused "Wait." and dropped;
+   nothing keeps it for later. The first `state` with `ee_pos` the app takes on the control connection after that
+   final ack ends the wait, since nothing the server sent before it can arrive after it there (a state that left the
+   server earlier than one already taken is dropped, "The second, listening connection"); after an `estop`, the
+   first one there that the server wrote after reading it. With no such state, the first arm position that arrives
+   on either connection once `finishWaitMs` has passed since the stop ends it, so an answer that never comes keeps
+   taps waiting only until a position arrives after that.
 
 ### The watchdog
 
@@ -409,10 +452,12 @@ So after the control connection's `welcome`, the app opens a second connection t
 so the server sends it a `state` every 200 ms, holds included. It owns no hold, so its closing can never stop the
 robot. Its states feed the guide, the operating screen's state, the feedback and the narration, like the control
 connection's; a state that left the server earlier than one already handled is dropped
-(`LiveLinkController.stateArrived`). Only a `state` on the control connection latches the emergency stop or ends a
-resync (`LiveLinkController.handle`). This is what lets the phone tell the operator,
-during the hold, that the arm is blocked, that the jaws closed on something, or that the arm reached the edge of
-its box.
+(`LiveLinkController.stateArrived`). This is what lets the phone tell the operator, during the hold, that the arm is
+blocked, that the jaws closed on something, or that the arm reached the edge of its box. Only a `state` on the
+control connection latches the emergency stop or ends a resync (`LiveLinkController.handle`), and until
+`finishWaitMs` has passed since the last stop, only such a state ends a tap's wait for the server's answer to that
+stop (rule 3 of "A hold from start to final ack"): a listening connection's state may have been measured before the
+stop.
 
 If it drops, the app opens it again 2 s later without telling the operator. The link counts as lost when the
 control connection has heard nothing for 3 s or, while the listening connection is up, when neither has heard
@@ -439,8 +484,8 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 
 | Field | Meaning | What the app does with it |
 |---|---|---|
-| `ee_pos` | the gripper link origin, base frame, metres | the arm in the guide (plus the tool offset when the state has no `tool_pos`); "blocked" when it stops following during a hold; where a resync continues from |
-| `tool_pos` | the grasp point: the point to put on an object's centre before the jaws close; three finite numbers, base frame, metres; `null` or missing when the server does not report it. A held object does not stay at this point: the jaws squeeze it a little way up into them | the guide's jaw marker, its "On target" and the on-target cue use it as it is, never as approximate; the commanded ring and the workspace box are moved by `tool_pos − ee_pos` of the same state, which is exact only while the wrist keeps its pose. Missing, `null`, not three numbers, not finite, or beyond the range of a 32-bit float: the app estimates the point for that state as `ee_pos` plus the profile's tool offset |
+| `ee_pos` | the gripper link origin, base frame, metres | the arm in the guide (plus the tool offset when the state has no `tool_pos`); "blocked" when it stops following during a hold; where a resync continues from; where the point the app commands in an arm hold starts: with the hands-free aids on, the newest `ee_pos` from either connection when the hold's start goes out, with them off the control connection's at the press; which state a move to a tapped point is planned from (the newest with `ee_pos`, from either connection); with `tool_pos` of the same state, the offset such a move follows (the `tool_pos` row); on the control connection after a final ack, the end of a tap's wait (rule 3 of "A hold from start to final ack") |
+| `tool_pos` | the grasp point: the point to put on an object's centre before the jaws close; three finite numbers, base frame, metres; `null` or missing when the server does not report it. A held object does not stay at this point: the jaws squeeze it a little way up into them | the guide's jaw marker, its "On target" and the on-target cue use it as it is, never as approximate; the commanded ring and the workspace box are moved by `tool_pos − ee_pos` of the same state, which is exact only while the gripper keeps its direction. It is the point a move to a tapped point starts from; when the state the move starts from carries it, the move follows `tool_pos − ee_pos` of each new state (`docs/ARCHITECTURE.md`, "Tap-to-go"), and a new state during that move without a usable `tool_pos` ends the move "Stopped here. Short of the target." Missing, `null`, not three numbers, not finite, or beyond the range of a 32-bit float: the app estimates the point for that state as `ee_pos` plus the profile's tool offset |
 | `gripper` | the label of the last gripper command, not a measurement: `closed` after start or reset, `open` or `close` after a command | the phone's gripper state; the app reads `closed` and `close` the same |
 | `step` | `coarse` or `fine`, the step size of jog and move commands | not used |
 | `ik` | what the server is doing: `ok`, `stopped`, `pose_tracking`, `pose_clamped`, `orienting`, `orient_clamped`, `gripper_jogging`, `gripper_contact`, `resetting`, `task_success`, and labels of commands the app does not send | a clamp label is "as far as it goes"; `gripper_contact` is "the jaws closed on something"; during `resetting` and `task_success` the screen says Wait and every start is refused |
@@ -472,7 +517,8 @@ In practice it says "Practice: nothing is recorded".
 
 **A server that reports `tool_pos` sends it in every `state` that carries `ee_pos`, on both connections.** A state
 without it makes the app estimate the point for that state: the jaw marker and the box jump between the two, and
-the on-target cue can be felt again when `tool_pos` returns. JSON has no NaN or Infinity: a server that writes one
+the on-target cue can be felt again when `tool_pos` returns. During a move to a tapped point that follows `tool_pos`,
+such a state ends the move "Stopped here. Short of the target." JSON has no NaN or Infinity: a server that writes one
 (Python's `json.dumps` does by default) sends a message the app cannot read at all, and every other field of that
 `state`, `estop` included, is lost with it. Send `null` instead.
 
@@ -497,7 +543,7 @@ On the server:
 On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`):
 
 - ARKit loses the phone's position during an arm or wrist hold, or the phone moves faster than 0.8 m/s between two
-  samples during an arm hold;
+  samples during an arm hold; neither ends a move to a tapped point, which does not follow the phone;
 - ARKit stops the camera;
 - the app leaves the active state (the home screen, a call, Control Center);
 - the operating screen goes away: Settings, Connect or the tutorial opens;
@@ -506,19 +552,32 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
 - the link is lost: the socket closed, no `welcome` and first `state` within 5 s, or the silence above;
 - a resync that does not finish within 1.5 s: in that time the old hold's final ack and then a `state` without
   the emergency stop must both arrive, or the hold ends;
+- with the hands-free aids on, for a follow the lock latched: the phone no longer held upright, or the lock's time
+  limit; for a move to a tapped point: the arm arriving, the arm settling short of the point, no fresh arm
+  position, the move's own time limit, and, for a move that follows `tool_pos`, a new state far off the path ahead
+  or without `tool_pos`, told as short of the target. The operator ends either with any key press or new touch
+  (`docs/ARCHITECTURE.md`, "The hands-free aids");
 - STOP.
 
 ## Limits the server enforces without saying so
 
-- **The workspace box.** The server keeps the arm's target inside a box 8 cm either way, on each axis, of the
-  gripper link origin's start position: in the base frame x from −0.059 to 0.101 m, y from −0.221 to −0.061 m and
-  z from 0.080 to 0.240 m (`ServerModelConfig.armStart`, `workspaceHalfSize`). A hold asking for more just stops
-  there; the only sign is `ik: pose_clamped` in `state`, which the control connection sees only after the hold.
+- **The workspace box.** The server keeps the arm's target inside a box 8 cm either way, on each axis, of the gripper
+  link origin's start position: in the base frame x from −0.059 to 0.101 m, y from −0.221 to −0.061 m and z from 0.080
+  to 0.240 m (`ServerModelConfig.armStart`, `workspaceHalfSize`). A hold asking for more just stops there; the only sign
+  is `ik: pose_clamped` in `state`, which the control connection sees only after the hold. With the guide's aids on, the
+  app tells the crossing itself, from the point it commands and the box in the robot profile, and plays no second cue
+  for the server's clamp of it. A clamp the profile's box did not foresee, from a server whose box differs, plays as
+  without the aids until the app has told a side; from then on the app plays no clamp END for any clamp, such a
+  clamp included, until the next arm hold starts (the new server hold of a resync does not count;
+  `docs/ARCHITECTURE.md`, "The guide's additions"). During a move to a tapped point the app plays neither its own cue
+  nor the server's clamp: the move's ending tells what happened.
 - **Directions the arm cannot go from its start pose.** Measured in Isaac Sim: from the reset pose the arm
   moves no more than about 1.9 cm toward the robot base, and it does not move straight down. The server model does
   not have this limit. The server says nothing; the arm simply stops following. The app notices from the listening
   connection's positions (the target at least 10 mm ahead and the arm moving less than 2 mm in 1 s,
-  `FeedbackMonitor`) and tells the operator the arm is blocked.
+  `FeedbackMonitor`) and tells the operator the arm is blocked. With the guide's aids on, an arm that stays at one
+  height while the operator asks for lower is told "Can't go lower." instead (`FeedbackMonitor.reportsLowest`).
+  During a move to a tapped point neither is said: the move's ending tells what happened.
 - **One hold at a time.** The arm, the wrist and the gripper cannot move together. On the phone, starting one
   ends the one running: `TeleopLink` sends its stop first, then keeps the new start back for the final ack.
 - **Speeds.** Every speed limit is per simulated second, and the lab machine runs slower than real time, so the
@@ -536,9 +595,9 @@ works, with the effect in the right column.
 | `welcome` names the server run (`session`) | a reconnect cannot be told from a new server run: the wrist's tilt limit keeps counting from the last reset seen, and "The server restarted." is never said |
 | `state` carries `rec`, with `rec_saved`, `rec_discarded` and `rec_samples` | the server counts as unknown: no REC line, no take narration, and both ways out of a stop are offered, with a warning |
 | `state` carries `wrist_flex_deg`, `wrist_roll_deg` and `gripper_deg` | no "fully open" and no "closed on nothing"; no jaw or wrist read-out in the guide; the angle shown during a turn or tilt is marked "estimated"; wrist commands go out without the lead bound, and the tilt limit counts the tilt commanded since the last reset |
-| `state` carries `ee_pos`, `object_pos` and `goal_pos` | without `ee_pos` there is no guide, no "blocked", and Moving says "No arm data"; without the object and the goal the guide shows the arm alone |
-| a connection that sends nothing gets `state` every 200 ms, holds included | the phone learns where the arm is only between holds: no "blocked", clamp or contact during a hold |
-| `state` carries `tool_pos` | the jaw marker is estimated from `ee_pos`, the profile's tool offset and the measured wrist angles. Where the profile's accuracy rule (`RobotProfile.estimateBound`) says the estimate may be off by more than half the on-target window, the marker is a hollow ring, the guide says "Jaw position is approximate", never says "On target", and the on-target cue does not play. Without `wrist_flex_deg` and `wrist_roll_deg` as well, that is everywhere |
+| `state` carries `ee_pos`, `object_pos` and `goal_pos` | without `ee_pos` there is no guide, no "blocked", no tap-to-go, and Moving says "No arm data"; without the object and the goal the guide shows the arm alone |
+| a connection that sends nothing gets `state` every 200 ms, holds included | the phone learns where the arm is only between holds: no "blocked", "Can't go lower.", clamp or contact during a hold, and a move to a tapped point ends with "No arm data." |
+| `state` carries `tool_pos` | the jaw marker is estimated from `ee_pos`, the profile's tool offset and the measured wrist angles. Where the profile's accuracy rule (`RobotProfile.estimateBound`) says the estimate may be off by more than half the grasp tolerance, the marker is a hollow ring, the guide says "Jaw position is approximate", never says "On target", and the on-target cue does not play. Without `wrist_flex_deg` and `wrist_roll_deg` as well, that is everywhere. With the guide's aids on, "Can't go lower." judges and remembers the gripper link's height, which on a table changes with the arm's posture, so it is told less reliably and the guide's lowest line is drawn less exactly. A move to a tapped point follows nothing: it is planned as if the pinch point moved with the gripper link |
 | the scene starts with the wrist rolled 90 degrees, jaws side by side | without `tool_pos`: `RobotProfile.toolOffset` is measured for that pose, so the estimated pinch point and "On target" are off until the profile has an offset for the other one |
 | a take starts at the first command of any kind | nothing changes on the phone; a take that starts only at the first gripper, jog or move command misses the approach |
 | a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | nothing changes: the app waits for the final ack before it resets |

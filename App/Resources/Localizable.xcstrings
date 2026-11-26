@@ -1,6 +1,22 @@
 {
   "extractionState": "manual",
   "strings": {
+    "refusal.use_upper_key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold + to lower"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住上鍵下降"
+          }
+        }
+      }
+    },
     "band.reset_hint": {
       "localizations": {
         "en": {
@@ -353,6 +369,22 @@
         }
       }
     },
+    "detail.aids_off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free aids off: taps do nothing"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免持輔助已關閉：點圖不會動"
+          }
+        }
+      }
+    },
     "detail.angle_progress": {
       "localizations": {
         "en": {
@@ -577,6 +609,22 @@
         }
       }
     },
+    "detail.stop_any": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any key or touch stops it"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按任一鍵或觸碰即停"
+          }
+        }
+      }
+    },
     "detail.tap_to_connect": {
       "localizations": {
         "en": {
@@ -609,6 +657,134 @@
         }
       }
     },
+    "guide.arrow_forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前"
+          }
+        }
+      }
+    },
+    "guide.arrow_up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
+          }
+        }
+      }
+    },
+    "guide.command_outside.back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far back"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太後面"
+          }
+        }
+      }
+    },
+    "guide.command_outside.down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too low"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太低"
+          }
+        }
+      }
+    },
+    "guide.command_outside.forward": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far forward"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太前面"
+          }
+        }
+      }
+    },
+    "guide.command_outside.left": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far left"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太靠左"
+          }
+        }
+      }
+    },
+    "guide.command_outside.right": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too far right"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太靠右"
+          }
+        }
+      }
+    },
+    "guide.command_outside.up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking outside the work area: too high"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要去的位置超出工作範圍：太高"
+          }
+        }
+      }
+    },
     "guide.from_above": {
       "localizations": {
         "en": {
@@ -625,6 +801,22 @@
         }
       }
     },
+    "guide.from_above_directions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From above. Up the screen is forward."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從上面看。螢幕往上是前方。"
+          }
+        }
+      }
+    },
     "guide.from_behind": {
       "localizations": {
         "en": {
@@ -637,6 +829,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "從後面看"
+          }
+        }
+      }
+    },
+    "guide.from_behind_directions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From behind. Up the screen is up."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從後面看。螢幕往上是上方。"
           }
         }
       }
@@ -701,6 +909,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "離桌面 %@ 公分"
+          }
+        }
+      }
+    },
+    "guide.height_lowest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height %@ cm · lowest"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離桌面 %@ 公分 · 最低點"
           }
         }
       }
@@ -1233,6 +1457,22 @@
         }
       }
     },
+    "refusal.no_arm_data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No arm data"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收不到手臂資料"
+          }
+        }
+      }
+    },
     "refusal.no_link": {
       "localizations": {
         "en": {
@@ -1281,6 +1521,22 @@
         }
       }
     },
+    "refusal.outside_work_area": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outside the work area"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超出工作範圍"
+          }
+        }
+      }
+    },
     "refusal.posture": {
       "localizations": {
         "en": {
@@ -1309,6 +1565,134 @@
           "stringUnit": {
             "state": "translated",
             "value": "伺服器拒絕了這個動作"
+          }
+        }
+      }
+    },
+    "refusal.contact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touching something"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碰到東西"
+          }
+        }
+      }
+    },
+    "refusal.joint_limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arm at its limit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手臂彎到底"
+          }
+        }
+      }
+    },
+    "refusal.reach": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach that way"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個方向到不了"
+          }
+        }
+      }
+    },
+    "state.sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator not responding"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器沒有回應"
+          }
+        }
+      }
+    },
+    "detail.sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The stop stays on. Restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止會保持。請重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "detail.sim_stalled_unstopped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect turns the stop on. Then restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按「重新連線」會先停止。然後請重新啟動伺服器。"
+          }
+        }
+      }
+    },
+    "detail.sim_paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator paused. Please wait."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模擬器暫停中，請稍候。"
+          }
+        }
+      }
+    },
+    "btn.reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新連線"
           }
         }
       }
@@ -1345,6 +1729,54 @@
         }
       }
     },
+    "refusal.tap_let_go": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap and let go"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下就放開"
+          }
+        }
+      }
+    },
+    "refusal.tap_still": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep still"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手指別動"
+          }
+        }
+      }
+    },
+    "refusal.tap_view_above": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the top view"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請點上面的圖"
+          }
+        }
+      }
+    },
     "refusal.wait": {
       "localizations": {
         "en": {
@@ -1377,6 +1809,22 @@
         }
       }
     },
+    "settings.aids_back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Settings"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到設定"
+          }
+        }
+      }
+    },
     "settings.arm_speed": {
       "localizations": {
         "en": {
@@ -1405,6 +1853,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "手機每移動 1 公分，手臂移動多少"
+          }
+        }
+      }
+    },
+    "settings.assist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aids"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輔助"
+          }
+        }
+      }
+    },
+    "settings.assist_off_help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off turns lock, tap-to-go and the guide's extra cues off."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉時，鎖定、點選前往和導引圖的額外提示都會關閉。"
+          }
+        }
+      }
+    },
+    "settings.assist_on": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free aids"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免持輔助"
           }
         }
       }
@@ -1553,6 +2049,86 @@
         }
       }
     },
+    "settings.lock": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定"
+          }
+        }
+      }
+    },
+    "settings.lock_help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock works in the phone modes."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定只在螢幕轉腕和按鍵轉腕模式有效。"
+          }
+        }
+      }
+    },
+    "settings.lock_hold_slide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold, then slide a thumb up"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住，再用拇指往上滑"
+          }
+        }
+      }
+    },
+    "settings.lock_off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關"
+          }
+        }
+      }
+    },
+    "settings.lock_press_press": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press, then press to stop"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按一下，再按一下就停"
+          }
+        }
+      }
+    },
     "settings.log_empty": {
       "localizations": {
         "en": {
@@ -1613,6 +2189,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "機器人急停時不能切換。請先解除急停或重置。"
+          }
+        }
+      }
+    },
+    "settings.practice_blocked_unconfirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not while the stop is on. The server has not confirmed it; it is sent again on connecting."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "急停開著時不能切換。伺服器還沒確認急停，連線後會再送一次。"
           }
         }
       }
@@ -1841,6 +2433,38 @@
         }
       }
     },
+    "settings.stopped_sim_paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. The simulator is paused: wait for it to run again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。模擬器暫停中，請等它恢復。"
+          }
+        }
+      }
+    },
+    "settings.stopped_sim_stalled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The robot is stopped. The simulator is not responding: tap Done, then Reconnect, or restart the server."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機器人已急停。模擬器沒有回應：點「完成」再按「重新連線」，或重新啟動伺服器。"
+          }
+        }
+      }
+    },
     "settings.task_aid": {
       "localizations": {
         "en": {
@@ -1969,6 +2593,22 @@
         }
       }
     },
+    "state.going": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Going"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往中"
+          }
+        }
+      }
+    },
     "state.link_lost": {
       "localizations": {
         "en": {
@@ -1981,6 +2621,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "連線中斷"
+          }
+        }
+      }
+    },
+    "state.locked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locked on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已鎖定"
           }
         }
       }
@@ -2054,13 +2710,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ready"
+            "value": "Available"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "就緒"
+            "value": "可操作"
           }
         }
       }
@@ -2225,6 +2881,22 @@
         }
       }
     },
+    "stop.cause_reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app turned the stop on when Reconnect was pressed: the simulator was not responding."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下重新連線時模擬器沒有回應，所以程式先停止了。"
+          }
+        }
+      }
+    },
     "tutorial.buttons.body": {
       "localizations": {
         "en": {
@@ -2369,6 +3041,38 @@
         }
       }
     },
+    "tutorial.cue.lock_press": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock: a press of the upper key keeps the arm following. Any key or touch stops it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定：按一下上面的音量鍵，手臂就一直跟著手機。按任一鍵或觸碰即停。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.lock_slide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock: while holding the upper key, slide a thumb up. Any key or touch stops it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定：按住上面的音量鍵時，拇指在螢幕上往上滑。按任一鍵或觸碰即停。"
+          }
+        }
+      }
+    },
     "tutorial.cue.on_target": {
       "localizations": {
         "en": {
@@ -2381,6 +3085,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "畫面上有目標時，輕點一下接著一段柔和的震動，表示夾爪對準了。先放開，再夾緊。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.on_target_arrows": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the guide shows a target, a tick and then a soft buzz mean the jaws are on it. Let go, then close. The guide's Forward and Up arrows are true for the picture, not for your hand."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畫面上有目標時，輕點一下接著一段柔和的震動，表示夾爪對準了。先放開，再夾緊。導引圖上「前」和「上」的箭頭是畫面裡的方向，不是你手的方向。"
           }
         }
       }
@@ -2413,6 +3133,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "螢幕底部的紅色橫條：急停。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.tap_both_views": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the view from above to send the jaws there. Tap the rear view near the jaws to change height. Tap either view again to change the target. Press a key or tap outside the views to stop."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。點下圖靠近夾爪上方或下方可調高度。再點圖可改目標，按任一鍵或點圖外可停止。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.tap_to_go": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the view from above to send the jaws there. Tap once, then wait until the arm stops before the next tap. Any key or touch stops it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下「從上面看」的圖，夾爪就會移到那裡。點一下就好，等手臂停了再點下一個點。按任一鍵或觸碰都會讓它停下。"
           }
         }
       }
@@ -2653,6 +3405,277 @@
           "stringUnit": {
             "state": "translated",
             "value": "螢幕的左右兩半"
+          }
+        }
+      }
+    },
+    "voice.enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice axes"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音選軸"
+          }
+        }
+      }
+    },
+    "voice.listening": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say an axis · Tap to exit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請說方向 · 點此關閉"
+          }
+        }
+      }
+    },
+    "voice.axis.height": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調高度 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.axis.fore_aft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward/back only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調前後 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.axis.left_right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left/right only · Voice on"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只調左右 · 語音開啟"
+          }
+        }
+      }
+    },
+    "voice.error.permission": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow microphone and speech"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請允許麥克風與語音辨識"
+          }
+        }
+      }
+    },
+    "voice.error.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device speech unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置語音辨識無法使用"
+          }
+        }
+      }
+    },
+    "voice.error.audio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麥克風無法使用"
+          }
+        }
+      }
+    },
+    "voice.error.interrupted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice interrupted · Tap to retry"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語音已中斷 · 點此重試"
+          }
+        }
+      }
+    },
+    "voice.error.unsupported_tool": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tool control required"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器尚未支援夾取點控制"
+          }
+        }
+      }
+    },
+    "voice.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say height only, forward back only, or left right only. Hold volume up to move; release to stop. Tap again to turn voice off."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "說「只調高度」、「只調前後」或「只調左右」。按住上音量鍵移動，放開停止。再點一下關閉語音。"
+          }
+        }
+      }
+    },
+    "detail.open_jaws_first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gripper is closed. Open it before moving in."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "夾爪是合著的。先打開再靠近。"
+          }
+        }
+      }
+    },
+    "connect.dismissed_in_use": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Someone is using this simulator. Pick another one, or try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一台有人在用。請換另一台，或稍後再試。"
+          }
+        }
+      }
+    },
+    "connect.dismissed_taken": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another phone took this simulator while yours was away. Pick another one, or try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的手機離開太久，這一台已經給別人用了。請換另一台，或稍後再試。"
+          }
+        }
+      }
+    },
+    "connect.dismissed_idle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No operation for over 10 minutes, so the connection was closed. Connect again to go on."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超過 10 分鐘沒有操作，已中斷連線。要繼續請重新連線。"
+          }
+        }
+      }
+    },
+    "tutorial.cue.wrist_page": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine controls has a Wrist page: hold a button to turn or tilt the wrist. Check the jaws' position after."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精細微調有「手腕」頁：按住按鈕轉動或傾斜手腕。動完要再對一下夾爪的位置。"
           }
         }
       }

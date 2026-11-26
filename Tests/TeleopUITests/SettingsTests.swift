@@ -8,7 +8,7 @@ final class SettingsTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication.teleop(["-startRoute", "p4_standby"])
         app.launch()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
     }
 
     private func openSettings() {
@@ -100,7 +100,7 @@ final class SettingsTests: XCTestCase {
         app.element("tutorial.next").tap()
         expectLabel(app.element("tutorial.title"), "Stop, reset, and what you feel")
         app.element("tutorial.next").tap()
-        expectLabel(app.element("operating.state"), "Ready")
+        expectLabel(app.element("operating.state"), "Available")
         XCTAssertFalse(app.element("tutorial.title").exists)
     }
 

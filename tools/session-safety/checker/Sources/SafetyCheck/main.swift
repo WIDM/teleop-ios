@@ -42,16 +42,20 @@ let actionTable: [(String, TeleopAction)] = [
     ("linkLatencyNormal", .linkLatency(ms: 80)),
     ("linkLatencyAmber", .linkLatency(ms: 200)),
     ("linkLatencyBlocked", .linkLatency(ms: 420)),
+    ("dismissedInUse", .dismissed(.inUse)),
+    ("dismissedTaken", .dismissed(.taken)),
+    ("dismissedIdle", .dismissed(.idle)),
 ]
 // What the server can cause at any moment on a live link: LiveLinkController reports these from any route.
 // A server-side E-stop arrives as stop; a rejected or untracked hold as holdArmEnd.
 // A refused gripper jog arrives as gripperEnd and a refused wrist hold as wristEnd;
 // shippedActions already adds them while the control is held. The server's answer to a scene reset arrives as
 // sceneResetDone; it is offered in every state, more often than a server can send it, so S1 also checks that the
-// session lets only the answer to a reset asked for in the stop state release it.
+// session lets only the answer to a reset asked for in the stop state release it. A server that keeps one phone per
+// simulator says why it refused or let go of this phone as dismissed, before or with the link going down.
 let linkEvents = [
     "linkUpOpen", "linkUpClosed", "linkUpUnknown", "linkLost", "linkLatencyNormal", "linkLatencyAmber",
-    "linkLatencyBlocked", "stop", "sceneResetDone",
+    "linkLatencyBlocked", "stop", "sceneResetDone", "dismissedInUse", "dismissedTaken", "dismissedIdle",
 ]
 let actionsByName = Dictionary(uniqueKeysWithValues: actionTable.map { ($0.0, $0.1) })
 // The routes the operating screen draws (RootView.operatingRoutes, which OperatingController.operatingRoutes reads).
@@ -182,6 +186,11 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
         if session.state.emergencyStop { return nil }
         session.state.liveLink.toggle()
         session.perform(.switchLink)
+    case "connect":
+        // AppModel.connect forgets the last server's dismissal before a live attempt; the session's own connect
+        // does nothing on a live link.
+        if session.state.liveLink { session.state.dismissal = nil }
+        session.perform(.connect)
     default: session.perform(actionsByName[name]!)
     }
     // OperatingController ends every hold of the keys, the touches and the pad, with its stop, when the operating
@@ -228,6 +237,7 @@ struct StateKey: Hashable {
     let wristMoving: Bool
     let serverInputError: Bool
     let connectionLost: Bool
+    let dismissal: SessionDismissal?
     let liveLink: Bool
     let route: Route
     let origin: Route?
@@ -253,6 +263,7 @@ func key(_ node: Node) -> StateKey {
         wristMoving: s.wristMoving,
         serverInputError: s.serverInputError,
         connectionLost: s.connectionLost,
+        dismissal: s.dismissal,
         liveLink: s.liveLink,
         route: node.session.route,
         origin: origin,

@@ -21,6 +21,10 @@ enum OperatingFixtures {
         all["moving"] = display(.moving(catchingUp: false), arm: task(moving: true), recorder: capturing)
         all["moving_hotel"] = display(.moving(catchingUp: true), arm: hotel(moving: true), recorder: notRecording)
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
+        // A follow nobody holds: lock chosen, the key let go of after the press.
+        all["locked"] = display(.locked(catchingUp: false), arm: task(moving: true), recorder: capturing)
+        // A move to a point tapped on the guide: the commanded ring on its way, the cross where it is headed.
+        all["going"] = display(.going(catchingUp: false), arm: going(), recorder: capturing)
         all["turning"] = display(
             .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
         var turningLeft = all["turning"]!
@@ -37,6 +41,13 @@ enum OperatingFixtures {
         all["wait_resetting"] = display(.wait(.resetting), arm: hotel(), recorder: armed)
         all["camera_stopped"] = display(.trackingLost, arm: task(), recorder: armed)
         all["refused"] = display(.refused(.posture), arm: hotel(), recorder: armed)
+        // Why a touch on the guide was not a tap, for a second.
+        all["refused_tap_still"] = display(.refused(.tapStill), arm: task(), recorder: armed)
+        all["refused_tap_let_go"] = display(.refused(.tapLetGo), arm: task(), recorder: armed)
+        all["refused_tap_view_above"] = display(.refused(.tapViewAbove), arm: task(), recorder: armed)
+        all["refused_use_upper_key"] = display(.refused(.useUpperKey), arm: task(), recorder: armed)
+        // A follow or a move nobody held that ran out of time: why it ended, for a second.
+        all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: armed)
         all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)
         all["stopped"] = display(.stopped(cause: .button), arm: task(), recorder: off, exits: recordingExits)
         all["stopped_release"] = display(.stopped(cause: .behind), arm: hotel(), recorder: notRecording)
@@ -48,7 +59,7 @@ enum OperatingFixtures {
         countdown.resetCountdown = 0.6
         all["rec_off_countdown"] = countdown
         all["outside"] = display(.ready, arm: outside(), recorder: notRecording)
-        // An estimated pinch point that may be off by more than half the on-target window: hollow, said so, and no
+        // An estimated pinch point that may be off by more than half the grasp tolerance: hollow, said so, and no
         // "On target" though it sits inside the window.
         all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: armed)
         all["approximate_hotel"] = display(
@@ -68,19 +79,33 @@ enum OperatingFixtures {
         stopped.hand = .left
         all["buttons_stopped"] = stopped
         all["buttons_practice"] = display(.ready, mode: .buttons, arm: nil, recorder: .unknown, practice: true)
+        // The guide's aids drawn: the shadow under the jaws, the lowest height a stall reached just above the table,
+        // and which way is forward and which way is up.
+        all["ready_aids"] = display(.ready, arm: stalledOnTheTableBefore(task()), recorder: armed, aids: .all)
+        // The jaws back at the lowest height a stall reached, on something above the table: the height says "lowest",
+        // and the dashed line from behind lies at the jaws, clear of the table line.
+        all["lowest_aids"] = display(.ready, arm: atTheLowestOnSomething(), recorder: armed, aids: .all)
+        // The hands-free aids' master switch off on the real server: the line under the state says a tap does nothing.
+        var aidsOff = display(.ready, arm: task(), recorder: armed)
+        aidsOff.aidsOff = true
+        all["ready_aids_off"] = aidsOff
         return all
     }()
 
+    /// The guide is built from the reading as the model builds it, so a fixture draws exactly what the app would.
+    /// `aids`: the guide's aids it draws; nil draws version 1.0.1's guide.
     private static func display(
         _ state: OperatingState, mode: ControlMode = .screenTurns, link: Bool = true, arm: ArmReading?,
-        recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60
+        recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60,
+        aids: GuideAids? = nil
     ) -> OperatingDisplay {
         OperatingDisplay(
             mode: mode, hand: .right, state: state, layout: nil, engaged: nil, resetCountdown: nil, heldButton: nil,
             speed: .coarse, recorder: recorder,
             stopExits: practice ? StopExits.offered(recorder: nil, practice: true) : exits,
             linkUp: link || practice, latencyMs: link ? latency : nil, address: "192.168.0.10:8765", arm: arm,
-            practice: practice, taskAid: true
+            practice: practice, taskAid: true,
+            guide: arm.map { GuidePicture(reading: $0, profile: profile, aids: aids) }
         )
     }
 
@@ -119,6 +144,14 @@ enum OperatingFixtures {
         )
     }
 
+    /// On the way to a point tapped on the guide, at the travel height the profile gives above the table.
+    private static func going() -> ArmReading {
+        var reading = task(moving: true)
+        let travel = profile.assist.goTo.map { Float($0.travelHeightM) } ?? 0
+        reading.goTarget = SIMD3(centre.x + 0.04, centre.y - 0.03, onTable + travel)
+        return reading
+    }
+
     private static func onTarget() -> ArmReading {
         ArmReading(
             pinchPoint: target + SIMD3(0.002, -0.001, 0.003), commanded: nil, jawOpening: 0.7, wristTurnDeg: 90,
@@ -137,6 +170,29 @@ enum OperatingFixtures {
     private static func approximate(_ reading: ArmReading) -> ArmReading {
         var reading = reading
         reading.pinchSource = .estimated(approximate: true)
+        return reading
+    }
+
+    /// The reading after a downward stall with the jaws just above the table: the lowest height, kept for the gripper
+    /// link, is the profile's tool offset above that pinch height.
+    private static func stalledOnTheTableBefore(_ reading: ArmReading) -> ArmReading {
+        var reading = reading
+        reading.lowestGripperZ = onTable + 0.005 - profile.toolOffset.z
+        return reading
+    }
+
+    /// The jaws resting on something 3 cm above the table, where a downward stall left both lowest heights. The server
+    /// reports the pinch point, so the line and "lowest" follow it; the gripper link's lowest height is 6 mm off what
+    /// the profile's tool offset gives, as a change of the arm's posture leaves it.
+    private static func atTheLowestOnSomething() -> ArmReading {
+        let pinch = SIMD3(centre.x - 0.02, centre.y + 0.01, onTable + 0.03)
+        var reading = ArmReading(
+            pinchPoint: pinch, commanded: nil, jawOpening: 0.4, wristTurnDeg: 90, wristTiltDeg: 0, target: nil,
+            goal: nil, gripping: false
+        )
+        reading.pinchSource = .reported
+        reading.lowestPinchZ = pinch.z
+        reading.lowestGripperZ = pinch.z - profile.toolOffset.z - 0.006
         return reading
     }
 

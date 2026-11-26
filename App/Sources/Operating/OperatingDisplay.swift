@@ -11,6 +11,10 @@ enum OperatingState: Equatable, Sendable {
     case connecting(address: String)
     case ready
     case moving(catchingUp: Bool)
+    /// The arm follows the phone with no key held, until any key or touch stops it.
+    case locked(catchingUp: Bool)
+    /// The jaws go to a point tapped on the guide, with no key held, until they arrive or any key or touch stops them.
+    case going(catchingUp: Bool)
     case turning(degrees: Double, limit: Double, estimated: Bool)
     case tilting(degrees: Double, limit: Double, estimated: Bool)
     case opening
@@ -18,10 +22,52 @@ enum OperatingState: Equatable, Sendable {
     case wait(WaitReason)
     case trackingLost  // the camera stopped: the keys and the phone's movement do nothing
     case refused(Refusal)  // shown for 1 s
+    /// The server refused a start, or ended a move nobody held (`moveEnded`), for a reason of this class. Shown as a
+    /// refusal is, for 1 s, in words that say what to do.
+    case serverRefused(ServerRefusalClass, moveEnded: Bool)
+    /// A follow or a move nobody held ended for this reason, which the operator did not give. Shown as a refusal is,
+    /// for 1 s, in the words spoken.
+    case ended(DriveEnd)
     case slowLink(ms: Int)
     case stopped(cause: EmergencyCause?)
+    /// The simulator behind the server stopped responding: shown in a refusal's place for as long as it lasts, with
+    /// the way back to Connect, in place of the release. `stopped`: the stop is latched under it and stays so;
+    /// otherwise Reconnect latches it before the connection goes.
+    case simulatorStalled(stopped: Bool)
+    /// The simulator paused, perhaps only for seconds: a quiet line in a refusal's place, no button. `stopped`: the
+    /// stop is latched under it, and the state still says so.
+    case simulatorPaused(stopped: Bool)
     case linkLost
     case saved(count: Int)  // shown for 2 s after a take is saved
+
+    /// A screen state without changing measurements or a server address.
+    var recordSummary: String {
+        switch self {
+        case .notConnected: return "not connected"
+        case .connecting: return "connecting"
+        case .ready: return "ready"
+        case .moving(let catchingUp): return catchingUp ? "moving, catching up" : "moving"
+        case .locked(let catchingUp): return catchingUp ? "locked, catching up" : "locked"
+        case .going(let catchingUp): return catchingUp ? "going, catching up" : "going"
+        case .turning: return "turning"
+        case .tilting: return "tilting"
+        case .opening: return "opening"
+        case .closing(let gripped): return gripped ? "closing, gripped" : "closing"
+        case .wait(let reason): return "wait \(reason)"
+        case .trackingLost: return "tracking lost"
+        case .refused(let reason): return "refused \(reason)"
+        case .serverRefused(let refusalClass, let moveEnded):
+            return moveEnded ? "ended by server \(refusalClass)" : "server refused \(refusalClass)"
+        case .ended(let reason): return "ended \(reason)"
+        case .slowLink: return "slow link"
+        case .stopped: return "stopped"
+        case .simulatorStalled(let stopped):
+            return stopped ? "simulator not responding" : "simulator not responding, not stopped"
+        case .simulatorPaused(let stopped): return stopped ? "stopped, simulator paused" : "simulator paused"
+        case .linkLost: return "link lost"
+        case .saved: return "saved"
+        }
+    }
 }
 
 /// What the arm and the task look like, for the guide. Robot base frame, metres.
@@ -38,9 +84,22 @@ struct ArmReading: Equatable, Sendable {
     /// How far the workspace box is drawn from the profile's: the reading's gripper-to-pinch offset minus the
     /// profile's `toolOffset`. Zero unless the server reports a tool point.
     var boxShift: SIMD3<Float> = .zero
+    /// While a move to a point tapped on the guide runs: where it is headed, pinch point. Nil otherwise.
+    var goTarget: SIMD3<Float>? = nil
+    /// The guide's aids: the side the commanded point is outside the work area on, the lowest gripper-link height a
+    /// downward stall reached, and the lowest pinch-point height one reached when the server reports the pinch point.
+    /// Nil with the aids off.
+    var commandOutside: OperatorDirection? = nil
+    var lowestGripperZ: Float? = nil
+    var lowestPinchZ: Float? = nil
 }
 
 /// Everything the operating screen draws. The screens read this and nothing else about the link.
+/// The fine panel's two pages: the move buttons, or the wrist buttons in the cross's place.
+enum PanelPage: String, Equatable, Sendable {
+    case move, wrist
+}
+
 struct OperatingDisplay: Equatable, Sendable {
     var mode: ControlMode
     var hand: Hand
@@ -58,4 +117,19 @@ struct OperatingDisplay: Equatable, Sendable {
     var arm: ArmReading?  // nil until the server has reported the arm
     var practice: Bool
     var taskAid: Bool
+    /// The guide as numbers, built once per refresh from `arm`: the screen draws this picture and the on-target cue
+    /// judges by it, so the two cannot disagree. Nil while there is no arm reading.
+    var guide: GuidePicture? = nil
+    /// The robot offers hands-free aids and their master switch is off, on the real server: a tap on the guide does
+    /// nothing, and the screen says so.
+    var aidsOff = false
+    var precisionPanelOpen = false
+    /// A translation just started with the jaws still closed as the episode began: a line under the moving state says
+    /// to open them before moving in (`JawsClosedReminder`).
+    var openJawsFirst = false
+    /// Why the server refused this phone or let it go, said on the stopped and link-lost states.
+    var dismissal: SessionDismissal? = nil
+    var panelPage: PanelPage = .move
+    /// The wrist button whose hold runs now, drawn as held.
+    var heldWrist: WristButton? = nil
 }

@@ -6,7 +6,7 @@ protocol SoundPlaying: AnyObject {
 }
 
 /// The app's audio session: playback, so the ring switch on silent does not mute the cues, mixed with other audio.
-/// The app never records.
+/// Voice selection temporarily adds microphone input after explicit permission.
 /// Activating it can block, so it happens off the main queue, once, when the players are made at launch.
 enum CueAudioSession {
     private static var configured = false
@@ -19,6 +19,20 @@ enum CueAudioSession {
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try? session.setActive(true)
+        }
+    }
+
+    static func prepareRecording(_ completion: @escaping (Bool) -> Void) {
+        configured = true
+        queue.async {
+            let session = AVAudioSession.sharedInstance()
+            let ready: Bool
+            do {
+                try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
+                try session.setActive(true)
+                ready = true
+            } catch { ready = false }
+            DispatchQueue.main.async { completion(ready) }
         }
     }
 

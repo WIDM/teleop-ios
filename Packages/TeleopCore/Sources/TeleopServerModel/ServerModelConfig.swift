@@ -30,6 +30,12 @@ public struct ServerModelConfig: Equatable, Sendable {
     public var session = "00000000-0000-4000-8000-000000000000"
     /// `ts` of the first instant, in milliseconds. Every message carries `ts` = this + the model's time.
     public var clockOriginMs = 0
+    /// The simulation loop counts as stalled once its last pass is this old while the server is ready. A pass takes
+    /// about 17 ms; a rendered one well under 0.1 s.
+    public var loopStallSeconds: Double = 1.0
+    /// `state` carries `sim_stalled` and `loop_age_ms`, as a server with the loop heartbeat does. Off by default: the
+    /// recordings the model is checked against come from a server without them.
+    public var reportsLoopHealth = false
 
     // MARK: Scene
 
@@ -55,8 +61,14 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     /// From the reported point to where the jaws pinch, base frame (the app's `RobotProfile.so101Simulator`).
     public var toolOffset = SIMD3<Double>(0.007, -0.036, -0.088)
+    /// Model choice: nil keeps the pinch point at the reported point plus `toolOffset` wherever the arm is, as the
+    /// app's profile assumes. Set, the pinch point turns with the arm's posture as the gripper does on the simulator
+    /// (`ToolTurn`), and `toolOffset` is not used: the tool point in `state`, the grasp and where the jaw tips stop on
+    /// the table all follow the turning point.
+    public var toolTurn: ToolTurn?
     /// `state` carries `tool_pos`, the pinch point, wherever it carries `ee_pos`. False leaves it out, as from a server
-    /// that reports no tool point.
+    /// that reports no tool point. The model starts from this and can be told to stop during a run
+    /// (`ServerModel.reportsToolPoint`).
     public var reportsToolPoint = true
     /// How close the pinch point must be to the cube's centre, across the table and in height, for closing
     /// the jaws to take hold of it (the app's `RobotProfile.graspTolerance`).
@@ -175,6 +187,73 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     public var coarseCentimetres = 2.0
     public var fineCentimetres = 0.5
+
+    /// A pinch point fixed to a gripper that tilts with the arm's posture: it hangs `length` from the reported point,
+    /// tilted away from the pan axis by an angle from straight down that changes with how far out from that axis and
+    /// how high the reported point is, and sits `aside` to the left of the plane through the axis and the reported
+    /// point, seen from the axis. With the wrist at its start pose, the simulator's gripper does this.
+    public struct ToolTurn: Equatable, Sendable {
+        /// The pan axis: where it meets the base's horizontal plane, base frame x and y.
+        public var panAxis: SIMD2<Double>
+        public var length: Double
+        public var aside: Double
+        /// The tilt from straight down, degrees, with the reported point `radiusAtStart` out from the pan axis and at
+        /// `heightAtStart`.
+        public var tiltAtStart: Double
+        public var radiusAtStart: Double
+        public var heightAtStart: Double
+        /// How the tilt changes, radians per metre the reported point goes out from the pan axis, and up.
+        public var tiltPerRadius: Double
+        public var tiltPerHeight: Double
+
+        public init(
+            panAxis: SIMD2<Double>, length: Double, aside: Double, tiltAtStart: Double, radiusAtStart: Double,
+            heightAtStart: Double, tiltPerRadius: Double, tiltPerHeight: Double
+        ) {
+            self.panAxis = panAxis
+            self.length = length
+            self.aside = aside
+            self.tiltAtStart = tiltAtStart
+            self.radiusAtStart = radiusAtStart
+            self.heightAtStart = heightAtStart
+            self.tiltPerRadius = tiltPerRadius
+            self.tiltPerHeight = tiltPerHeight
+        }
+
+        /// The simulator's gripper near its reset pose, from its recorded states: at `armStart` the pinch point is the
+        /// tool point it reports there, (33.2, −202.4, 87.8) mm, and for a small move of the reported point the pinch
+        /// point goes about 1.5 times as far sideways, 1.6 times as far in height and a quarter as far outward. It
+        /// holds to within a fraction of a millimetre a few centimetres out; farther away it is a model of how such an
+        /// arm turns, not a measurement of this one.
+        public static let s4Simulator = ToolTurn(
+            panAxis: SIMD2(0.0207, -0.0231), length: 0.0945, aside: 0.01265, tiltAtStart: 40.15,
+            radiusAtStart: 0.1183, heightAtStart: 0.16, tiltPerRadius: -10.27, tiltPerHeight: 10.02)
+
+        /// Where the jaws pinch with the reported point at `arm`, base frame.
+        public func pinch(_ arm: SIMD3<Double>) -> SIMD3<Double> {
+            let out = SIMD2(arm.x, arm.y) - panAxis
+            let radius = (out * out).sum().squareRoot()
+            let away = out / radius
+            let left = SIMD2(-away.y, away.x)
+            let tilt =
+                tiltAtStart * Double.pi / 180 + tiltPerRadius * (radius - radiusAtStart)
+                + tiltPerHeight * (arm.z - heightAtStart)
+            let across = away * (length * sin(tilt)) + left * aside
+            return arm + SIMD3(across.x, across.y, -length * cos(tilt))
+        }
+
+        /// The height of the reported point over `place` (base frame x and y) at which the pinch point is at
+        /// `pinchHeight`. The pinch point rises with the reported point at any place while `length` times
+        /// `tiltPerHeight` is under one, so there is one such height.
+        public func armHeight(over place: SIMD2<Double>, pinchAt pinchHeight: Double) -> Double {
+            var low = pinchHeight - length, high = pinchHeight + length
+            for _ in 0..<64 {
+                let middle = (low + high) / 2
+                if pinch(SIMD3(place.x, place.y, middle)).z < pinchHeight { low = middle } else { high = middle }
+            }
+            return (low + high) / 2
+        }
+    }
 
     public init() {}
 

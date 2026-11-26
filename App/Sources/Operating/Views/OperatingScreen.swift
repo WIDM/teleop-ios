@@ -29,7 +29,10 @@ struct OperatingScreen: View {
         .volumeKeys(model: model, enabled: model.operating.mode != .buttons)
         // The screen stays awake while it shows: it is held, not looked at.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            model.setPrecisionPanelOpen(false)
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 
     private func report(_ surface: SurfaceSize) {
@@ -80,7 +83,7 @@ private struct OperatingSurface: View {
         ZStack(alignment: .topLeading) {
             ZoneFills(layout: layout, colour: look.colour, practice: display.practice)
             TouchLayer { sample, time in model.touch(sample, at: time) }
-            OperatingDrawing(display: display, layout: layout, look: look, scale: scale, profile: model.profile)
+            OperatingDrawing(display: display, layout: layout, look: look, scale: scale)
                 .allowsHitTesting(false)
         }
         .overlayPreferenceValue(StateWordsBounds.self) { words in
@@ -90,7 +93,38 @@ private struct OperatingSurface: View {
                 )
             }
         }
+        // Tells the model where the guide's view from above is drawn, in this view's coordinates, which are the
+        // screen's and those of the touches. It draws nothing, takes no touch and changes no layout.
+        .overlayPreferenceValue(GuidePanelBounds.self) { panel in
+            GeometryReader { proxy in
+                let frame = panel.map { proxy[$0] }
+                Color.clear
+                    .onAppear { model.guidePanelChanged(Self.rect(frame)) }
+                    .onChange(of: frame) { _, new in model.guidePanelChanged(Self.rect(new)) }
+                    .onDisappear { model.guidePanelChanged(nil) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .overlayPreferenceValue(GuideBehindBounds.self) { panel in
+            GeometryReader { proxy in
+                let frame = panel.map { proxy[$0] }
+                Color.clear
+                    .onAppear { model.guideBehindChanged(Self.rect(frame)) }
+                    .onChange(of: frame) { _, new in model.guideBehindChanged(Self.rect(new)) }
+                    .onDisappear { model.guideBehindChanged(nil) }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .frame(width: layout.width, height: layout.height, alignment: .topLeading)
+    }
+
+    static func rect(_ frame: CGRect?) -> SurfaceLayout.Rect? {
+        frame.map {
+            SurfaceLayout.Rect(
+                x: Double($0.minX), y: Double($0.minY), width: Double($0.width), height: Double($0.height))
+        }
     }
 }
 
@@ -192,7 +226,6 @@ private struct OperatingDrawing: View {
     let layout: SurfaceLayout
     let look: OperatingWords.Look
     let scale: Double
-    let profile: RobotProfile
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -201,7 +234,7 @@ private struct OperatingDrawing: View {
                 ButtonsStrip(display: display, look: look, scale: scale)
                     .place(Self.strip(display, layout: layout, scale: scale))
             } else {
-                PhoneSurface(display: display, layout: layout, look: look, scale: scale, profile: profile)
+                PhoneSurface(display: display, layout: layout, look: look, scale: scale)
                     .place(layout.controlSurface)
             }
             BottomBandLabel(scale: scale).place(layout.bottomBand)
@@ -213,10 +246,14 @@ private struct OperatingDrawing: View {
     static func strip(_ display: OperatingDisplay, layout: SurfaceLayout, scale: Double) -> SurfaceLayout.Rect {
         var height = 96 * scale
         if display.practice { height += 24 * scale }
+        if case .simulatorPaused(stopped: true) = display.state { height += 34 * scale }
         if case .stopped = display.state {
             height += 34 * scale
             if display.stopExits.recordingMayStayOff, OperatingWords.offersRelease(display) { height += 44 * scale }
             if OperatingWords.offersRelease(display) { height += ReleaseButton.height(scale) + 12 * scale }
+        }
+        if OperatingWords.offersReconnect(display) {
+            height += 34 * scale + ReconnectButton.height(scale) + 12 * scale
         }
         let cs = layout.controlSurface
         return SurfaceLayout.Rect(x: cs.x, y: cs.y, width: cs.width, height: min(height, cs.height))
@@ -354,6 +391,11 @@ private struct StateWords: View {
                     .font(.system(size: detailSize, weight: .medium))
                     .accessibilityIdentifier("operating.detail")
             }
+            if let note = look.note {
+                Text(verbatim: note)
+                    .font(.system(size: detailSize, weight: .medium))
+                    .accessibilityIdentifier("operating.note")
+            }
         }
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
@@ -368,7 +410,6 @@ private struct PhoneSurface: View {
     let layout: SurfaceLayout
     let look: OperatingWords.Look
     let scale: Double
-    let profile: RobotProfile
 
     /// Smaller than §7.2's 56 pt, so the guide has room under it.
     static func wordSize(_ scale: Double) -> Double { max(30, 44 * scale) }
@@ -379,22 +420,96 @@ private struct PhoneSurface: View {
     }
 
     var body: some View {
-        let stopped = { if case .stopped = display.state { return true } else { return false } }()
-        ZStack(alignment: .top) {
+        if display.taskAid, let picture = display.guide, picture.fixedLayout, usesFixedLayout {
+            fixed(picture)
+        } else {
+            flowing
+        }
+    }
+
+    private var precisionFooterHeight: Double {
+        display.linkUp && !OperatingWords.offersRelease(display) && !OperatingWords.offersReconnect(display) ? 48 : 0
+    }
+
+    private var usesFixedLayout: Bool {
+        switch display.state {
+        case .notConnected, .connecting, .linkLost, .stopped, .simulatorStalled, .simulatorPaused(stopped: true):
+            return false
+        default: return true
+        }
+    }
+
+    private func fixed(_ picture: GuidePicture) -> some View {
+        let slots = GuideLayout(
+            surface: layout, aboveAspect: picture.aboveAspect, behindAspect: picture.behindAspect,
+            practice: display.practice, footerHeight: precisionFooterHeight)
+        let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
+        let detail = (look.details + (look.note.map { [$0] } ?? [])).joined(separator: " · ")
+        return ZStack(alignment: .topLeading) {
+            if display.mode == .keyTurns {
+                SchemeBHints(
+                    display: display, layout: layout, scale: scale, ink: Self.hintInk(look), wordsHidden: hintsHidden)
+            }
+            if let practice = slots.practice {
+                PracticeMark(size: max(12, 16 * scale)).place(practice)
+            }
+            Text(verbatim: look.word)
+                .font(.system(size: Self.wordSize(scale), weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityIdentifier("operating.state")
+                .place(slots.word)
+            Text(verbatim: detail)
+                .font(.system(size: max(15, 20 * scale), weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .accessibilityIdentifier("operating.detail")
+                .place(slots.detail)
+            GuideView(picture: picture, scale: scale, layout: slots)
+                .frame(width: layout.controlSurface.width, height: layout.controlSurface.height, alignment: .topLeading)
+            if display.mode == .screenTurns {
+                Text("hint.scheme_a")
+                    .font(.system(size: max(12, 14 * scale), weight: .medium))
+                    .foregroundStyle(Self.hintInk(look))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityIdentifier("operating.hint")
+                    .modifier(HiddenKeepingRoom(hidden: hintsHidden))
+                    .place(slots.hint)
+            }
+        }
+        .foregroundStyle(look.darkText ? TeleopColors.textPrimary : .white)
+    }
+
+    private var flowing: some View {
+        // A simulator that is not responding is drawn as a stop is: no scheme hints, room for its button.
+        let stopped = {
+            switch display.state {
+            case .stopped, .simulatorStalled, .simulatorPaused(stopped: true): return true
+            default: return false
+            }
+        }()
+        // While a follow or a move nobody holds runs, the hints' touches would stop it: they are hidden, keeping their
+        // room so the guide does not move.
+        let hintsHidden = OperatingRules.hidesSchemeHints(display.state)
+        return ZStack(alignment: .top) {
             if display.mode == .keyTurns, !stopped {
-                SchemeBHints(display: display, layout: layout, scale: scale, ink: Self.hintInk(look))
+                SchemeBHints(
+                    display: display, layout: layout, scale: scale, ink: Self.hintInk(look), wordsHidden: hintsHidden)
             }
             VStack(spacing: 8 * scale) {
                 StateWords(
                     look: look, practice: display.practice, wordSize: Self.wordSize(scale),
                     detailSize: max(15, 20 * scale))
-                if display.taskAid, let arm = display.arm {
-                    GuideView(picture: GuidePicture(reading: arm, profile: profile), scale: scale)
+                if display.taskAid, let picture = display.guide {
+                    GuideView(picture: picture, scale: scale)
                 } else {
                     Spacer(minLength: 0)
                 }
                 if OperatingWords.offersRelease(display) {
                     Color.clear.frame(height: ReleaseButton.height(scale))
+                } else if OperatingWords.offersReconnect(display) {
+                    Color.clear.frame(height: ReconnectButton.height(scale))
                 } else if display.mode == .screenTurns, !stopped {
                     Text("hint.scheme_a")
                         .font(.system(size: max(12, 14 * scale), weight: .medium))
@@ -402,12 +517,14 @@ private struct PhoneSurface: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("operating.hint")
+                        .modifier(HiddenKeepingRoom(hidden: hintsHidden))
                 } else if display.mode == .keyTurns, !stopped {
                     Color.clear.frame(height: max(14, 18 * scale))
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10 * scale)
+            .padding(.bottom, precisionFooterHeight)
         }
     }
 }
@@ -419,6 +536,8 @@ private struct SchemeBHints: View {
     let layout: SurfaceLayout
     let scale: Double
     let ink: Color
+    /// The words are hidden, keeping their room, while their touches would stop a follow or a move nobody holds.
+    var wordsHidden = false
 
     var body: some View {
         let cs = layout.controlSurface
@@ -447,6 +566,21 @@ private struct SchemeBHints: View {
             .font(.system(size: max(13, 16 * scale), weight: .semibold))
             .foregroundStyle(ink)
             .accessibilityIdentifier(id)
+            .modifier(HiddenKeepingRoom(hidden: wordsHidden))
+    }
+}
+
+/// A view that is not shown for now: out of sight and out of accessibility, still taking its room, so nothing around
+/// it moves.
+private struct HiddenKeepingRoom: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        if hidden {
+            content.hidden().accessibilityHidden(true)
+        } else {
+            content
+        }
     }
 }
 
@@ -463,6 +597,8 @@ private struct ButtonsStrip: View {
             Spacer(minLength: 0)
             if OperatingWords.offersRelease(display) {
                 Color.clear.frame(height: ReleaseButton.height(scale))
+            } else if OperatingWords.offersReconnect(display) {
+                Color.clear.frame(height: ReconnectButton.height(scale))
             }
         }
         .padding(.horizontal, 16)
@@ -531,6 +667,44 @@ private struct OperatingControls: View {
                                 width: cs.width - 32, height: ReleaseButton.height(scale)
                             ))
                 }
+                if OperatingWords.offersReconnect(display) {
+                    ReconnectButton(scale: scale) { reconnect() }
+                        .place(
+                            SurfaceLayout.Rect(
+                                x: cs.x + 16, y: strip.maxY - 8 * scale - ReconnectButton.height(scale),
+                                width: cs.width - 32, height: ReconnectButton.height(scale)
+                            ))
+                }
+            } else if OperatingWords.offersReconnect(display) {
+                // Above the precision panel too: it is the one way on while the simulator is not responding.
+                ReconnectButton(scale: scale) { reconnect() }
+                    .place(
+                        SurfaceLayout.Rect(
+                            x: cs.x + 16, y: cs.maxY - 10 * scale - ReconnectButton.height(scale),
+                            width: cs.width - 32, height: ReconnectButton.height(scale)
+                        ))
+            } else if display.precisionPanelOpen {
+                let height = min(400.0, cs.height - 64)
+                ButtonPadView(
+                    held: display.heldButton, speed: .fine, nearSideIsRight: display.hand == .right,
+                    onTouchDown: { model.buttonDown($0) },
+                    onTouchUp: { model.buttonUp($0) },
+                    onDragOut: { model.buttonSlipped($0) },
+                    onSpeed: { _ in },
+                    onClose: { model.setPrecisionPanelOpen(false) },
+                    page: display.panelPage,
+                    heldWrist: display.heldWrist,
+                    onWristDown: { model.wristButtonDown($0) },
+                    onWristUp: { model.wristButtonUp($0) },
+                    onWristDragOut: { model.wristButtonSlipped($0) },
+                    onPage: { model.setPanelPage($0) }
+                )
+                .background(TeleopColors.band.opacity(0.97))
+                .contentShape(Rectangle())
+                .onTapGesture {}
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("precision.panel")
+                .place(SurfaceLayout.Rect(x: cs.x, y: cs.maxY - height, width: cs.width, height: height))
             } else if OperatingWords.offersRelease(display) {
                 ReleaseButton(scale: scale) { model.send(.releaseStop) }
                     .place(
@@ -538,8 +712,68 @@ private struct OperatingControls: View {
                             x: cs.x + 16, y: cs.maxY - 10 * scale - ReleaseButton.height(scale),
                             width: cs.width - 32, height: ReleaseButton.height(scale)
                         ))
+            } else if display.linkUp {
+                if model.voiceEntryShown {
+                    Button {
+                        model.toggleVoiceAxis()
+                    } label: {
+                        Text(verbatim: model.voiceAxisLabel)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(TeleopColors.card, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(TeleopColors.textPrimary)
+                    .accessibilityHint(Text(verbatim: L10n.string("voice.hint")))
+                    .accessibilityIdentifier("voice.axis")
+                    .place(
+                        SurfaceLayout.Rect(x: cs.x + 16, y: cs.maxY - 52, width: max(100, cs.width - 176), height: 44))
+                }
+                Button {
+                    model.setPrecisionPanelOpen(true)
+                } label: {
+                    Text("btn.precision_open", tableName: "Buttons")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(TeleopColors.card, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(TeleopColors.textPrimary)
+                .accessibilityIdentifier("precision.open")
+                .place(SurfaceLayout.Rect(x: cs.maxX - 144, y: cs.maxY - 52, width: 128, height: 44))
             }
         }
+    }
+
+    /// Reconnect: the server is left stopped before the connection goes, then Connect opens.
+    private func reconnect() {
+        model.reconnect()
+    }
+}
+
+/// **Reconnect**, while the simulator is not responding: leaves the server stopped, then drops the connection and
+/// opens Connect, the way a new connection is made from Settings. A plain tap: it moves nothing, and the stop stays
+/// latched.
+private struct ReconnectButton: View {
+    let scale: Double
+    let action: () -> Void
+
+    /// As tall as the release it stands in for.
+    static func height(_ scale: Double) -> Double { ReleaseButton.height(scale) }
+
+    var body: some View {
+        Button(action: action) {
+            Text("btn.reconnect")
+                .font(.system(size: max(17, 20 * scale), weight: .semibold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(TeleopColors.card, in: RoundedRectangle(cornerRadius: TeleopMetrics.corner))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(TeleopColors.textPrimary)
+        .accessibilityIdentifier("stall.reconnect")
     }
 }
 

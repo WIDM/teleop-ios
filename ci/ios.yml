@@ -101,6 +101,29 @@ jobs:
           NAME=$(xcrun simctl list devices available | grep -oE 'iPhone 1[0-9] Pro( Max)?|iPhone 1[0-9]' | head -n 1)
           echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
 
+      - name: Boot simulator
+        timeout-minutes: 15
+        run: |
+          # The test steps name the device only, so xcodebuild takes the one with that name on the newest iOS.
+          # Boot that one and wait until it has finished, so that the tests do not start on a device still booting.
+          UDID=$(python3 - <<'PY'
+          import json, os, re, subprocess
+          listing = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+          newest = None
+          for runtime, devices in listing["devices"].items():
+              version = re.search(r"\.iOS-(\d+)-(\d+)(?:-(\d+))?$", runtime)
+              if not version:
+                  continue
+              key = tuple(int(part or 0) for part in version.groups())
+              for device in devices:
+                  if device["name"] == os.environ["SIM_NAME"] and (newest is None or key > newest[0]):
+                      newest = (key, device["udid"])
+          print(newest[1])
+          PY
+          )
+          echo "Booting $SIM_NAME ($UDID)"
+          xcrun simctl bootstatus "$UDID" -b
+
       - name: Prepare build dir
         run: mkdir -p build
 
@@ -118,13 +141,34 @@ jobs:
         env:
           NSUnbufferedIO: "YES"
 
+      - name: No system log copied to the unit tests' console
+        if: ${{ !cancelled() && hashFiles('build/xcodebuild.log') != '' }}
+        run: python3 scripts/check-test-console.py build/xcodebuild.log
+
+      - name: xcodebuild test with the aids switched off
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Teleop.xcodeproj \
+            -scheme Teleop \
+            -testPlan AssistOff \
+            -destination "platform=iOS Simulator,name=$SIM_NAME" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild-assist-off.log
+        env:
+          NSUnbufferedIO: "YES"
+
+      - name: No system log copied to the unit tests' console with the aids switched off
+        if: ${{ !cancelled() && hashFiles('build/xcodebuild-assist-off.log') != '' }}
+        run: python3 scripts/check-test-console.py build/xcodebuild-assist-off.log
+
       - name: Export screenshots
         if: always()
         run: |
           mkdir -p build/screenshots
           xcrun xcresulttool export attachments --path build/Teleop.xcresult --output-path build/screenshots || true
           python3 - <<'PY'
-          import json, pathlib, shutil
+          import json, pathlib, re, shutil
           out = pathlib.Path("build/screenshots")
           manifest = out / "manifest.json"
           if manifest.exists():
@@ -134,6 +178,17 @@ jobs:
                       name = att.get("suggestedHumanReadableName", src.stem).split("_0_")[0]
                       if src.exists():
                           shutil.copy(src, out / (name + src.suffix))
+          # A failing UI test adds attachments named after the element, quotes included, and the artifact upload
+          # refuses the whole folder over one such name.
+          for path in list(out.iterdir()):
+              safe = re.sub(r'["<>|*?:\r\n]', "_", path.name)
+              if safe == path.name:
+                  continue
+              target, n = path.with_name(safe), 1
+              while target.exists():
+                  target = path.with_name(f"{pathlib.Path(safe).stem}-{n}{pathlib.Path(safe).suffix}")
+                  n += 1
+              path.rename(target)
           PY
 
       - name: Upload xcodebuild log
@@ -141,7 +196,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: build/xcodebuild.log
+          path: |
+            build/xcodebuild.log
+            build/xcodebuild-assist-off.log
 
       - name: Upload screenshots
         if: always()

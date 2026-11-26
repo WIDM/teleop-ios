@@ -51,24 +51,47 @@ public enum InputEvent: Equatable, Sendable {
     /// Lets the timers run out on time: the palm window, the scheme B dwell, the reset countdown. Send ticks at
     /// least at 30 Hz, or at `nextDeadline`.
     case tick
-    /// Every hold ends and every input held now is dead until released (I-11, H4): the app left the active state,
-    /// a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or the server
-    /// ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the call can
-    /// return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare.
-    case endAllHolds
+    /// Every hold ends and every input held now is dead until released (I-11, H4), for `reason`: the app left the
+    /// active state, a sheet opened, the link was lost, ARKit was interrupted, the thermal state became critical, or
+    /// the server ended the engaged hold itself. A timer that ran out before the call's time still fires first, so the
+    /// call can return a scheme B start with its stop, or `fireReset`; ticking at `nextDeadline` keeps that rare. For
+    /// a hold tied to an input and for the countdown every reason does the same; for a move nobody holds, the reason
+    /// picks the cue its ending plays.
+    case holdsEnded(Interruption)
     /// The app is active again after leaving the active state (I-11, J8). It got no key-up or touch-up while away, so
     /// every touch held before is forgotten (its later samples are ignored), and a key held before no longer counts
     /// as down; its next `began` is taken as that key still held from before, so it is dead (NO) until its `ended`.
-    /// Send `endAllHolds` on leaving and this on return.
+    /// Send `holdsEnded(.appLeft)` on leaving and this on return.
     case becameActive
-    /// A scheme or Hand change. Ends every hold first, as `endAllHolds`.
+    /// A scheme or Hand change. Ends every hold first, as `holdsEnded` does.
     case modeChanged(InputScheme, Hand)
+    /// The aids' configuration changed in Settings. Ends every hold first, as `modeChanged` does.
+    case assistChanged(Assist)
     /// The server reset the scene (`ok scene_reset`, an `episode` change or a new `welcome.session`). On an
     /// unknown server the tilt window counts commanded tilt from here.
     case sceneReset
     /// The engaged wrist hold's `orient_start` went on the wire now. If it waited behind a finishing hold, the
     /// rotation made meanwhile is dropped (I-8.1), and the call returns the target to stream from now on.
     case wristStartSent
+    /// A control the rules do not see was pressed: the fine panel's entry button. It ends a move nobody holds as a
+    /// press does ("You stopped it.") and does nothing else; a hold tied to an input that is down goes on.
+    case controlPressed
+
+    /// Every hold ends with no reason named. A path that knows why should say so with `holdsEnded(_:)`. A move nobody
+    /// holds that ends this way says "Stopped here.": a new ending path written with it is heard, never silent.
+    public static let endAllHolds = InputEvent.holdsEnded(.unnamed)
+}
+
+/// Where the arm hold the session starts takes its motion from. The input rules record `.phone` for each
+/// `.startTranslation` of a call (`InputArbiter.startsThisCall`); the app also uses `.pad` for a direction button's
+/// hold.
+public enum ArmSource: Equatable, Sendable {
+    /// The link follows the phone: a held translation, or a follow latched with no input down.
+    case phone
+    /// The link streams the pad's ramp (buttons mode).
+    case pad
+    /// The link streams the offsets of a move to a point the operator chose.
+    case going
 }
 
 /// Why a press does nothing, as the operator will hear it (E2).
@@ -95,6 +118,15 @@ public enum InputRefusal: Equatable, Sendable {
     case letGoFirst
     /// `say.reason.not_stopped`: STOP with neither connection up. Decided here.
     case notStopped
+    /// `say.reason.outside`: the tapped point is outside the work box as the guide draws it, with no slack. Decided
+    /// here.
+    case outsideWorkArea
+    case useUpperKey
+    /// `say.reason.no_arm_data`: no measured arm position fresh enough to start a move from. Decided here.
+    case noArmData
+    case tapStill
+    case tapLetGo
+    case tapViewAbove
 }
 
 /// What the rest of the app tells the arbiter on every call.
@@ -115,11 +147,20 @@ public struct InputFacts: Equatable, Sendable {
     public var wrist: WristReadings
     /// The control or the observer connection is up, so STOP reaches the server.
     public var connectionUp: Bool
+    /// The measured arm, for tap-to-go. Nil unless tap-to-go is allowed, and before the server has reported a position.
+    public var arm: ArmFix?
+    /// The guide's view from above as it is drawn now, for tap-to-go. Nil unless tap-to-go is allowed and the guide is
+    /// drawn, and nil while the camera is stopped, since no key could then stop a move a tap started.
+    public var goPanel: GoPanel?
+    /// Which run of the phone's tracking the attitude samples come from. The owner counts it up each time the tracking
+    /// starts again and each time the camera stops: a new run has a world frame of its own, whose heading is wherever
+    /// the phone pointed when it began, so an attitude from before it cannot be compared with one from after.
+    public var attitudeFrame: Int
 
     public init(
         refusal: InputRefusal? = nil, trackingRefusal: InputRefusal? = nil, translationRefusal: InputRefusal? = nil,
         resetRefusal: InputRefusal? = nil, gripping: Bool = false, wrist: WristReadings = .unknown,
-        connectionUp: Bool = true
+        connectionUp: Bool = true, arm: ArmFix? = nil, goPanel: GoPanel? = nil, attitudeFrame: Int = 0
     ) {
         self.refusal = refusal
         self.trackingRefusal = trackingRefusal
@@ -128,6 +169,9 @@ public struct InputFacts: Equatable, Sendable {
         self.gripping = gripping
         self.wrist = wrist
         self.connectionUp = connectionUp
+        self.arm = arm
+        self.goPanel = goPanel
+        self.attitudeFrame = attitudeFrame
     }
 }
 
@@ -149,6 +193,8 @@ public enum InputCue: Equatable, Sendable {
     case limit
     /// END and "Already gripping." (A-2g, B-3c).
     case alreadyGripping
+    /// A move nobody holds latched, arrived or ended: the feedback layer plays `FeedbackEvent.drive(_)`.
+    case drive(DriveCue)
 }
 
 public enum InputCommand: Equatable, Sendable {

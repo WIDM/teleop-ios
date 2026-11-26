@@ -65,17 +65,20 @@ public enum HapticCommand: Equatable, Sendable {
     case cancel
 }
 
-/// The seven event patterns the operator feels (interaction specification §5.1, plus ON TARGET), told apart by rhythm:
-/// how many, and whether each is a tick or a long buzz. Weight only reinforces it.
+/// The eight event patterns the operator feels (interaction specification §5.1, plus ON TARGET and LATCH), told apart
+/// by rhythm: how many, and whether each is a tick or a long buzz. Weight only reinforces it.
 public enum Haptic: String, CaseIterable, Sendable {
     /// One crisp tick: your hold is live.
     case go
-    /// A tick, then a soft swell: the jaws are on the target the guide shows. The only rhythm that mixes a tick and a
+    /// A tick, then a soft swell: the jaws are on the target the guide shows. The only rhythm that is a tick then a
     /// long pulse. It opens with the tick, so its first moment never feels like a limit, and its long part is shorter,
     /// lighter and duller than END's.
     case onTarget
     /// Three quick ticks: your press did nothing.
     case no
+    /// A long buzz, then a crisp tick: a follow nobody holds has begun. The only rhythm that is long then short, so it
+    /// is never taken for GO (one tick), END (one long) or ON TARGET (tick then long).
+    case latch
     /// Two slow heavy thumps: the jaws closed on something.
     case grip
     /// One long buzz: as far as it goes.
@@ -106,6 +109,14 @@ public enum Haptic: String, CaseIterable, Sendable {
                 pulses: [0, 90, 180].map { HapticPulse(startMs: $0, durationMs: 0, intensity: 1, sharpness: 1) },
                 loopLengthMs: nil
             )
+        case .latch:
+            return HapticPattern(
+                pulses: [
+                    HapticPulse(startMs: 0, durationMs: 260, intensity: 0.9, sharpness: 0.4),
+                    HapticPulse(startMs: 360, durationMs: 0, intensity: 1, sharpness: 0.9),
+                ],
+                loopLengthMs: nil
+            )
         case .grip:
             return HapticPattern(
                 pulses: [0, 220].map { HapticPulse(startMs: $0, durationMs: 70, intensity: 1, sharpness: 0.15) },
@@ -127,13 +138,14 @@ public enum Haptic: String, CaseIterable, Sendable {
         }
     }
 
-    /// Higher wins the one haptic channel: ALARM > LETGO > NO > GRIP > END > ON TARGET > GO. ON TARGET plays once per
-    /// approach, so it sits above GO, which is never dropped: GO waits for it instead.
+    /// Higher wins the one haptic channel: ALARM > LETGO > NO > LATCH > GRIP > END > ON TARGET > GO. ON TARGET plays
+    /// once per approach, so it sits above GO, which is never dropped: GO waits for it instead.
     public var priority: Int {
         switch self {
-        case .alarm: return 7
-        case .letGo: return 6
-        case .no: return 5
+        case .alarm: return 8
+        case .letGo: return 7
+        case .no: return 6
+        case .latch: return 5
         case .grip: return 4
         case .end: return 3
         case .onTarget: return 2

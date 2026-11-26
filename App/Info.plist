@@ -31,6 +31,10 @@
 	<string>The camera tracks the phone pose and detects volume-key hold and release.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>The app connects to the teleop server on your network.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone recognizes your chosen movement axis on this device. Audio is not saved.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition selects height, forward/back, or left/right. Movement still requires holding volume up.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>

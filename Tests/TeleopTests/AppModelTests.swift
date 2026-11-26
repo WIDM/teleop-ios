@@ -15,6 +15,7 @@ final class SpyHaptics: HapticsPlaying {
 }
 
 final class SpySpeech: SpeechPlaying {
+    var onStarted: ((Int) -> Void)?
     var onFinished: ((Int) -> Void)?
     var spoken: [String] = []
     /// True: each utterance goes on until `finish`. False: it ends as soon as it starts.
@@ -24,8 +25,15 @@ final class SpySpeech: SpeechPlaying {
 
     func speak(_ text: String, language: String, interrupt: Bool, id: Int) {
         if interrupt { speaking = [] }
+        onStarted?(id)
         spoken.append(text)
         if holds { speaking.append(id) } else { onFinished?(id) }
+    }
+
+    func stop(id: Int) {
+        guard let index = speaking.firstIndex(of: id) else { return }
+        speaking.remove(at: index)
+        onFinished?(id)
     }
 
     func finish() {
@@ -64,7 +72,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(spy.felt, [.play(.alarm), .stop])
         XCTAssertEqual(model.session.route, .p4)
         speech.finish()
-        XCTAssertEqual(speech.spoken.last, "Ready.")
+        XCTAssertEqual(speech.spoken.last, "Controls available.")
     }
 
     func testBlockedGripperIsRefusedWithThreeTicksAndTheReason() {

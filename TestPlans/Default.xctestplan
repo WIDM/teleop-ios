@@ -9,7 +9,22 @@
     }
   ],
   "defaultOptions" : {
-
+    "commandLineArgumentEntries" : [
+      {
+        "argument" : "-appLanguage"
+      },
+      {
+        "argument" : "en"
+      }
+    ],
+    "environmentVariableEntries" : [
+      {
+        "key" : "OS_ACTIVITY_DT_MODE",
+        "value" : "NO"
+      }
+    ],
+    "language" : "en",
+    "region" : "US"
   },
   "testTargets" : [
     {

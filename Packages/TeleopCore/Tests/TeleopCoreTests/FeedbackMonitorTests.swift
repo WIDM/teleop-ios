@@ -182,12 +182,83 @@ final class FeedbackMonitorTests: XCTestCase {
         XCTAssertFalse(monitor.gripping)
     }
 
+    /// Empty is decided once the close has ended without contact: while the jaws still close, contact may still come.
     func testAnEmptyClose() {
         monitor.startSent(.gripper(.closed), restart: false, at: 0)
         XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 30), at: 200), [])
-        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 1.5), at: 400), [.limit(.empty)])
-        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: -10), at: 600), [])
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 1.5), at: 400), [], "still closing")
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: -10), at: 600), [], "still closing")
+        monitor.released(.gripper(.closed))
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: -10), at: 700), [], "the server has not stopped yet")
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: -10), at: 800), [.limit(.empty)])
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: -10), at: 1000), [], "once")
         XCTAssertFalse(monitor.gripping)
+    }
+
+    /// The close of 2026-11-20 10:55:15: the jaws passed 0.49 degrees one state before the server reported contact,
+    /// and the grip rested at 1.51 to 1.59 degrees, under the 2 degree rule. Contact is told and empty is not.
+    func testARecordedGripBelowTheEmptyAngleIsNotEmpty() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        for (atMs, jaw) in [(200, 22.55), (400, 13.82), (600, 7.15), (800, 2.35), (1000, 0.49)] {
+            XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: jaw), at: atMs), [], "\(jaw)")
+        }
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 1.51), at: 1200), [.contact])
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 1.59), at: 1400), [])
+        monitor.released(.gripper(.closed))
+        XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 1.59), at: 1500), [])
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: 1.59), at: 1600), [])
+        XCTAssertTrue(monitor.gripping)
+    }
+
+    /// A close let go of before the jaws came under the angle, or ended by an emergency stop, is not empty.
+    func testAnEmptyCloseNeedsTheJawsShutAndNoStop() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        monitor.released(.gripper(.closed))
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: 30), at: 200), [], "let go half way")
+        monitor.startSent(.gripper(.closed), restart: false, at: 400)
+        XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 0.4), at: 600), [])
+        monitor.released()
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: 0.4), at: 800), [], "after an emergency stop")
+        monitor.startSent(.gripper(.closed), restart: false, at: 1000)
+        monitor.released(.gripper(.closed))
+        var stopped = state(.ok, jaw: 0.4)
+        stopped.estop = true
+        XCTAssertEqual(monitor.observe(stopped, at: 1200), [], "a state saying stopped")
+    }
+
+    /// A translation or wrist hold started right after an empty close, before the state that ends that close, does not
+    /// take its outcome away: the first state after the close still decides it.
+    func testTheNextArmOrWristHoldLeavesAnEmptyCloseToBeTold() {
+        for next in [ControlKind.wrist, .pose] {
+            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+            monitor.startSent(.gripper(.closed), restart: false, at: 0)
+            XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 0.4), at: 200), [])
+            monitor.released(.gripper(.closed))
+            monitor.startSent(next, restart: false, at: 300)
+            XCTAssertEqual(monitor.observe(state(.ok, jaw: 0.4), at: 400), [.limit(.empty)], "\(next)")
+            XCTAssertEqual(monitor.observe(state(.ok, jaw: 0.4), at: 600), [], "once, \(next)")
+            XCTAssertEqual(monitor.engagedHold, 2, "the next hold stays engaged, \(next)")
+        }
+    }
+
+    /// The mirror case: contact the server reports after the next hold has started still belongs to the close.
+    func testContactAfterTheNextHoldStartedStillGrips() {
+        for next in [ControlKind.wrist, .pose] {
+            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+            monitor.startSent(.gripper(.closed), restart: false, at: 0)
+            monitor.released(.gripper(.closed))
+            monitor.startSent(next, restart: false, at: 100)
+            XCTAssertEqual(monitor.observe(state(.gripperContact, jaw: 1.5), at: 200), [.contact], "\(next)")
+            XCTAssertTrue(monitor.gripping, "\(next)")
+        }
+    }
+
+    /// A new jog of the jaws still takes over from a close let go of.
+    func testANewGripperJogDropsTheCloseLetGoOf() {
+        monitor.startSent(.gripper(.closed), restart: false, at: 0)
+        monitor.released(.gripper(.closed))
+        monitor.startSent(.gripper(.open), restart: false, at: 100)
+        XCTAssertEqual(monitor.observe(state(.ok, jaw: 0.4), at: 200), [])
     }
 
     func testGrippingEndsWithAnOpenAResetOrANewServerRun() {

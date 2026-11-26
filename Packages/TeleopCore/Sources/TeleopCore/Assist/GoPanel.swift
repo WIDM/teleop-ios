@@ -1,0 +1,128 @@
+import simd
+
+/// The guide's view from above as it is drawn now: its rectangle on the glass, the projection it was drawn with, and the
+/// work box and table it shows. The rectangle is the frame the view reported; nothing recomputes it, so a tap is judged
+/// against what the operator sees. A touch keeps the panel of its touch-down, so one tap is judged against one
+/// rectangle and one projection.
+public struct GoPanel: Equatable, Sendable {
+    /// Operating-screen points, origin top left: the coordinates touches arrive in.
+    public var rect: SurfaceLayout.Rect
+    public static let heightColumnHalfWidth: Double = 22
+    public var behind: SurfaceLayout.Rect?
+    public var projection: GuideProjection
+    /// The work box as drawn: the profile's box moved by the reading's `boxShift` (its measured gripper-to-pinch offset
+    /// less the profile's tool offset, zero unless the server reports a tool point), robot base frame, pinch point,
+    /// metres, corners sorted.
+    public var boxLow: SIMD3<Double>
+    public var boxHigh: SIMD3<Double>
+    /// The table's height, robot base frame, metres.
+    public var tableHeight: Double
+
+    public init(
+        rect: SurfaceLayout.Rect, projection: GuideProjection, boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>,
+        tableHeight: Double, behind: SurfaceLayout.Rect? = nil
+    ) {
+        self.rect = rect
+        self.behind = behind
+        self.projection = projection
+        self.boxLow = boxLow
+        self.boxHigh = boxHigh
+        self.tableHeight = tableHeight
+    }
+
+    public enum Side: Equatable, Sendable { case above, behind }
+
+    public enum BehindAim: Equatable, Sendable {
+        case target(SIMD3<Double>)
+        case useUpperKey
+        case outsideWorkArea
+    }
+
+    public func view(at point: SIMD2<Double>) -> Side? {
+        if rect.contains(x: point.x, y: point.y) { return .above }
+        if behind?.contains(x: point.x, y: point.y) == true { return .behind }
+        return nil
+    }
+
+    public func contains(x: Double, y: Double) -> Bool { view(at: SIMD2(x, y)) != nil }
+
+    public func aimBehind(
+        at point: SIMD2<Double>, measured: SIMD3<Double>, running: SIMD3<Double>? = nil,
+        limits: GoToLimits, views: ViewAim
+    ) -> BehindAim {
+        guard let behind, behind.contains(x: point.x, y: point.y) else { return .outsideWorkArea }
+        let reference = GuideProjection.operatorPoint(running ?? measured)
+        let share = SIMD2((point.x - behind.x) / behind.width, (point.y - behind.y) / behind.height)
+        var aim = projection.point(behindShare: share, forward: reference.y)
+        let columnCentre = min(max(projection.behind(reference).x, 0), 1) * behind.width + behind.x
+        let heightOnly = abs(point.x - columnCentre) <= Self.heightColumnHalfWidth
+        let floor = tableHeight + limits.travelHeightM
+        let ceiling = tableHeight + views.behindTopAboveTableM
+        guard floor <= ceiling else { return .outsideWorkArea }
+        if heightOnly {
+            let measuredHeight = GuideProjection.operatorPoint(measured).z
+            if aim.z < floor, measuredHeight <= floor + limits.arriveToleranceM {
+                return .useUpperKey
+            }
+            aim.x = reference.x
+        }
+        aim.z = min(max(aim.z, floor), ceiling)
+        let target = GuideProjection.base(fromOperator: aim)
+        return inBox(target) ? .target(target) : .outsideWorkArea
+    }
+
+    /// The pinch-point place a tap at (x, y) asks for, robot base frame: the point the view from above draws there, at
+    /// `travelHeight` above the table. Not checked against the box; `inBox` does that.
+    public func target(x: Double, y: Double, travelHeight: Double) -> SIMD3<Double> {
+        let share = SIMD2((x - rect.x) / rect.width, (y - rect.y) / rect.height)
+        let up = tableHeight + travelHeight
+        return GuideProjection.base(fromOperator: projection.point(aboveShare: share, up: up))
+    }
+
+    /// Inside the work box as drawn, on all three axes, with no slack: the guide counts a reading a millimetre outside
+    /// as inside so that it does not flicker, but a place the arm is sent to must lie in the box itself.
+    public func inBox(_ point: SIMD3<Double>) -> Bool {
+        all(point .>= boxLow) && all(point .<= boxHigh)
+    }
+
+    /// Where on the glass the view from above draws `base`, a robot base frame point (its height does not matter
+    /// there): the forward projection, for tests and scripted hands that write their taps in metres.
+    public func point(over base: SIMD3<Double>) -> SIMD2<Double> {
+        let share = projection.above(GuideProjection.operatorPoint(base))
+        return SIMD2(rect.x + share.x * rect.width, rect.y + share.y * rect.height)
+    }
+}
+
+/// The measured arm, as the input rules are told it while tap-to-go is allowed.
+public struct ArmFix: Equatable, Sendable {
+    /// The measured pinch point of the newest state that carried a position, robot base frame, metres.
+    public var pinch: SIMD3<Double>
+    /// How old that state is, seconds: the time since it arrived plus half the link's median round trip, because the
+    /// server measured it before sending it. A state without a position never makes a fix fresh.
+    public var ageS: Double
+    /// The link is re-sending its start, holding a start back behind a finishing hold, or holding the command at its
+    /// lead cap ahead of the arm: the arm may stand still for a reason that says nothing about where it can go.
+    public var holdPaused: Bool
+    /// The link has heard an arm position that the server sent after it finished the last hold this phone ended, or
+    /// its own wait for that answer has run out since. A move's offsets are measured from `pinch`, and the server
+    /// applies them from where the arm stands when it takes the start, so a tap waits while this is false. A running
+    /// move never reads it.
+    public var heardAfterLastStop: Bool
+    /// The gripper link point (`ee_pos`) of the same state, robot base frame, metres. Nil: not told, and a move
+    /// follows nothing.
+    public var gripper: SIMD3<Double>?
+    /// The server reported the pinch point (`tool_pos`) in that state; false: `pinch` is the profile's estimate.
+    public var pinchReported: Bool
+
+    public init(
+        pinch: SIMD3<Double>, ageS: Double, holdPaused: Bool, heardAfterLastStop: Bool = true,
+        gripper: SIMD3<Double>? = nil, pinchReported: Bool = false
+    ) {
+        self.pinch = pinch
+        self.ageS = ageS
+        self.holdPaused = holdPaused
+        self.heardAfterLastStop = heardAfterLastStop
+        self.gripper = gripper
+        self.pinchReported = pinchReported
+    }
+}

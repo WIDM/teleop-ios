@@ -38,7 +38,7 @@ final class LocalPickAndPlaceTests: XCTestCase {
         // The guide, and with it the on-target cue, shows only with the task aid on, its default.
         savedTaskAid = UserDefaults.standard.object(forKey: AppModel.taskAidKey)
         hand.model.taskAid = true
-        XCTAssertTrue(hand.connect(within: 4), "could not connect to the local server")
+        XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")
         // The script skips without these, which suits the live server; against the local one it is a failure.
         _ = try XCTUnwrap(hand.model.link.objectPosition, "the local server reported no task object")
         _ = try XCTUnwrap(hand.model.link.goalPosition, "the local server reported no goal")

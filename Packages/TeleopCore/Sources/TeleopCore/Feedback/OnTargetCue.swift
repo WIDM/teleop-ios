@@ -20,7 +20,7 @@ public struct OnTargetCue {
         /// Where the reported target is, metres, in a frame whose third axis points up (the operator's right, forward
         /// and up). Nil when no target is reported.
         public var target: SIMD3<Double>?
-        /// The pinch point is an estimate that may be off by more than half the window.
+        /// The pinch point is an estimate that may be off by more than half the robot profile's grasp tolerance.
         public var approximate: Bool
         /// The jaws hold the target.
         public var holding: Bool
@@ -44,7 +44,8 @@ public struct OnTargetCue {
         }
     }
 
-    /// The on-target window across the table and in height, metres: the robot profile's grasp tolerance.
+    /// The on-target window across the table and in height, metres: the one the guide's "On target" is judged in, which
+    /// is the robot profile's grasp tolerance unless the profile gives a wider window for the guide's aids.
     public let window: SIMD2<Double>
     private var armed = true
     private var hadTarget = false
