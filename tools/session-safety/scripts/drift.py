@@ -100,14 +100,18 @@ for path in APP.rglob("*.swift"):
 # Classes that may send actions. main.swift models each one: see linkEvents and toggleLiveLink there.
 allowed_outside = {
     # connect: the fake link's S1 Connect. holdArmEnd, wristEnd: a hold the link could not start.
-    # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. resetScene and
+    # switchLink: the live-link switch. holdArmStart: a button hold the controller asked for. wristStart: the fine
+    # panel's wrist button, on the operating screen, whose rows offer wristStart already. resetScene and
     # sceneResetDone: the top band's reset (the practice link confirms it at once).
     # stop, disconnect and changeServer: the operating screen's Reconnect (see "model.reconnect()" in sends).
     "AppModel.swift": {
-        "connect", "holdArmStart", "holdArmEnd", "wristEnd", "switchLink", "resetScene", "sceneResetDone", "stop",
-        "disconnect", "changeServer",
+        "connect", "holdArmStart", "holdArmEnd", "wristStart", "wristEnd", "switchLink", "resetScene",
+        "sceneResetDone", "stop", "disconnect", "changeServer",
     },
-    "Link/LiveLinkController.swift": {"holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone"},
+    "Link/LiveLinkController.swift": {
+        "holdArmEnd", "gripperEnd", "wristEnd", "linkUp", "linkLost", "linkLatency", "stop", "sceneResetDone",
+        "dismissed",
+    },
     # The input rules' commands. Keys reach it from screens with .volumeKeys (KEY_ACTIONS); touches on the bands (STOP,
     # the gear) and on the control surface from the operating screen's touch surface (TOUCH_ACTIONS).
     "Operating/OperatingController.swift": {"holdArmStart", "holdArmEnd", "gripperStart", "gripperEnd", "wristStart", "wristEnd", "stop", "openSettings"},
