@@ -181,7 +181,8 @@ final class PrecisionPanelUITests: XCTestCase {
                         && $0.status == "ok" && $0.reason == "pose_stopped"
                 }
             }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 3), .completed, file: file, line: line)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [completed], timeout: UITestWaits.serverAnswer), .completed, file: file, line: line)
         let trace = server.commandTrace()
         let events = trace.events.dropFirst(offset)
         XCTAssertEqual(trace.droppedCount, 0, file: file, line: line)
@@ -200,7 +201,8 @@ final class PrecisionPanelUITests: XCTestCase {
                     $0.direction == .sent && $0.status == "ok" && $0.reason == "gripper_jog_stopped"
                 } == true
             }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 3), .completed, file: file, line: line)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [completed], timeout: UITestWaits.serverAnswer), .completed, file: file, line: line)
         let trace = server.commandTrace()
         let events = trace.events.dropFirst(offset)
         XCTAssertEqual(trace.droppedCount, 0, file: file, line: line)

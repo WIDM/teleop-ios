@@ -23,6 +23,13 @@ extension XCUIApplication {
     }
 }
 
+/// How long a UI test waits for something that only has to happen, not happen in time. Each wait it is used for ends
+/// as soon as its condition holds, so a passing run is no slower for it; it only has to outlast a slow CI machine.
+enum UITestWaits {
+    /// The local server's answer to a hold the app has ended, which the test reads from the server's command trace.
+    static let serverAnswer: TimeInterval = 15
+}
+
 extension XCTestCase {
     /// Waits for `id` to appear. The wait ends as soon as it does, so the default only has to outlast a slow CI
     /// machine, where a page after a system prompt took over 5 s.
