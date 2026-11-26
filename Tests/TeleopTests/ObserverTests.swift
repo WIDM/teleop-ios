@@ -69,6 +69,7 @@ final class ObserverTests: XCTestCase {
     override func tearDown() {
         for model in models { model.link.closeQuietly() }
         models = []
+        XCTAssertTrue(server.waitForTheAppsSocketsToClose(), "the server still holds \(server.openSockets) sockets")
         server.stop()
         server = nil
         super.tearDown()

@@ -139,8 +139,8 @@ To see what a plan contains without running it, build once and list the tests:
       -destination "platform=iOS Simulator,name=$SIM" -enumerate-tests
 
 The AssistOff plan runs the app's unit tests again with the aids' master switch off (`-assist NO` on launch), and
-`OffPlanTests` fails if the switch did not reach them. CI runs it after the Default plan, and only when the Default
-plan passed:
+`OffPlanTests` fails if the switch did not reach them. CI runs it after the Critical or the Default plan, and only
+when that plan passed:
 
     caffeinate -i xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan AssistOff \
       -destination "platform=iOS Simulator,name=$SIM" CODE_SIGNING_ALLOWED=NO
@@ -176,17 +176,32 @@ The app is silent by itself as the unit-test host.
 | `-recordHaptics YES` | put the haptics the app asks for into a hidden element (`test.haptics`) that XCUITest can read |
 | `-startConnected YES`, `-startBlocked YES`, `-startConnectionLost YES` | start marked connected, with commands blocked as on a slow link, or as a dropped link leaves things |
 
-## The default and the live test plans
+## The test plans
 
-The scheme has three test plans (`TestPlans/`):
+The scheme has four test plans (`TestPlans/`):
 
 - **Default** runs every test in `TeleopTests` and `TeleopUITests` except `OperatorLiveTests` and
   `ServerMotionTests`. It needs no server: the tests that need one start the model on a local socket themselves.
-  CI runs it first.
+  CI runs it every night.
+- **Critical** runs the same `TeleopTests` and only the UI tests of the five journeys that, broken, leave the app
+  useless. CI runs it on every push and pull request, so a run takes minutes instead of most of an hour:
+  1. first run, Connect through the tutorial to the operating screen
+     (`ConnectFlowTests.testFirstRunWalksThroughTheTutorialToTheOperatingScreen`);
+  2. a tap on the STOP band stops; a short press on Release keeps the stop, and a full hold on it leaves the stop
+     (`OperatingTouchTests.testATapOnTheStopBandStopsAndAHoldOnReleaseLeavesTheStop`);
+  3. a launch with a saved address reaches the local server and shows the guide (both `LocalServerUITests`);
+  4. a failed connect says why and offers practice (`ConnectFlowTests.testConnectShowsWhyItFailedAndOffersPractice`);
+  5. denied system prompts still reach the tutorial (`ManualCheckTests.testDenyingPromptsStillReachesTutorial`).
+
+  Every other UI test runs only in Default. They pin layouts that change with the design (`OperatingScreenTests`),
+  or take minutes each (`StopBandTests`), or cover screens still changing (Settings, practice, scheme B's hint).
+  Add a test to Critical only for a journey of the same weight, and keep it to five journeys: each added UI test
+  costs every push its run time.
 - **AssistOff** runs the same tests of `TeleopTests`, not the UI tests, launched with the hands-free aids' master
   switch off (`-assist NO`), with `TELEOP_EXPECT_ASSIST_OFF` set so that `OffPlanTests` runs and fails if the
   switch did not reach them. It shows that every app test, those written for version 1.0.1 included, passes
-  unedited with the aids off. It needs no server either. CI runs it after Default, and only when Default passed.
+  unedited with the aids off. It needs no server either. CI runs it after Critical or Default, and only when that
+  plan passed.
 - **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
 
 Every plan sets the environment variable `OS_ACTIVITY_DT_MODE` to `NO`. Without it Xcode starts the tests with
@@ -198,7 +213,7 @@ With `NO` those lines stay in the system log only. CI checks that the setting re
 
 The live tests move the arm in Isaac Sim on a machine other people use, so three things guard them:
 
-1. They are in the Live plan only; the Default plan skips them by name.
+1. They are in the Live plan only; the Default and Critical plans skip them by name.
 2. They skip unless the test runner's environment has `TELEOP_MOTION` set, which `xcodebuild` passes on when the
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
 3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below).
@@ -293,6 +308,11 @@ link, and after connecting again `estop` goes out first and the server is stoppe
 stop, a stop from the server, a restarted server, an owed STOP released before connecting, a state from before a
 release that must not confirm the STOP pressed right after it, and a reset from the stop that the server carried out
 but whose answer the lost link kept back.
+
+Before the app connects again, and before a server stops, these tests wait until the local server has read the close
+of every socket the app closed (`LocalTeleopServer.openSockets` back to 0). On a CI runner, closing a socket
+sometimes held up all networking in the test process for several seconds (3.7 s and 6.4 s were seen), so a connect
+made right after a close did not start in time; the server only reads such a close after the hold-up has passed.
 
 `LocalOperatorTests` uses the same hand against the local server for single behaviours: the wrist following the
 phone in each scheme, STOP during a hold, the two ways out of a stop, and the holds that end when Settings opens,
@@ -396,22 +416,29 @@ On purpose, to stay small; every number it does use is in `ServerModelConfig`, w
 
 ## What CI runs
 
-`.github/workflows/ios.yml` (a copy is kept in `ci/ios.yml`) runs on every push and pull request, on GitHub's
-`macos-15` image with the Xcode that image ships:
+`.github/workflows/ios.yml` runs on every push and pull request. A newer push to the same branch cancels the run
+still going for the older one. `ci/ios.yml` must be an exact copy: the `checks` job fails when the two differ. Three
+jobs run side by side, so the fast ones report in a few minutes instead of waiting for the UI tests:
 
-1. `python3 scripts/check-strings.py` and `python3 scripts/check-dead-buttons.py`, then `scripts/check-format.sh`,
-   which only reports (below);
-2. `swift test` in `Packages/TeleopCore`;
-3. `brew install xcodegen` and `xcodegen generate`;
-4. the first available iPhone simulator, picked as above; it boots the device of that name on the newest iOS, the
-   one `xcodebuild` takes for a destination given by name, and waits until it has finished booting;
-5. `xcodebuild test` with the Default plan and `CODE_SIGNING_ALLOWED=NO`, logged to `build/xcodebuild.log` with its
-   result bundle, then `python3 scripts/check-test-console.py build/xcodebuild.log` (below);
-6. `xcodebuild test` with the AssistOff plan on the same iPhone simulator, logged to
-   `build/xcodebuild-assist-off.log`, then the same check on that log; this step runs only when the Default plan
-   and its check passed;
-7. it uploads both xcodebuild logs, the screenshots the UI tests attach, and the Default plan's result bundle as
-   artifacts.
+1. `checks`, on Ubuntu: `python3 scripts/check-strings.py`, `python3 scripts/check-dead-buttons.py`, the scripts'
+   own unit tests (`python3 -m unittest discover -s scripts -p 'test_*.py'`), the copy check, and a gitleaks scan
+   of the whole history for leaked keys and tokens (the gitleaks version is pinned in the workflow).
+2. `core`, on GitHub's `macos-15` image with the Xcode that image ships: `scripts/check-format.sh`, which only
+   reports (below), `swift test` in `Packages/TeleopCore`, and the session safety checker
+   (`tools/session-safety/scripts/check.sh`).
+3. `app`, on the same image: XcodeGen at the version pinned in the workflow, `xcodegen generate`, then the first
+   available iPhone simulator, picked as above; it boots the device of that name on the newest iOS, the one
+   `xcodebuild` takes for a destination given by name, and waits until it has finished booting. Then
+   `xcodebuild test` with `CODE_SIGNING_ALLOWED=NO`: the Critical plan on a push or pull request, the Default plan
+   in the nightly run (02:00 Asia/Taipei, on the default branch only), and either one when started by hand
+   (Actions, ios, Run workflow), logged to `build/xcodebuild.log` with its result bundle, then
+   `python3 scripts/check-test-console.py build/xcodebuild.log` (below). Then the AssistOff plan on the same
+   simulator, logged to `build/xcodebuild-assist-off.log`, with the same check on that log; this step runs only
+   when the first plan and its check passed. It uploads both xcodebuild logs, the screenshots the UI tests attach,
+   and the first plan's result bundle as artifacts.
+
+A failure in the nightly Default run does not block a merge, since the merge rules only see the Critical run of the
+pull request. Read the nightly result before a release.
 
 `scripts/check-test-console.py` fails when the system log was copied to the unit tests' console after all, which
 means a test plan lost its `OS_ACTIVITY_DT_MODE=NO`. In the unit tests' part of the log it looks for the lines the
@@ -428,8 +455,8 @@ from swift format's defaults (four-space indents, 120 columns, no indent inside 
 that the older version can read it too. The strict check that counts is a step of the release procedure
 (`docs/RELEASING.md`), run with the current Xcode.
 
-CI never runs the Live plan, the safety checker or the scripts' own unit tests. Run the safety checker yourself
-whenever a change touches the session, its state, the screens' actions or the hold handling.
+CI never runs the Live plan or the safety checker's mutation run (`tools/session-safety/scripts/mutants.py`).
+Run the mutation run yourself after changing the checker or a guarded code path.
 
 CI's iPhone simulator and Xcode can be older than a current Mac's, so a UI test that passes locally can fail
 there. Two differences matter: on iOS 18 a system permission alert's buttons have no identifiers (the UI tests'

@@ -1,0 +1,58 @@
+{
+  "configurations" : [
+    {
+      "id" : "8B2E4C61-7D3A-4F90-A1B5-C6D7E8F90A12",
+      "name" : "Critical",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "commandLineArgumentEntries" : [
+      {
+        "argument" : "-appLanguage"
+      },
+      {
+        "argument" : "en"
+      }
+    ],
+    "environmentVariableEntries" : [
+      {
+        "key" : "OS_ACTIVITY_DT_MODE",
+        "value" : "NO"
+      }
+    ],
+    "language" : "en",
+    "region" : "US"
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "OperatorLiveTests",
+        "ServerMotionTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "4CF114B66C1C65C7C850F42D",
+        "name" : "TeleopTests"
+      }
+    },
+    {
+      "selectedTests" : [
+        "ConnectFlowTests\/testConnectShowsWhyItFailedAndOffersPractice()",
+        "ConnectFlowTests\/testFirstRunWalksThroughTheTutorialToTheOperatingScreen()",
+        "LocalServerUITests\/testLaunchWithASavedAddressReachesTheLocalServer()",
+        "LocalServerUITests\/testTheGuideIsOnScreenWhileConnectedAndAfterAHold()",
+        "ManualCheckTests\/testDenyingPromptsStillReachesTutorial()",
+        "OperatingTouchTests\/testATapOnTheStopBandStopsAndAHoldOnReleaseLeavesTheStop()"
+      ],
+      "target" : {
+        "containerPath" : "container:Teleop.xcodeproj",
+        "identifier" : "C263A42A718DCE27EA1D95E3",
+        "name" : "TeleopUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
