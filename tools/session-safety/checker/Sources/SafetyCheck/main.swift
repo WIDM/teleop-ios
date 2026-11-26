@@ -186,6 +186,11 @@ func perform(_ name: String, on node: Node, shippedUI: Bool) -> (node: Node, res
         if session.state.emergencyStop { return nil }
         session.state.liveLink.toggle()
         session.perform(.switchLink)
+    case "connect":
+        // AppModel.connect forgets the last server's dismissal before a live attempt; the session's own connect
+        // does nothing on a live link.
+        if session.state.liveLink { session.state.dismissal = nil }
+        session.perform(.connect)
     default: session.perform(actionsByName[name]!)
     }
     // OperatingController ends every hold of the keys, the touches and the pad, with its stop, when the operating
