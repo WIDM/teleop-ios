@@ -6,4 +6,6 @@ import Foundation
 enum TestWaits {
     /// A connection to a server on this machine coming up, the control or the listening one.
     static let linkUp: TimeInterval = 15
+    /// The arm or the wrist getting to where it was sent, on the server on this machine.
+    static let serverMoves: TimeInterval = 15
 }

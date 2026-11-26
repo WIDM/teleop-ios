@@ -378,8 +378,10 @@ final class ScriptedOperator {
     }
 
     /// Turns or tilts the wrist by rotating the phone `degrees` with the scheme's wrist input held, a thumb on the
-    /// glass (A) or vol− (B), and holds for `seconds` times `pace` so the wrist arrives.
-    func wrist(_ axis: WristAxis, by degrees: Float, hold seconds: Double) {
+    /// glass (A) or vol− (B), and holds for `seconds` times `pace` so the wrist arrives. With `arrived`, the hand
+    /// then keeps holding until it holds, as an operator holds until the wrist gets there, for up to
+    /// `TestWaits.serverMoves`: the server moves the wrist only as fast as its states come back.
+    func wrist(_ axis: WristAxis, by degrees: Float, hold seconds: Double, until arrived: (() -> Bool)? = nil) {
         rotation = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
         pump(0.2)
         let point = surfaceCentre
@@ -392,6 +394,7 @@ final class ScriptedOperator {
         }
         turnPhone(axis, to: degrees, in: Double(abs(degrees)) / 40)
         pump(seconds)
+        if let arrived { _ = wait(TestWaits.serverMoves, until: arrived) }
         if let touch { touchUp(touch, x: point.x, y: point.y) } else { release(.lower) }
         pump(0.5)
         // Back to upright with nothing held, as a hand does between holds.

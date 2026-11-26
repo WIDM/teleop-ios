@@ -52,15 +52,15 @@ final class LocalOperatorTests: XCTestCase {
             }
         }
         defer { hand.watch = nil }
-        hand.wrist(.turn, by: 20, hold: 3)
+        hand.wrist(.turn, by: 20, hold: 3, until: { [unowned self] in abs(roll - (roll0 + 20)) < 1 })
         XCTAssertEqual(roll, roll0 + 20, accuracy: 1.5, "\(mode): turning the phone 20 degrees turns the wrist")
         XCTAssertEqual(flex, flex0, accuracy: 0.5, "\(mode): a turn does not tilt")
-        hand.wrist(.turn, by: -20, hold: 3)
+        hand.wrist(.turn, by: -20, hold: 3, until: { [unowned self] in abs(roll - roll0) < 1 })
         XCTAssertEqual(roll, roll0, accuracy: 1.5, "\(mode): and back")
-        hand.wrist(.tilt, by: 10, hold: 3)
+        hand.wrist(.tilt, by: 10, hold: 3, until: { [unowned self] in abs(flex - (flex0 + 10)) < 1 })
         XCTAssertEqual(flex, flex0 + 10, accuracy: 1.5, "\(mode): tipping the top away 10 degrees tilts the wrist")
         XCTAssertEqual(roll, roll0, accuracy: 1.5, "\(mode): a tilt does not turn")
-        hand.wrist(.tilt, by: -10, hold: 3)
+        hand.wrist(.tilt, by: -10, hold: 3, until: { [unowned self] in abs(flex - flex0) < 1 })
         XCTAssertEqual(flex, flex0, accuracy: 1.5, "\(mode): and back")
         XCTAssertFalse(serverStopped)
         XCTAssertFalse(model.session.state.wristMoving, "every wrist hold ended with its input")
