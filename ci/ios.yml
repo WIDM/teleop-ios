@@ -168,7 +168,7 @@ jobs:
           mkdir -p build/screenshots
           xcrun xcresulttool export attachments --path build/Teleop.xcresult --output-path build/screenshots || true
           python3 - <<'PY'
-          import json, pathlib, shutil
+          import json, pathlib, re, shutil
           out = pathlib.Path("build/screenshots")
           manifest = out / "manifest.json"
           if manifest.exists():
@@ -178,6 +178,17 @@ jobs:
                       name = att.get("suggestedHumanReadableName", src.stem).split("_0_")[0]
                       if src.exists():
                           shutil.copy(src, out / (name + src.suffix))
+          # A failing UI test adds attachments named after the element, quotes included, and the artifact upload
+          # refuses the whole folder over one such name.
+          for path in list(out.iterdir()):
+              safe = re.sub(r'["<>|*?:\r\n]', "_", path.name)
+              if safe == path.name:
+                  continue
+              target, n = path.with_name(safe), 1
+              while target.exists():
+                  target = path.with_name(f"{pathlib.Path(safe).stem}-{n}{pathlib.Path(safe).suffix}")
+                  n += 1
+              path.rename(target)
           PY
 
       - name: Upload xcodebuild log
