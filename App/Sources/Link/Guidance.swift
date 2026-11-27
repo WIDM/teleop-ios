@@ -1,51 +1,8 @@
 import simd
 import TeleopCore
 
-/// The profile's helpers that need the app's own types, and the one profile the app runs with.
+/// The profile's helpers that need the app's own types. The profile itself comes from `ProfileLoader`.
 extension RobotProfile {
-    /// The SO-101 in the S4 pick-and-place simulator. The base height is ROBOT_BASE_POS_W in the simulator's source.
-    static let so101Simulator = RobotProfile(
-        name: "SO-101 (S4 simulator)",
-        toolOffset: SIMD3(0.007, -0.036, -0.088),
-        baseInWorld: SIMD3(0, 0, 0.05),
-        usesDirectionalBlockedFeedback: true,
-        assist: AssistProfile(
-            // 30 s from the latch. What would change it: how long latched runs last in the hand sessions; a safety
-            // review.
-            lock: LockLimits(timeLimitS: 30),
-            goTo: GoToLimits(
-                // 5 cm over the table: a held 2.5 cm object's bottom is then 3.75 cm up, and the pinch point at
-                // 0.09 m in the base frame is inside the box's 0.152 m top.
-                travelHeightM: 0.05,
-                // The pad's coarse speed, already proven through the lead cap; near the measured median following
-                // speed (0.034 m/s) and under the simulator's own cap on a moving setpoint (about 0.077 m/s).
-                speedMps: 0.04,
-                // Under the blocked rule's 10 mm; the grasp window's height.
-                arriveToleranceM: 0.008,
-                // One may go to holding the travel height, one to the end.
-                corrections: 2,
-                correctionReachM: 0.03,
-                settleS: 0.6,
-                timeFactor: 1.5,
-                // At least 3 s, and with the factor it leaves room for one re-sent start (the link's resync timeout)
-                // on the longest path in the box: a profile test pins both.
-                allowanceS: 3.0,
-                // The listening connection reports about every 0.2 s; an ordinary wireless network was measured
-                // holding messages back for up to 1.8 s.
-                armDataTimeoutS: 2.0,
-                // A start the server takes late, or an arm that lags at first, is not a stall: no stall is judged
-                // from positions measured in the first 1.5 s, counted from the later of the start and the end of the
-                // last pause of the hold, unless the arm has already moved 2 mm. What would change it: how late a
-                // real arm starts to move after a start.
-                startGraceS: 1.5
-            ),
-            guide: .all,
-            explain: ExplainAids(slowLinkLetGo: true),
-            // Keep the heights used for positioning visible without spending space on the upper workspace.
-            views: ViewAim(behindTopAboveTableM: 0.09, maxRetargetedMoveS: 30)
-        )
-    )
-
     /// Where the jaws pinch, robot base frame: the server's tool point when it reports one, else the reported gripper
     /// point plus `toolOffset`, judged by `estimateIsApproximate`. Everything that draws the pinch point gets it here.
     /// A tool point that cannot be moved to as a `Float` (either point beyond its range) counts as not reported: the

@@ -790,7 +790,7 @@ private final class CommandLegs {
 final class CommandLegsTests: XCTestCase {
     /// The settle time of the simulator's profile, three quarters of it, as the local runs use. A profile without
     /// tap-to-go has none, and every count below then fails.
-    private let rest = (RobotProfile.so101Simulator.assist.goTo?.settleS ?? .nan) * 0.75
+    private let rest = (TestProfiles.so101.assist.goTo?.settleS ?? .nan) * 0.75
     private let speed = 0.04
     private var now: TimeInterval = 0
 

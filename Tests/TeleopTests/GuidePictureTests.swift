@@ -4,7 +4,7 @@ import XCTest
 @testable import Teleop
 
 final class GuidePictureTests: XCTestCase {
-    private let profile = RobotProfile.so101Simulator
+    private let profile = TestProfiles.so101
     private var centre: SIMD3<Float> { (profile.workspaceMin + profile.workspaceMax) / 2 }
 
     private func reading(

@@ -871,7 +871,7 @@ final class AssistLinkTests: XCTestCase {
     /// inside the box: the move's first commands are past that face, and still no side is told or shown, since the
     /// operator steers nothing. The move goes on.
     func testAMoveThatBeginsPastAFaceTellsNoSide() throws {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         // Forward is −Y in the robot base.
         let start = SIMD3<Double>(0.027617, Double(profile.workspaceMin.y) - 0.01, 0.09)
         tapAMove(from: start, to: SIMD3(start.x, -0.2, start.z))

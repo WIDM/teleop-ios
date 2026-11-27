@@ -258,7 +258,7 @@ final class RuleTests: XCTestCase {
     }
 
     // MARK: Grasp
-    // The app's guide (RobotProfile.so101Simulator) counts the jaws as around the cube when the pinch point is
+    // The app's guide (the SO-101 profile file) counts the jaws as around the cube when the pinch point is
     // within 6 mm of its centre across the table and 8 mm in height, with the jaws side by side.
 
     func testClosingTheJawsWithinTheToleranceTakesHold() {

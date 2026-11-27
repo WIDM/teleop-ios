@@ -121,7 +121,7 @@ enum OperatingFixtures {
 
     // MARK: Arm readings, robot base frame (base +x is the operator's left, base −y is forward)
 
-    private static let profile = RobotProfile.so101Simulator
+    private static let profile = ProfileLoader.current
     private static var centre: SIMD3<Float> { (profile.workspaceMin + profile.workspaceMax) / 2 }
     private static var onTable: Float { profile.tableHeight }
     private static var target: SIMD3<Float> { SIMD3(centre.x + 0.015, centre.y - 0.035, onTable + 0.0125) }

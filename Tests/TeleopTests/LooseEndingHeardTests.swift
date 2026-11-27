@@ -39,7 +39,7 @@ final class LooseEndingHeardTests: XCTestCase {
     /// One way it ends: what it needs before the start, the robot it runs on, what causes it, and the starts it ends.
     struct Row {
         var name: String
-        var profile: RobotProfile = .so101Simulator
+        var profile: RobotProfile = TestProfiles.so101
         var starts = Set(Start.allCases)
         var before: (LooseEndingHeardTests) -> Void = { _ in }
         var cause: (LooseEndingHeardTests) -> Void
@@ -254,7 +254,7 @@ final class LooseEndingHeardTests: XCTestCase {
     /// Fine controls stop each kind of move nobody holds and open, with no second press, once the stop is confirmed.
     func testFineControlsOpenOnceTheStoppedMoveIsConfirmed() {
         for start in Start.allCases {
-            bringUp(profile: .so101Simulator, start: start)
+            bringUp(profile: TestProfiles.so101, start: start)
             begin(start, "\(start)")
             model.setPrecisionPanelOpen(true)
             XCTAssertEqual(transport.types.filter { $0 == "pose_stop" }.count, 1, "\(start)")
@@ -283,14 +283,14 @@ final class LooseEndingHeardTests: XCTestCase {
 
     /// The simulator's robot with a lock limit short enough to reach in a test.
     static var oneSecondLock: RobotProfile {
-        var profile = RobotProfile.so101Simulator
+        var profile = TestProfiles.so101
         profile.assist.lock = LockLimits(timeLimitS: 1)
         return profile
     }
 
     /// The simulator's robot with a move's time limit a tenth of its path's time at speed, with no allowance.
     static var shortGoLimit: RobotProfile {
-        var profile = RobotProfile.so101Simulator
+        var profile = TestProfiles.so101
         profile.assist.goTo?.timeFactor = 0.1
         profile.assist.goTo?.allowanceS = 0
         return profile

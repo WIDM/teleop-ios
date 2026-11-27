@@ -21,7 +21,7 @@ private final class ProfileTestTransport: LinkTransport {
 /// The robot's share of the hands-free aids: every number is the profile's, a robot that allows none of them is the
 /// master switch off for lock and taps, and the profile the model was given is the one the link judges the jaws by.
 final class RobotProfileAssistTests: XCTestCase {
-    private let profile = RobotProfile.so101Simulator
+    private let profile = TestProfiles.so101
 
     /// The level leg of a move to a tapped point runs at the travel height, so that height has to lie inside the box
     /// the server keeps the pinch point in, or every tap would be refused.
@@ -99,7 +99,7 @@ final class RobotProfileAssistTests: XCTestCase {
     /// the press. An aid that only speaks must not change that by itself, so every profile the app ships that has the
     /// phone explain something also gives the guide's additions.
     func testEveryProfileThatExplainsAlsoGuides() {
-        for shipped in [RobotProfile.so101Simulator] where shipped.assist.explain != nil {
+        for shipped in [TestProfiles.so101] where shipped.assist.explain != nil {
             XCTAssertNotNil(shipped.assist.guide, shipped.name)
         }
     }

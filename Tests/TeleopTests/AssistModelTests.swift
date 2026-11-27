@@ -50,7 +50,7 @@ final class AssistModelTests: XCTestCase {
 
     /// Standby on the real server with the link up and the arm reported, the aids given to the model without saving
     /// them.
-    private func liveModel(profile: RobotProfile = .so101Simulator, assistOn: Bool) -> AppModel {
+    private func liveModel(profile: RobotProfile = TestProfiles.so101, assistOn: Bool) -> AppModel {
         clock = 10_000
         let model = AppModel(
             start: .p4, haptics: NoHaptics(), sounds: SpySounds(), speech: SpySpeech(), pose: { TestPose.portrait },
@@ -124,7 +124,7 @@ final class AssistModelTests: XCTestCase {
             XCTAssertNotNil(simulator.profile.assist.lock)
             XCTAssertTrue(simulator.offersLock, "the simulator's robot allows lock, switch \(on)")
 
-            var noAids = RobotProfile.so101Simulator
+            var noAids = TestProfiles.so101
             noAids.assist = .none
             let other = AppModel(start: .p4, liveLink: false, profile: noAids, assistOn: on, lockChoice: .pressPress)
             XCTAssertFalse(other.offersLock, "a robot that allows no aids, switch \(on)")
@@ -257,7 +257,7 @@ final class AssistModelTests: XCTestCase {
         XCTAssertNil(model.guidePanelRect)
         XCTAssertNil(model.inputFacts().goPanel, "no longer drawn")
 
-        var noTaps = RobotProfile.so101Simulator
+        var noTaps = TestProfiles.so101
         noTaps.assist.goTo = nil
         XCTAssertNil(liveModel(profile: noTaps, assistOn: true).inputFacts().arm, "a robot without tap-to-go")
     }
