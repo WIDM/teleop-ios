@@ -103,6 +103,8 @@ class CheckArmConstantsTests(unittest.TestCase):
             "static var pair: (\n    Int,\n    TeleopCore.RobotProfile\n)? = nil",
             "static let a = 1, b: RobotProfile = make()",
             "static let a: Int = 1,\n    b = RobotProfile(name: x)",
+            "static let cache = Dictionary<String, Int>(), arm: RobotProfile = make()",
+            "static let pairs = [Int: Set<String>](), arm = RobotProfile(name: x)",
         ):
             self.assertFails({APP: text + "\n"}, "a robot profile held in code", text)
 
@@ -112,6 +114,8 @@ class CheckArmConstantsTests(unittest.TestCase):
             "static let a = 1, b: Int = 2",
             "static let a: Int = 1,\n    b = make(profile)",
             "static let handler: (\n    RobotProfile.Type\n) -> Void = { _ in }",
+            "static let cache = Dictionary<String, Int>(), count: Int = 0",
+            "static let ok = a < b, other = 1",
         ):
             self.assertPasses({APP: text + "\n"}, text)
 
@@ -169,6 +173,8 @@ class CheckArmConstantsTests(unittest.TestCase):
                 "init(profile: RobotProfile = RobotProfile(name: n, toolOffset: x)) {}",
             ),
             (APP, "let p = TeleopCore.RobotProfile.init(name: n)"),
+            (APP, "let p = makeArm(name: n, offsetMeasuredAt: m)"),
+            (APP, "var p = build(\n    name: n,\n    offsetMeasuredAt: m\n)"),
             (APP, "let p: RobotProfile = .init(name: n)"),
             (APP, "var p: RobotProfile? = .init(name: n)"),
             (APP, "func bench() -> RobotProfile {\n    .init(name: n)\n}"),
@@ -252,6 +258,8 @@ class CheckArmConstantsTests(unittest.TestCase):
     def test_a_field_or_another_types_init_is_not_a_profile_built(self):
         for text in (
             "struct Note {\n    let offsetMeasuredAt: SIMD3<Float>\n}",
+            "struct Note {\n    let id: Int, offsetMeasuredAt: SIMD3<Float>\n}",
+            "struct Note {\n    private(set) var id = 0, offsetMeasuredAt: Date?\n}",
             "struct Note {\n    public var offsetMeasuredAt: Date?\n}",
             "extension RobotProfile {\n    var vector: SIMD3<Float> { .init(repeating: 0) }\n}",
             "extension RobotProfile {\n    func origin() -> SIMD3<Float> {\n"

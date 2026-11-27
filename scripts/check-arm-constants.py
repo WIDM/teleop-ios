@@ -97,6 +97,11 @@ IMPLICIT_INIT = re.compile(r"(?<![\w)\].])\.init\s*\(")
 # label. A field declared with that name (`let offsetMeasuredAt: SIMD3<Float>`) is not a call.
 INIT_LABEL = re.compile(r"(?<![.\w])offsetMeasuredAt\s*:(?!:)")
 DECLARES = re.compile(r"\b(?:let|var)\s+$")
+# A line that declares stored properties: `let id: Int, offsetMeasuredAt: SIMD3<Float>` names a field, not a call.
+DECLARATION_LINE = re.compile(
+    r"\s*(?:@\w+\s+)*(?:(?:public|private|internal|fileprivate|open|nonisolated|static|lazy|weak|unowned)"
+    r"(?:\(set\))?\s+)*(?:let|var)\b"
+)
 SELF_BUILDS = re.compile(r"\bSelf\s*(?:\.\s*init\s*)?\(|\bself\s*\.\s*init\s*\(")
 # What `.init(...)` takes its type from: a type written beside it, or the function or computed property it returns.
 ANNOTATED = re.compile(r":\s*(?P<type>[^:=;{}()\n]+?)\s*(?<![=!<>])=\s*$")
@@ -260,13 +265,14 @@ def read_type(code, i, end):
 
 def read_value(code, i, end):
     """The value written from i, to the first `,` or `;` outside brackets, a closing bracket it did not open, or the
-    end of its line once some of it is written."""
+    end of its line once some of it is written. A `<` right after a name opens generic arguments (`Dictionary<K, V>()`);
+    a comparison is written with spaces."""
     depth, j = 0, i
     while j < end:
         c = code[j]
-        if c in "([{":
+        if c in "([{" or (c == "<" and j > i and (code[j - 1].isalnum() or code[j - 1] == "_")):
             depth += 1
-        elif c in ")]}":
+        elif c in ")]}" or (c == ">" and depth > 0 and not code.startswith("->", j - 1)):
             if depth == 0:
                 break
             depth -= 1
@@ -451,11 +457,18 @@ def names_or_holds(text, code, literals, bodies, swift, report):
                 report(offset, "a robot profile held in code")
 
 
+def declared_field(code, k):
+    """True when the label at k is one of several properties declared on one line, outside any call's brackets."""
+    line = code[code.rfind("\n", 0, k) + 1 : k]
+    depth = sum(line.count(c) for c in "([") - sum(line.count(c) for c in ")]")
+    return depth == 0 and bool(DECLARATION_LINE.match(line))
+
+
 def builds(code, bodies, report):
     for m in BUILDS_PROFILE.finditer(code):
         report(m.start(), "a robot profile built in code")
     for m in INIT_LABEL.finditer(code):
-        if not DECLARES.search(code, max(0, m.start() - 40), m.start()):
+        if not (DECLARES.search(code, max(0, m.start() - 40), m.start()) or declared_field(code, m.start())):
             report(m.start(), "a robot profile built in code")
     for m in IMPLICIT_INIT.finditer(code):
         if names_profile(init_type(code, m.start(), 0), inside=False):
