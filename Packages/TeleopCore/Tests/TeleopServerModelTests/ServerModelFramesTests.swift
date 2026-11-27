@@ -11,8 +11,8 @@ import simd
 final class ServerModelFramesTests: XCTestCase {
     private let so = TestFrames.so101
 
-    private func bench(_ frames: Frames) -> Bench {
-        Bench(ServerModelConfig.s4Simulator.framed(by: frames, from: so))
+    private func bench(_ frames: Frames) throws -> Bench {
+        Bench(try ServerModelConfig.s4Simulator.framed(by: frames, from: so))
     }
 
     private func point(_ state: JSONValue, _ key: String) throws -> SIMD3<Double> {
@@ -33,7 +33,7 @@ final class ServerModelFramesTests: XCTestCase {
     func testEachDirectionMovesTheToolAlongTheBaseAxisItNames() throws {
         for (name, frames) in TestFrames.all {
             for direction in OperatorDirection.allCases {
-                let bench = bench(frames)
+                let bench = try bench(frames)
                 let phone = bench.client()
                 bench.wait(0.5)
                 let before = try point(phone.lastState, "tool_pos")
@@ -57,7 +57,7 @@ final class ServerModelFramesTests: XCTestCase {
     func testUpIsUpInTheWorldOnEveryBase() throws {
         for (name, frames) in TestFrames.all {
             for direction in OperatorDirection.allCases {
-                let bench = bench(frames)
+                let bench = try bench(frames)
                 let phone = bench.client()
                 bench.wait(0.5)
                 let before = try point(phone.lastState, "tool_pos")
@@ -75,7 +75,7 @@ final class ServerModelFramesTests: XCTestCase {
 
     func testTheTableStopsTheJawTipsAtTheSameHeightInTheWorld() throws {
         for (name, frames) in TestFrames.all {
-            let bench = bench(frames)
+            let bench = try bench(frames)
             let phone = bench.client()
             bench.wait(0.5)
             phone.poseStart()
@@ -89,7 +89,7 @@ final class ServerModelFramesTests: XCTestCase {
         }
     }
 
-    func testTheGraspHasTheSameTolerancesWhicheverWayTheBaseIsTurned() {
+    func testTheGraspHasTheSameTolerancesWhicheverWayTheBaseIsTurned() throws {
         // Offsets of the pinch point from the cube's centre, as the operator sees them, as the SO-101's own tests take
         // them: inside the tolerance, 1 cm to the side, 2.5 cm behind, 1.2 cm above.
         let cases: [(SIMD3<Double>, Bool)] = [
@@ -98,7 +98,7 @@ final class ServerModelFramesTests: XCTestCase {
         ]
         for (name, frames) in TestFrames.all {
             for (offset, holds) in cases {
-                let bench = bench(frames)
+                let bench = try bench(frames)
                 let phone = bench.client()
                 let carried = TestFrames.carry(offset, from: so, to: frames)
                 XCTAssertEqual(phone.closeJaws(offFromCube: carried), holds, "\(name) \(offset)")
@@ -106,9 +106,9 @@ final class ServerModelFramesTests: XCTestCase {
         }
     }
 
-    func testThePickAndPlaceSucceedsOnEveryBase() {
+    func testThePickAndPlaceSucceedsOnEveryBase() throws {
         for (name, frames) in TestFrames.all {
-            let bench = bench(frames)
+            let bench = try bench(frames)
             let phone = bench.client()
             phone.carryCubeOntoGoal()
             let open = phone.gripperJog("open", seconds: 3, release: false)

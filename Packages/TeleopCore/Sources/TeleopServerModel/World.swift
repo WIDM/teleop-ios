@@ -57,7 +57,6 @@ public struct World: Equatable, Sendable {
         var lowest: Double
         if let turn = config.toolTurn {
             // The pinch point's lowest height, and the height of the reported point that puts it there at this place.
-            precondition(config.baseZIsUp, "ServerModelConfig.toolTurn is written for a base whose z is up")
             var pinchFloor = tableTop + config.jawReachBelowPinch
             if holdingCube {
                 pinchFloor = max(pinchFloor, tableTop - config.height(of: gripOffset) + config.cubeSize / 2)

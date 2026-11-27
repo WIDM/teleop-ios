@@ -6,10 +6,8 @@ import XCTest
 /// point in `state`, the grasp and the jaw tips on the table all follow. A model can also stop reporting the tool point
 /// during a run.
 final class ToolTurnTests: XCTestCase {
-    private func turning(_ turn: ServerModelConfig.ToolTurn = .s4Simulator) -> ServerModelConfig {
-        var config = ServerModelConfig.s4Simulator
-        config.toolTurn = turn
-        return config
+    private func turning(_ turn: ServerModelConfig.ToolTurn = .s4Simulator) throws -> ServerModelConfig {
+        try ServerModelConfig.s4Simulator.settingToolTurn(turn)
     }
 
     private func toolPoint(_ state: JSONValue) -> SIMD3<Double>? {
@@ -33,7 +31,7 @@ final class ToolTurnTests: XCTestCase {
 
     /// At the reset pose the turning pinch point is the tool point the simulator reports there.
     func testTheTurningPinchPointAtTheResetPoseIsTheMeasuredOne() throws {
-        let bench = Bench(turning())
+        let bench = Bench(try turning())
         let reported = try XCTUnwrap(toolPoint(bench.model.state))
         XCTAssertLessThan(length(reported - SIMD3(0.0332, -0.2024, 0.0878)), 0.0003, "\(reported)")
         XCTAssertEqual(reported, ServerModelConfig.ToolTurn.s4Simulator.pinch(bench.config.armStart))
@@ -57,7 +55,7 @@ final class ToolTurnTests: XCTestCase {
     /// Pushed down into the table, the arm stops where the turning pinch point's jaw tips meet it, and `state` reports
     /// that pinch point.
     func testTheJawTipsStopOnTheTableWhereTheTurningPinchPointSays() throws {
-        let bench = Bench(turning())
+        let bench = Bench(try turning())
         let phone = bench.client()
         bench.wait(0.5)
         phone.moveArm(to: bench.config.armStart + SIMD3(0.02, -0.01, -0.07), seconds: 4)
@@ -71,8 +69,8 @@ final class ToolTurnTests: XCTestCase {
 
     /// At the reset pose, where the two lie 2.5 cm apart, closing jaws take hold of the cube when the turning pinch
     /// point is at its centre, and not when the reported point plus the tool offset is.
-    func testTheJawsTakeHoldWhereTheTurningPinchPointIs() {
-        let config = turning()
+    func testTheJawsTakeHoldWhereTheTurningPinchPointIs() throws {
+        let config = try turning()
         let arm = config.armStart
         var world = World(config)
         XCTAssertEqual(world.arm, arm)

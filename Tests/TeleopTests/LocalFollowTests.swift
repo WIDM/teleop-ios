@@ -36,9 +36,9 @@ final class LocalFollowTests: XCTestCase {
     /// view from above reported.
     private func start(_ turn: ServerModelConfig.ToolTurn) throws {
         self.turn = turn
-        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: true).settingFrames(
+        var config = try ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: true).settingFrames(
             from: TestProfiles.so101.frames)
-        config.toolTurn = turn
+        config = try config.settingToolTurn(turn)
         server = LocalTeleopServer(config: config)
         try server.start()
         hand = ScriptedOperator(address: server.address, mode: .screenTurns, smoothing: 0.3, pace: 0.3)

@@ -40,17 +40,18 @@ public struct ServerModelConfig: Equatable, Sendable {
     // MARK: Scene
 
     /// The robot base in the world frame. The server reports the arm in the base frame and objects in the world frame.
-    public var baseInWorld = SIMD3<Double>(0, 0, 0.05)
+    /// Set together with the axes and the link signs by `settingFrames`, which refuses what cannot be a base.
+    public private(set) var baseInWorld = SIMD3<Double>(0, 0, 0.05)
     /// Which way each axis of the base points in the world, each a unit vector along a world axis (a quarter turn).
     /// World z is up: the table, the floor and a falling cube are rules of the world, so "up" in the base frame is
     /// whichever base axis lies along world z, and a base whose z points down has the table along its own z the
     /// other way round.
-    public var baseXInWorld = SIMD3<Double>(1, 0, 0)
-    public var baseYInWorld = SIMD3<Double>(0, 1, 0)
-    public var baseZInWorld = SIMD3<Double>(0, 0, 1)
+    public private(set) var baseXInWorld = SIMD3<Double>(1, 0, 0)
+    public private(set) var baseYInWorld = SIMD3<Double>(0, 1, 0)
+    public private(set) var baseZInWorld = SIMD3<Double>(0, 0, 1)
     /// The server moves the base by a translation hold's offset with each axis signed like this, the phone's frame
     /// against the base's (mapping `phone_axes_20261025_v1`: x, y, minus z).
-    public var linkSigns = SIMD3<Double>(1, 1, -1)
+    public private(set) var linkSigns = SIMD3<Double>(1, 1, -1)
     /// The point the server reports for the arm (the gripper link origin) after a reset, as measured.
     public var armStart = SIMD3<Double>(0.020617, -0.141418, 0.159985)
     /// The workspace is a box this far either way of `armStart` on every axis.
@@ -76,7 +77,7 @@ public struct ServerModelConfig: Equatable, Sendable {
     /// (`ToolTurn`), and `toolOffset` is not used: the tool point in `state`, the grasp and where the jaw tips stop on
     /// the table all follow the turning point. It is written for a base whose z is up (the pan axis, the tilt and the
     /// drop below the reported point are all along z), so a model whose base is turned cannot carry one.
-    public var toolTurn: ToolTurn?
+    public private(set) var toolTurn: ToolTurn?
     /// `state` carries `tool_pos`, the pinch point, wherever it carries `ee_pos`. False leaves it out, as from a server
     /// that reports no tool point. The model starts from this and can be told to stop during a run
     /// (`ServerModel.reportsToolPoint`).
@@ -323,6 +324,87 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     /// The pinch-turn model (`ToolTurn`) is written for a base whose z is up.
     var baseZIsUp: Bool { up.index == 2 && up.sign > 0 }
+
+    /// A configuration the model refuses: one plain sentence for each fault.
+    public struct Refusal: Error, Equatable, CustomStringConvertible {
+        public let sentences: [String]
+        public var description: String { sentences.joined(separator: " ") }
+    }
+
+    /// This configuration with the base at `baseInWorld`, its axes lying along the world axes `x`, `y` and `z` (each a
+    /// unit vector along one world axis, the three a quarter turn: x cross y is z) and the link signed by
+    /// `linkSigns` (each 1 or -1). Throws a `Refusal` that says what is wrong, the same sentences whichever order the
+    /// fields and the tool turn are set in.
+    public func settingFrames(
+        baseInWorld: SIMD3<Double>, x: SIMD3<Double>, y: SIMD3<Double>, z: SIMD3<Double>, linkSigns: SIMD3<Double>
+    ) throws -> ServerModelConfig {
+        var config = self
+        config.baseInWorld = baseInWorld
+        config.baseXInWorld = x
+        config.baseYInWorld = y
+        config.baseZInWorld = z
+        config.linkSigns = linkSigns
+        try config.refuseFaults()
+        return config
+    }
+
+    /// This configuration with the turning pinch point `turn` (nil: the fixed tool offset). Throws a `Refusal` when
+    /// the base's up is not along world +z, which the turn is written for.
+    public func settingToolTurn(_ turn: ToolTurn?) throws -> ServerModelConfig {
+        var config = self
+        config.toolTurn = turn
+        try config.refuseFaults()
+        return config
+    }
+
+    private func refuseFaults() throws {
+        let faults = faults()
+        if !faults.isEmpty { throw Refusal(sentences: faults) }
+    }
+
+    /// Every fault in the frame fields and the tool turn, one sentence each; empty when the model can use them.
+    public func faults() -> [String] {
+        var faults: [String] = []
+        if !(baseInWorld.x.isFinite && baseInWorld.y.isFinite && baseInWorld.z.isFinite) {
+            faults.append("The base's place in the world must be finite numbers.")
+        }
+        if !(0..<3).allSatisfy({ linkSigns[$0] == 1 || linkSigns[$0] == -1 }) {
+            faults.append("The link signs must each be 1 or -1; only a mirrored axis is supported.")
+        }
+        let axes = [("x", baseXInWorld), ("y", baseYInWorld), ("z", baseZInWorld)]
+        var turnIsValid = true
+        for (name, axis) in axes where !Self.isUnitAxis(axis) {
+            turnIsValid = false
+            faults.append(
+                "The base's \(name) axis in the world must be a unit vector along one world axis (a quarter turn); "
+                    + "it is (\(axis.x), \(axis.y), \(axis.z)).")
+        }
+        if turnIsValid {
+            let along = axes.map { $0.1.x != 0 ? 0 : $0.1.y != 0 ? 1 : 2 }
+            if Set(along).count != 3 {
+                faults.append("The base's x, y and z axes must lie along three different world axes, one each.")
+                turnIsValid = false
+            } else if cross(baseXInWorld, baseYInWorld) != baseZInWorld {
+                faults.append("The base's axes in the world are a mirror image, not a turn: x cross y must be z.")
+                turnIsValid = false
+            }
+        }
+        if toolTurn != nil, turnIsValid, !baseZIsUp {
+            faults.append(
+                "The turning pinch point (toolTurn) needs the base's up along world +z, base z up, and here base axis "
+                    + "\(["x", "y", "z"][up.index]) lies along world z, \(up.sign < 0 ? "downward" : "upward").")
+        }
+        return faults
+    }
+
+    private static func isUnitAxis(_ v: SIMD3<Double>) -> Bool {
+        let parts = [v.x, v.y, v.z]
+        return parts.filter { $0 != 0 }.count == 1 && parts.contains { $0 == 1 || $0 == -1 }
+    }
+
+    private func cross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
+        SIMD3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+    }
 
     /// The lab server's numbers as recorded on 2026-11-11: no cameras, no recording. Whether `state` carries the tool
     /// point is the model's own switch (`reportsToolPoint`, on here), not one of those numbers.
