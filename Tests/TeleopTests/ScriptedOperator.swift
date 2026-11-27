@@ -49,18 +49,28 @@ final class ScriptedOperator {
     /// The step at which the run could not go on; nil while it can.
     private var haltedDuring: String?
 
-    /// - Parameter makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or
-    ///   cuts the network path.
+    /// Which base axis is forward, left and up for the arm this hand drives, and how the world sits against the base:
+    /// the hand's moves are written in the operator's terms and turned into the base's through these.
+    let frames: Frames
+
+    /// - Parameters:
+    ///   - frames: the directions of the arm the app drives; they must be those of the app's profile, since the hand
+    ///     and the app have to agree on what "up" is.
+    ///   - makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or cuts
+    ///     the network path.
     init(
         address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
-        haptics: HapticsPlaying = NoHaptics(), makeTransport: ((URL) -> LinkTransport)? = nil
+        frames: Frames = TestProfiles.so101.frames, haptics: HapticsPlaying = NoHaptics(),
+        makeTransport: ((URL) -> LinkTransport)? = nil
     ) {
+        self.frames = frames
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
         model = AppModel(
             start: .s1, haptics: haptics, pose: { [unowned self] in camera }, liveLink: true,
             makeTransport: makeTransport ?? { WebSocketTransport(url: $0) })
+        precondition(frames == model.profile.frames, "the hand's frames are not the app profile's frames")
         model.session.state.serverAddress = address
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
@@ -310,8 +320,7 @@ final class ScriptedOperator {
 
     /// One vol+ hold that moves the phone by the base-frame offset `remaining`.
     private func holdUpperKey(for remaining: SIMD3<Float>, _ name: String) -> Bool {
-        // Operator frame: right is −X, forward is −Y, up is +Z. An upright phone: right +x, up +y, forward −z.
-        let hand = SIMD3(-remaining.x, remaining.z, remaining.y)
+        let hand = Self.handOffset(for: remaining, frames: frames)
         position = .zero
         pump(0.3)
         press(.upper)
@@ -326,13 +335,27 @@ final class ScriptedOperator {
         return true
     }
 
+    /// Where the hand goes (right, up, back in metres: an upright phone, right +x, up +y, forward −z) to move the arm by
+    /// the base-frame offset `remaining`: the offset as the operator sees it, right, forward and up.
+    static func handOffset(for remaining: SIMD3<Float>, frames: Frames) -> SIMD3<Float> {
+        let seen = SIMD3<Float>(frames.operatorPoint(SIMD3<Double>(remaining)))
+        return SIMD3(seen.x, seen.z, -seen.y)
+    }
+
+    /// The button for each of the three ways the base-frame offset `remaining` goes as the operator sees it, with how
+    /// far: left or right, then back or forward, then up or down.
+    static func buttonParts(for remaining: SIMD3<Float>, frames: Frames) -> [(ButtonID, Float)] {
+        let seen = SIMD3<Float>(frames.operatorPoint(SIMD3<Double>(remaining)))
+        return [
+            (seen.x >= 0 ? .right : .left, abs(seen.x)),
+            (seen.y >= 0 ? .forward : .back, abs(seen.y)),
+            (seen.z >= 0 ? .up : .down, abs(seen.z)),
+        ]
+    }
+
     /// One button hold per axis, as long as the ramp needs to cover that axis's share of `remaining`.
     private func holdButtons(for remaining: SIMD3<Float>, _ name: String) -> Bool {
-        let parts: [(ButtonID, Float)] = [
-            (remaining.x >= 0 ? .left : .right, abs(remaining.x)),
-            (remaining.y >= 0 ? .back : .forward, abs(remaining.y)),
-            (remaining.z >= 0 ? .up : .down, abs(remaining.z)),
-        ]
+        let parts = Self.buttonParts(for: remaining, frames: frames)
         for (button, distance) in parts where distance >= 0.001 {
             let speed: ButtonSpeed = distance < 0.015 ? .fine : .coarse
             model.selectSpeed(speed)
@@ -441,13 +464,14 @@ final class ScriptedOperator {
             verdict = "SKIP"
             throw XCTSkip("the server did not report the task object, goal and arm positions")
         }
-        let lift = SIMD3<Float>(0, 0, 0.03)
+        let up = SIMD3<Float>(frames.upVector)
+        let lift = up * 0.03
 
         gripper(.open, seconds: 5)
         guard going() else { return }
         for hold in 0..<warmUpHolds {
-            let up: Float = hold % 2 == 0 ? 0.03 : 0.015
-            moveArm(to: armStart + SIMD3(0, 0, up), "warm-up hold \(hold + 1)", maxHolds: 1)
+            let raise: Float = hold % 2 == 0 ? 0.03 : 0.015
+            moveArm(to: armStart + up * raise, "warm-up hold \(hold + 1)", maxHolds: 1)
             guard going() else { return }
         }
         // Where the reported gripper point has to be for the guide's ring to sit on the object.
@@ -473,7 +497,7 @@ final class ScriptedOperator {
             XCTFail("\(mode): the object was not lifted (rose \(lifted * 100) cm)")
             return
         }
-        var overGoal = grasp + SIMD3(goal.x - object.x, goal.y - object.y, 0)
+        var overGoal = grasp + acrossTheTable(SIMD3(goal.x - object.x, goal.y - object.y, 0))
         moveArm(to: overGoal + lift, "to the goal")
         guard let carried = reportedObject("after the carry") else { return }
         guard carried.z - object.z > 0.015 else {
@@ -482,11 +506,11 @@ final class ScriptedOperator {
         }
         let miss = SIMD3(goal.x - carried.x, goal.y - carried.y, 0)
         if simd_length(miss) > 0.005 {
-            overGoal += miss
+            overGoal += acrossTheTable(miss)
             moveArm(to: overGoal + lift, "object over the goal", maxHolds: 1)
             guard going() else { return }
         }
-        moveArm(to: overGoal + SIMD3(0, 0, 0.002), "down onto the goal", maxHolds: 2)
+        moveArm(to: overGoal + up * 0.002, "down onto the goal", maxHolds: 2)
         guard going() else { return }
         countingSuccess = true
         gripper(.open, seconds: 5)
@@ -516,6 +540,11 @@ final class ScriptedOperator {
             return
         }
         verdict = "PASS"
+    }
+
+    /// A move across the table in the world frame (the server reports the object and the goal there), in the base frame.
+    private func acrossTheTable(_ world: SIMD3<Float>) -> SIMD3<Float> {
+        SIMD3<Float>(frames.base(fromWorldDirection: SIMD3<Double>(world)))
     }
 
     /// Where the server reports the task object now, in the newest `state` from either connection; nil, after failing
