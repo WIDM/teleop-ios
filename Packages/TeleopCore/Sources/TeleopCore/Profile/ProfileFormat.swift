@@ -10,6 +10,8 @@ import Foundation
 public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case missingKey(String)
     case unknownKey(String)
+    /// A key written twice in one object: JSON readers keep one of the two values without a word.
+    case repeatedKey(String)
     case wrongLength(String, expected: Int, found: Int)
     case unsupportedVersion(Int)
     /// A value of the wrong kind (text where a number goes, say), or a file that is not JSON: the path is empty then.
@@ -21,6 +23,7 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
         switch self {
         case .missingKey(let path): return "The profile has no \(path); every field must be given."
         case .unknownKey(let path): return "The profile has \(path), which is not a field of this format."
+        case .repeatedKey(let path): return "The profile has \(path) more than once; write each field once."
         case .wrongLength(let path, let expected, let found):
             return "\(path) must have \(expected) numbers, not \(found)."
         case .unsupportedVersion(let version):
@@ -39,6 +42,9 @@ extension RobotProfile: Codable {
     /// Reads a profile file and checks it: a format error, or `ProfileFormatError.invalid` with every sentence
     /// `validate()` gives.
     public static func load(json: Data) throws -> RobotProfile {
+        if let repeated = RepeatedKeyScanner.firstRepeatedKey(in: json) {
+            throw ProfileFormatError.repeatedKey(repeated)
+        }
         let profile: RobotProfile
         do {
             profile = try JSONDecoder().decode(RobotProfile.self, from: json)
@@ -51,9 +57,13 @@ extension RobotProfile: Codable {
     }
 
     public init(from decoder: Decoder) throws {
-        let top = try decoder.strictContainer(["profile_version", "name", "robot", "scene", "response", "assist"])
-        let version: Int = try top.value("profile_version")
+        // The version first: a later version may have other keys, and saying so is the useful answer.
+        let container = try decoder.container(keyedBy: ProfileKey.self)
+        guard container.contains("profile_version") else { throw ProfileFormatError.missingKey("profile_version") }
+        let version = try container.decode(Int.self, forKey: "profile_version")
         guard version == Self.formatVersion else { throw ProfileFormatError.unsupportedVersion(version) }
+        let top = try StrictObject(
+            checking: container, ["profile_version", "name", "robot", "scene", "response", "assist"])
         let robot = try top.section("robot", ["wrist", "gripper"])
         let wrist = try robot.section("wrist", ["roll_sign", "tilt_sign"])
         let gripper = try robot.section("gripper", ["open_deg", "empty_deg", "reclose_loosens_grip"])
@@ -267,7 +277,94 @@ extension DecodingError {
             context = c
         @unknown default: return ""
         }
-        return context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".")
+        return profilePath(context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue })
+    }
+}
+
+/// A path in the file as the errors write it: keys joined by dots, array places in brackets with no dot before them,
+/// such as `scene.base_in_world_m[0]`.
+func profilePath(_ components: [String]) -> String {
+    components.reduce("") { path, component in
+        path.isEmpty || component.hasPrefix("[") ? path + component : path + "." + component
+    }
+}
+
+/// Finds a key written twice in one JSON object, which `JSONDecoder` would let pass with one of the two values.
+struct RepeatedKeyScanner {
+    private struct Malformed: Error {}
+    private let bytes: [UInt8]
+    private var at = 0
+
+    /// The path of the first key written twice in one object, such as `scene.table_height_m`. Nil when there is none,
+    /// or when the data is not JSON: the decoder then says so.
+    static func firstRepeatedKey(in json: Data) -> String? {
+        var scanner = RepeatedKeyScanner(bytes: Array(json))
+        return try? scanner.value(at: [])
+    }
+
+    private init(bytes: [UInt8]) { self.bytes = bytes }
+
+    private mutating func value(at path: [String]) throws -> String? {
+        skipSpace()
+        guard at < bytes.count else { throw Malformed() }
+        switch bytes[at] {
+        case UInt8(ascii: "{"):
+            at += 1
+            var seen: Set<String> = []
+            if take("}") { return nil }
+            repeat {
+                skipSpace()
+                let key = try string()
+                guard seen.insert(key).inserted else { return profilePath(path + [key]) }
+                guard take(":") else { throw Malformed() }
+                if let repeated = try value(at: path + [key]) { return repeated }
+            } while take(",")
+            guard take("}") else { throw Malformed() }
+        case UInt8(ascii: "["):
+            at += 1
+            if take("]") { return nil }
+            var index = 0
+            repeat {
+                if let repeated = try value(at: path + ["[\(index)]"]) { return repeated }
+                index += 1
+            } while take(",")
+            guard take("]") else { throw Malformed() }
+        case UInt8(ascii: "\""):
+            _ = try string()
+        default:
+            let ends = Set(",}] \t\n\r".utf8)
+            while at < bytes.count, !ends.contains(bytes[at]) { at += 1 }
+        }
+        return nil
+    }
+
+    /// A string at the current place, its escapes read as JSON reads them.
+    private mutating func string() throws -> String {
+        guard at < bytes.count, bytes[at] == UInt8(ascii: "\"") else { throw Malformed() }
+        let start = at
+        at += 1
+        while at < bytes.count, bytes[at] != UInt8(ascii: "\"") {
+            at += bytes[at] == UInt8(ascii: "\\") ? 2 : 1
+        }
+        guard at < bytes.count else { throw Malformed() }
+        at += 1
+        let quoted = Data(bytes[start..<at])
+        guard let text = try? JSONSerialization.jsonObject(with: quoted, options: .fragmentsAllowed) as? String else {
+            throw Malformed()
+        }
+        return text
+    }
+
+    private mutating func skipSpace() {
+        while at < bytes.count, [0x20, 0x09, 0x0A, 0x0D].contains(bytes[at]) { at += 1 }
+    }
+
+    /// Skips space, then the character if it is there.
+    private mutating func take(_ character: Unicode.Scalar) -> Bool {
+        skipSpace()
+        guard at < bytes.count, bytes[at] == UInt8(ascii: character) else { return false }
+        at += 1
+        return true
     }
 }
 
@@ -286,7 +383,7 @@ struct StrictObject {
 
     /// `scene.tool_offset.offset_m` for a key of this object.
     func path(_ key: String) -> String {
-        (container.codingPath.map(\.stringValue) + [key]).joined(separator: ".")
+        profilePath(container.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue } + [key])
     }
 
     func value<T: Decodable>(_ key: String) throws -> T {

@@ -47,7 +47,10 @@ The rules:
   An optional value is written as `null`; leaving its key out is still a missing key.
 - **No unknown keys.** A key the format does not know, a misspelt one included, stops the load with its path. A
   typo therefore cannot fall back to another arm's number without a word.
-- **`profile_version`** is 1. Another version is refused.
+- **Each key once.** A key written twice in one object stops the load with its path.
+- **Values of the right kind.** A section, value or array element of the wrong kind (text where a number goes)
+  stops the load with its path; an element's place follows its key in brackets, such as `scene.base_in_world_m[0]`.
+- **`profile_version`** is 1, and is read first: a file of another version is refused as that, whatever its keys.
 - **Units are in the key's name:** `_m` metres, `_deg` degrees, `_s` seconds, `_mps` metres per second,
   `_mm_per_cm` millimetres per centimetre, `_mm_per_deg` millimetres per degree. A key without a unit is a count,
   a sign, a factor or a yes/no.

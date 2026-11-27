@@ -185,9 +185,61 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// A section of the wrong kind, or an element of an array, is named by its path; an element's place is written in
+    /// brackets after the key.
+    func testASectionOrAnArrayElementOfTheWrongKindIsNamed() throws {
+        let cases: [([String], Any, String)] = [
+            (["robot"], 5, "robot"),
+            (["assist", "guide"], "all", "assist.guide"),
+            (["scene", "tool_offset"], [1, 2], "scene.tool_offset"),
+            (["scene", "base_in_world_m"], ["a", 0, 0], "scene.base_in_world_m[0]"),
+            (["scene", "workspace_max_m"], [0.1, -0.1, "top"], "scene.workspace_max_m[2]"),
+        ]
+        for (path, value, named) in cases {
+            let wrong = changing(try object(), at: path) { $0[path.last!] = value }
+            let data = try JSONSerialization.data(withJSONObject: wrong)
+            XCTAssertThrowsError(try RobotProfile.load(json: data), named) { error in
+                XCTAssertEqual(error as? ProfileFormatError, .badValue(named))
+                XCTAssertEqual("\(error)", "\(named) has a value of the wrong kind.")
+            }
+        }
+    }
+
+    /// A key written twice in one object is refused with its path, at any level and however its name is escaped.
+    func testARepeatedKeyIsRefusedByItsPath() throws {
+        let cases = [
+            ("\"profile_version\": 1,", "\"profile_version\": 1, \"profile_version\": 1,", "profile_version"),
+            ("\"table_height_m\": 0.02,", "\"table_height_m\": 0.02, \"table_height_m\": 0.4,", "scene.table_height_m"),
+            (
+                "\"x_mm_per_cm\": 1,", "\"x_mm_per_cm\": 1, \"x_mm_per_cm\": 1,",
+                "scene.tool_offset.error_bound.x_mm_per_cm"
+            ),
+            ("\"goal_size_m\": 0.06,", "\"goal_size_m\": 0.06, \"goal\\u005fsize_m\": 0.06,", "scene.goal_size_m"),
+        ]
+        for (once, twice, path) in cases {
+            XCTAssertTrue(Self.sample.contains(once), once)
+            let json = Data(Self.sample.replacingOccurrences(of: once, with: twice).utf8)
+            XCTAssertThrowsError(try RobotProfile.load(json: json), path) { error in
+                XCTAssertEqual(error as? ProfileFormatError, .repeatedKey(path))
+                XCTAssertEqual("\(error)", "The profile has \(path) more than once; write each field once.")
+            }
+        }
+    }
+
     func testAnotherVersionIsRefused() throws {
         let later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
         XCTAssertEqual(error(later), .unsupportedVersion(2))
+    }
+
+    /// The version is read before the keys: a later version's file, with keys this format does not have or lacks,
+    /// says that its version is not supported.
+    func testAnotherVersionIsRefusedBeforeItsKeys() throws {
+        var later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
+        later["camera"] = ["height_m": 0.5]
+        later["robot"] = nil
+        let refused = try XCTUnwrap(error(later))
+        XCTAssertEqual(refused, .unsupportedVersion(2))
+        XCTAssertEqual("\(refused)", "profile_version 2 is not supported; this app reads version 1.")
     }
 
     /// Each fault gives its own sentence naming the field, and `load` refuses the file with all of them.
