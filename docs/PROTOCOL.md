@@ -1,7 +1,7 @@
 # How the app talks to the server
 
-The app drives a simulated SO-101 robot arm. The simulation runs on a lab machine, and a small server inside it
-takes commands over a WebSocket (one long-lived, two-way connection that carries text messages). This document is
+The app drives a simulated SO-101 robot arm. The simulation runs on the server's machine, and a small server inside
+it takes commands over a WebSocket (one long-lived, two-way connection that carries text messages). This document is
 the conversation between the two: what each side sends, when, and what the app does with each answer.
 
 The app side lives in `Packages/TeleopCore/Sources/TeleopCore/Link/TeleopLink.swift` (the messages and their
@@ -24,8 +24,8 @@ recordings of the real server back most of what is written here.
   `sim_not_ready`, `estop_active`, or a validation code such as `invalid_pose_start`). No `state` follows it, and no
   final ack comes later. Every start gets exactly one of the two.
 - **E-stop** (emergency stop): a latched state in which the server refuses every motion until it is released.
-- **Physics step**: one pass of the simulation loop. The simulation counts 60 steps per simulated second; the lab
-  machine runs fewer than 60 per real second, so every server speed is slower in real time than its number says.
+- **Physics step**: one pass of the simulation loop. The simulation counts 60 steps per simulated second; the machine
+  running it manages fewer than 60 per real second, so every server speed is slower in real time than its number says.
 - **Base frame**: positions measured from the robot's base, in metres. +x points toward the goal (the operator's
   left), −y points forward onto the table, +z points up. **World frame**: the simulation's own origin; the base
   sits 5 cm above it, so a base-frame position is the world-frame one minus (0, 0, 0.05).
@@ -40,8 +40,8 @@ recordings of the real server back most of what is written here.
   arm goes as far as it may and no further; the phone tells the operator "as far as it goes".
 - **`ik`**: a field of `state`, named after *inverse kinematics* (working out the joint angles that put the gripper
   at a given point). It reports what the server is doing, for example `pose_tracking` or `resetting`.
-- **Recorder, take, demonstration**: the server can record what the arm does while a person works the task, so the
-  lab collects examples of the task done by hand. The *recorder* is that part of the server. A *take* is one
+- **Recorder, take, demonstration**: the server can record what the arm does while a person works the task, so
+  examples of the task done by hand can be collected. The *recorder* is that part of the server. A *take* is one
   recorded attempt, from the first command after a reset to the end of the attempt. A take that ends in success is
   kept as a *demonstration* in the server's output file; any other take is thrown away.
 - **STOP** is the red band along the bottom of every screen: it latches the emergency stop at touch-down.
@@ -94,7 +94,7 @@ The first message on a connection must be `hello`, with exactly these two fields
 
 `name` is how the server's log names the connection. The app names its control connection
 `teleop-ios/<version> (<build>) install=<code>`, from the bundle's version and build numbers and eight random hex
-digits made on the first connection and kept until the app is deleted (`LiveLinkController.clientName`), and its
+digits made when the app first starts and kept until the app is deleted (`LiveLinkController.clientName`), and its
 listening connection the same followed by ` observer`. The code tells one install's sessions from another's in the
 log (a phone restored from another phone's backup keeps that phone's code); nothing in it comes from the phone or the
 person. Any other field in the payload, or any other message
@@ -110,7 +110,9 @@ The server answers with `welcome`, then a first `state` (described below):
 (`s00_hello`.)
 
 `session` names the server run: it changes only when the server restarts. The app keeps it to notice a restart
-across a reconnect (the scene then starts over). It ignores `config`.
+across a reconnect (the scene then starts over). It ignores `config`. It also reads `control_points`,
+`tool_calibration_id` and `tool_motion_modes` (pinch-point holds, below) and `telemetry_version` (timing telemetry,
+below); the recording above carries none of them.
 
 The link is usable once `welcome` and a first `state` have arrived (`TeleopLink.ready`). Until then the app sends
 no commands but `estop` on a STOP and `estop_reset` when the operator releases the stop (see "The emergency stop").
@@ -134,6 +136,7 @@ If the link is not ready within 5 seconds, the app drops the socket and reports 
 | `estop` | every STOP, also when the stop is already latched; on both connections when both are up; first on a new control connection whenever the stop is latched at its `welcome` | `{}` | an ack at once |
 | `estop_reset` | Release, keep scene is held for 1 s | `{}` | an ack at once |
 | `reset_scene` | Reset: the top band is held for 2 s | `{}` | an ack when the reset has finished |
+| `clock_probe`, `telemetry` | only when the server turned timing telemetry on in `welcome` (below) | see below | `clock_reply`, `telemetry_ack` |
 
 The server also accepts messages the app does not send: `mode`, `move_delta`, `jog_start`, `jog_stop`,
 `joint_jog_start`, `joint_jog_stop`, `joint_delta` and the one-shot `gripper`. The one-shot `gripper` is avoided on
@@ -186,17 +189,28 @@ target gets more than 10 cm ahead of the arm (`pose_tracking_safety_stop`). When
 the server hold and starts a new one from where the arm really got to, every 1.5 s, for as long as the hold goes
 on (a *resync*, `LiveLinkController.maxLeadMeters` and `resyncAfterMs`).
 
-### Explicit pinch-point height holds
+### Pinch-point holds and coordinated height
 
-A calibrated server may advertise `tool_motion_modes: ["coordinated_height"]` in `welcome`, alongside its
+A server that lists `"tool"` in `control_points` and gives a `tool_calibration_id` in `welcome` can move the pinch
+point itself. The app then adds `control_point: "tool"` and `calibration_id` (the id `welcome` gave) to the
+`pose_start` of a pad or Fine controls direction button, while the jaws hold nothing, and of a phone hold on an axis
+chosen by voice (an unfinished experiment, shown only with `-voiceEntry YES`). A free phone move and a move to a
+tapped point send neither field. Without the two fields in `welcome`, every hold is on the gripper link origin's
+path, as before. A hold on the pinch point asks for at most 5 mm of displacement from where the arm was when its current segment began
+and, when more is asked for, resyncs after 0.5 s (the next segment then starts from a fresh measurement), where a hold
+on the gripper link origin caps at 8 cm and resyncs after 1.5 s (`LiveLinkController.toolMaxLeadMeters`,
+`toolResyncAfterMs`). A coordinated height hold (below) does not work this way: it judges each state's fresh measured
+height and keeps one server hold.
+
+A calibrated server may also advertise `tool_motion_modes: ["coordinated_height"]` in `welcome`, alongside its
 `tool_calibration_id`. This is a capability, not the default controller. A height hold explicitly adds
-`control_point: "tool"`, the matching `calibration_id`, and `tool_motion: "coordinated_height"` to the translation
-`pose_start`. The server refuses unsupported modes or incompatible control points before queuing movement.
+`tool_motion: "coordinated_height"` to the translation `pose_start`, together with `control_point` and
+`calibration_id`. The server refuses unsupported modes or incompatible control points before queuing movement.
 Omitting `tool_motion` preserves ordinary translation. Updates cannot change the mode selected by the start.
 
-Existing up/down buttons select this mode only when the server advertises it. An already selected phone height
-axis uses the same path. General XYZ movement, tap movement and experimental voice steps do not opt in.
-Older servers retain their existing controls without being treated as supporting coordinated height.
+The Up and Down buttons of the pad and of the Fine controls panel select this mode only when the server advertises
+it, and so does a phone hold on a height axis chosen by voice. A server that does not advertise it keeps the
+existing controls and is not treated as supporting coordinated height.
 
 The server coordinates wrist flex with the arm to keep the actual pinch point on its original vertical line and
 preserve gripper world orientation. The App sends zero X/Y displacement and at most 5 mm of height lead from the
@@ -208,6 +222,15 @@ During an active coordinated hold, state includes `tool_control_mode: "coordinat
 `tool_world_quat` and `tool_joint_pos_rad`. These fields are cleared when the hold ends or ordinary movement
 starts, so a previous hold cannot label a subsequent XYZ movement. Motion records pair tool intent and applied
 targets with `tool_base`; generic link-origin measurements must not be compared against pinch-point targets.
+
+**A held object.** Once a state says `ik: gripper_contact` for a close, the app counts the jaws as holding an object,
+and the pad, Fine controls and Up and Down holds go back on the gripper link origin's path, with no `control_point`
+and no `tool_motion`, for every direction. The carry goes on after an emergency stop, since the jaws stay shut on what
+they hold. It ends when a state shows the jaws opening after an open went out, when the scene is reset (the answer
+to `reset_scene`, or a state naming a new `episode`) and when the control connection is made again
+(`Packages/TeleopCore/Sources/TeleopCore/Link/ObjectHold.swift`). The reason is measured: carrying the simulator's
+cube on the pinch point's path lifted it in 1 of 10 trials, and on the gripper link's path it reached the goal in 9 of
+10.
 
 ### `gripper_jog_start`, `jog_keepalive`, `gripper_jog_stop`: the jaws
 
@@ -257,6 +280,12 @@ that axis since the input began (the thumb's touch-down in scheme A, the vol− 
 The operator feels a long buzz at a limit. If the start waited behind a finishing hold, the rotation made meanwhile is
 dropped. Releasing leaves the wrist where it got to. Each update is also the hold's keepalive.
 
+The Wrist page of the Fine controls panel sends the same three messages with no phone involved. A held button asks
+for an angle that grows from the moment `orient_start` went out: 20 degrees a second for Turn left and Turn right
+(roll, left negative) and 10 degrees a second for Tilt up and Tilt down (pitch, up negative, so Tilt down points the
+jaws toward the table), held to the same range as the phone's hold (`RotationMapper.limits`) and sent through the
+same lead bound. The long buzz plays once per hold, at the end of the range (`WristButton`, `WristButtonRamp`).
+
 ## What the app receives
 
 | Message | What the app does with it |
@@ -265,7 +294,8 @@ dropped. Releasing leaves the wrist where it got to. Each update is also the hol
 | `state` | the first one makes the link ready; every one updates the guide, the operating screen's state, the feedback and the spoken narration of the recorder; on the control connection, `estop: true` latches the emergency stop on the phone; on either connection, `estop: true` in a state written after the server read the app's `estop` confirms a STOP pressed on the phone |
 | `ack` | matched to the message it names (below) |
 | `test` | the echo of a probe: one round-trip time |
-| `error` | ignored. The server sends it for a malformed message (below). |
+| `error` | with the code `session_in_use`, `session_taken` or `idle_timeout`, the reason a server that keeps one phone per simulator refused or let go of this phone (below); any other error is ignored |
+| `clock_reply`, `telemetry_ack` | only when the server turned timing telemetry on in `welcome` (below) |
 
 ### `error`
 
@@ -275,7 +305,18 @@ The answer to a message the server cannot take, here one of an unknown type (`s1
 {"v": 1, "type": "error", "ts": 1794378841695, "seq": 369, "payload": {"code": "unknown_type", "msg": "unsupported type=no_such_type"}}
 ```
 
-The app should never get one, and ignores it if it does (`TeleopLink.receive` returns no event for it).
+The app should never get one for a message it sent, and ignores it if it does. The exception is three codes a server
+that keeps one phone per simulator may send just before it closes the connection
+(`SessionDismissal`, `TeleopLink.receive`):
+
+| `code` | Meaning | What the phone says |
+|---|---|---|
+| `session_in_use` | another phone holds this simulator | "Someone is using this simulator. Pick another one, or try again later." |
+| `session_taken` | this phone was silent long enough that another phone took the simulator | "Another phone took this simulator while yours was away. Pick another one, or try again later." |
+| `idle_timeout` | no operation for longer than the server allows | "No operation for over 10 minutes, so the connection was closed. Connect again to go on." |
+
+The words show on Connect and on the stopped and link-lost states, and stay until a new connection attempt, an explicit disconnect or leaving the session clears them. The
+connection's closing is still a lost link, told as usual.
 
 ### `ack`
 
@@ -304,9 +345,33 @@ is not. The ones that matter:
 Only an ack that names the running hold's start ends it on the phone. A late refusal of an earlier press does not
 cancel the hold that runs now (`TeleopLink.endActive`).
 
+**What the phone says about a refusal.** When the server refuses a manual arm hold at its start, or ends one the
+operator still holds with a `rejected` final ack, the phone sorts the `reason` into a kind and says what to do
+(`ServerRefusalClass`, `FeedbackMonitor`). For a refused start the screen shows the short form for a second and the
+voice says the long one. When the server ends a hold that was accepted and is still held, the phone gives the let-go
+haptic and the voice says the long form, and the screen's short form is not shown.
+
+| Kind | Reasons | Screen | Voice |
+|---|---|---|---|
+| contact | `tool_measured_corridor`, `tool_wrist_unsettled`, `tool_wrist_changed`, `tool_roll_changed`, `tool_orientation_changed`, `tool_joint_step`, `tool_gravity_offset_unsettled` | "Touching something" | "Touching something. Open the gripper or lift." |
+| joint limit | `tool_joint_limit`, `tool_actuator_joint_limit` | "Arm at its limit" | "Arm at its limit. Move the other way." |
+| reach | `tool_no_converged_path`, `tool_path_corridor`, `tool_origin_workspace` | "Can't reach that way" | "Can't reach that way. Back off a little." |
+| simulator stopped | `sim_stalled` | the simulator's own line (see "When the simulation stops") | none per refusal |
+| any other reason, or one the app does not know | | "The server refused that move" | the general words |
+
+The seven contact reasons all mean the arm was pushed, turned or twisted off its path. Touching something is the
+likeliest cause, so the phone says so, but it does not know. The hold still ends and nothing restarts by itself. At a
+start, `busy`, `sim_not_ready` and `estop_active` keep their own words; a `_watchdog_timeout` and, for a hold already
+live, any reason of the last row are told as a let-go. A server's success and its emergency-stop reasons (`estop`, `disconnect_estop`, `pose_tracking_safety_stop`,
+`tracking_safety_stop`, `pose_nonfinite_ik`, `pose_wrist_invalid_input`, `pose_wrist_nonfinite_state`) are told by their
+own cues, the success narration and the alarm, and never as a refusal. `estop_active` means the stop is on: a start
+refused with it is told as the stop refusing it (NO and "Stopped."); a hold already accepted that the server ends with
+it, while someone still holds the control, gets the general let-go; for a move nobody holds its own ending cue is left
+out, because the alarm tells the stop.
+
 ## A hold from start to final ack
 
-This is an arm hold as the lab server answered it (recording `s02_pose_hold`, times in seconds from the start):
+This is an arm hold as the recorded server answered it (recording `s02_pose_hold`, times in seconds from the start):
 
 | Time | Direction | Message |
 |---|---|---|
@@ -417,7 +482,7 @@ which the phone offers, from the newest recorder fields:
 ## The scene reset
 
 `reset_scene` puts the robot back in its start pose and the task object back on the table. The answer comes only
-when the reset has finished, about 1.7 s later on the lab server; meanwhile `state.ik` is `resetting`. Afterwards
+when the reset has finished, about 1.7 s later on the recorded server; meanwhile `state.ik` is `resetting`. Afterwards
 `episode` has gone up by one, `gripper` says `closed`, `task_success` is `false`, and a recording server is ready
 for a new take.
 
@@ -499,6 +564,8 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `rec_discarded` | takes thrown away since the server started | a rise is a discarded take, spoken; the count in the REC line and in Settings → Recording |
 | `rec_samples` | samples in the current take, 30 per simulated second | the take's length in the REC line while capturing |
 | `rec_session`, `rec_mode` | the recording session's name and mode label; missing, as in the example above, or `null` when the server was started without recording (`rec: none`) | read, not used; missing and `null` count the same |
+| `timing` | `captured_monotonic_ns` (when the server last wrote the state) and `sent_monotonic_ns` (when this copy left it), on the server's monotonic clock; the simulation loop writes the state about 60 times a second | the age of a state when it was sent tells whether the loop runs (below); read apart from the rest of the state, so a state that says nothing new stays equal to the one before. Missing, or of the wrong type, counts as missing |
+| `sim_stalled`, `loop_age_ms` | the server's own judgement that its simulation loop has stopped (`true`), and how long since its last pass, milliseconds; a server that does not send them counts as sending neither | the first makes the simulator count as paused, and with a `loop_age_ms` of 15000 or more, as not responding (below) |
 | `orient_deg`, `gripper_delta` | appear after the first wrist or arm hold | not used |
 
 The REC line in the top band, and the first row of Settings → Recording, say what the recorder is doing
@@ -531,6 +598,70 @@ When `state` arrives: right after `welcome`; after a final ack and after the ack
 On the control connection that means about five times a second when idle and never while a hold streams; on the
 listening connection, five times a second all the time.
 
+## When the simulation stops
+
+The simulation loop behind the server can stop, for seconds or for good. Measured on the server: 5.1 s during a scene
+reset, 4.6 s while stopped, 0.8 s during a move, and in a 30-minute run pauses of 4.5 to 8.7 s that all recovered. So
+the app tells two levels apart (`SimStallDetector` in `Link/SimStall.swift`, one per connection, starting afresh with
+each, since a reconnect may reach a restarted server):
+
+- **Paused**: a sign of a stopped loop. While it lasts, no start of any control, no scene reset and no stop release
+  goes on the wire, and one that was waiting behind a finishing hold ends as the server's `sim_stalled` refusal would
+  end it (`TeleopLink.startsBlocked`). Stops, the end of a hold and `estop` always go out. The screen says to wait
+  ("Simulator paused. Please wait."); nothing is spoken.
+- **Not responding**: paused for 15 s, or a `state` saying `sim_stalled` with a `loop_age_ms` of 15000 or more. The
+  screen says "Simulator not responding", the phone says once what to do (the server has to be restarted, with the stop
+  on; or, when no stop is on yet, to press Reconnect first), and the operating screen offers **Reconnect**: it sends `estop` first when none is latched, waits up to
+  1 s for the server to confirm it, closes the connection and opens Connect. A stop not confirmed by then is owed, as
+  any unconfirmed STOP is. When the simulator runs again after not responding the phone says so once, and a stop the
+  server latched during a pause is explained once the simulator runs again.
+
+Paused is entered by the first of these signs:
+
+| Sign | Holds when |
+|---|---|
+| the server's flag | a `state` says `sim_stalled: true` |
+| the server's refusal | any request is refused `sim_stalled` |
+| frozen time | three states in a row are each older than 2 s when sent and older than the one before |
+| busy | moves have been refused `busy` for over 3 s with no stop answered |
+| an unanswered stop | a stop this phone sent has had no final answer for 3 s |
+| a refused release | a stop release is refused `estop_not_frozen` while the newest state is older than 2 s, a move was refused `busy` since the last stop answer, or a stop has waited for its answer longer than 800 ms |
+
+The last four are the app's own judgement, and count only once a state with its `timing` has come on that connection,
+so from a server that sends no timing the app is paused only by the flag or a refusal. Both levels clear on three
+healthy states in a row, judged by what the states carry: with timing, a state whose captured time moved on, that is
+younger than 2 s when sent and that does not say `sim_stalled`; with only `sim_stalled`, one that says false with no
+`loop_age_ms` or one of at most 2 s; and on a connection that has never carried timing or `sim_stalled`, any state, so
+that a pause entered by a `sim_stalled` refusal still clears. Neither level is entered during a scene
+reset, for at most 12 s: while the newest state's `ik` is `resetting`, or after a reset this phone asked for. Time the
+app spends in the background counts toward no wait.
+
+## Timing telemetry
+
+A server that wants to measure how long its states take to reach the operator can switch this on in `welcome`, with
+`telemetry_version: 1`, a `server_clock_id` and a `connection_id`, and then put `timing.state_id` (and, if it has one,
+`study.trial_id`) in its states. For the app to measure a state's age, the state's `timing` also needs
+`captured_monotonic_ns`, `sent_monotonic_ns` (not earlier than the captured time) and a `server_clock_id` equal to the
+one in `welcome`; without them the app records a measurement error for that state. The `welcome` fields alone switch
+on these two messages, on the control connection
+(`ExperimentTiming`, `TeleopLink.sendDiagnostic`); a server that does not takes no part and sees none. Nothing in them
+changes what the operator feels or hears.
+
+- `clock_probe`, with `probe_id` and `client_send_ns`, about every 5 s. The server answers `clock_reply` with the same
+  `probe_id` and `client_send_ns`, its `server_clock_id`, and `server_receive_ns` and `server_send_ns`. From a reply
+  whose round trip was under 2 s the app keeps bounds on the offset between the two monotonic clocks, for 15 s.
+- `telemetry`, with an `event_id`, the phone's `client_clock_id` and `client_monotonic_ns`, a `kind` and its `details`,
+  and the `source_state_id` and `trial_id` when the event is about a state: among them each state
+  received (with bounds on its age), each cue decision, each stage of a spoken phrase (submitted, started, ended,
+  cancelled), volume-key edges, the app being suspended, a bound on the clock offset (`clock_bound`) or a rejected clock
+  probe, the committing of a state to the app's model, the voice events of the unfinished voice experiment (`voice.*`),
+  the measurements the app cannot make (`measurement_capabilities`) and the report of events dropped
+  (`telemetry_gap`, below).
+- When `welcome` also says `telemetry_acknowledgements: true`, an event stays pending until a `telemetry_ack` with
+  `status: "persisted"` and its `event_id` comes. A pending event is sent again after 1 s, at most three times in all;
+  at most 128 are pending. What was dropped is reported in a later `telemetry_gap` event, which says the delivery is
+  unknown, not that it failed.
+
 ## What ends a hold besides the operator
 
 On the server:
@@ -538,7 +669,8 @@ On the server:
 - the watchdog, 750 ms after the last update or keepalive;
 - an emergency stop, from any of the causes above;
 - the task succeeding while the hold runs (final ack `ok task_success`);
-- an immediate refusal of the start itself: `busy`, `sim_not_ready`, `estop_active`, or a validation code.
+- an immediate refusal of the start itself: `busy`, `sim_not_ready`, `estop_active`, `sim_stalled`, or a validation
+  code.
 
 On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`):
 
@@ -551,7 +683,8 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
 - the round trip is slow twice in a row (400 ms or more);
 - the link is lost: the socket closed, no `welcome` and first `state` within 5 s, or the silence above;
 - a resync that does not finish within 1.5 s: in that time the old hold's final ack and then a `state` without
-  the emergency stop must both arrive, or the hold ends;
+  the emergency stop must both arrive, or the hold ends; a resync that finds the simulator stopped does not restart
+  the hold, which ends as the server's `sim_stalled` refusal would end it;
 - with the hands-free aids on, for a follow the lock latched: the phone no longer held upright, or the lock's time
   limit; for a move to a tapped point: the arm arriving, the arm settling short of the point, no fresh arm
   position, the move's own time limit, and, for a move that follows `tool_pos`, a new state far off the path ahead
@@ -580,7 +713,7 @@ On the phone (`LiveLinkController.tick`, `OperatingController`, `TeleopSession`)
   During a move to a tapped point neither is said: the move's ending tells what happened.
 - **One hold at a time.** The arm, the wrist and the gripper cannot move together. On the phone, starting one
   ends the one running: `TeleopLink` sends its stop first, then keeps the new start back for the final ack.
-- **Speeds.** Every speed limit is per simulated second, and the lab machine runs slower than real time, so the
+- **Speeds.** Every speed limit is per simulated second, and the machine running the simulation is slower than real time, so the
   arm and the wrist often lag the hand. Releasing early leaves them short of where the hand went.
 - **The tracking stop.** A target more than 10 cm from the arm engages the emergency stop; the app's 8 cm cap per
   server hold keeps clear of it.
@@ -598,6 +731,11 @@ works, with the effect in the right column.
 | `state` carries `ee_pos`, `object_pos` and `goal_pos` | without `ee_pos` there is no guide, no "blocked", no tap-to-go, and Moving says "No arm data"; without the object and the goal the guide shows the arm alone |
 | a connection that sends nothing gets `state` every 200 ms, holds included | the phone learns where the arm is only between holds: no "blocked", "Can't go lower.", clamp or contact during a hold, and a move to a tapped point ends with "No arm data." |
 | `state` carries `tool_pos` | the jaw marker is estimated from `ee_pos`, the profile's tool offset and the measured wrist angles. Where the profile's accuracy rule (`RobotProfile.estimateBound`) says the estimate may be off by more than half the grasp tolerance, the marker is a hollow ring, the guide says "Jaw position is approximate", never says "On target", and the on-target cue does not play. Without `wrist_flex_deg` and `wrist_roll_deg` as well, that is everywhere. With the guide's aids on, "Can't go lower." judges and remembers the gripper link's height, which on a table changes with the arm's posture, so it is told less reliably and the guide's lowest line is drawn less exactly. A move to a tapped point follows nothing: it is planned as if the pinch point moved with the gripper link |
+| `welcome` lists `"tool"` in `control_points` and gives a `tool_calibration_id` | the pad's and the Fine controls panel's directions go on the gripper link origin's path, with its 8 cm cap per hold and 1.5 s resync, instead of the pinch point's with 5 mm and 0.5 s |
+| `welcome` lists `coordinated_height` in `tool_motion_modes` | Up and Down are ordinary holds on the pinch point's path (or the gripper link origin's, with no calibration), without the wrist coordination |
+| `state` carries `timing`, and `sim_stalled` and `loop_age_ms` when the loop stops | the phone notices a paused simulator only by the server's `sim_stalled` refusal or flag; its own four signs count only after a state with `timing` has come |
+| a close that meets an object gives `ik: gripper_contact` | the phone never knows the jaws hold something, so the pad's and the panel's holds stay on the pinch point's path while they carry it |
+| a server that keeps one phone per simulator says why with `session_in_use`, `session_taken` or `idle_timeout` before it closes | the phone says only that the link was lost |
 | the scene starts with the wrist rolled 90 degrees, jaws side by side | without `tool_pos`: `RobotProfile.toolOffset` is measured for that pose, so the estimated pinch point and "On target" are off until the profile has an offset for the other one |
 | a take starts at the first command of any kind | nothing changes on the phone; a take that starts only at the first gripper, jog or move command misses the approach |
 | a `reset_scene` sent behind a stop is refused `busy`, and the stop still lands | nothing changes: the app waits for the final ack before it resets |

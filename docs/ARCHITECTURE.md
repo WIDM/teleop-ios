@@ -14,9 +14,12 @@ A few words recur here. `docs/PROTOCOL.md` explains them in full under "Words us
   key, a thumb or a button stays down. With the hands-free aids on, an arm hold can also be one nobody keeps down: a
   follow the lock latched, or a move to a point tapped on the guide. The input rules own every hold either way
   ("The hands-free aids" below).
-- **Hands-free aids**: lock, tap-to-go and the guide's additions, all turned on and off by one master switch on
-  the aids' page, which the Aids button in the Settings header opens. With the switch off the app behaves as version
-  1.0.1 did.
+- **Hands-free aids**: lock, tap-to-go, the guide's additions and the cue for a hold a slow link stops, all turned on
+  and off by one master switch on the aids' page, which the Aids button in the Settings header opens. With the switch
+  off, each of them is as in version 1.0.1; the other features described here, Fine controls and the handling of a
+  paused simulator among them, do not depend on it.
+- **Fine controls**: a panel of direction, jaw and wrist buttons that the two phone modes open from the operating
+  screen ("Fine controls" below).
 - **Final ack**: the server's answer to a start once the hold it started has really ended. A new start or a reset
   waits for it, at most 800 ms.
 - **Probe**: the `test` message the app sends twice a second; its echo times the round trip and shows the link is
@@ -61,8 +64,9 @@ Everything that decides something lives in the core, where it runs in seconds wi
 app target connects it to the device. Nothing in the core reads a clock: `TeleopLink(send:now:)` takes a clock
 closure, and the input rules, the feedback and the recorder narration take the time on every call. So a test can
 play ten seconds in a millisecond, and the same input always gives the same output. The device parts (haptics,
-sound, speech, the socket) sit behind small protocols (`HapticsPlaying`, `SoundPlaying`, `SpeechPlaying`,
-`LinkTransport`) that tests replace, and the phone's pose comes in as a closure (`AppModel(pose:)`).
+sound, speech, the socket, the camera session, the speech recognizer of the voice experiment) sit behind six small
+protocols (`HapticsPlaying`, `SoundPlaying`, `SpeechPlaying`, `LinkTransport`, `CameraSession`,
+`AxisSpeechRecognizing`) that tests replace, and the phone's pose comes in as a closure (`AppModel(pose:)`).
 
 ### The core package
 
@@ -70,12 +74,12 @@ sound, speech, the socket) sit behind small protocols (`HapticsPlaying`, `SoundP
 |---|---|
 | `TeleopSession.swift`, `FakeTeleopState.swift`, `Route.swift`, `TeleopNavigator.swift`, `BackStackRules.swift`, `HeldControls.swift` | The session: what was asked for (`TeleopAction`), the state the screens and the link follow, and which screen is up. |
 | `HapticPattern.swift` | `Haptic`, the vibration patterns the operator feels, and the session's own haptic requests (`HapticCue`, `HapticCommand`). |
-| `Input/` | The input rules for the two phone schemes: `InputArbiter` decides what each key press, touch and phone turn means; `Engagement` says who drives the arm now; `SurfaceLayout` gives the screen's zones; `RotationMapper` turns the phone's rotation into a wrist angle; `ThumbSlide` judges a thumb slid up the glass; `InputConstants` holds every threshold. |
+| `Input/` | The input rules for the two phone schemes: `InputArbiter` decides what each key press, touch and phone turn means; `Engagement` says who drives the arm now; `SurfaceLayout` gives the screen's zones; `RotationMapper` turns the phone's rotation into a wrist angle; `ThumbSlide` judges a thumb slid up the glass; `TranslationAxis` is the movement axis the voice experiment can choose; `InputConstants` holds every threshold. |
 | `Assist/` | The hands-free aids: `Assist`, their one configuration; `GoPanel`, the guide's view from above as a tap is judged against it; `GoMove`, the path of a move to a tapped point. |
 | `Guide/` | `GuideProjection`, the guide's projection, which the drawing and the tap both use. |
-| `Buttons/` | Buttons mode: `ButtonArbiter` (one button at a time), `ButtonRamp` (the target a held direction button moves), `ButtonPadLayout` (where each button sits), `OperatorFrame` (forward, back, left, right, up and down as robot axes, for the buttons and the phone alike). |
-| `Link/` | `TeleopLink`, one conversation with the server: it builds every message, reads every answer and keeps the rules about holds, final acks and resets. `ServerState` reads a `state` message. `WristLeadBound` keeps a wrist command from running ahead of the measured wrist. |
-| `Feedback/` | `FeedbackMonitor` turns what the link hears into `FeedbackEvent`s for the hold the operator has engaged; `OnTargetCue` decides the on-target haptic; `WorkAreaCue` tells when the commanded place leaves the work area; `CueTable` says how each event is felt, heard or spoken; `CueScheduler` decides what plays when two coincide. |
+| `Buttons/` | Buttons mode: `ButtonArbiter` (one button at a time), `ButtonRamp` (the target a held direction button moves), `ButtonPadLayout` (where each button sits), `OperatorFrame` (forward, back, left, right, up and down as robot axes, for the buttons and the phone alike), `WristButtons` (the Wrist page's four buttons, and `WristButtonRamp`, the angle a held one asks for). |
+| `Link/` | `TeleopLink`, one conversation with the server: it builds every message, reads every answer and keeps the rules about holds, final acks and resets. `ServerState` reads a `state` message. `WristLeadBound` keeps a wrist command from running ahead of the measured wrist. `SimStall` (`SimStallDetector`) judges whether the simulation behind the server runs; `ObjectHold` knows whether the jaws hold an object and so which path a pad hold takes; `SessionDismissal` names why a server that keeps one phone per simulator let go of this phone. |
+| `Feedback/` | `FeedbackMonitor` turns what the link hears into `FeedbackEvent`s for the hold the operator has engaged; `OnTargetCue` decides the on-target haptic; `WorkAreaCue` tells when the commanded place leaves the work area; `JawsClosedReminder` decides when to tell the operator to open the gripper first; `ServerRefusalClass` sorts a server's refusal into what the operator can do about it; `CueTable` says how each event is felt, heard or spoken; `CueScheduler` decides what plays when two coincide. |
 | `Recording/` | `RecorderNarrator` compares successive states and says what happened to each take; `StopExits` decides which ways out of an emergency stop to offer. |
 
 `FakeTeleopState` is the session's real state, despite its name. With `liveLink` set, the connection, the latency
@@ -87,13 +91,15 @@ where a press the session accepts goes live at once and no message is sent.
 | Folder | What it is for |
 |---|---|
 | `TeleopApp.swift`, `AppModel.swift` | The entry point and the one model object. `AppModel` owns the session, the operating controller, the link controller, the cue player and the recorder narrator. Every screen talks to it. |
-| `Operating/` | The operating screen's logic: `OperatingController`, `OperatingRules`, `OperatingDisplay`, `GuidePicture`, and `OperatingFixtures` for UI tests. `Operating/Views/` draws it: `OperatingScreen`, `OperatingWords`, `GuideView`, `GuideWords`. |
+| `Operating/` | The operating screen's logic: `OperatingController`, `OperatingRules`, `OperatingDisplay`, `GuidePicture`, and `OperatingFixtures` for UI tests. `Operating/Views/` draws it: `OperatingScreen`, `OperatingWords`, `GuideView`, `GuideWords`, `GuideLayout` (the fixed slots of the control surface). |
 | `Screens/` | `RootView` (picks the screen from `session.route`; there is no `NavigationStack`), `ConnectScreen`, `SettingsScreen` (with the aids' page), `TutorialScreens`, `PermissionsScreen`, `ButtonPadView`. |
 | `Components/` | `StopBand` (the STOP band of the other screens), the button styles, `HoldButton`, `PracticeBanner`. |
 | `Link/` | `LiveLinkController` (the two sockets and the 30 Hz timer), `LinkTransport` (one WebSocket), and `Guidance.swift`, which holds `RobotProfile`, `PhoneAxes` and `PhonePosture`. |
 | `VolumeKeys/` | The volume keys' raw press and release events. |
 | `Input/` | `TouchSurfaceView`, a UIKit view that reports every raw touch with its radius and time. |
 | `Pose/` | `PoseTracker`: the phone's position and attitude from ARKit world tracking. |
+| `Diagnostics/` | `SessionRecord`, a record of events kept in `Documents/session.log` (below), and `ExperimentTiming`, the timing telemetry some servers ask for (`docs/PROTOCOL.md`, "Timing telemetry"). |
+| `Voice/` | `AxisSpeechRecognizer`: on-device speech recognition for choosing a movement axis by voice, an unfinished experiment that shows only with the launch argument `-voiceEntry YES`. |
 | `Haptics/`, `Audio/` | `CuePlayer`, and the players it drives: Core Haptics patterns, three synthesised sounds, and speech. The players play what they are told and decide nothing. |
 | `Localization/`, `Permissions/`, `Theme/` | The in-app language choice, the camera permission request, colours and sizes. |
 | `App/Resources/` | The string catalogs (`Localizable`, `Speech`, `Buttons`, `InfoPlist`), each in English and Traditional Chinese. |
@@ -104,13 +110,18 @@ interruption, a frame stamped after the restart clears the interruption notice e
 
 The diagnostic record receives the app's events on a background write queue. The app never reads this record.
 It retains each control-surface touch's starting point, the panel it began over, its duration and farthest travel,
-along with camera, slow-link, settings, screen and speech events. Addresses are masked before writing.
+along with camera, slow-link, settings, screen and speech events. Addresses are masked before writing. The record is
+`Documents/session.log`, appended across launches and set aside as `session.1.log` when it reaches 2 MB
+(`SessionRecord`).
 
 The fixed aiming layout reports the drawn rectangle of each view. A rear tap changes height while keeping depth.
 Inside the column around the jaws it keeps both horizontal coordinates. During a tapped move, touching a view
 holds the current command and lifting promptly retargets the existing hold. The arm may continue towards the
 held command while the finger is down. A key, STOP, a touch outside the views, or a long or sliding contact ends
-the move. The new path waits for a position measured after the change.
+the move. The new path waits for a position measured after the change. These are the `views` aid (`ViewAim`): where the
+rear view's top lies above the table (9 cm with the SO-101 profile) and how long a retargeted move may run (30 s, ended
+as "Time is up."). A tap in the rear view's narrow column around the jaws that asks for less than the travel height, with the jaws
+already at it, says "To lower further, hold the upper volume key." and moves nothing (`GoPanel.aimBehind`).
 
 ## The session and its routes
 
@@ -164,10 +175,12 @@ which opens Connect. The screen keeps the phone awake while it shows.
 
 What it shows comes from two pure functions in `OperatingRules`:
 
-- `state(_:)` picks one `OperatingState` from the `OperatingFacts` that `AppModel` gathers, highest first: stopped;
-  not connected, connecting or link lost; camera stopped; a take just saved (2 s); the hold engaged now (moving,
-  locked on, going, turning, tilting, opening, closing); a refusal just heard, or why a follow or a move nobody held
-  just ended, whichever is newer (1 s); the server resetting or saving; slow link; ready.
+- `state(_:)` picks one `OperatingState` from the `OperatingFacts` that `AppModel` gathers, highest first: the
+  simulator behind the server not responding, then paused, while the link is up (`docs/PROTOCOL.md`, "When the
+  simulation stops"); stopped; not connected, connecting or link lost; camera stopped; a take just saved (2 s); the
+  hold engaged now (moving, locked on, going, turning, tilting, opening, closing); a refusal just heard, the server's
+  kinds of refusal included, or why a follow or a move nobody held just ended, whichever is newest (1 s); the server
+  resetting or saving; slow link; ready.
   A STOP that has reached no server is not shown as stopped, nor as anything below the link's row: the link's state
   shows, also while Connect replaces a link that is up (see "From a press to a message").
   `OperatingWords` turns the state into the word, its details and its colour, in the app's language.
@@ -179,6 +192,15 @@ What it shows comes from two pure functions in `OperatingRules`:
   Practice has no reading. The pinch point comes from `RobotProfile.pinchPoint`: the server's `tool_pos` when the
   state carries it, otherwise the reported arm point plus `toolOffset`, marked approximate where the profile's
   accuracy rule allows more than half the grasp tolerance of error.
+
+Two lines can ride under a state's own lines (`OperatingWords.look`). With the aids off, in a phone mode on a real
+server, the line "Hands-free aids off: taps do nothing" shows in every state except a stop and a simulator that is
+paused while stopped or not responding. On the first translation of an episode that starts with the jaws shut and
+nothing held, "Gripper is closed. Open it before moving in." shows for 4 s under a moving state
+(`JawsClosedReminder`, `OperatingRules.openJawsFirstShownMs`): the server starts every episode with the jaws closed,
+and opening them beside the object sweeps it away. That line is shown only, never felt or spoken, and the move is not
+held back. It goes when the jaws open or hold something, and a scene reset, a new episode or a new connection arms it
+again.
 
 The **guide** is that reading as a picture: the workspace from above and from behind on one left-right axis, and a
 few read-outs under it. `GuidePicture` works out every place and read-out as plain numbers, through one
@@ -209,10 +231,10 @@ Settings → Control → Mode picks one of three control modes (`ControlMode`), 
 | a thumb on the control surface | held while the phone turns: the wrist follows; slid up 10 mm and held: the jaws open | held on the half under the thumb: the jaws close; on the other half: they open; the centre band does nothing | the pad: Forward, Back, Left, Right, Up, Down, Open, Close, and a Fine / Coarse switch |
 | vol+ pressed, with lock set to press then press (aid) | the arm follows the phone with no key held, until any key or touch stops it | the same | changes the volume |
 | a thumb slid up the control surface while vol+ is held, with lock set to hold then slide (aid) | the follow goes on with no key held, until any key or touch stops it | the same, the centre band included | nothing |
-| a short, still tap on the guide's view from above (aid) | the jaws go to the point tapped, at a travel height above the table; not while the camera is stopped | the same; on a half the tap must lift before the half's dwell | nothing: no guide is drawn |
-| any key press or new touch while a follow or a move nobody holds runs (aid) | stops it, and does nothing else until released | the same | cannot happen |
+| a short, still tap on the guide's view from above or from behind (aid) | the jaws go to the point tapped, at a travel height above the table; a tap on the view from behind sets the left-right place and the height; not while the camera is stopped | the same; on a half the tap must lift before the half's dwell | nothing: no guide is drawn |
+| any key press or new touch while a follow or a move nobody holds runs (aid) | stops it, and does nothing else until released; with the `views` aid, a touch on a guide view during a move to a tapped point instead holds the move, and a prompt lift retargets it | the same | cannot happen |
 | Fine controls while a follow or a move nobody holds runs (aid) | stops it, and opens the panel once the stop is confirmed (1.5 s at most, else no) | the same | cannot happen |
-| Fine controls, Wrist page: Tilt up, Tilt down, Turn left, Turn right held (aid) | the wrist turns at 20°/s or tilts at 10°/s within the wrist gesture's limits until released | the same | cannot happen |
+| Fine controls, Wrist page: Tilt up, Tilt down, Turn left, Turn right held | the wrist turns at 20°/s or tilts at 10°/s within the wrist gesture's limits until released | the same | cannot happen |
 | the bottom band | STOP, at touch-down | STOP, at touch-down | STOP, at touch-down |
 | a touch that begins in the bottom safe area, under the band | nothing | nothing | nothing |
 | the top band held 2 s | reset the scene | reset the scene | reset the scene |
@@ -222,7 +244,10 @@ Settings → Hand says which hand holds the phone: scheme B closes on the half u
 Close on that side. One input at a time: a press that begins while another hold runs is dead until it is released.
 A follow or a move nobody holds has no input to release, so for it the rule works the other way: the next key
 press, or the next touch that passes the palm and edge filters on the control surface, the top band or the gear,
-ends it, and that input is then dead and silent until it is released. Fine controls end it too, and the panel opens
+ends it, and that input is then dead and silent until it is released. With the `views` aid (the fixed aiming views of tap-to-go, "The hands-free aids" below) a move to a tapped point
+differs: a touch that lands on a guide view holds the move and, lifted promptly, retargets it; a touch in the gap, a
+palm or edge touch on the top band or the gear, and a touch on the surface off the views end it ("Tap-to-go" below).
+Fine controls end it too, and the panel opens
 on the condition it always needs, the arm stopped and the server's word on that stop, with no second press; if that
 word does not come within 1.5 s the press plays no, and any other input, STOP, a lost or slow link, Settings, a scene
 reset, a mode change or leaving the app meanwhile drops it. Inputs that were already down when such a
@@ -262,6 +287,33 @@ interruption each end every hold with its stop. An input held across any of them
 Each tells the input rules why (`InputEvent.holdsEnded` with an `Interruption`): for a hold tied to an input every
 reason does the same, and for a follow or a move nobody holds the reason picks the ending the operator hears.
 
+## Fine controls
+
+In the two phone modes, with the link up or in practice, a Fine controls button sits at the bottom of the control
+surface. It opens a panel there (`OperatingScreen`, `OperatingController.precisionPanelOpen`): the pad's buttons at the
+fine speed, 1 cm a second (`ButtonRamp`), under a bar whose left half is the Move / Wrist switch and whose right half is the way back ("Return to
+phone control"). Buttons mode has the pad already and no such button. The panel does not depend on the aids' master
+switch.
+
+- **Move page.** The pad as buttons mode has it. Its holds are the pad's, on the path `ObjectHold` picks ("Which path
+  a hold takes" below).
+- **Wrist page.** The cross's four buttons become Tilt up, Tilt down, Turn left and Turn right (`WristButton`); Up,
+  Down, Open and Close stay. A held wrist button sends the wrist hold the phone's rotation sends (`orient_start`,
+  `orient_update`, `orient_stop`), with an angle that grows from the moment the start went on the wire: 20 degrees a
+  second for turn, 10 for tilt (`WristButton.turnRate`, `tiltRate`), held to `RotationMapper.limits`, the range of the
+  phone's own wrist hold, and sent through `WristLeadBound`. The long buzz at the end of the range plays once per hold
+  (`OperatingController.claimWristLimitCue`). For a server that reports no wrist angles, the tilt a button
+  asks for is added to the tilt commanded since the last reset (`InputArbiter.addPanelTilt`). A finger that slides off its button ends the hold and stays dead until lifted. The
+  page switches only with no finger on a button; otherwise the press says "Let go first." A gear touch that begins
+  during a wrist or pad hold is dead until lifted, with the same words.
+- **Opening.** The panel opens only when nothing is held or moving: no key, touch or button down, no countdown, no
+  hold of the arm, the gripper or the wrist, and, on a live link, an arm position that the server sent after the last
+  stop has been heard (`OperatingController.panelMayOpen`). Otherwise the press says "Let go first." and the panel
+  stays shut. While a follow or a move nobody holds runs, the press ends it as any key press would ("Stopped here.")
+  and the panel opens once the stop is confirmed; if that takes 1.5 s (`panelAskWaitS`) the press plays NO and the panel
+  stays shut, and any other input, STOP, a lost or slow link, Settings, a scene reset, a mode change or leaving the app
+  meanwhile drops the request (`settleAskedPanel`).
+
 ## From a press to a message
 
 A held vol+ in scheme A:
@@ -282,7 +334,8 @@ A held vol+ in scheme A:
    server hold started plus the displacement sent. With any of the hands-free aids on, that start point is the newest
    arm position either connection has reported when the hold's start goes on the wire, at once or after it waited for
    the last hold's final ack; with the aids off it is the control connection's position at the press, as in version
-   1.0.1. A start re-sent by a resync takes it from the answer the resync waited for. The same tick sends keepalives
+   1.0.1. A hold on the pinch point (`control_point: "tool"`) starts from the newest pinch point either connection has
+   reported, at the press, and with an aid on again when its start goes on the wire. A start re-sent by a resync takes it from the answer the resync waited for. The same tick sends keepalives
    during a gripper hold, the wrist target during a wrist hold, a probe twice a second, and anything held back that
    is now due.
 5. Releasing vol+ gives `.stopTranslation` → `.holdArmEnd`; `driveLink` calls `endHold`, which sends `pose_stop`.
@@ -334,6 +387,47 @@ ordinary wireless network was measured holding every message back for up to 1.8 
 hears only the probe echoes, twice a second, so a stall of up to about 2.5 s keeps the link; one longer than 0.75 s ends
 the hold in progress, by the server's own watchdog. The app does not reconnect after a lost link.
 
+### Which path a hold takes
+
+A pad, Fine controls or Up and Down hold takes the path `ObjectHold.padHoldPath` gives. With a tool calibration in
+`welcome` and nothing held, it is the pinch point's (`control_point: "tool"`), and for Up and Down, where `welcome`
+offers coordinated height, the coordinated one. Once the server has reported contact for a close and nothing has let go
+since, it is the gripper link origin's, for every direction, with neither: carrying the simulator's cube on the pinch
+point's path lifted it in 1 trial of 10, and on the gripper link's path it reached the goal in 9 of 10. `ObjectHold`
+changes only on contact reported, an open sent or refused, a state showing the jaws opening, a scene reset (the
+answer, or a state naming a new episode) and a new control connection; an emergency stop changes nothing, since the
+jaws stay shut on what they hold. A free phone move (no axis chosen) and a move to a tapped point always take the gripper link's path.
+A hold on the pinch point caps its lead at 5 mm and resyncs after 0.5 s (`toolMaxLeadMeters`, `toolResyncAfterMs`); a
+coordinated height hold keeps one server hold and one reference. `docs/PROTOCOL.md`, "Pinch-point holds and
+coordinated height", has the messages.
+
+### The simulation, a refusal and a dismissal
+
+- **The simulation stops.** `LiveLinkController` feeds every `state`, every refusal, every stop it sends and every
+  answer to it, and the clock, to a `SimStallDetector` (`Link/SimStall.swift`), pure like the rest of the core. Its
+  level, running, paused or not responding, sets `TeleopLink.startsBlocked`, which keeps every start, reset and release
+  off the wire and lets stops and the ends of holds through. `AppModel` turns a change of level into the operating
+  state at the top of `OperatingRules.state` and, for some changes, a cue: a pause is only shown, not responding is
+  announced once, and the simulator running again after not responding is announced, with a stop latched during the
+  pause explained on its own. The not responding state offers **Reconnect**:
+  `AppModel.reconnect` sends the stop first when none is latched (`stopBeforeReconnect`), keeps the connection until
+  the server confirms it or `LiveLinkController.reconnectStopWaitMs` (1 s) has passed, then sends `.disconnect` and
+  `.changeServer`, which opens Connect. A stop that is not confirmed is owed, like any STOP. `docs/PROTOCOL.md`, "When
+  the simulation stops", has the signs and the levels.
+- **A refusal's kind.** `ServerRefusalClass` sorts the reason of a server's refusal or ending of a manual arm hold
+  into touching something, a joint limit, out of reach, the simulator's stop, or other. `FeedbackMonitor` raises
+  `FeedbackEvent.serverRefusal` with the kind, and `CueTable`, the screen's words (`OperatingState.serverRefused`) and
+  the speech say what to do. A start the link kept off the wire because the simulator stopped is told the same way, as
+  a `sim_stalled` refusal.
+- **A dismissal.** `TeleopLink` turns an `error` with the code `session_in_use`, `session_taken` or `idle_timeout`
+  into `LinkEvent.dismissed`; `LiveLinkController` passes it on as the session action `.dismissed(reason)`;
+  `FakeTeleopState.dismissal` keeps it until a new connection attempt, an explicit disconnect or leaving the session
+  clears it, and Connect and the stopped and link-lost states say it (`OperatingWords.dismissal`).
+- **The name.** `LiveLinkController.clientName` builds `teleop-ios/<version> (<build>) install=<code>`: the code is
+  eight random hex digits made when the app first starts and kept in the app's settings (`installCodeKey`), so a phone
+  restored from another phone's backup has that phone's code. `App/PrivacyInfo.xcprivacy` declares it as a device
+  identifier, linked to the install, used for analytics and not for tracking.
+
 ## From an event to something felt or heard
 
 Four parts raise `FeedbackEvent`s, all through `AppModel.raise`:
@@ -357,18 +451,19 @@ Four parts raise `FeedbackEvent`s, all through `AppModel.raise`:
 
 `CuePlayer` asks `CueScheduler` what to play. The scheduler looks the event up in `CueTable` and resolves collisions:
 one haptic channel with a fixed priority, one voice with levels, sounds at once. Two phrases still waiting for the voice
-are dropped when what follows makes them untrue: the alarm drops a waiting "No link. Not stopped.", and the alarm or
-"Link lost." drops a waiting "Locked on." (the follow it announces is over; every ending is still told). `CuePlayer`
-gives the result to `HapticsController`, `SoundPlayer` and `SpeechPlayer`. Spoken words come from the `Speech` string
+are dropped when what follows makes them untrue: the alarm drops a waiting "No link. Not stopped.", and the alarm, "Link lost." or any ending of the
+follow drops a waiting "Locked on." and cuts it while it is spoken (the follow it announces is over; every ending is
+still told). A waiting "Ready" is dropped after 2 s or when the link is no longer ready (`readinessMaxAgeMs`).
+`CuePlayer` gives the result to `HapticsController`, `SoundPlayer` and `SpeechPlayer`. Spoken words come from the `Speech` string
 table in the app's language. The players stay silent in the unit-test host and under the UI tests' `-quietCues YES`;
 every cue is still recorded in `AppModel.cueLog`.
 
 ## The hands-free aids
 
-Three aids change what the operator can do: **lock** keeps the arm following the phone with no key held;
-**tap-to-go** sends the jaws to a point tapped on the guide; **the guide's additions** say more about where the arm
-is and where it can go. One master switch turns all three on and off, and the lock choice picks how lock latches,
-or turns it off. Both are kept across launches (`AppModel.assistKey`, `lockChoiceKey`): the switch is on by default
+Four aids change what the operator can do or is told: **lock** keeps the arm following the phone with no key held;
+**tap-to-go** sends the jaws to a point tapped on either view of the guide; **the guide's additions** say more about
+where the arm is and where it can go; **the slow-link cue** says why a hold the operator keeps down let go when the link
+got too slow. One master switch turns all four on and off, and the lock choice picks how lock latches, or turns it off. Both are kept across launches (`AppModel.assistKey`, `lockChoiceKey`): the switch is on by default
 and lock is off. Each change goes to the developer log, and either is refused with "Let go first." while anything is
 engaged, as a change of mode is.
 
@@ -382,17 +477,20 @@ page too. Settings opens on its form every time, also after STOP was pressed on 
 ### One configuration, and off is version 1.0.1
 
 `AppModel.assist` is an `Assist`, resolved by `Assist.resolve` from the two settings and the robot's share of the
-aids, `RobotProfile.assist`. It is derived, never stored, so it cannot disagree with them. With the switch off it is
-`Assist.off`, whose every member is nil. With the switch on, each aid is there only when the robot gives its
+aids, `RobotProfile.assist`. It is derived, never stored, so it cannot disagree with them. It has five members: one for
+each of the four aids, `lock`, `goTo` (tap-to-go), `guide` (the guide's additions) and `explain` (the slow-link cue), and
+`views` (the fixed aiming views, which belong to tap-to-go and need a usable `goTo`). With the switch off it is `Assist.off`, whose every member is nil. With the switch on, each aid is there only when the robot gives its
 numbers, and lock only when a variant is chosen; a member whose numbers are unusable (not finite, or below their
 bound) resolves to nil, so the rules trust what they get.
 
-Three places read the aids, and each reads nil as version 1.0.1: the input rules (`lock`, `goTo`), `AppModel`
-(`goTo` for the arm and the panel in the input facts; `guide` for the picture, the on-target window and the link's
-cues; whether any aid is on, for where the link takes an arm hold's start point, `LiveLinkController.anyAidOn`) and
-the tutorial's last page. Everything else that is new is reached only through what those three produce.
-So with the switch off the operating screen, its cues and its guide are those of version 1.0.1; the aids' page still
-shows the switch, so it can be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
+Three places read the aids, and each reads nil as version 1.0.1: the input rules (`lock`, `goTo`, `views`), `AppModel`
+(`goTo` for the arm and the panel in the input facts, `views` for the second panel; `guide` for the picture, the
+on-target window and the link's cues; `explain` for the slow-link cue; whether any aid is on, for where the link takes
+an arm hold's start point, `LiveLinkController.anyAidOn`) and the tutorial's last page. Everything else the aids add is
+reached only through what those three produce. So with the switch off the aids' own behaviour is that of version 1.0.1, apart
+from the line on the operating screen that says taps do nothing; the features that are not aids, such as Fine controls and
+the handling of a paused simulator, stay as they are; the aids' page still shows the switch, so it can
+be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
 new aid can only be added as a member that is nil when off; `docs/TESTING.md` says how the rest is held to 1.0.1.
 
 `Assist` has no mode in it: in buttons mode no key reaches the input rules and no guide is drawn, so nothing latches
@@ -428,15 +526,15 @@ Lock works in the two phone modes, practice included, when a variant is chosen a
   after the STOP's own cues.
 
 Latching plays LATCH (a long buzz, then a tick: the only pattern that is long then short) and "Locked on.". A "Locked
-on." still waiting for the voice when the alarm or "Link lost." is raised is never said: the follow has ended, the latch
-was felt at its moment, and the ending is told by its own cue. The follow then ends on the next input (see "The input
+on." still waiting for the voice when the alarm, "Link lost." or any ending of the follow is raised is never said: the
+follow has ended, the latch was felt at its moment, and the ending is told by its own cue. The follow then ends on the next input (see "The input
 rules"), on STOP, when tracking is lost, when the phone is no longer held upright, at the lock's time limit, and in
 every way a hold can end outside the input rules.
 
 ### Tap-to-go
 
-A tap is a touch that begins inside the guide's view from above with nothing engaged and lifts while still
-undecided (in scheme B, before a half's dwell, or anywhere in the centre band), within `InputConstants.tapMaxS` of
+A tap is a touch that begins inside the guide's view from above (or, with the `views` aid, the view from behind, which
+`GoPanel.aimBehind` judges) with nothing engaged and lifts while still undecided (in scheme B, before a half's dwell, or anywhere in the centre band), within `InputConstants.tapMaxS` of
 landing, never farther than `tapSlopMm` from where it landed, and narrower than a palm at its lift. Its point is
 where it landed. The view's rectangle comes from SwiftUI's own layout: `GuideView` reports it as an anchor
 (`GuidePanelBounds`), the operating screen resolves it in its own coordinates, which touches arrive in, and hands it
@@ -528,7 +626,7 @@ never dropped (`DriveCue`, `DriveEnd`, and their rows of `CueTable`):
 | a lost link | its own cue alone: LETGO, its sound and "Link lost." |
 | a start the session or the link refused | that refusal alone; nothing moved |
 | the server's success | its sound and narration alone |
-| the robot stopped (`estop_active`, or an emergency-stop reason in the server's answer) | the alarm alone |
+| the robot stopped (an emergency-stop reason in the server's answer, or `estop_active` after the hold was accepted) | the alarm alone |
 | the time limit, lost tracking, the phone not upright, short of the target, no arm data, the app left, the camera stopped, the screen left, a slow link, the phone too fast, the arm not answering, a link hiccup, the server refusing or busy | LETGO, "Stopped here." and why, for example "Stopped here. Time is up." |
 | a reason nobody named | LETGO and "Stopped here." |
 
@@ -572,6 +670,15 @@ lock chosen and, with the task aid on as well, a line for the tap.
   on, the floor is not watched: the table stops the arm first, and the lowest rule tells that push, so the server's END
   for a point past the floor alone does not play either. With the lowest rule off the floor is watched like the other
   faces. While a move to a tapped point runs, the server's clamp END does not play at all ("Tap-to-go" above).
+- **Blocked.** (`FeedbackMonitor.isNotFollowing`) With the guide's additions on and a profile that sets
+  `usesDirectionalBlockedFeedback`, the profile's gripper-link box (`RobotProfile.gripperWorkspace`) goes to the monitor
+  as `blockedWorkspace`, and "Blocked." is told by what is asked of the arm: over a second of regularly arriving states,
+  the command, cut to that box, stays at least 10 mm ahead of the arm in one direction, the arm makes progress along it of less than 2 mm and less than a
+  tenth of the lead (the smaller of the two) and moves under 4 cm in all, and has not followed at least half of any
+  movement of the command itself. A stall that the box's face or the server's clamp explains is not told. A hold on the
+  pinch point is always judged this way, on the pinch point and with no box. A hold on the gripper link origin is
+  judged this way only with the aids on and the flag set; otherwise the 1.0.1 rule judges: a command 10 mm or more
+  ahead and the arm within 2 mm over the second.
 - **The lowest height** (`lowestCue`, which sets `FeedbackMonitor.reportsLowest`). An arm on a table slides along it and
   is never still in all three directions, so this rule judges height, not position: the pinch point's height when the
   state carries `tool_pos` (on a table it stays put whatever the arm's posture), else the gripper link's. During a
@@ -581,7 +688,9 @@ lock chosen and, with the task aid on as well, a line for the tap.
   every state of the last 0.3 s was sent at least 5 mm lower and the height stayed within 1 mm. Each state is judged by
   the command held when it arrived, and a window counts only when no two of its states arrived more than
   `FeedbackMonitor.arrivalGapMs` apart, so states held back and delivered together cannot make a stall out of an arm
-  that was moving. A state that arrives between a resync's stop and its re-sent start adds no sample and is not judged
+  that was moving, and neither stall is told while the height judged is still falling by 0.5 mm a second or more over its
+  window (`isComingDown`, `lowestDescentMetersPerSecond`): a slow simulator can bring an arm down by under 2 mm a
+  second. A state that arrives between a resync's stop and its re-sent start adds no sample and is not judged
   (`FeedbackMonitor.resyncBegan`): the link stopped the arm to learn where it got to, which says nothing about where it
   can go. The samples from before that pause are kept. An arm held short at the lead cap is no such pause: standing
   against a command held there is exactly a push into the table. "Can't go lower." plays once per approach (again after
@@ -599,6 +708,13 @@ lock chosen and, with the task aid on as well, a line for the tap.
   are true for the picture, not for the hand.
 - **On target** (`widerOnTarget`). "On target" and its cue use `RobotProfile.onTargetWindow` when the profile gives
   one, else the grasp tolerance, as in 1.0.1. The level word keeps the grasp tolerance either way.
+
+### The slow-link cue
+
+`Assist.explain` is an `ExplainAids`. With `slowLinkLetGo` on, which the SO-101 profile does, a hold the operator keeps
+down, of the arm, the gripper or the wrist, that a newly slow link ends (`TeleopSession.perform` of `linkLatency`: two
+round trips in a row of 400 ms or more) plays LETGO and says "Slow link."; a follow or a move nobody holds already ended
+that way. Without it, such a hold ends and the screen shows the slow link, and nothing is said (`AppModel.perform`).
 
 ## Practice
 
@@ -619,6 +735,12 @@ by a slow link; releasing a control always stops it; at most one hold is active;
 operator can be on shows it. One set of promises (S) must hold for any sequence of actions; another (U) for the
 actions the shipped screens can send, which `ui-map.tsv` lists per route. Its `README.md` lists every promise and
 what is left out.
+
+It models what a server can cause on a live link from any route, among them the three dismissals of a server that keeps
+one phone per simulator (`dismissed`, kept in the state as `dismissal` until a live Connect forgets it, as
+`AppModel.connect` does). It also models what the operating screen's own controls send: the wrist button's
+`wristStart`, and Reconnect's `stop`, `disconnect` and `changeServer`. It does not model the simulator's pause (the
+session never sees it; `SimStallDetector` and the link hold the starts back) or who holds a hold.
 
 Run it from the repository root:
 
@@ -659,6 +781,7 @@ stays until someone has read the change and moved the sync commit.
 | `workspaceMin`, `workspaceMax`, `tableHeight` | the box the server keeps the pinch point in, and the table's height, for the guide |
 | `rollSign`, `tiltSign` | which way a turn or a tilt of the phone moves the wrist; both +1 until a check on the live robot sets them |
 | `recloseLoosensGrip` | a second close while gripping is refused, because on this robot it loosens the grip |
+| `usesDirectionalBlockedFeedback` | this profile's gripper-link box (`gripperWorkspace`: `workspaceMin` and `workspaceMax` moved back by `toolOffset`) has been checked against the workspace in the server recordings, so with the guide's additions on "Blocked." is told by the direction asked ("The guide's additions") |
 | `assist` | which hands-free aids this robot allows, with their numbers (`AssistProfile`, below); `.none` allows none and needs no code path of its own |
 | `onTargetWindow` | a wider window for the guide's "On target" and its cue, across and in height, used when the guide's aids ask for it; nil uses `graspTolerance`, which keeps its other jobs |
 
@@ -676,6 +799,8 @@ stays until someone has read the change and moved the sync commit.
 | `goTo.armDataTimeoutS` | no measured position younger than this ends the move ("No arm data.") |
 | `goTo.startGraceS` | no stall is judged from positions measured this soon after the start, or after the end of the hold's last pause if that is later, unless the arm has already moved 2 mm |
 | `guide` | which of the guide's additions run (`GuideAids`) |
+| `explain` | what the phone says about its link beyond 1.0.1's words (`ExplainAids.slowLinkLetGo`: a hold a slow link stops says "Slow link."); a robot that sets it also sets `guide` |
+| `views` | the fixed aiming views (`ViewAim`): `behindTopAboveTableM`, the height of the rear view's top above the table, which must reach the travel height, and `maxRetargetedMoveS`, how long a retargeted move may run |
 
 `RobotProfileAssistTests` holds the shipped profile to what these numbers must satisfy: the travel height inside the
 box, the arrival tolerance under the blocked rule's 10 mm, an allowance of at least 3 s that leaves room for one
@@ -684,8 +809,9 @@ re-sent start on the longest path in the box.
 `RobotProfile.so101Simulator` is the one profile. The input rules' thresholds are in `InputConstants`
 (`profile.inputConstants` adds the profile's wrist signs); the aids' thumb gestures add `slideUnderWayMm`, `tapMaxS`
 and `tapSlopMm`, the last parameters of its initializer. A few numbers that come from the server's rules sit next
-to the code that uses them: the 8 cm cap per server hold and the 1.5 s resync (`LiveLinkController`), the ranges the
-server accepts for `pose_start` (`PoseParams`), and the buttons' speeds (`ButtonSpeed`). Numbers that are about a
+to the code that uses them: the 8 cm cap per server hold and the 1.5 s resync, and the pinch point's 5 mm lead and
+0.5 s resync (`LiveLinkController`), the ranges the server accepts for `pose_start` (`PoseParams`), the buttons' speeds
+(`ButtonSpeed`), and the wrist buttons' rates, 20 degrees a second for turn and 10 for tilt (`WristButton`). Numbers that are about a
 judgement rather than about an arm sit beside the rule that uses them: the work-area cue's slack, re-arm and gap
 (`WorkAreaCue`), the lowest rule's (`FeedbackMonitor`), and a following move's, which have no unit (`GoMove`):
 `followShare` (0.5), the share of the way each fresh reading moves the drift towards that reading's change of offset;
@@ -702,4 +828,5 @@ uses, each with its source. `LocalTeleopServer` (`TeleopServerHost`) serves the 
 127.0.0.1, at a port the system picks, so app and UI tests connect the real app to it.
 `Tests/TeleopTests/ServerModelProfileTests.swift` fails when the model and the robot profile disagree on the
 numbers both have (the tool offset, the base position, the grasp tolerance, the object and goal sizes, and a start
-with the jaws side by side). `docs/TESTING.md` says how the model is checked against recordings of the real server.
+with the jaws side by side). `docs/TESTING.md` says how the model is checked against recordings of the real server, and which of its options let a
+test stop the simulation loop (`reportsLoopHealth`, `stallLoop()`) or make the pinch point turn with the arm.

@@ -10,6 +10,8 @@ repository.
 
 - An iPhone with iOS 17 or later that supports ARKit world tracking. The volume keys work from iOS 17.2.
 - Camera access: ARKit tracks the phone with it, and iOS reports the volume keys only while the camera is in use.
+  The microphone and speech recognition are asked for only by the unfinished voice control, which shows only when the
+  app is launched with `-voiceEntry YES`.
 - A teleoperation server that the phone can reach and that speaks the protocol in `docs/PROTOCOL.md`. The server
   is not part of this repository. Connect takes its address as `host`, `host:port` or a `ws://` URL; with no port
   the app uses 8765, the port `scripts/dev_relay.py` listens on. A server that listens only on its own machine is
@@ -46,7 +48,7 @@ on purpose (`docs/TESTING.md`).
 | `App/` | the SwiftUI app: the operating screen, Connect, Settings, the tutorial, the link, the players |
 | `Packages/TeleopCore/` | the pure logic (session, link, input rules, feedback), a model of the server, and its socket host |
 | `Tests/` | app tests, the scripted operator, UI tests |
-| `scripts/` | the string and button checks, and tools for the live server |
+| `scripts/` | the string, button, layout, commit-text and test-console checks, and tools for the live server |
 | `tools/` | the session safety checker (`tools/session-safety`) and the app check scripts (`tools/app-checks`), each with a README |
 | `docs/ARCHITECTURE.md` | how the app is put together |
 | `docs/PROTOCOL.md` | every message between the app and the server |

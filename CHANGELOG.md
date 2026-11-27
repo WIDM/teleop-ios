@@ -13,12 +13,12 @@ version is tagged `vX.Y.Z` on the commit that carries it.
   cross's four buttons become Tilt up, Tilt down, Turn left and Turn right. Hold one to turn the wrist at 20 degrees
   a second or tilt it at 10, let go to stop; the limits of the phone's wrist gesture apply, with the long buzz at the
   end. Up, Down, Open and Close stay on both pages. The pages switch only with no finger on a button. The jaws' point
-  moves when the wrist does (about 26 mm for 10 degrees of tilt), so check the position after.
+  moves when the wrist does, so check the jaws' position after.
 - Build 36 says why a server that keeps one phone per simulator refused or let go of this phone: "Someone is using
   this simulator", "Another phone took this simulator while yours was away", or "No operation for over 10 minutes,
   so the connection was closed", on Connect and on the stopped and link-lost states.
 - Build 36 names itself to the server with an install code, `teleop-ios/1.3.0 (36) install=<8 hex digits>`, made
-  at random on the first connection and kept until the app is deleted, so the server's log can tell one install's
+  at random when the app first starts and kept until the app is deleted, so the server's log can tell one install's
   sessions from another's (a phone restored from another phone's backup keeps that phone's code). Nothing in it comes
   from the phone or the person; the privacy manifest declares it as a device identifier used for analytics, linked to
   the install and not used for tracking.
@@ -26,11 +26,37 @@ version is tagged `vX.Y.Z` on the commit that carries it.
 ## 1.2.0 (2026-11-21)
 
 - Build 35 (1.2.0): "Fine controls" now stops a follow nobody holds, a lock follow or a move to a tapped point,
-  as any key or touch already did ("You stopped it."), and opens the panel once the stop is confirmed, with no
+  as any key or touch already did ("Stopped here."), and opens the panel once the stop is confirmed, with no
   second press. If the stop is not confirmed within 1.5 s it plays NO and the panel stays closed. STOP, any other
   key or touch, a lost or slow link, Settings, a scene reset, a mode change or leaving the app in the meantime
   drops the request. A follow held by the upper key is still refused until the key is released, and the panel
   opens on the same condition as before: the arm has stopped and the server has confirmed it.
+
+- Build 34 removes the unfinished one-shot voice actions; choosing an axis by voice is unchanged. A free phone
+  move is not started without a link, with the simulator not running, or during a scene reset or a shown success, and
+  its resync restarts only on an arm position reported after the stop was answered.
+
+- Build 33 shows a line when the operator moves in with the gripper still shut. Servers start an episode with the
+  jaws closed, and opening them beside the object sweeps it away. On the first move of an episode with the jaws
+  closed and nothing held, the operating screen shows "Gripper is closed. Open it before moving in." for 4 seconds.
+  It is shown only: nothing is spoken or felt, and the move is not held back. The line goes as soon as the jaws open
+  or hold something. A scene reset, a new episode or a new connection arms it again.
+
+- Build 32 moves the arm differently while the jaws hold something. Once the server reports that the jaws closed on
+  something, the pad's and the fine panel's directions, Up and Down included, go on the gripper link's path instead of
+  the pinch point's (the point between the jaws), until the jaws really open, the scene is reset or the link is made
+  again. A stop keeps what the jaws hold. Carrying the simulator's cube on the pinch point's path lifted it in 1 of
+  10 trials; on the gripper link's path (the path of the origin of the arm's last link, which carries the jaws) it
+  reached the goal in 9 of 10. Build 32 also corrects three alerts: a pad button may start after a hold that ended
+  clamped, "Empty." is told only after a close that ended without contact, and "Can't go lower." is not told while
+  the arm is still coming down.
+
+- Build 31 tells the operator when the server's simulator pauses, and never leaves them stuck. While it is paused,
+  no new move, release or reset is sent, and the screen says "Simulator paused. Please wait."; STOP and the end of a
+  hold always go out. A pause that lasts 15 seconds, or a server that says its simulator has been stopped that long,
+  makes the screen say "Simulator not responding", says so once aloud, and offers Reconnect: it leaves the server
+  stopped (sending the stop first if none is on), waits up to 1 s for the server to confirm it, drops the connection
+  and opens Connect. A stop the server latched during a pause is explained once the simulator runs again.
 
 - Build 30 carries the words of build 29's refusal kinds to the phone; build 29 as first installed had only the
   free phone move and the hidden voice control.
