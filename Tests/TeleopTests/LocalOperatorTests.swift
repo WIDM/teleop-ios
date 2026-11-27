@@ -23,7 +23,8 @@ final class LocalOperatorTests: XCTestCase {
     }
 
     private func start(_ mode: ControlMode, recorder: ServerModelConfig.Recorder? = nil) throws {
-        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60, recorder: recorder))
+        server = LocalTeleopServer(
+            config: .s4Simulator(stepsPerSecond: 60, recorder: recorder).settingFrames(from: TestProfiles.so101.frames))
         try server.start()
         hand = ScriptedOperator(address: server.address, mode: mode, smoothing: 0.3, pace: 0.3)
         XCTAssertTrue(hand.connect(within: TestWaits.linkUp), "could not connect to the local server")

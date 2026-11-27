@@ -56,7 +56,8 @@ final class LocalAssistTests: XCTestCase {
         _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil,
         reportsPinch: Bool = true, transport: ((URL) -> LinkTransport)? = nil
     ) throws {
-        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: reportsPinch)
+        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: reportsPinch).settingFrames(
+            from: TestProfiles.so101.frames)
         if let serverBox { config.workspaceHalfSize = serverBox }
         server = LocalTeleopServer(config: config)
         try server.start()
