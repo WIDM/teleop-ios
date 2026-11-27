@@ -53,17 +53,24 @@ final class ScriptedOperator {
     /// the hand's moves are written in the operator's terms and turned into the base's through these.
     let frames: Frames
 
+    /// The jaw of the arm this hand drives: the readings it opens to and closes to, and the unit they are in. The hand
+    /// names them in the step it is on, so a run that fails says what the jaws were asked to do in the arm's own terms.
+    let jaw: GripperProfile
+
     /// - Parameters:
     ///   - frames: the directions of the arm the app drives; they must be those of the app's profile, since the hand
     ///     and the app have to agree on what "up" is.
+    ///   - jaw: the jaw of the arm the app drives; it must be that of the app's profile.
     ///   - makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or cuts
     ///     the network path.
     init(
         address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
-        frames: Frames = TestProfiles.so101.frames, haptics: HapticsPlaying = NoHaptics(),
+        frames: Frames = TestProfiles.so101.frames, jaw: GripperProfile = TestProfiles.so101.gripper,
+        haptics: HapticsPlaying = NoHaptics(),
         makeTransport: ((URL) -> LinkTransport)? = nil
     ) {
         self.frames = frames
+        self.jaw = jaw
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
@@ -71,6 +78,7 @@ final class ScriptedOperator {
             start: .s1, haptics: haptics, pose: { [unowned self] in camera }, liveLink: true,
             makeTransport: makeTransport ?? { WebSocketTransport(url: $0) })
         precondition(frames == model.profile.frames, "the hand's frames are not the app profile's frames")
+        precondition(jaw == model.profile.gripper, "the hand's jaw is not the app profile's jaw")
         model.session.state.serverAddress = address
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
@@ -335,6 +343,11 @@ final class ScriptedOperator {
         return true
     }
 
+    /// Where the jaws are sent, in the jaw's own unit: its open reading to open, its closed reading to close.
+    static func jawTarget(_ target: GripperState, jaw: GripperProfile) -> String {
+        jaw.text(target == .open ? jaw.openReading : jaw.closedReading)
+    }
+
     /// Where the hand goes (right, up, back in metres: an upright phone, right +x, up +y, forward −z) to move the arm by
     /// the base-frame offset `remaining`: the offset as the operator sees it, right, forward and up.
     static func handOffset(for remaining: SIMD3<Float>, frames: Frames) -> SIMD3<Float> {
@@ -374,7 +387,7 @@ final class ScriptedOperator {
 
     /// Opens or closes the jaws with the scheme's own gesture, held for `seconds` times `pace`.
     func gripper(_ target: GripperState, seconds: Double) {
-        step = target == .open ? "open the jaws" : "close the jaws"
+        step = "\(target == .open ? "open" : "close") the jaws toward \(Self.jawTarget(target, jaw: jaw))"
         switch (mode, target) {
         case (.buttons, _):
             model.buttonDown(target == .open ? .open : .close)
