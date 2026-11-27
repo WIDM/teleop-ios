@@ -467,8 +467,14 @@ def names_or_holds(text, code, literals, bodies, swift, report):
 
 
 def declared_field(code, k):
-    """True when the label at k is one of several properties declared on one line, outside any call's brackets."""
-    line = code[max(code.rfind(c, 0, k) for c in "\n{;") + 1 : k]
+    """True when the label at k is one of several properties declared in one statement, outside any call's brackets.
+
+    The statement may run over several lines when each ends in a comma (`let id: Int,` then `offsetMeasuredAt: ...`).
+    """
+    start = max(code.rfind(c, 0, k) for c in "\n{;") + 1
+    while start > 0 and code[start - 1] == "\n" and code[:start - 1].rstrip().endswith(","):
+        start = max(code.rfind(c, 0, start - 1) for c in "\n{;") + 1
+    line = code[start:k]
     depth = sum(line.count(c) for c in "([") - sum(line.count(c) for c in ")]")
     return depth == 0 and bool(DECLARATION_LINE.match(line))
 

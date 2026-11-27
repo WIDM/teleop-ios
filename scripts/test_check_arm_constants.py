@@ -263,6 +263,7 @@ class CheckArmConstantsTests(unittest.TestCase):
             "struct Note {\n    let id: Int, offsetMeasuredAt: SIMD3<Float>\n}",
             "struct Note {\n    private(set) var id = 0, offsetMeasuredAt: Date?\n}",
             "struct Note { let id: Int, offsetMeasuredAt: SIMD3<Float> }",
+            "struct Note {\n    let id: Int,\n        offsetMeasuredAt: SIMD3<Float>\n}",
             "struct Note {\n    public var offsetMeasuredAt: Date?\n}",
             "extension RobotProfile {\n    var vector: SIMD3<Float> { .init(repeating: 0) }\n}",
             "extension RobotProfile {\n    func origin() -> SIMD3<Float> {\n"
