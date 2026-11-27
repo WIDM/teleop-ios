@@ -197,16 +197,22 @@ final class LiveLinkController {
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
         gripperLimits: GripperLimits,
+        frames: Frames,
         clientName: String = LiveLinkController.clientName()
     ) {
+        self.frames = frames
         self.clientName = clientName
         self.makeTransport = makeTransport
         self.makeObserverTransport = makeObserverTransport ?? makeTransport
         self.pose = pose
         self.nowMs = nowMs
-        monitor = FeedbackMonitor(limits: gripperLimits)
+        monitor = FeedbackMonitor(limits: gripperLimits, frames: frames)
         jawsReminder = JawsClosedReminder(limits: gripperLimits)
     }
+
+    /// The profile's frames: which base axis each direction moves the arm along, and how the link's offsets are signed
+    /// against the base frame.
+    let frames: Frames
 
     var isOpen: Bool { transport != nil }
     /// The simulator is paused or not responding: no move, release or reset goes out while it lasts, and the stop
@@ -356,7 +362,7 @@ final class LiveLinkController {
     ) {
         workAreaCue =
             aids?.workAreaWords == true
-            ? WorkAreaCue(low: gripperBox.low, high: gripperBox.high, sides: sides) : nil
+            ? WorkAreaCue(frames: frames, low: gripperBox.low, high: gripperBox.high, sides: sides) : nil
         workAreaToldThisHold = false
         monitor.reportsLowest = aids?.lowestCue == true
         monitor.blockedWorkspace = directionalBlocked && aids != nil ? gripperBox : nil
@@ -636,9 +642,9 @@ final class LiveLinkController {
         if holdParams.toolCalibrationID == nil, !confirmsOriginResync(state, serverMs: serverMs) { return }
         let now = measuredControlPoint
         if let now, let before = armAtSegmentStart {
-            // The server turns an offset into base motion as [x, y, −z]; undo that to stay in the sent frame.
-            let moved = now - before
-            armProgress += SIMD3(moved.x, moved.y, -moved.z)
+            // The server turns an offset into base motion with each axis signed (`Frames.linkSigns`); undo that to stay in
+            // the sent frame.
+            armProgress += frames.link(fromBase: now - before)
         }
         resync = nil
         restarting = true
@@ -881,10 +887,10 @@ final class LiveLinkController {
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         syncStart()
         if let start = armAtSegmentStart {
-            let target = start + SIMD3(delta.x, delta.y, -delta.z)
+            let target = start + frames.base(fromLink: delta)
             if toolControl {
                 if !link.startHeldBack {
-                    let intent = start + SIMD3(remaining.x, remaining.y, -remaining.z)
+                    let intent = start + frames.base(fromLink: remaining)
                     toolTargets = (intent, target)
                     monitor.commanded(SIMD3<Double>(intent), point: .tool)
                 }
@@ -915,11 +921,13 @@ final class LiveLinkController {
             coordinatedLeftOverLabel != nil
             && (0...FeedbackMonitor.freshStateMs).contains(now - segmentStartedMs)
             && newestArmState?.activity == coordinatedLeftOverLabel
+        // The hold moves the tool along up only: the link axis that is up carries the offset, the other two stay zero.
+        let up = frames.up.axis.index
         guard let start = armAtSegmentStart, let state = newestArmState,
             let measured = state.toolPoint, let age = newestArmAgeMs,
             (0...FeedbackMonitor.freshStateMs).contains(age), !state.estop, !state.simBusy,
             newestState?.estop != true, newestState?.simBusy != true,
-            wanted.x == 0, wanted.y == 0, wanted.z.isFinite
+            (0..<3).allSatisfy({ $0 == up || wanted[$0] == 0 }), wanted[up].isFinite
         else {
             onLog?("link: coordinated height has no fresh vertical tracking state, hold ended")
             stop(monitor.endedByApp(.noAnswer))
@@ -936,16 +944,17 @@ final class LiveLinkController {
             }
             return
         }
-        let progress = start.z - Float(measured.z)
-        let remaining = wanted.z - progress
+        let progress = Float(frames.linkSigns[up]) * (Float(measured[up]) - start[up])
+        let remaining = wanted[up] - progress
         let lead = min(max(remaining, -Self.toolMaxLeadMeters), Self.toolMaxLeadMeters)
-        let delta = SIMD3<Float>(0, 0, progress + lead)
+        var delta = SIMD3<Float>.zero
+        delta[up] = progress + lead
         leadCapped = abs(remaining) > Self.toolMaxLeadMeters
-        link.poseUpdate(positionMeters: [0, 0, Double(delta.z)])
+        link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         syncStart()
         if !link.startHeldBack {
-            let intent = start + SIMD3<Float>(0, 0, -wanted.z)
-            let target = start + SIMD3<Float>(0, 0, -delta.z)
+            let intent = start + frames.base(fromLink: wanted)
+            let target = start + frames.base(fromLink: delta)
             toolTargets = (intent, target)
             monitor.commanded(SIMD3<Double>(intent), point: .tool)
             motionUpdate = (delta, commandedArm, now)
@@ -966,7 +975,7 @@ final class LiveLinkController {
         let measured = newestArmState?.endEffector.map { SIMD3<Float>($0) }
         onLog(
             "motion source=\(buttonTarget == nil ? "phone" : "button_or_tap") "
-                + "link_frame=base_x,base_y,negative_base_z units=m "
+                + "link_frame=\(frames.linkFrameName) units=m "
                 + "wanted_link=\(vector(motionRequest?.offset)) wanted_age_ms=\(age(motionRequest?.atMs)) "
                 + "sent_link=\(vector(motionUpdate?.delta)) sent_target_base=\(vector(motionUpdate?.target)) "
                 + "sent_age_ms=\(age(motionUpdate?.atMs)) measured_base=\(vector(measured)) "
@@ -1052,9 +1061,9 @@ final class LiveLinkController {
             return SIMD3<Float>(
                 axis.project(
                     right: Double(simd_dot(scaled, holdRight)), forward: Double(simd_dot(scaled, holdForward)),
-                    up: Double(scaled.y)))
+                    up: Double(scaled.y), frames: frames))
         }
-        return Self.serverOffset(scaled, right: holdRight, forward: holdForward)
+        return Self.serverOffset(scaled, right: holdRight, forward: holdForward, frames: frames)
     }
 
     private func handle(_ text: String) {
@@ -1529,8 +1538,10 @@ final class LiveLinkController {
 
     /// World offset (ARKit: y up) to the offset the server expects: the hand's right, forward and up, mapped by the
     /// operator frame the buttons use too.
-    static func serverOffset(_ world: SIMD3<Float>, right: SIMD3<Float>, forward: SIMD3<Float>) -> SIMD3<Float> {
-        let offset = OperatorFrame.linkOffset(
+    static func serverOffset(
+        _ world: SIMD3<Float>, right: SIMD3<Float>, forward: SIMD3<Float>, frames: Frames
+    ) -> SIMD3<Float> {
+        let offset = frames.linkOffset(
             right: Double(simd_dot(world, right)), forward: Double(simd_dot(world, forward)), up: Double(world.y)
         )
         return SIMD3(Float(offset.x), Float(offset.y), Float(offset.z))

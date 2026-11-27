@@ -100,7 +100,7 @@ final class FeedbackMonitorLowestReplayTests: XCTestCase {
     }
 
     private func newMonitor() -> FeedbackMonitor {
-        var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+        var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
         monitor.reportsLowest = true
         return monitor
     }

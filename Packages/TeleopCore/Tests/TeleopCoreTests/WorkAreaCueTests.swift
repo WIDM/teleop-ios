@@ -19,14 +19,14 @@ final class WorkAreaCueTests: XCTestCase {
     private var clock = 0
 
     override func setUp() {
-        cue = WorkAreaCue(low: low, high: high)
+        cue = WorkAreaCue(frames: TestFrames.so101, low: low, high: high)
         clock = 0
     }
 
     /// A point `metres` past the face on `side` (negative: inside it), at the box's centre on the other axes.
     private func past(_ side: OperatorDirection, by metres: Double, from start: SIMD3<Double>? = nil) -> SIMD3<Double> {
         var point = start ?? centre
-        let (axis, sign) = side.baseAxis
+        let (axis, sign) = (TestFrames.so101.axis(for: side).axis, TestFrames.so101.axis(for: side).sign)
         let i = axis == .x ? 0 : (axis == .y ? 1 : 2)
         point[i] = (sign > 0 ? high[i] : low[i]) + sign * metres
         return point
@@ -55,7 +55,7 @@ final class WorkAreaCueTests: XCTestCase {
             XCTAssertEqual(cue.outside, side, "\(side)")
         }
         // The corners may be given in either order.
-        var swapped = WorkAreaCue(low: high, high: low)
+        var swapped = WorkAreaCue(frames: TestFrames.so101, low: high, high: low)
         XCTAssertEqual(swapped.low, low)
         XCTAssertEqual(swapped.commanded(past(.forward, by: 0.003), at: 0), .forward)
     }
@@ -74,7 +74,7 @@ final class WorkAreaCueTests: XCTestCase {
         let low = SIMD3(-0.1, -0.1, 0.0)
         let high = SIMD3(0.0, 0.1, 0.1)
         for side in [OperatorDirection.left, .down] {
-            var rule = WorkAreaCue(low: low, high: high)
+            var rule = WorkAreaCue(frames: TestFrames.so101, low: low, high: high)
             // `by` past the face on `side`, inside the box on the other axes.
             let past: (Double) -> SIMD3<Double> = { by in
                 side == .left ? SIMD3(by, 0.05, 0.05) : SIMD3(-0.05, 0.05, -by)
@@ -95,18 +95,19 @@ final class WorkAreaCueTests: XCTestCase {
     /// little forward is forward, however far below. The default watches all six.
     func testAFaceThatIsNotWatchedCountsForNothing() {
         XCTAssertEqual(cue.sides, Set(OperatorDirection.allCases))
-        var rule = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        var rule = WorkAreaCue(
+            frames: TestFrames.so101, low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
         XCTAssertNil(rule.commanded(past(.down, by: 0.05), at: 0))
         XCTAssertNil(rule.outside)
         XCTAssertEqual(rule.commanded(past(.forward, by: 0.003, from: past(.down, by: 0.05)), at: 2000), .forward)
         XCTAssertEqual(rule.outside, .forward)
         for side in OperatorDirection.allCases where side != .down {
-            var watched = WorkAreaCue(low: low, high: high, sides: [side])
+            var watched = WorkAreaCue(frames: TestFrames.so101, low: low, high: high, sides: [side])
             XCTAssertEqual(watched.commanded(past(side, by: 0.003), at: 0), side)
             XCTAssertNil(watched.commanded(past(.down, by: 0.003), at: 2000))
             XCTAssertNil(watched.outside, "\(side)")
         }
-        var none = WorkAreaCue(low: low, high: high, sides: [])
+        var none = WorkAreaCue(frames: TestFrames.so101, low: low, high: high, sides: [])
         XCTAssertNil(none.commanded(past(.up, by: 0.1), at: 0))
         XCTAssertNil(none.outside)
     }
@@ -274,12 +275,13 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertNil(cue.outside)
         XCTAssertNil(tick(past(.forward, by: 0.001), after: 2000), "the slack still counts")
         XCTAssertNil(cue.outside)
-        var noFloor = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        var noFloor = WorkAreaCue(
+            frames: TestFrames.so101, low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
         let floor = noFloor.serverClamped(past(.down, by: 0.03), at: 0)
         XCTAssertFalse(floor.foreseen)
         XCTAssertNil(floor.told)
         XCTAssertNil(noFloor.outside)
-        var noBox = WorkAreaCue(low: low, high: SIMD3(high.x, .nan, high.z))
+        var noBox = WorkAreaCue(frames: TestFrames.so101, low: low, high: SIMD3(high.x, .nan, high.z))
         XCTAssertFalse(noBox.serverClamped(past(.forward, by: 0.01), at: 0).foreseen)
         XCTAssertNil(noBox.outside)
     }
@@ -288,7 +290,8 @@ final class WorkAreaCueTests: XCTestCase {
     /// and past no watched face (lying on one is not past it). Past a watched face as well, past a watched face alone,
     /// past no face at all, on the floor itself, with every face watched, or with no box, it is not.
     func testAPointPastOnlyFacesTheRuleDoesNotWatchIsKnown() {
-        let noFloor = WorkAreaCue(low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
+        let noFloor = WorkAreaCue(
+            frames: TestFrames.so101, low: low, high: high, sides: Set(OperatorDirection.allCases).subtracting([.down]))
         let below = past(.down, by: 0.03)
         XCTAssertTrue(noFloor.isPastOnlyUnwatchedFaces(past(.down, by: 0.0001)))
         XCTAssertTrue(noFloor.isPastOnlyUnwatchedFaces(below))
@@ -298,7 +301,8 @@ final class WorkAreaCueTests: XCTestCase {
         XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(centre), "past no face")
         XCTAssertFalse(noFloor.isPastOnlyUnwatchedFaces(past(.down, by: 0)), "on the floor")
         XCTAssertFalse(cue.isPastOnlyUnwatchedFaces(below), "every face watched")
-        let noBox = WorkAreaCue(low: low, high: SIMD3(high.x, high.y, .nan), sides: [.forward])
+        let noBox = WorkAreaCue(
+            frames: TestFrames.so101, low: low, high: SIMD3(high.x, high.y, .nan), sides: [.forward])
         XCTAssertFalse(noBox.isPastOnlyUnwatchedFaces(below))
     }
 
@@ -340,7 +344,7 @@ final class WorkAreaCueTests: XCTestCase {
             (low, SIMD3(.nan, high.y, high.z)), (-unbounded, unbounded), (low, SIMD3(high.x, high.y, .infinity)),
         ]
         for box in boxes {
-            var rule = WorkAreaCue(low: box.0, high: box.1)
+            var rule = WorkAreaCue(frames: TestFrames.so101, low: box.0, high: box.1)
             for (i, point) in [centre, centre + SIMD3(0, -0.5, 0), centre + SIMD3(1, 1, 1)].enumerated() {
                 XCTAssertNil(rule.commanded(point, at: i * 2000), "\(box)")
                 XCTAssertNil(rule.outside, "\(box)")
@@ -362,12 +366,12 @@ final class WorkAreaCueTests: XCTestCase {
         for measured in [toolOffset, SIMD3(0.02, -0.05, -0.07), SIMD3(-0.01, -0.02, -0.11)] {
             let shift = measured - toolOffset
             let drawnLow = pinchMin + shift, drawnHigh = pinchMax + shift
-            let linkBox = WorkAreaCue(low: low, high: high)
+            let linkBox = WorkAreaCue(frames: TestFrames.so101, low: low, high: high)
             XCTAssertEqual(simd_distance(linkBox.low, drawnLow - measured), 0, accuracy: 1e-12)
             XCTAssertEqual(simd_distance(linkBox.high, drawnHigh - measured), 0, accuracy: 1e-12)
             for point in commanded {
-                var rule = WorkAreaCue(low: low, high: high)
-                var picture = WorkAreaCue(low: drawnLow, high: drawnHigh)
+                var rule = WorkAreaCue(frames: TestFrames.so101, low: low, high: high)
+                var picture = WorkAreaCue(frames: TestFrames.so101, low: drawnLow, high: drawnHigh)
                 XCTAssertEqual(rule.commanded(point, at: 0), picture.commanded(point + measured, at: 0), "\(point)")
                 XCTAssertEqual(rule.outside, picture.outside, "\(point)")
             }

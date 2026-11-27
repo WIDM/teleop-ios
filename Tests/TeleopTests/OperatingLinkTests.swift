@@ -113,21 +113,25 @@ final class OperatingLinkTests: XCTestCase {
         let right = simd_normalize(SIMD3<Float>(0.8, 0, 0.6))
         let forward = simd_cross(SIMD3<Float>(0, 1, 0), right)
         for world in [SIMD3<Float>(0.1, 0, 0), SIMD3(0, 0.1, 0), SIMD3(0, 0, -0.1), SIMD3(0.03, -0.02, 0.05)] {
-            let offset = OperatorFrame.linkOffset(
+            let offset = TestProfiles.so101.frames.linkOffset(
                 right: Double(simd_dot(world, right)), forward: Double(simd_dot(world, forward)), up: Double(world.y)
             )
-            let sent = LiveLinkController.serverOffset(world, right: right, forward: forward)
+            let sent = LiveLinkController.serverOffset(
+                world, right: right, forward: forward, frames: TestProfiles.so101.frames)
             XCTAssertEqual(Double(sent.x), offset.x, accuracy: 1e-6)
             XCTAssertEqual(Double(sent.y), offset.y, accuracy: 1e-6)
             XCTAssertEqual(Double(sent.z), offset.z, accuracy: 1e-6)
         }
         // And the axis table agrees with the server's calibration: right → −X, forward → −Y, up → +Z.
         XCTAssertEqual(
-            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 1, forward: 0, up: 0)), SIMD3(-1, 0, 0))
+            TestProfiles.so101.frames.base(fromLink: TestProfiles.so101.frames.linkOffset(right: 1, forward: 0, up: 0)),
+            SIMD3(-1, 0, 0))
         XCTAssertEqual(
-            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 1, up: 0)), SIMD3(0, -1, 0))
+            TestProfiles.so101.frames.base(fromLink: TestProfiles.so101.frames.linkOffset(right: 0, forward: 1, up: 0)),
+            SIMD3(0, -1, 0))
         XCTAssertEqual(
-            OperatorFrame.base(fromLink: OperatorFrame.linkOffset(right: 0, forward: 0, up: 1)), SIMD3(0, 0, 1))
+            TestProfiles.so101.frames.base(fromLink: TestProfiles.so101.frames.linkOffset(right: 0, forward: 0, up: 1)),
+            SIMD3(0, 0, 1))
     }
 
     /// Scheme B: vol− starts the wrist hold at once; the phone's turn becomes the target, and a frozen wrist holds the

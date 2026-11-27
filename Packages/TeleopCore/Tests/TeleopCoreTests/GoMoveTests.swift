@@ -102,7 +102,8 @@ final class GoMoveTests: XCTestCase {
 
     func testTheCommandGoesUpOrDownFirstAtTheProfileSpeed() {
         let start = SIMD3(0.03, -0.15, 0.13)
-        let down = GoMove(start: start, target: SIMD3(0.06, -0.19, travel), limits: limits, at: 10)
+        let down = GoMove(
+            frames: TestFrames.so101, start: start, target: SIMD3(0.06, -0.19, travel), limits: limits, at: 10)
         XCTAssertEqual(down.stage, .vertical)
         XCTAssertEqual(down.commanded(at: 10), start)
         let half = down.commanded(at: 10.5)
@@ -116,14 +117,16 @@ final class GoMoveTests: XCTestCase {
         }
 
         let low = SIMD3(0.0, -0.2, 0.06)
-        let up = GoMove(start: low, target: SIMD3(-0.03, -0.12, travel), limits: limits, at: 0)
+        let up = GoMove(
+            frames: TestFrames.so101, start: low, target: SIMD3(-0.03, -0.12, travel), limits: limits, at: 0)
         XCTAssertEqual(up.commanded(at: 0.25).z, 0.07, accuracy: 1e-12)
         XCTAssertEqual(horizontal(up.commanded(at: 0.25)), horizontal(low))
     }
 
     func testTheCommandWaitsAtTheLegsEnd() {
         let start = SIMD3(0.03, -0.15, 0.13)
-        var move = GoMove(start: start, target: SIMD3(0.06, -0.19, travel), limits: limits, at: 0)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: SIMD3(0.06, -0.19, travel), limits: limits, at: 0)
         let corner = SIMD3(start.x, start.y, travel)
         // 4 cm at 0.04 m/s: the corner is reached after a second and the command stays there.
         XCTAssertNotEqual(move.commanded(at: 0.99), corner)
@@ -154,7 +157,7 @@ final class GoMoveTests: XCTestCase {
         let corner = SIMD3(start.x, start.y, target.z)
         XCTAssertNotEqual(corner + (target - corner) * 1.0, target, "the case where a computed end misses")
 
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         // The vertical leg (5.5 cm) is over by 1.37 s; a fresh fix at the travel height turns the corner.
         XCTAssertNil(move.observe(fix(SIMD3(start.x, start.y, target.z + 0.001)), at: 1.4))
         XCTAssertEqual(move.stage, .level)
@@ -181,7 +184,7 @@ final class GoMoveTests: XCTestCase {
         let start = SIMD3(0.02, -0.2, travel - 0.04)
         let target = SIMD3(0.07, -0.13, travel)
         let corner = SIMD3(start.x, start.y, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         // The command reaches the corner at 1 s; the arm lags and sits 2 cm low until 1.5 s.
         var now = 0.0
         while now <= 1.5 {
@@ -213,7 +216,7 @@ final class GoMoveTests: XCTestCase {
         let start = SIMD3(0.0, -0.2, travel + 0.025)
         let target = SIMD3(0.06, -0.15, travel)
         let corner = SIMD3(start.x, start.y, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move) { _ in start }
         XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .level])
         let turned = try XCTUnwrap(run.stages.last?.at)
@@ -233,7 +236,7 @@ final class GoMoveTests: XCTestCase {
     func testArrivalNeedsAFreshFixWithinToleranceNotTheCommand() {
         let start = SIMD3(0.03, -0.15, travel)
         let target = SIMD3(0.05, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertNil(move.observe(fix(start), at: 0))
         XCTAssertEqual(move.stage, .level, "no height to go: level at once")
         // The command reached the target at 0.5 s; the arm has not.
@@ -243,7 +246,7 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(move.observe(fix(target + SIMD3(0, 0.0079, 0), age: 0.4), at: 1.1), .arrived)
 
         // The measured arm decides, not the command: it can arrive while the command still travels.
-        var early = GoMove(start: start, target: target, limits: limits, at: 0)
+        var early = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertNil(early.observe(fix(start), at: 0))
         XCTAssertNotEqual(early.commanded(at: 0.2), target)
         XCTAssertEqual(early.observe(fix(target - SIMD3(0.005, 0, 0)), at: 0.2), .arrived)
@@ -256,7 +259,7 @@ final class GoMoveTests: XCTestCase {
     func testAPausedLinkIsNotASettle() throws {
         let start = SIMD3(0.0, -0.2, travel)
         let target = SIMD3(0.04, -0.2, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let age = 0.3
         // The arm goes 2 cm along the 4 cm leg and is held there from 0.5 s.
         func arm(_ measuredAt: Double) -> SIMD3<Double> { SIMD3(min(0.04 * max(0, measuredAt), 0.02), -0.2, travel) }
@@ -282,7 +285,7 @@ final class GoMoveTests: XCTestCase {
     func testAGapInThePositionsRestartsTheSettle() {
         let start = SIMD3(0.0, -0.2, travel)
         let target = SIMD3(0.04, -0.2, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let held = SIMD3(0.02, -0.2, travel)
         XCTAssertNil(move.observe(fix(start), at: 0))
         XCTAssertEqual(move.stage, .level)
@@ -302,7 +305,7 @@ final class GoMoveTests: XCTestCase {
     func testPositionsMeasuredBeforeTheLegsEndAreNotASettle() {
         let start = SIMD3(0.0, -0.2, travel - 0.04)
         let target = SIMD3(0.03, -0.18, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         // The arm moved 3 mm, so the start's grace is over, and stuck there; its states arrive 0.39 s after they were
         // measured, so those measured while the command still travelled keep arriving after it reached the corner.
         let stuck = start + SIMD3(0, 0, 0.003)
@@ -330,7 +333,7 @@ final class GoMoveTests: XCTestCase {
         func lateArm(_ measuredAt: Double) -> SIMD3<Double> {
             SIMD3(start.x, start.y, min(travel, start.z + limits.speedMps * max(0, measuredAt - 1.4)))
         }
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         for i in 0...75 {
             let now = Double(i) * step
             XCTAssertNil(move.observe(fix(lateArm(now - age), age: age), at: now), "\(now)")
@@ -340,7 +343,7 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(move.commanded(at: 10).z, target.z, "and the level leg runs at the travel height, exactly")
 
         // An arm that never moves: a stall is judged only from positions measured after the start plus 1.5 s.
-        var still = GoMove(start: start, target: target, limits: limits, at: 0)
+        var still = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         var judged: TimeInterval?
         for i in 0...120 where judged == nil {
             let now = Double(i) * step
@@ -356,7 +359,8 @@ final class GoMoveTests: XCTestCase {
         var noGrace = limits
         noGrace.startGraceS = 0
         let traced = SIMD3(0.02, -0.15, 0.0806)
-        var replay = GoMove(start: traced, target: SIMD3(0.04, -0.2, 0.09), limits: noGrace, at: 0)
+        var replay = GoMove(
+            frames: TestFrames.so101, start: traced, target: SIMD3(0.04, -0.2, 0.09), limits: noGrace, at: 0)
         XCTAssertNil(replay.observe(fix(traced, age: 0.137), at: 0))
         XCTAssertNil(replay.observe(fix(traced, age: 0.379), at: 0.242))
         XCTAssertNil(replay.observe(fix(traced + SIMD3(0, 0, 0.0012), age: 0.022), at: 0.642))
@@ -371,7 +375,7 @@ final class GoMoveTests: XCTestCase {
         let target = SIMD3(0.05, -0.12, travel)
         // The jaws swing 2 mm sideways at 0.2 s and stay there, the height not reached.
         func firstJudgement(swing: Double) -> TimeInterval? {
-            var move = GoMove(start: start, target: target, limits: limits, at: 0)
+            var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
             let swung = start + SIMD3(swing, 0, 0)
             XCTAssertNil(move.observe(fix(start, age: 0), at: 0))
             XCTAssertNil(move.observe(fix(swung, age: 0), at: 0.2))
@@ -399,7 +403,7 @@ final class GoMoveTests: XCTestCase {
         func lateArm(_ measuredAt: Double) -> SIMD3<Double> {
             SIMD3(start.x, start.y, min(travel, start.z + limits.speedMps * max(0, measuredAt - heldBack - 1.4)))
         }
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         for i in 0...90 {
             let now = Double(i) * step
             XCTAssertNil(move.observe(fix(lateArm(now - age), age: age, paused: now < heldBack), at: now), "\(now)")
@@ -410,7 +414,7 @@ final class GoMoveTests: XCTestCase {
 
         // An arm that never moves: the first stall is judged only from positions measured 1.5 s after the last paused
         // call; the next one from positions measured after the correction's leg reached its end, with no new grace.
-        var still = GoMove(start: start, target: target, limits: limits, at: 0)
+        var still = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         var lastPaused = -Double.infinity
         var corrections: [TimeInterval] = []
         for i in 0...240 where corrections.count < 2 {
@@ -437,7 +441,7 @@ final class GoMoveTests: XCTestCase {
     func testAVerticalCorrectionMovesOnlyTheCommandedHeight() throws {
         let start = SIMD3(0.02, -0.2, travel - 0.03)
         let target = SIMD3(0.06, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let sag: (SIMD3<Double>) -> SIMD3<Double> = { SIMD3($0.x, $0.y, max(start.z, $0.z - 0.009)) }
         let run = drive(&move, arm: sag)
         XCTAssertEqual(run.end, .verdict(.arrived))
@@ -450,7 +454,7 @@ final class GoMoveTests: XCTestCase {
 
         // Step by step: a fix at the commanded end is 9 mm from the target, so it has not arrived; one at the target
         // has.
-        var stepwise = GoMove(start: start, target: target, limits: limits, at: 0)
+        var stepwise = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let corrected = try XCTUnwrap(run.stages.first { $0.stage == .correcting(.vertical) }?.at)
         let level = try XCTUnwrap(run.stages.first { $0.stage == .level }?.at)
         XCTAssertLessThan(corrected, level)
@@ -470,7 +474,7 @@ final class GoMoveTests: XCTestCase {
         let corner = SIMD3(start.x, start.y, travel)
         let across = simd_normalize(target - corner)
         let wall = simd_dot(target - corner, across) - 0.012
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move) { command in
             let sagged = SIMD3(command.x, command.y, max(start.z, command.z - 0.009))
             let along = simd_dot(sagged - corner, across)
@@ -495,7 +499,7 @@ final class GoMoveTests: XCTestCase {
         let start = SIMD3(0.02, -0.2, travel - 0.03)
         let target = SIMD3(0.06, -0.15, travel)
         let weak: (SIMD3<Double>) -> SIMD3<Double> = { SIMD3($0.x, $0.y, start.z + 0.45 * max(0, $0.z - start.z)) }
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move, arm: weak)
         XCTAssertEqual(run.end, .verdict(.arrived))
         XCTAssertEqual(run.stages.map { $0.stage }, [.vertical, .correcting(.vertical), .level])
@@ -504,13 +508,13 @@ final class GoMoveTests: XCTestCase {
         let level = try XCTUnwrap(run.stages.last?.at)
         XCTAssertLessThan(second, level, "both on the way up")
 
-        var once = GoMove(start: start, target: target, limits: limits, at: 0)
+        var once = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         _ = drive(&once, until: second - step / 2, arm: weak)
         XCTAssertEqual(once.correctionsLeft, limits.corrections - 1)
         let raisedOnce = once.commanded(at: 100)
         XCTAssertEqual(horizontal(raisedOnce), horizontal(start), "straight up")
         XCTAssertEqual(raisedOnce.z, travel + 0.0165, accuracy: 1e-9, "raised by the height first missing")
-        var twice = GoMove(start: start, target: target, limits: limits, at: 0)
+        var twice = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         _ = drive(&twice, until: level, arm: weak)
         XCTAssertEqual(twice.stage, .level)
         XCTAssertEqual(twice.commanded(at: level).z, travel + 0.025575, accuracy: 1e-9, "the level leg keeps both")
@@ -525,7 +529,7 @@ final class GoMoveTests: XCTestCase {
     func testAnObstacleAboveTheTravelHeightIsNeverPressedInto() {
         let start = SIMD3(0.0, -0.2, travel + 0.04)
         let target = SIMD3(0.06, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.02)) }
         XCTAssertEqual(run.end, .verdict(.stoppedShort))
         XCTAssertLessThan(run.at, move.deadline, "stopped short, not time is up")
@@ -533,7 +537,8 @@ final class GoMoveTests: XCTestCase {
         XCTAssertEqual(run.corrections.count, 2)
         XCTAssertEqual(move.commanded(at: 100), target, "across by nothing, and not down")
 
-        var higher = GoMove(start: SIMD3(0.0, -0.2, travel + 0.05), target: target, limits: limits, at: 0)
+        var higher = GoMove(
+            frames: TestFrames.so101, start: SIMD3(0.0, -0.2, travel + 0.05), target: target, limits: limits, at: 0)
         let higherRun = drive(&higher) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.035)) }
         XCTAssertEqual(higherRun.end, .verdict(.stoppedShort))
         XCTAssertEqual(higherRun.corrections, [])
@@ -548,7 +553,7 @@ final class GoMoveTests: XCTestCase {
     func testACorrectionAtTheEndComesDownToTheTravelHeightAndNeverBelow() throws {
         let start = SIMD3(0.02, -0.2, travel - 0.03)
         let target = SIMD3(0.06, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move) { command in
             let sagged = SIMD3(command.x, command.y, max(start.z, command.z - 0.009))
             guard simd_distance(self.horizontal(sagged), self.horizontal(target)) <= 0.01 else { return sagged }
@@ -578,7 +583,7 @@ final class GoMoveTests: XCTestCase {
     func testAFlooredCorrectionAtTheEndExtendsTheDeadlineByTheWholeRemainder() {
         let start = SIMD3(0.0, -0.2, travel + 0.04)
         let target = SIMD3(0.06, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let initial = move.deadline
         let run = drive(&move) { SIMD3($0.x, $0.y, max($0.z, self.travel + 0.02)) }
         XCTAssertEqual(run.end, .verdict(.stoppedShort))
@@ -592,7 +597,7 @@ final class GoMoveTests: XCTestCase {
     func testJawsThatHangLowAtTheEndAreRaisedThereAndArrive() {
         let start = SIMD3(0.02, -0.2, travel - 0.03)
         let target = SIMD3(0.06, -0.15, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move) { command in
             let reach = simd_distance(self.horizontal(command), self.horizontal(start))
             return SIMD3(command.x, command.y, max(start.z, command.z - 0.009 - 0.2 * reach))
@@ -612,7 +617,7 @@ final class GoMoveTests: XCTestCase {
         for budget in 0...3 {
             var numbers = limits
             numbers.corrections = budget
-            var move = GoMove(start: start, target: target, limits: numbers, at: 0)
+            var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: numbers, at: 0)
             // A wall 1 cm before the target: each remainder is within the 3 cm reach.
             let run = drive(&move) { SIMD3(min($0.x, target.x - 0.01), $0.y, $0.z) }
             XCTAssertEqual(run.end, .verdict(.stoppedShort), "budget \(budget)")
@@ -625,7 +630,7 @@ final class GoMoveTests: XCTestCase {
     func testACorrectionIsWalkedNotJumped() throws {
         let start = SIMD3(-0.02, -0.22, travel)
         let target = SIMD3(0.02, -0.22, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let run = drive(&move, until: 2.2) { SIMD3(min($0.x, target.x - 0.01), $0.y, $0.z) }
         XCTAssertEqual(run.corrections.count, 1)
         let at = try XCTUnwrap(run.corrections.first)
@@ -645,7 +650,8 @@ final class GoMoveTests: XCTestCase {
     func testARemainderBeyondTheReachStopsShortAtOnce() {
         // Level: a wall 4 cm before the end of a 6 cm leg.
         let start = SIMD3(-0.04, -0.2, travel)
-        var level = GoMove(start: start, target: SIMD3(0.02, -0.2, travel), limits: limits, at: 0)
+        var level = GoMove(
+            frames: TestFrames.so101, start: start, target: SIMD3(0.02, -0.2, travel), limits: limits, at: 0)
         let levelRun = drive(&level) { SIMD3(min($0.x, -0.02), $0.y, $0.z) }
         XCTAssertEqual(levelRun.end, .verdict(.stoppedShort))
         XCTAssertEqual(levelRun.corrections, [])
@@ -653,7 +659,8 @@ final class GoMoveTests: XCTestCase {
 
         // Vertical: the arm stops 3.5 cm short of the travel height.
         let low = SIMD3(0.0, -0.2, travel - 0.045)
-        var vertical = GoMove(start: low, target: SIMD3(0.03, -0.18, travel), limits: limits, at: 0)
+        var vertical = GoMove(
+            frames: TestFrames.so101, start: low, target: SIMD3(0.03, -0.18, travel), limits: limits, at: 0)
         let verticalRun = drive(&vertical) { SIMD3($0.x, $0.y, min($0.z, travel - 0.035)) }
         XCTAssertEqual(verticalRun.end, .verdict(.stoppedShort))
         XCTAssertEqual(verticalRun.corrections, [])
@@ -675,7 +682,8 @@ final class GoMoveTests: XCTestCase {
         let high = SIMD3(0.11, -0.1, travel + 0.06)
         let start = SIMD3(0.04, -0.2, travel)
         let target = SIMD3(high.x - 0.01, start.y, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
         var farthest = -Double.infinity
         let run = drive(&move) { command in
             farthest = max(farthest, self.past(command, low, high))
@@ -691,6 +699,7 @@ final class GoMoveTests: XCTestCase {
         let top = SIMD3(high.x, high.y, travel + 0.005)
         let below = SIMD3(0.02, -0.2, travel - 0.03)
         var up = GoMove(
+            frames: TestFrames.so101,
             start: below, target: SIMD3(0.06, -0.15, travel), limits: limits, at: 0, boxLow: low, boxHigh: top)
         var highest = -Double.infinity
         let upRun = drive(&up) { command in
@@ -714,7 +723,8 @@ final class GoMoveTests: XCTestCase {
         let high = SIMD3(0.11, -0.1, travel + 0.01)
         let start = SIMD3(0.0, -0.2, travel)
         let target = SIMD3(0.06, -0.2, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high)
         var highest = -Double.infinity
         let run = drive(&move) { command in
             highest = max(highest, command.z)
@@ -733,16 +743,16 @@ final class GoMoveTests: XCTestCase {
     func testNoFixOrAStaleFixForTheTimeoutIsNoArmData() {
         let start = SIMD3(0.0, -0.2, travel - 0.02)
         let target = SIMD3(0.03, -0.18, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertEqual(move.observe(nil, at: 0.1), .noArmData)
-        move = GoMove(start: start, target: target, limits: limits, at: 0)
+        move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertNil(move.observe(fix(start, age: 2.0), at: 0.1), "2 s old is not yet too old")
         XCTAssertEqual(move.observe(fix(start, age: 2.001), at: 0.2), .noArmData)
-        move = GoMove(start: start, target: target, limits: limits, at: 0)
+        move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertEqual(move.observe(fix(start, age: .nan), at: 0.1), .noArmData)
 
         // Positions stop arriving at 1 s: the move ends at the first call more than 2 s after the last one measured.
-        move = GoMove(start: start, target: target, limits: limits, at: 0)
+        move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         var ended: (verdict: GoMove.Verdict, at: TimeInterval)?
         for i in 0...150 where ended == nil {
             let now = Double(i) * step
@@ -758,6 +768,7 @@ final class GoMoveTests: XCTestCase {
     func testTheDeadlineIsPathOverSpeedTimesFactorPlusAllowance() {
         // 4 cm down, then 5 cm across: 0.09 m at 0.04 m/s is 2.25 s; times 1.5, plus 3 s.
         let move = GoMove(
+            frames: TestFrames.so101,
             start: SIMD3(0.03, -0.15, travel + 0.04), target: SIMD3(0.06, -0.19, travel), limits: limits, at: 10)
         XCTAssertEqual(move.deadline, 10 + 2.25 * 1.5 + 3, accuracy: 1e-9)
         XCTAssertEqual(move.startedAt, 10)
@@ -765,6 +776,7 @@ final class GoMoveTests: XCTestCase {
         other.timeFactor = 2
         other.allowanceS = 0.5
         let slower = GoMove(
+            frames: TestFrames.so101,
             start: SIMD3(0.03, -0.15, travel + 0.04), target: SIMD3(0.06, -0.19, travel), limits: other, at: 0)
         XCTAssertEqual(slower.deadline, 2.25 * 2 + 0.5, accuracy: 1e-9)
     }
@@ -772,7 +784,7 @@ final class GoMoveTests: XCTestCase {
     func testACorrectionExtendsTheDeadline() {
         let start = SIMD3(-0.02, -0.22, travel)
         let target = SIMD3(0.02, -0.22, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let before = move.deadline
         XCTAssertEqual(before, 0.04 / 0.04 * 1.5 + 3, accuracy: 1e-9)
         let run = drive(&move, until: 2.2) { SIMD3(min($0.x, target.x - 0.01), $0.y, $0.z) }
@@ -782,7 +794,7 @@ final class GoMoveTests: XCTestCase {
 
         // A raise on the way up extends it the same way: jaws that sag 9 mm settle 9 mm low.
         let low = SIMD3(0.02, -0.2, travel - 0.03)
-        var up = GoMove(start: low, target: SIMD3(0.06, -0.15, travel), limits: limits, at: 0)
+        var up = GoMove(frames: TestFrames.so101, start: low, target: SIMD3(0.06, -0.15, travel), limits: limits, at: 0)
         let initial = up.deadline
         let upRun = drive(&up) { SIMD3($0.x, $0.y, max(low.z, $0.z - 0.009)) }
         XCTAssertEqual(upRun.end, .verdict(.arrived))
@@ -793,9 +805,9 @@ final class GoMoveTests: XCTestCase {
     func testTheOffsetIsInTheLinksFrame() {
         let start = SIMD3(0.03, -0.15, travel + 0.04)
         let target = SIMD3(0.06, -0.19, travel)
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         XCTAssertEqual(move.linkOffset(at: 0), .zero)
-        // Down 2 cm in the base frame is +2 cm in the link's frame (`OperatorFrame.link(fromBase:)` flips z).
+        // Down 2 cm in the base frame is +2 cm in the link's frame (`TestFrames.so101.link(fromBase:)` flips z).
         let down = move.linkOffset(at: 0.5)
         XCTAssertEqual(down.z, 0.02, accuracy: 1e-12)
         XCTAssertEqual(down.x, 0)
@@ -803,7 +815,7 @@ final class GoMoveTests: XCTestCase {
         XCTAssertNil(move.observe(fix(SIMD3(start.x, start.y, travel)), at: 1.1))
         XCTAssertEqual(move.stage, .level)
         let end = move.linkOffset(at: 100)
-        XCTAssertEqual(end, OperatorFrame.link(fromBase: target - start))
+        XCTAssertEqual(end, TestFrames.so101.link(fromBase: target - start))
         XCTAssertEqual(end.x, 0.03, accuracy: 1e-12)
         XCTAssertEqual(end.y, -0.04, accuracy: 1e-12)
         XCTAssertEqual(end.z, 0.04, accuracy: 1e-9)
@@ -854,7 +866,7 @@ final class GoMoveTests: XCTestCase {
         limits: GoToLimits? = nil
     ) -> Outcome {
         let limits = limits ?? self.limits
-        var move = GoMove(start: start, target: target, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
         let period = 1 / 5.5, substeps = 4
         var sent: [SIMD3<Double>] = []
         var arm = start, setpoint = start

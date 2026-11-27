@@ -72,7 +72,8 @@ final class ProfileFileTests: XCTestCase {
         let p = TestProfiles.so101
         // The shift (`baseInWorld`) is the one stored field of the frames that the rows above name by the profile's own
         // property; the rest of them are rows of their own.
-        let frames = Mirror(reflecting: p.frames).children.count - 1 + Mirror(reflecting: p.frames.worldTurn).children.count
+        let frames =
+            Mirror(reflecting: p.frames).children.count - 1 + Mirror(reflecting: p.frames.worldTurn).children.count
         let stored =
             Mirror(reflecting: p).children.count - 3 + Mirror(reflecting: p.estimateBound).children.count + frames
         let assist = Mirror(reflecting: p.assist).children.compactMap { child -> Int? in

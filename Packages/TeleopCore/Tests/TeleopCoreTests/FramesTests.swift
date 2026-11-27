@@ -10,28 +10,7 @@ final class FramesTests: XCTestCase {
         }
     }
 
-    // MARK: The SO-101's frames are the table the app has always used
-
-    /// INTERACTION §3.3, copied by hand: direction, base axis, sign.
-    func testTheSO101TableIsTheSpecification() {
-        let table: [(OperatorDirection, BaseAxis, Double)] = [
-            (.forward, .y, -1), (.back, .y, +1), (.left, .x, +1), (.right, .x, -1), (.up, .z, +1), (.down, .z, -1),
-        ]
-        XCTAssertEqual(table.count, OperatorDirection.allCases.count)
-        for (direction, axis, sign) in table {
-            let found = TestFrames.so101.axis(for: direction)
-            XCTAssertEqual(found.axis, axis, "\(direction)")
-            XCTAssertEqual(found.sign, sign, "\(direction)")
-        }
-    }
-
-    func testTheSO101LinkIsXYAndMinusZ() {
-        let frames = TestFrames.so101
-        XCTAssertEqual(frames.link(fromBase: SIMD3(1, 2, 3)), SIMD3(1, 2, -3))
-        XCTAssertEqual(frames.linkVector(.up), SIMD3(0, 0, -1), "up goes out as −z")
-        XCTAssertEqual(frames.linkVector(.forward), SIMD3(0, -1, 0), "forward goes out as −y")
-        XCTAssertEqual(frames.linkVector(.right), SIMD3(-1, 0, 0), "right goes out as −x")
-    }
+    // MARK: The SO-101's frames (the direction table and the link signs are pinned in OperatorFrameTests)
 
     func testTheSO101WorldIsTheBaseShiftedUp() {
         XCTAssertEqual(TestFrames.so101.base(fromWorld: SIMD3(0.1, -0.2, 0.3)), SIMD3(0.1, -0.2, 0.25))

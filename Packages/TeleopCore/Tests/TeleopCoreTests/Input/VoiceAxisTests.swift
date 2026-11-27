@@ -43,14 +43,14 @@ final class VoiceAxisTests: XCTestCase {
 
     func testAxisProjectionNeverLeaksOffAxisNoise() {
         XCTAssertEqual(
-            TranslationAxis.height.project(right: 3, forward: 2, up: -5),
-            OperatorFrame.linkOffset(right: 0, forward: 0, up: -5))
+            TranslationAxis.height.project(right: 3, forward: 2, up: -5, frames: TestFrames.so101),
+            TestFrames.so101.linkOffset(right: 0, forward: 0, up: -5))
         XCTAssertEqual(
-            TranslationAxis.foreAft.project(right: 3, forward: 2, up: -5),
-            OperatorFrame.linkOffset(right: 0, forward: 2, up: 0))
+            TranslationAxis.foreAft.project(right: 3, forward: 2, up: -5, frames: TestFrames.so101),
+            TestFrames.so101.linkOffset(right: 0, forward: 2, up: 0))
         XCTAssertEqual(
-            TranslationAxis.leftRight.project(right: 3, forward: 2, up: -5),
-            OperatorFrame.linkOffset(right: 3, forward: 0, up: 0))
+            TranslationAxis.leftRight.project(right: 3, forward: 2, up: -5, frames: TestFrames.so101),
+            TestFrames.so101.linkOffset(right: 3, forward: 0, up: 0))
     }
     func testDelayedPartialMidHoldAndOldEpochResultsCannotSelect() {
         var session = VoiceAxisSession()

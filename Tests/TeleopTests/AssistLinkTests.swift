@@ -832,7 +832,7 @@ final class AssistLinkTests: XCTestCase {
         tick()
         let sent = try XCTUnwrap(offsetsSent.last)
         let asked = try XCTUnwrap(model.controller.goOffset())
-        let rest = asked - OperatorFrame.link(fromBase: moved)
+        let rest = asked - TestProfiles.so101.frames.link(fromBase: moved)
         XCTAssertLessThan(simd_length(rest), Double(LiveLinkController.maxLeadMeters), "within the cap again")
         XCTAssertEqual(simd_distance(sent, rest), 0, accuracy: 0.0001, "the rest of the rules' offset")
         XCTAssertTrue(model.session.state.armMoving)

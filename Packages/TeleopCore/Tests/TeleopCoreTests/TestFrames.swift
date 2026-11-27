@@ -19,7 +19,17 @@ enum TestFrames {
         baseInWorld: SIMD3(0.10, -0.20, 0.40),
         worldTurn: WorldTurn(x: SignedAxis(.y, 1), y: SignedAxis(.x, 1), z: SignedAxis(.z, -1)))
 
-    static let all: [(name: String, frames: Frames)] = [("SO-101", so101), ("bench arm B", benchB)]
+    /// An arm mounted on its side, so that up is not along base z at all: up is base +y, forward base +z, the link
+    /// mirrors x, and the world's up (z) lies along base y. It exists to catch a rule that assumes up is the base's
+    /// z whichever way that points.
+    static let onItsSide = Frames(
+        forward: SignedAxis(.z, 1), left: SignedAxis(.x, 1), up: SignedAxis(.y, 1), linkSigns: SIMD3(-1, 1, 1),
+        baseInWorld: SIMD3(-0.05, 0.30, 0.15),
+        worldTurn: WorldTurn(x: SignedAxis(.x, 1), y: SignedAxis(.z, 1), z: SignedAxis(.y, -1)))
+
+    static let all: [(name: String, frames: Frames)] = [
+        ("SO-101", so101), ("bench arm B", benchB), ("arm on its side", onItsSide),
+    ]
 
     /// A vector of one set's base frame as the other set's base frame has it: the same place, direction or offset,
     /// seen by the same operator. This is how a rule's expected values for B come from the SO-101's.

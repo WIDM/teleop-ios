@@ -122,10 +122,11 @@ struct GuidePicture: Equatable {
 
     /// `aids`: the guide's aids in force (`Assist.guide`); nil draws and says exactly what version 1.0.1 does.
     init(reading: ArmReading, profile: RobotProfile, aids: GuideAids? = nil, views: ViewAim? = nil) {
+        let frames = profile.frames
         let ends = (profile.workspaceMin + reading.boxShift, profile.workspaceMax + reading.boxShift)
         workBoxLow = SIMD3<Double>(simd_min(ends.0, ends.1))
         workBoxHigh = SIMD3<Double>(simd_max(ends.0, ends.1))
-        let corners = (Self.operatorPoint(ends.0), Self.operatorPoint(ends.1))
+        let corners = (Self.operatorPoint(ends.0, frames: frames), Self.operatorPoint(ends.1, frames: frames))
         // Corners swap sides where an axis is mirrored into the operator's frame.
         let boxLow = simd_min(corners.0, corners.1), boxHigh = simd_max(corners.0, corners.1)
         let table = Double(profile.tableHeight)
@@ -133,19 +134,20 @@ struct GuidePicture: Equatable {
         let projection: GuideProjection
         fixedLayout = views != nil
         if let views {
-            let profileLow = Self.operatorPoint(profile.workspaceMin)
-            let profileHigh = Self.operatorPoint(profile.workspaceMax)
+            let profileLow = Self.operatorPoint(profile.workspaceMin, frames: frames)
+            let profileHigh = Self.operatorPoint(profile.workspaceMax, frames: frames)
             projection = GuideProjection(
-                boxLow: simd_min(profileLow, profileHigh), boxHigh: simd_max(profileLow, profileHigh), table: table,
+                frames: frames, boxLow: simd_min(profileLow, profileHigh), boxHigh: simd_max(profileLow, profileHigh),
+                table: table,
                 behindTop: table + views.behindTopAboveTableM)
         } else {
-            projection = GuideProjection(boxLow: boxLow, boxHigh: boxHigh, table: table)
+            projection = GuideProjection(frames: frames, boxLow: boxLow, boxHigh: boxHigh, table: table)
         }
         self.projection = projection
         let width = projection.across.upperBound - projection.across.lowerBound
 
         func mark(_ base: SIMD3<Float>) -> Mark {
-            let p = Self.operatorPoint(base)
+            let p = Self.operatorPoint(base, frames: frames)
             let fromAbove = projection.above(p), fromBehind = projection.behind(p)
             let above = Spot(x: fromAbove.x, y: fromAbove.y)
             let behind = Spot(x: fromBehind.x, y: fromBehind.y)
@@ -162,7 +164,7 @@ struct GuidePicture: Equatable {
         boxBehind = Area(minX: floorBehind.x, minY: max(0, topBehind.y), maxX: topBehind.x, maxY: floorBehind.y)
         tableY = projection.behind(SIMD3(boxLow.x, boxLow.y, table)).y
 
-        let pinchPoint = Self.operatorPoint(reading.pinchPoint)
+        let pinchPoint = Self.operatorPoint(reading.pinchPoint, frames: frames)
         pinchAboveRearView = fixedLayout && pinchPoint.z > projection.height.upperBound
         pinch = mark(reading.pinchPoint)
         commanded = reading.commanded.map(mark)
@@ -180,7 +182,7 @@ struct GuidePicture: Equatable {
         // Only "On target" takes the wider window; the level word keeps the grasp tolerance.
         let window = Self.onTargetWindow(profile, aids: aids)
         func gap(to thing: SIMD3<Float>) -> SIMD2<Double> {
-            let t = Self.operatorPoint(thing)
+            let t = Self.operatorPoint(thing, frames: frames)
             return SIMD2(simd_length(SIMD2(pinchPoint.x - t.x, pinchPoint.y - t.y)), pinchPoint.z - t.z)
         }
         func compare(_ thing: SIMD3<Float>) -> (across: Double, height: Height, within: Bool) {
@@ -198,10 +200,11 @@ struct GuidePicture: Equatable {
         // The lowest height is the pinch point's own when the server reported the pinch point at the stall: on a table
         // it stays put whatever the arm's posture. Without it, the gripper link's lowest height is moved by this
         // reading's offset, as the ring and the box are, which is off by as much as the offset changed with the
-        // posture since. Up in the operator's frame is up in the base frame.
-        let offset = profile.toolOffset + reading.boxShift
+        // posture since. The lowest heights are along up (`Frames.height(of:)`), as the picture's heights are.
+        let offset = SIMD3<Double>(profile.toolOffset + reading.boxShift)
         let lowestHeight =
-            reading.lowestPinchZ.map(Double.init) ?? reading.lowestGripperZ.map { Double($0) + Double(offset.z) }
+            reading.lowestPinchZ.map(Double.init)
+            ?? reading.lowestGripperZ.map { Double($0) + frames.height(of: offset) }
         let lowest = aids?.lowestCue == true ? lowestHeight : nil
         lowestY = lowest.map { min(max(projection.behind(SIMD3(pinchPoint.x, pinchPoint.y, $0)).y, 0), 1) }
         let rise = boxHigh.z - table
@@ -249,10 +252,10 @@ struct GuidePicture: Equatable {
         return SIMD2<Double>(window)
     }
 
-    /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by §3.3's
-    /// axis table: the projection's own conversion.
-    static func operatorPoint(_ base: SIMD3<Float>) -> SIMD3<Double> {
-        GuideProjection.operatorPoint(SIMD3<Double>(base))
+    /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by the profile's
+    /// frames: the projection's own conversion.
+    static func operatorPoint(_ base: SIMD3<Float>, frames: Frames) -> SIMD3<Double> {
+        frames.operatorPoint(SIMD3<Double>(base))
     }
 
     private static func clamp(_ spot: Spot) -> Spot {

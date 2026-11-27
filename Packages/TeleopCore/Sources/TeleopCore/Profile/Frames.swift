@@ -170,6 +170,17 @@ public struct Frames: Equatable, Sendable {
     /// What a link offset `p` moves the base by.
     public func base(fromLink p: SIMD3<Double>) -> SIMD3<Double> { p * linkSigns }
 
+    /// Single-precision forms, for the offsets the link controller holds as floats.
+    public func link(fromBase b: SIMD3<Float>) -> SIMD3<Float> { b * SIMD3<Float>(linkSigns) }
+
+    public func base(fromLink p: SIMD3<Float>) -> SIMD3<Float> { p * SIMD3<Float>(linkSigns) }
+
+    /// How the log names the link's frame, such as `base_x,base_y,negative_base_z`.
+    public var linkFrameName: String {
+        zip(BaseAxis.allCases, [linkSigns.x, linkSigns.y, linkSigns.z])
+            .map { ($1 < 0 ? "negative_base_" : "base_") + $0.rawValue }.joined(separator: ",")
+    }
+
     /// Metres right, forward and up as the operator sees them, as an offset for the link's translation hold. For
     /// input that comes in the operator's frame, such as the phone's motion, so that it moves the arm the way the
     /// buttons do.

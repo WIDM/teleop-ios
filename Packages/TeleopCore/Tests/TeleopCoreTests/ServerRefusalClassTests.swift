@@ -78,7 +78,7 @@ final class ServerRefusalClassTests: XCTestCase {
     // MARK: The monitor
 
     private func monitor() -> FeedbackMonitor {
-        FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+        FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
     }
 
     func testARefusedStartIsToldByItsClass() {

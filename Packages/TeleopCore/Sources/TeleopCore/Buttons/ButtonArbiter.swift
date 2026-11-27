@@ -57,8 +57,11 @@ public struct ButtonArbiter: Equatable, Sendable {
     public private(set) var down: Set<ButtonID> = []
     /// The running translation hold's target.
     public private(set) var ramp: ButtonRamp?
+    /// The profile's frames: which base axis each direction button moves the arm along.
+    public let frames: Frames
 
-    public init(speed: ButtonSpeed = .coarse) {
+    public init(frames: Frames, speed: ButtonSpeed = .coarse) {
+        self.frames = frames
         self.speed = speed
     }
 
@@ -72,7 +75,7 @@ public struct ButtonArbiter: Equatable, Sendable {
         if button == .close, gripping { return [.cue(.alreadyGripping)] }
         engaged = button
         if let direction = button.direction {
-            ramp = ButtonRamp(direction: direction, speed: speed, startMs: nowMs)
+            ramp = ButtonRamp(direction: direction, speed: speed, startMs: nowMs, frames: frames)
             return [.startTranslation(direction)]
         }
         return [.startGripper(button == .open ? .open : .closed)]

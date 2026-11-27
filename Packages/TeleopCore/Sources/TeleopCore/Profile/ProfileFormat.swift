@@ -77,7 +77,8 @@ extension RobotProfile: Codable {
         let scene = try top.section(
             "scene",
             [
-                "base_in_world_m", "base_axes_in_world", "table_height_m", "workspace_min_m", "workspace_max_m", "target_size_m",
+                "base_in_world_m", "base_axes_in_world", "table_height_m", "workspace_min_m", "workspace_max_m",
+                "target_size_m",
                 "goal_size_m", "grasp_tolerance_m", "on_target_window_m", "tool_offset",
             ])
         let worldAxes = try scene.section("base_axes_in_world", ["x", "y", "z"])

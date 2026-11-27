@@ -88,7 +88,8 @@ struct ArmReading: Equatable, Sendable {
     var goTarget: SIMD3<Float>? = nil
     /// The guide's aids: the side the commanded point is outside the work area on, the lowest gripper-link height a
     /// downward stall reached, and the lowest pinch-point height one reached when the server reports the pinch point.
-    /// Nil with the aids off.
+    /// Both are heights along up (`Frames.height(of:)`), which is the base's z only where z is up; the names keep the
+    /// SO-101's. Nil with the aids off.
     var commandOutside: OperatorDirection? = nil
     var lowestGripperZ: Float? = nil
     var lowestPinchZ: Float? = nil

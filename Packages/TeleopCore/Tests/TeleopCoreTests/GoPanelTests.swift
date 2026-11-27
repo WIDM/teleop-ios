@@ -16,8 +16,9 @@ final class GoPanelTests: XCTestCase {
     /// As the app will build it from the guide: the box moved by `shift`, drawn with the projection of that box.
     private func panel(shift: SIMD3<Double> = .zero) -> GoPanel {
         let low = boxMin + shift, high = boxMax + shift
-        let a = GuideProjection.operatorPoint(low), b = GuideProjection.operatorPoint(high)
-        let projection = GuideProjection(boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
+        let a = TestFrames.so101.operatorPoint(low), b = TestFrames.so101.operatorPoint(high)
+        let projection = GuideProjection(
+            frames: TestFrames.so101, boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
         return GoPanel(
             rect: rect, projection: projection, boxLow: simd_min(low, high), boxHigh: simd_max(low, high),
             tableHeight: table)
@@ -110,8 +111,9 @@ final class GoPanelTests: XCTestCase {
     /// in: a tap's height on the glass is read against the panel's height, its place across against its width.
     func testTheInverseHoldsOnAPanelThatIsNotSquare() {
         let low = SIMD3(-0.04, -0.26, -0.008), high = SIMD3(0.06, -0.10, 0.152)
-        let a = GuideProjection.operatorPoint(low), b = GuideProjection.operatorPoint(high)
-        let projection = GuideProjection(boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
+        let a = TestFrames.so101.operatorPoint(low), b = TestFrames.so101.operatorPoint(high)
+        let projection = GuideProjection(
+            frames: TestFrames.so101, boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
         // 10 cm across and 16 cm deep, with a margin of 2.4 cm: 14.8 by 20.8 cm, drawn 120 pt wide as the guide does.
         XCTAssertEqual(projection.aboveAspect, 0.148 / 0.208, accuracy: 1e-12)
         let frame = SurfaceLayout.Rect(x: 130, y: 250, width: 120, height: 120 / projection.aboveAspect)
