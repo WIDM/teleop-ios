@@ -67,20 +67,34 @@ final class ProfileFileTests: XCTestCase {
         }
     }
 
-    /// Every stored field of the profile, its assist share included, has a row above: a new field must be pinned too.
+    /// Every stored field of the profile, its assist share included, has a row above and every row names a stored
+    /// field: a new field must be pinned, and a row for a field that is gone must go. Compared by name, so that one
+    /// miscount cannot hide another.
     func testTheTableCoversEveryField() {
         let p = TestProfiles.so101
-        // The shift (`baseInWorld`) is the one stored field of the frames that the rows above name by the profile's own
-        // property; the rest of them are rows of their own.
-        let frames =
-            Mirror(reflecting: p.frames).children.count - 1 + Mirror(reflecting: p.frames.worldTurn).children.count
-        let stored =
-            Mirror(reflecting: p).children.count - 3 + Mirror(reflecting: p.estimateBound).children.count + frames
-        let assist = Mirror(reflecting: p.assist).children.compactMap { child -> Int? in
-            guard let value = Mirror(reflecting: child.value).children.first?.value else { return nil }
-            return Mirror(reflecting: value).children.count
+        // The structures the rows name by their parts. A value of any other type is a field of its own, however many
+        // parts it has (a vector, a signed axis).
+        func isStructure(_ value: Any) -> Bool {
+            value is EstimateBound || value is Frames || value is WorldTurn || value is AssistProfile
+                || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids
+                || value is ViewAim
         }
-        // Three stored fields are structures counted by their parts: estimateBound and frames above, assist here.
-        XCTAssertEqual(stored + assist.reduce(0, +), Self.rows(p).count)
+        func fields(of value: Any, under prefix: String) -> [String] {
+            Mirror(reflecting: value).children.flatMap { child -> [String] in
+                guard let label = child.label else { return [] }
+                let path = prefix.isEmpty ? label : prefix + "." + label
+                let inner = Mirror(reflecting: child.value)
+                let held: Any? = inner.displayStyle == .optional ? inner.children.first?.value : child.value
+                if let held, isStructure(held) { return fields(of: held, under: path) }
+                return [path]
+            }
+        }
+        // The shift is a stored field of the frames; the profile's own property of that name is what its row reads.
+        let stored = fields(of: p, under: "").map { $0 == "frames.baseInWorld" ? "baseInWorld" : $0 }
+        let named = Self.rows(p).map(\.0)
+        XCTAssertEqual(stored.count, Set(stored).count, "a field is listed twice: \(stored)")
+        XCTAssertEqual(named.count, Set(named).count, "a row is listed twice: \(named)")
+        XCTAssertEqual(Set(stored).subtracting(named).sorted(), [], "stored fields with no row")
+        XCTAssertEqual(Set(named).subtracting(stored).sorted(), [], "rows that name no stored field")
     }
 }

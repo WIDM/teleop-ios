@@ -16,6 +16,16 @@ final class FramesTests: XCTestCase {
         XCTAssertEqual(TestFrames.so101.base(fromWorld: SIMD3(0.1, -0.2, 0.3)), SIMD3(0.1, -0.2, 0.25))
     }
 
+    /// The package's SO-101 set is the one the app's profile file gives, so the two cannot drift apart.
+    func testTheSO101SetIsTheProfileFilesFrames() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Resources/Profiles/so101-s4-sim.json")
+        let profile = try RobotProfile.load(json: Data(contentsOf: file))
+        XCTAssertEqual(profile.frames, TestFrames.so101)
+    }
+
     // MARK: Both sets
 
     func testEveryDirectionIsOneUnitAlongItsAxisAndTheOperatorSeesIt() {
