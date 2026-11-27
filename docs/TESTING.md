@@ -40,10 +40,14 @@ Two more checks sit beside the tests:
   key the code uses is missing and none is unused. `python3 scripts/check-dead-buttons.py` fails on a button with an
   empty action. `scripts/check-format.sh` fails when a Swift file of the app, the core package, the tests or the
   safety checker is not laid out as `.swift-format` says (`swift format lint --strict`); the same file list with
-  `swift format format -i --parallel` lays them out. `python3 scripts/check-arm-constants.py` fails when a profile id,
-  a profile held in a `static let` or the removed SO-101 constant appears in code outside the profile loader and the
-  tests (`docs/PROFILE.md`). `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py scripts/test_check_arm_constants.py`
-  tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for `git status` to show.
+  `swift format format -i --parallel` lays them out. `python3 scripts/check-arm-constants.py` fails when code outside
+  the profile loader and the tests names a profile id or a profile's name, holds a profile in a `static let` or
+  `static var`, builds a profile outside `Packages/TeleopCore/Sources/TeleopCore/Profile/` or names `so101Simulator`,
+  and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`
+  (`docs/PROFILE.md`).
+  `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
+  scripts/test_check_arm_constants.py` tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for
+  `git status` to show.
 
 The camera recovery and wrist re-anchoring use fake camera runs and frame timestamps
 (`PoseTrackerTests`, `CameraMarkTests`, `AttitudeFrameTests`). The touch tests check that the failed taps explain
