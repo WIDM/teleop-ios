@@ -62,6 +62,10 @@ public struct SignedAxis: Equatable, Sendable, Codable {
 
     /// Written and read as its text (`"-y"`), so that a sign other than 1 or -1 cannot be stored.
     public func encode(to encoder: Encoder) throws {
+        guard hasUnitSign else {
+            throw EncodingError.invalidValue(
+                self, .init(codingPath: encoder.codingPath, debugDescription: "The sign \(sign) is not 1 or -1."))
+        }
         var container = encoder.singleValueContainer()
         try container.encode(text)
     }

@@ -279,6 +279,7 @@ final class FramesTests: XCTestCase {
         let text = String(decoding: try JSONEncoder().encode(TestFrames.so101.forward), as: UTF8.self)
         XCTAssertEqual(text, "\"-y\"", "an axis is written as its text")
         XCTAssertThrowsError(try JSONDecoder().decode(SignedAxis.self, from: Data("\"+w\"".utf8)))
+        XCTAssertThrowsError(try JSONEncoder().encode(SignedAxis(.y, -2)), "a sign other than 1 or -1 is not written")
     }
 
     func testASignedAxisReadsAndWritesItsText() {
