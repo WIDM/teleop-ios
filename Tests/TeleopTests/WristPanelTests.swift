@@ -29,9 +29,11 @@ final class WristPanelTests: XCTestCase {
     private var wire: WristTransport!
     private var clock = 10_000
     private var tracking = true
+    /// The robot the model is built with; the SO-101's unless a test is about another wrist.
+    private var profile = TestProfiles.so101
     private var saved: [String: Any] = [:]
     private let keys = [AppModel.controlModeKey, AppModel.taskAidKey, AppModel.assistKey, AppModel.lockChoiceKey]
-    private let state: [String: Any] = [
+    private var state: [String: Any] = [
         "estop": false, "gripper": "open", "ee_pos": [0.0, -0.14, 0.16], "wrist_roll_deg": 90.0,
         "wrist_flex_deg": 40.0,
     ]
@@ -63,7 +65,7 @@ final class WristPanelTests: XCTestCase {
             },
             makeObserverTransport: { _ in WristTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: false, lockChoice: .off
+            profile: profile, assistOn: false, lockChoice: .off
         )
         model.controlMode = .screenTurns
         model.session.state.serverAddress = "100.64.0.1:8765"
@@ -93,9 +95,9 @@ final class WristPanelTests: XCTestCase {
             var now = state
             if let (axis, degrees) = lastAngle() {
                 if axis == .tilt {
-                    now["wrist_flex_deg"] = 40.0 + degrees
+                    now["wrist_flex_deg"] = (state["wrist_flex_deg"] as! Double) + degrees
                 } else {
-                    now["wrist_roll_deg"] = 90.0 + degrees
+                    now["wrist_roll_deg"] = (state["wrist_roll_deg"] as! Double) + degrees
                 }
             }
             wire.server("state", now)
@@ -178,6 +180,57 @@ final class WristPanelTests: XCTestCase {
             XCTAssertNil(model.operating.heldWrist)
             tick(3)
             XCTAssertEqual(wire.count("orient_stop"), 1, "\(button): still one")
+        }
+    }
+
+    /// The SO-101's wrist and bench arm B's: what the profile says is what the buttons do. Each button sends its axis
+    /// at its profile's rate and sign; Turn right and Tilt down count positive in the operator's terms, and the same
+    /// sign serves the phone's turn and tilt.
+    func testEachWristButtonMovesTheWristOfItsProfile() {
+        for (name, wrist) in TestProfiles.wrists {
+            profile = TestProfiles.so101
+            profile.wrist = wrist
+            state["wrist_roll_deg"] = 0.0  // inside every wrist's roll window, whichever way a button turns it
+            let expected: [(WristButton, WristAxis, Double)] = [
+                (.tiltDown, .tilt, wrist.tiltSign * wrist.tiltRateDegS),
+                (.tiltUp, .tilt, -wrist.tiltSign * wrist.tiltRateDegS),
+                (.turnRight, .turn, wrist.rollSign * wrist.turnRateDegS),
+                (.turnLeft, .turn, -wrist.rollSign * wrist.turnRateDegS),
+            ]
+            defer { state["wrist_roll_deg"] = 90.0 }
+            for (button, axis, rate) in expected {
+                bringUp()
+                openWristPage()
+                model.wristButtonDown(button)
+                tickFollowing(15)
+                guard let (sentAxis, degrees) = lastAngle() else { return XCTFail("\(name) \(button): no update") }
+                XCTAssertEqual(sentAxis, axis, "\(name) \(button)")
+                XCTAssertEqual(degrees, rate * 0.495, accuracy: abs(rate) * 0.07, "\(name) \(button)")
+                model.wristButtonUp(button)
+            }
+        }
+    }
+
+    /// The SO-101's window test with each wrist's own window, clamp and centre: 5 degrees of the tilt window left in
+    /// the direction the button runs, so the hold stops 5 degrees out and the limit is felt once.
+    func testTheAngleStopsAtTheProfilesWindowAndTheLimitIsFeltOnce() {
+        for (name, wrist) in TestProfiles.wrists {
+            profile = TestProfiles.so101
+            profile.wrist = wrist
+            bringUp()
+            let centre = wrist.tiltCentreDeg(measuredAfterReset: 40) ?? 40
+            var near = state
+            near["wrist_flex_deg"] = centre + wrist.tiltWindowDeg - 5
+            wire.server("state", near)
+            openWristPage()
+            let mark = model.cueLog.count
+            let towardTheEdge: WristButton = wrist.tiltSign > 0 ? .tiltDown : .tiltUp
+            model.wristButtonDown(towardTheEdge)
+            tick(Int(3 * 30 + 1))
+            guard let (_, degrees) = lastAngle() else { return XCTFail("\(name): no update") }
+            XCTAssertLessThanOrEqual(degrees, 5.0 + 1e-6, "\(name): held to the window")
+            XCTAssertEqual(heard(since: mark).filter { $0 == .limit(.wrist) }.count, 1, name)
+            model.wristButtonUp(towardTheEdge)
         }
     }
 

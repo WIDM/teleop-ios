@@ -127,7 +127,7 @@ final class LiveLinkController {
     /// The wrist hold whose angle the input rules set: the newest target, streamed at the pose rate through the lead
     /// bound. Nil when none runs.
     private var wristTarget: WristTarget?
-    private var leadBound = WristLeadBound()
+    private var leadBound: WristLeadBound
     /// When the newest `state` from either connection arrived, for the lead bound's freshness.
     private var newestStateAtMs: Int?
     /// A translation hold whose target comes from a button ramp instead of the phone: metres in the frame
@@ -197,10 +197,13 @@ final class LiveLinkController {
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
         gripperLimits: GripperLimits,
+        wrist: WristProfile,
         frames: Frames,
         clientName: String = LiveLinkController.clientName()
     ) {
         self.frames = frames
+        self.wrist = wrist
+        leadBound = WristLeadBound(limits: wrist.lead)
         self.clientName = clientName
         self.makeTransport = makeTransport
         self.makeObserverTransport = makeObserverTransport ?? makeTransport
@@ -209,6 +212,9 @@ final class LiveLinkController {
         monitor = FeedbackMonitor(limits: gripperLimits, frames: frames)
         jawsReminder = JawsClosedReminder(limits: gripperLimits)
     }
+
+    /// The arm's wrist numbers; the lead bound's come from them.
+    let wrist: WristProfile
 
     /// The profile's frames: which base axis each direction moves the arm along, and how the link's offsets are signed
     /// against the base frame.
@@ -471,7 +477,7 @@ final class LiveLinkController {
         toolTargets = nil
         newestStateAtMs = nil
         newestState = nil
-        leadBound = WristLeadBound()
+        leadBound = WristLeadBound(limits: wrist.lead)
         lastTickAtMs = nil
         holdIsLoose = false
         holdIsGoing = false

@@ -34,8 +34,19 @@ final class ProfileFileTests: XCTestCase {
             ("workspaceMin", p.workspaceMin, SIMD3<Float>(-0.052383, -0.257418, -0.008015)),
             ("workspaceMax", p.workspaceMax, SIMD3<Float>(0.107617, -0.097418, 0.151985)),
             ("tableHeight", p.tableHeight, Float(0.04)),
-            ("rollSign", p.rollSign, 1.0),
-            ("tiltSign", p.tiltSign, 1.0),
+            ("wrist.rollSign", p.wrist.rollSign, 1.0),
+            ("wrist.tiltSign", p.wrist.tiltSign, 1.0),
+            ("wrist.rollWindowDeg", p.wrist.rollWindowDeg, 150.0),
+            ("wrist.tiltWindowDeg", p.wrist.tiltWindowDeg, 25.0),
+            ("wrist.rollClampDeg", p.wrist.rollClampDeg, 55.0),
+            ("wrist.tiltClampDeg", p.wrist.tiltClampDeg, 20.0),
+            ("wrist.tiltCentre", p.wrist.tiltCentre, TiltCentre.measuredAfterReset),
+            ("wrist.turnRateDegS", p.wrist.turnRateDegS, 20.0),
+            ("wrist.tiltRateDegS", p.wrist.tiltRateDegS, 10.0),
+            ("wrist.lead.leadDeg", p.wrist.lead.leadDeg, 2.0),
+            ("wrist.lead.rateMaxDegS", p.wrist.lead.rateMaxDegS, 10.0),
+            ("wrist.lead.memoryDeg", p.wrist.lead.memoryDeg, 0.5),
+            ("wrist.lead.freshStateMs", p.wrist.lead.freshStateMs, 400),
             ("recloseLoosensGrip", p.recloseLoosensGrip, true),
             ("usesDirectionalBlockedFeedback", p.usesDirectionalBlockedFeedback, true),
             ("assist.lock.timeLimitS", p.assist.lock?.timeLimitS, Double?(30.0)),
@@ -75,7 +86,8 @@ final class ProfileFileTests: XCTestCase {
         // The structures the rows name by their parts. A value of any other type is a field of its own, however many
         // parts it has (a vector, a signed axis).
         func isStructure(_ value: Any) -> Bool {
-            value is EstimateBound || value is Frames || value is WorldTurn || value is AssistProfile
+            value is EstimateBound || value is WristProfile || value is WristLeadLimits || value is Frames
+                || value is WorldTurn || value is AssistProfile
                 || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids
                 || value is ViewAim
         }

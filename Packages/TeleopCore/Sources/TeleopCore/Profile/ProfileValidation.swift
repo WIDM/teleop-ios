@@ -22,8 +22,27 @@ extension RobotProfile {
 
         faults += frames.faults()
 
-        sign("robot.wrist.roll_sign", rollSign)
-        sign("robot.wrist.tilt_sign", tiltSign)
+        sign("robot.wrist.roll_sign", wrist.rollSign)
+        sign("robot.wrist.tilt_sign", wrist.tiltSign)
+        positive("robot.wrist.roll_window_deg", wrist.rollWindowDeg)
+        positive("robot.wrist.tilt_window_deg", wrist.tiltWindowDeg)
+        positive("robot.wrist.roll_clamp_deg", wrist.rollClampDeg)
+        positive("robot.wrist.tilt_clamp_deg", wrist.tiltClampDeg)
+        if wrist.rollClampDeg > wrist.rollWindowDeg {
+            faults.append("robot.wrist.roll_clamp_deg must not be above robot.wrist.roll_window_deg.")
+        }
+        if wrist.tiltClampDeg > wrist.tiltWindowDeg {
+            faults.append("robot.wrist.tilt_clamp_deg must not be above robot.wrist.tilt_window_deg.")
+        }
+        if case .fixed(let centre) = wrist.tiltCentre, !centre.isFinite {
+            faults.append("robot.wrist.tilt_centre_deg must be a finite number, or null.")
+        }
+        positive("robot.wrist.turn_rate_deg_s", wrist.turnRateDegS)
+        positive("robot.wrist.tilt_rate_deg_s", wrist.tiltRateDegS)
+        notNegative("robot.wrist.lead.lead_deg", wrist.lead.leadDeg)
+        notNegative("robot.wrist.lead.rate_max_deg_s", wrist.lead.rateMaxDegS)
+        notNegative("robot.wrist.lead.memory_deg", wrist.lead.memoryDeg)
+        if wrist.lead.freshStateMs <= 0 { faults.append("robot.wrist.lead.fresh_state_ms must be above zero.") }
         positive("robot.gripper.open_deg", gripperOpenDeg)
         notNegative("robot.gripper.empty_deg", gripperEmptyDeg)
         if gripperEmptyDeg.isFinite, gripperOpenDeg.isFinite, gripperEmptyDeg >= gripperOpenDeg {

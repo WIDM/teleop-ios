@@ -13,7 +13,11 @@ final class ProfileFormatTests: XCTestCase {
           "name": "Test arm",
           "robot": {
             "directions": { "forward": "+x", "left": "-y", "up": "-z" },
-            "wrist": { "roll_sign": -1, "tilt_sign": 1 },
+            "wrist": {
+              "roll_sign": -1, "tilt_sign": 1, "roll_window_deg": 90, "tilt_window_deg": 45, "roll_clamp_deg": 40,
+              "tilt_clamp_deg": 30, "tilt_centre_deg": 15, "turn_rate_deg_s": 40, "tilt_rate_deg_s": 20,
+              "lead": { "lead_deg": 3, "rate_max_deg_s": 20, "memory_deg": 1, "fresh_state_ms": 300 }
+            },
             "gripper": { "open_deg": 80, "empty_deg": 3, "reclose_loosens_grip": false }
           },
           "server": { "link_signs": [1, 1, 1] },
@@ -108,6 +112,9 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.graspTolerance, SIMD2(0.005, 0.007))
         XCTAssertEqual(profile.onTargetWindow, SIMD2(0.01, 0.012))
         XCTAssertEqual(profile.rollSign, -1)
+        var wrist = TestWrist.benchB
+        wrist.tiltSign = 1
+        XCTAssertEqual(profile.wrist, wrist)
         var expected = TestFrames.benchB
         expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
         XCTAssertEqual(profile.frames, expected)
@@ -155,11 +162,13 @@ final class ProfileFormatTests: XCTestCase {
     func testOptionalValuesAreNullNotLeftOut() throws {
         let sample = try object()
         var nulls = changing(sample, at: ["assist", "lock"]) { $0["lock"] = NSNull() }
+        nulls = changing(nulls, at: ["robot", "wrist", "tilt_centre_deg"]) { $0["tilt_centre_deg"] = NSNull() }
         nulls = changing(nulls, at: ["scene", "on_target_window_m"]) { $0["on_target_window_m"] = NSNull() }
         nulls = changing(nulls, at: ["assist", "views", "max_retargeted_move_s"]) {
             $0["max_retargeted_move_s"] = NSNull()
         }
         let profile = try decode(nulls)
+        XCTAssertEqual(profile.wrist.tiltCentre, .measuredAfterReset)
         XCTAssertNil(profile.assist.lock)
         XCTAssertNil(profile.onTargetWindow)
         XCTAssertNil(profile.assist.views?.maxRetargetedMoveS)
@@ -323,6 +332,25 @@ final class ProfileFormatTests: XCTestCase {
             ("name must not be empty.", { $0.name = " " }),
             ("robot.wrist.roll_sign must be 1 or -1.", { $0.rollSign = 0.5 }),
             ("robot.wrist.tilt_sign must be 1 or -1.", { $0.tiltSign = 0 }),
+            ("robot.wrist.roll_window_deg must be above zero.", { $0.wrist.rollWindowDeg = 0 }),
+            ("robot.wrist.tilt_window_deg must be above zero.", { $0.wrist.tiltWindowDeg = -5 }),
+            ("robot.wrist.roll_clamp_deg must be above zero.", { $0.wrist.rollClampDeg = 0 }),
+            ("robot.wrist.tilt_clamp_deg must be above zero.", { $0.wrist.tiltClampDeg = -1 }),
+            (
+                "robot.wrist.roll_clamp_deg must not be above robot.wrist.roll_window_deg.",
+                { $0.wrist.rollClampDeg = 91 }
+            ),
+            (
+                "robot.wrist.tilt_clamp_deg must not be above robot.wrist.tilt_window_deg.",
+                { $0.wrist.tiltClampDeg = 46 }
+            ),
+            ("robot.wrist.tilt_centre_deg must be a finite number, or null.", { $0.wrist.tiltCentre = .fixed(.nan) }),
+            ("robot.wrist.turn_rate_deg_s must be above zero.", { $0.wrist.turnRateDegS = 0 }),
+            ("robot.wrist.tilt_rate_deg_s must be above zero.", { $0.wrist.tiltRateDegS = -10 }),
+            ("robot.wrist.lead.lead_deg must be zero or more.", { $0.wrist.lead.leadDeg = -1 }),
+            ("robot.wrist.lead.rate_max_deg_s must be zero or more.", { $0.wrist.lead.rateMaxDegS = -1 }),
+            ("robot.wrist.lead.memory_deg must be zero or more.", { $0.wrist.lead.memoryDeg = -0.5 }),
+            ("robot.wrist.lead.fresh_state_ms must be above zero.", { $0.wrist.lead.freshStateMs = 0 }),
             ("robot.gripper.open_deg must be above zero.", { $0.gripperOpenDeg = 0 }),
             ("robot.gripper.empty_deg must be zero or more.", { $0.gripperEmptyDeg = -1 }),
             ("robot.gripper.empty_deg must be below robot.gripper.open_deg.", { $0.gripperEmptyDeg = 80 }),

@@ -9,7 +9,20 @@
     },
     "wrist": {
       "roll_sign": 1,
-      "tilt_sign": 1
+      "tilt_sign": 1,
+      "roll_window_deg": 150,
+      "tilt_window_deg": 25,
+      "roll_clamp_deg": 55,
+      "tilt_clamp_deg": 20,
+      "tilt_centre_deg": null,
+      "turn_rate_deg_s": 20,
+      "tilt_rate_deg_s": 10,
+      "lead": {
+        "lead_deg": 2,
+        "rate_max_deg_s": 10,
+        "memory_deg": 0.5,
+        "fresh_state_ms": 400
+      }
     },
     "gripper": {
       "empty_deg": 2,

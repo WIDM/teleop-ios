@@ -44,7 +44,7 @@ public struct SurfaceLayout: Equatable, Sendable {
     /// `pointsPerMm` defaults to the reference device's. Zone sizes scale with the screen height (§2.2).
     public init(
         width: Double, height: Double, safeTop: Double, safeBottom: Double,
-        pointsPerMm: Double? = nil, constants: InputConstants = .appendixA
+        pointsPerMm: Double? = nil, constants: InputConstants
     ) {
         let scale = height / constants.referenceHeightPt
         self.width = width

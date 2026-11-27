@@ -38,9 +38,9 @@ public struct RobotProfile: Equatable, Sendable {
     /// Height of the table surface over the robot base origin, metres, along up (`frames.height(of:)`): the base's
     /// own z when z is up, the other way round when it points down.
     public var tableHeight: Float
-    /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt; 1 or -1.
-    public var rollSign: Double
-    public var tiltSign: Double
+    /// The wrist: the windows and per-hold limits, the signs of the phone's turn and tilt and of the wrist buttons,
+    /// the buttons' rates and the lead bound.
+    public var wrist: WristProfile
     /// True when closing the jaws again after they met something would loosen the grip (a close starts from the
     /// measured angle), so a second close is refused until they have opened. False for a robot that must squeeze
     /// harder to hold.
@@ -73,8 +73,7 @@ public struct RobotProfile: Equatable, Sendable {
         workspaceMin: SIMD3<Float>,
         workspaceMax: SIMD3<Float>,
         tableHeight: Float,
-        rollSign: Double,
-        tiltSign: Double,
+        wrist: WristProfile,
         recloseLoosensGrip: Bool,
         usesDirectionalBlockedFeedback: Bool,
         assist: AssistProfile,
@@ -95,8 +94,7 @@ public struct RobotProfile: Equatable, Sendable {
         self.workspaceMin = workspaceMin
         self.workspaceMax = workspaceMax
         self.tableHeight = tableHeight
-        self.rollSign = rollSign
-        self.tiltSign = tiltSign
+        self.wrist = wrist
         self.recloseLoosensGrip = recloseLoosensGrip
         self.usesDirectionalBlockedFeedback = usesDirectionalBlockedFeedback
         self.assist = assist
@@ -109,13 +107,18 @@ public struct RobotProfile: Equatable, Sendable {
 
     public var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
 
-    /// The input rules' thresholds with this robot's wrist signs.
-    public var inputConstants: InputConstants {
-        var constants = InputConstants.appendixA
-        constants.rollSign = rollSign
-        constants.tiltSign = tiltSign
-        return constants
+    /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt; 1 or -1.
+    public var rollSign: Double {
+        get { wrist.rollSign }
+        set { wrist.rollSign = newValue }
     }
+    public var tiltSign: Double {
+        get { wrist.tiltSign }
+        set { wrist.tiltSign = newValue }
+    }
+
+    /// The input rules' thresholds: the wrist's from this robot's profile, the touch and key ones as the app has them.
+    public var inputConstants: InputConstants { InputConstants(wrist: wrist) }
 
     /// How far the estimated pinch point may be from the true one, metres, by `estimateBound`, with the gripper point
     /// and wrist angles of one reading. Nil without both wrist angles: a tilt alone moves the true point centimetres.

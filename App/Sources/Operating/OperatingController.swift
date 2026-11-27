@@ -647,7 +647,7 @@ final class OperatingController {
         let range = RotationMapper.limits(
             for: button.axis, readings: facts.wrist, commandedTiltSinceResetDeg: arbiter.commandedTiltSinceReset,
             constants: arbiter.constants)
-        wristRamp = WristButtonRamp(button: button, range: range)
+        wristRamp = WristButtonRamp(button: button, range: range, wrist: model.profile.wrist)
         wristLimitCued = false
         wristTarget = WristTarget(axis: button.axis, degrees: 0)
         if !model.startPadWrist() {

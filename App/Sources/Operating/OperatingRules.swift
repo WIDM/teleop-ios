@@ -48,9 +48,14 @@ struct OperatingFacts {
     /// When the screen last told the operator to open the jaws before moving in.
     var lastOpenJawsFirstAtMs: Int?
     var nowMs = 0
-    /// The per-hold wrist clamps, degrees.
-    var turnLimit = 55.0
-    var tiltLimit = 20.0
+    /// The per-hold wrist clamps, degrees: the arm's, from its profile.
+    var turnLimit: Double
+    var tiltLimit: Double
+
+    init(wrist: WristProfile) {
+        turnLimit = wrist.rollClampDeg
+        tiltLimit = wrist.tiltClampDeg
+    }
 }
 
 /// The operating screen's one state (§7.2) and the arm reading for the guide, as pure functions of the facts.

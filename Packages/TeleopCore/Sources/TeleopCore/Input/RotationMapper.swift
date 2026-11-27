@@ -66,7 +66,7 @@ public struct RotationMapper: Equatable, Sendable {
 
     private enum Edge: Equatable, Sendable { case lower, upper }
 
-    public init(anchor: simd_quatd?, startsAtCommit: Bool, constants: InputConstants = .appendixA) {
+    public init(anchor: simd_quatd?, startsAtCommit: Bool, constants: InputConstants) {
         self.anchor = anchor
         self.startsAtCommit = startsAtCommit
         self.constants = constants
@@ -162,7 +162,7 @@ public struct RotationMapper: Equatable, Sendable {
     /// The range always contains 0: a wrist already past a window may still turn back.
     public static func limits(
         for axis: WristAxis, readings: WristReadings, commandedTiltSinceResetDeg: Double,
-        constants: InputConstants = .appendixA
+        constants: InputConstants
     ) -> ClosedRange<Double> {
         var lower: Double, upper: Double
         switch axis {
