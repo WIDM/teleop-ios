@@ -264,12 +264,7 @@ final class AppModel {
     /// table is still told.
     private func guideAidsChanged() {
         var sides = Set(OperatorDirection.allCases)
-        let frames = profile.frames
-        let floorHeight = min(
-            frames.height(of: SIMD3<Double>(profile.workspaceMin)),
-            frames.height(of: SIMD3<Double>(profile.workspaceMax)))
-        let floorBelowTable = floorHeight < Double(profile.tableHeight)
-        if floorBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
+        if profile.workspaceFloorIsBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
         link.guideAidsChanged(
             assist.guide, gripperBox: profile.gripperWorkspace, sides: sides,
             directionalBlocked: profile.usesDirectionalBlockedFeedback)

@@ -143,6 +143,14 @@ public struct RobotProfile: Equatable, Sendable {
         set { frames.baseInWorld = SIMD3<Double>(newValue) }
     }
 
+    /// The work box's floor, along up, lies below the table: the table stops the arm before it reaches the box's bottom
+    /// face.
+    public var workspaceFloorIsBelowTable: Bool {
+        let floor = min(
+            frames.height(of: SIMD3<Double>(workspaceMin)), frames.height(of: SIMD3<Double>(workspaceMax)))
+        return floor < Double(tableHeight)
+    }
+
     /// A world-frame position in the robot base frame.
     public func inBase(world: SIMD3<Float>) -> SIMD3<Float> { frames.base(fromWorld: world) }
 }

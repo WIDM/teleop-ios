@@ -19,4 +19,14 @@ enum TestFrames {
     static var all: [(name: String, frames: Frames)] {
         [("SO-101", TestProfiles.so101.frames), ("bench arm B", benchB), ("arm on its side", onItsSide)]
     }
+
+    /// A vector of one set's base frame as the other's: the same place, direction or offset seen by the same operator.
+    /// This is how what a rule does for another arm is derived from what it does for the SO-101.
+    static func carry(_ p: SIMD3<Double>, from: Frames, to: Frames) -> SIMD3<Double> {
+        to.base(fromOperator: from.operatorPoint(p))
+    }
+
+    static func carry(_ p: SIMD3<Float>, from: Frames, to: Frames) -> SIMD3<Float> {
+        SIMD3<Float>(carry(SIMD3<Double>(p), from: from, to: to))
+    }
 }
