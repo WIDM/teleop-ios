@@ -1,0 +1,73 @@
+{
+  "profile_version": 1,
+  "name": "SO-101 (S4 simulator)",
+  "robot": {
+    "wrist": {
+      "roll_sign": 1,
+      "tilt_sign": 1
+    },
+    "gripper": {
+      "open_deg": 97,
+      "empty_deg": 2,
+      "reclose_loosens_grip": true
+    }
+  },
+  "scene": {
+    "base_in_world_m": [0, 0, 0.05],
+    "table_height_m": 0.04,
+    "workspace_min_m": [-0.052383, -0.257418, -0.008015],
+    "workspace_max_m": [0.107617, -0.097418, 0.151985],
+    "target_size_m": 0.025,
+    "goal_size_m": 0.05,
+    "grasp_tolerance_m": [0.006, 0.008],
+    "on_target_window_m": null,
+    "tool_offset": {
+      "offset_m": [0.007, -0.036, -0.088],
+      "measured_at_m": [-0.002, -0.164, 0.1405],
+      "measured_flex_deg": 40.24,
+      "measured_roll_deg": 90,
+      "error_bound": {
+        "x_mm_per_cm": 2.56,
+        "plus_y_mm_per_cm": 11.12,
+        "minus_y_mm_per_cm": 1.8,
+        "z_mm_per_cm": 8.43,
+        "flex_mm_per_deg": 1.65,
+        "roll_mm_per_deg": 0.23
+      }
+    }
+  },
+  "response": {
+    "directional_blocked_feedback": true
+  },
+  "assist": {
+    "lock": {
+      "time_limit_s": 30
+    },
+    "go_to": {
+      "travel_height_m": 0.05,
+      "speed_mps": 0.04,
+      "arrive_tolerance_m": 0.008,
+      "corrections": 2,
+      "correction_reach_m": 0.03,
+      "settle_s": 0.6,
+      "time_factor": 1.5,
+      "allowance_s": 3.0,
+      "arm_data_timeout_s": 2.0,
+      "start_grace_s": 1.5
+    },
+    "guide": {
+      "work_area_words": true,
+      "lowest_cue": true,
+      "shadow": true,
+      "direction_labels": true,
+      "wider_on_target": true
+    },
+    "explain": {
+      "slow_link_let_go": true
+    },
+    "views": {
+      "behind_top_above_table_m": 0.09,
+      "max_retargeted_move_s": 30
+    }
+  }
+}
