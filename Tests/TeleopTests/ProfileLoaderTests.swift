@@ -19,8 +19,27 @@ final class ProfileLoaderTests: XCTestCase {
         XCTAssertEqual(try ProfileLoader.chosenID(arguments: [:], info: info), "so101-s4-sim")
         XCTAssertEqual(
             try ProfileLoader.chosenID(arguments: [ProfileLoader.argumentKey: "bench-arm"], info: info), "bench-arm")
-        XCTAssertEqual(
-            try ProfileLoader.chosenID(arguments: [ProfileLoader.argumentKey: ""], info: info), "so101-s4-sim")
+    }
+
+    /// A launch argument that names no profile, or one the app does not have, stops the load; it never falls back to
+    /// the profile the build names.
+    func testAnInvalidLaunchArgumentIsAnError() {
+        let info: [String: Any] = [ProfileLoader.infoKey: "so101-s4-sim"]
+        for given: Any in ["", " ", 5, ["so101-s4-sim"]] {
+            let chosen = Result {
+                try ProfileLoader.chosenID(arguments: [ProfileLoader.argumentKey: given], info: info)
+            }
+            guard case .failure(let error) = chosen, case .badArgument? = error as? ProfileLoader.Failure else {
+                XCTFail("\(given): \(chosen)")
+                continue
+            }
+            XCTAssertTrue("\(error)".hasPrefix("The launch argument -robotProfile must name"), "\(error)")
+        }
+        let unknown = Result {
+            try ProfileLoader.chosen(arguments: [ProfileLoader.argumentKey: "no-such-arm"], bundle: app)
+        }
+        guard case .failure(let error) = unknown else { return XCTFail("\(unknown)") }
+        XCTAssertEqual(error as? ProfileLoader.Failure, .notBundled(id: "no-such-arm"))
     }
 
     func testNoChoiceAtAllIsAnError() {

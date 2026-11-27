@@ -15,7 +15,9 @@ without `.json`.
 
 - The build names the profile it drives in its Info.plist under `TeleopRobotProfile`, set in `project.yml`
   (`TeleopRobotProfile: so101-s4-sim`). Run `xcodegen generate` after changing it.
-- The launch argument `-robotProfile <id>` overrides it for one launch, for example in a UI test.
+- The launch argument `-robotProfile <id>` overrides it for one launch, for example in a UI test. An empty id, a
+  value that is not text or an id with no file stops the launch with the reason; it never falls back to the build's
+  profile.
 - There is no screen to choose one: one build drives one arm. To drive another arm, add its file, name it in
   `project.yml` and build again. No Swift change is needed.
 

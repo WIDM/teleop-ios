@@ -12,6 +12,8 @@ enum ProfileLoader {
 
     enum Failure: Error, Equatable, CustomStringConvertible {
         case noneChosen
+        /// The launch argument was given but names no id: empty, or not text.
+        case badArgument(given: String)
         case notBundled(id: String)
         case unreadable(id: String, reason: String)
 
@@ -20,6 +22,9 @@ enum ProfileLoader {
             case .noneChosen:
                 return "No robot profile is chosen: set \(ProfileLoader.infoKey) in project.yml or launch with "
                     + "-\(ProfileLoader.argumentKey) <id>."
+            case .badArgument(let given):
+                return "The launch argument -\(ProfileLoader.argumentKey) must name a robot profile id (a file in "
+                    + "App/Resources/Profiles without .json), not \(given)."
             case .notBundled(let id):
                 return "The robot profile \(id).json is not in the app. Add it to App/Resources/Profiles."
             case .unreadable(let id, let reason):
@@ -38,12 +43,19 @@ enum ProfileLoader {
         }
     }()
 
-    /// The id the launch argument names, else the one the build names.
+    /// The id the launch argument names, else the one the build names. A launch argument that is given but names no
+    /// id is an error, not a reason to drive the build's robot instead.
     static func chosenID(
         arguments: [String: Any] = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain),
         info: [String: Any]? = Bundle.main.infoDictionary
     ) throws -> String {
-        if let id = arguments[argumentKey] as? String, !id.isEmpty { return id }
+        if let given = arguments[argumentKey] {
+            guard let id = given as? String else { throw Failure.badArgument(given: "\(given)") }
+            guard !id.trimmingCharacters(in: .whitespaces).isEmpty else {
+                throw Failure.badArgument(given: "an empty id")
+            }
+            return id
+        }
         if let id = info?[infoKey] as? String, !id.isEmpty { return id }
         throw Failure.noneChosen
     }
