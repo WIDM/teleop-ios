@@ -17,7 +17,9 @@ loader, the profile files, the tests, the build settings and the test plans this
      offsets are signed and how the world sits against the base are `robot.directions`, `server.link_signs` and
      `scene.base_axes_in_world` of the profile file, read through `Frames`;
   6. a `Frames` held in a `static let` or `static var`, or built (`Frames(...)`), outside the core's Profile folder and
-     the tests: the frames travel inside the values that carry the profile, never as a global or a default.
+     the tests: the frames travel inside the values that carry the profile, never as a global or a default. That
+     includes a static whose type is not written: its value builds one (`Frames(...)`, `Frames.init(...)`,
+     `TeleopCore.Frames(...)`), names a static member of `Frames`, or ends in `.frames` or is `frames`.
 Naming a profile is not building one. Everywhere but the core's Profile folder and the tests, the loader included, it
 refuses a RobotProfile built in code: `RobotProfile(...)`, `RobotProfile.init(...)`, `.init(...)` whose type is
 RobotProfile (inside the type, also `Self`): written beside it (`let p: RobotProfile = .init(...)`) or as the type of
@@ -108,6 +110,11 @@ REMOVED_DIRECTIONS = (
 )
 FRAMES_TYPE = re.compile(r"\bFrames\b(?!\s*\.\s*\w)")
 BUILDS_FRAMES = re.compile(r"(?<!\w)Frames\s*\(")
+# A static's value that is a Frames though no type says so: built, a static member of Frames (`Frames.init(`,
+# `Frames.so101`; not `Frames.self` or `.Type`), or read from a profile (`profile.frames`, `frames`).
+INFERRED_FRAMES_VALUE = re.compile(
+    r"(?:\w+\s*\.\s*)*Frames\s*(?:\.\s*(?!self\b|Type\b)\w+|\()|(?:\w+\s*\.\s*)*frames\s*$"
+)
 MODIFIERS = (
     r"(?:(?:public|private|fileprivate|internal|package|nonisolated|final|lazy)"
     r"(?:\(\w+\))?\s+)*"
@@ -492,7 +499,7 @@ def names_or_holds(text, code, literals, bodies, swift, report):
     for offset, kind, value in static_bindings(code):
         if PROFILE_TYPE.search(kind) or STARTS_BUILDING.match(value):
             report(offset, "a robot profile held in code")
-        if FRAMES_TYPE.search(kind) or BUILDS_FRAMES.match(value):
+        if FRAMES_TYPE.search(kind) or INFERRED_FRAMES_VALUE.match(value):
             report(offset, "robot frames held in a static")
     for opening, closing, body in bodies:
         for offset, kind, value in static_bindings(body, opening, closing):

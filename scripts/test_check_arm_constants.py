@@ -121,6 +121,12 @@ class CheckArmConstantsTests(unittest.TestCase):
             (CORE, "public static let arm: Frames = make()\n"),
             (CORE, "static var frames: Frames { make() }\n"),
             (CORE, "static let frames: TeleopCore.Frames? = nil\n"),
+            (APP, "static let arm = TeleopCore.Frames(forward: f, left: l, up: u)\n"),
+            (APP, "static let arm = Frames.init(forward: f, left: l, up: u)\n"),
+            (APP, "static let arm = Frames.so101\n"),
+            (APP, "static let arm = profile.frames\n"),
+            (APP, "static let arm = ProfileLoader.loaded.frames\n"),
+            (CORE, "static var arm = frames\n"),
         ):
             self.assertFails({relative: text}, "robot frames held in a static", f"{relative}: {text}")
         for relative, text in (
@@ -128,6 +134,15 @@ class CheckArmConstantsTests(unittest.TestCase):
             (CORE, "func make() -> Frames { Frames(forward: f, left: l, up: u) }\n"),
         ):
             self.assertFails({relative: text}, "robot frames built in code", f"{relative}: {text}")
+
+    def test_statics_that_only_look_like_frames_pass(self):
+        self.assertPasses(
+            {
+                APP: "static let kind = Frames.self\nstatic let count = profile.frames.count\n"
+                "static let rate = player.framesPerSecond\nstatic let up = profile.frames.up\n"
+                "static let name = \"Frames.so101\"\n// static let arm = Frames.so101\n",
+            }
+        )
 
     def test_frames_passed_around_or_built_in_the_profile_folder_or_tests_pass(self):
         self.assertPasses(
