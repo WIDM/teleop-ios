@@ -115,6 +115,73 @@ class CheckArmConstantsTests(unittest.TestCase):
             }
         )
 
+    def test_a_removed_wrist_or_jaw_number_fails(self):
+        for text, what in (
+            ("public static let turnRate = 20.0\n", "the wrist buttons' own rates"),
+            ("case .tiltDown: return Self.tiltRate\n", "the wrist buttons' own rates"),
+            ("let c = InputConstants.appendixA\n", "InputConstants.appendixA"),
+            ("constants: InputConstants = .appendixA\n", "InputConstants.appendixA"),
+            ("let open = profile.gripperOpenDeg\n", "the jaw thresholds in degrees"),
+            ("if angle >= limits.openDeg { }\n", "the jaw thresholds in degrees"),
+            ("if angle <= limits.emptyDeg { }\n", "the jaw thresholds in degrees"),
+            ("var turnLimit = 55.0\n", "written as a default or a constant"),
+            ("public var leadDeg = 2.0\n", "written as a default or a constant"),
+            ("public var memoryDeg: Double = 0.5\n", "written as a default or a constant"),
+            ("rollClampDeg: Double = 55, tiltClampDeg: Double = 20,\n", "written as a default or a constant"),
+            ("static let rollWindowDeg = 150\n", "written as a default or a constant"),
+            ("var rollSign: Double = 1\n", "written as a default or a constant"),
+            ("let fullyOpenAt = 97\n", "written as a default or a constant"),
+            ("var emptyAt: Double = 2\n", "written as a default or a constant"),
+            ("let validMax = 360\n", "written as a default or a constant"),
+        ):
+            for relative in (APP, CORE):
+                out = self.assertFails({relative: text}, what, f"{relative}: {text}")
+                self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_wrist_or_jaw_read_from_the_profile_passes(self):
+        self.assertPasses(
+            {
+                APP: "let limit = profile.wrist.rollClampDeg\nlet jaw = profile.gripper.fullyOpenAt\n"
+                "var turnLimit: Double\nfacts.turnLimit = wrist.rollClampDeg\n"
+                "let rate = button.degreesPerSecond(in: wrist)\nlet share = gripper.opening(at: 40)\n"
+                "if leadDeg == 2 { }\nlet limits = GripperLimits(fullyOpenAt: a, emptyAt: b)\n",
+                CORE: "// the old turnRate and appendixA and openDeg are gone\nlet text = \"emptyDeg = 2\"\n"
+                "public static let freshStateMs = 400\n",
+            }
+        )
+
+    def test_a_removed_wrist_or_jaw_number_passes_in_the_tests_and_the_documents(self):
+        self.assertPasses(
+            {
+                APP_TEST: "var turnLimit = 55.0\nlet c = InputConstants.appendixA\nlet r = WristButton.turnRate\n",
+                CORE_TEST: "let limits = GripperLimits(openDeg: 97, emptyDeg: 2)\nvar leadDeg = 2.0\n",
+                "docs/PROFILE.md": "WristButton.turnRate = 20 and gripperOpenDeg were code\n",
+            }
+        )
+
+    def test_a_wrist_or_jaw_built_or_held_in_code_fails(self):
+        for relative, text in (
+            (APP, "let w = WristProfile(rollSign: 1, tiltSign: 1)\n"),
+            (CORE, "let j = GripperProfile(unit: .deg, closedReading: a)\n"),
+            (APP, "let lead = WristLeadLimits.init(leadDeg: a)\n"),
+            (APP, "static let jaw = GripperProfile.so101\n"),
+            (CORE, "static let wrist: WristProfile = load()\n"),
+            (APP, "private static var jaws: [GripperProfile] = []\n"),
+        ):
+            out = self.assertFails({relative: text}, "wrist or jaw", f"{relative}: {text}")
+            self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_wrist_or_jaw_passed_around_or_built_in_the_profile_folder_or_tests_pass(self):
+        self.assertPasses(
+            {
+                APP: "func use(_ wrist: WristProfile, jaw: GripperProfile) -> Double { wrist.rollSign }\n"
+                "let wrist = profile.wrist\nlet jaws = [GripperProfile.Type.self]\n",
+                PROFILE: "public struct WristProfile {}\nlet w = WristProfile(rollSign: 1)\n",
+                APP_TEST: "static let jaw = GripperProfile(unit: .mm, closedReading: 0)\n",
+                CORE_TEST: "static let wrist = WristProfile(rollSign: 1)\n",
+            }
+        )
+
     def test_frames_held_or_built_in_code_fail(self):
         for relative, text in (
             (APP, "static let arm = Frames(forward: f, left: l, up: u)\n"),
