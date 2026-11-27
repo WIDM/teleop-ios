@@ -189,9 +189,10 @@ class RulesAcrossFramesTests: XCTestCase {
     /// Drives a move the way the input rules' gate does, the arm answering the command of 0.2 s before, and keeps what
     /// the move said at every step.
     private func driven(
-        _ frames: Frames, start: SIMD3<Double>, target: SIMD3<Double>, arm: Arm
+        _ frames: Frames, start: SIMD3<Double>, target: SIMD3<Double>, arm: Arm, boxTop: Double? = nil
     ) -> (steps: [Step], deadline: TimeInterval) {
-        let box = TestFrames.carry((boxLow, boxHigh), from: so, to: frames)
+        let box = TestFrames.carry(
+            (boxLow, SIMD3(boxHigh.x, boxHigh.y, boxTop ?? boxHigh.z)), from: so, to: frames)
         var move = GoMove(
             frames: frames, start: start, target: target, limits: limits, at: 0, boxLow: box.low, boxHigh: box.high)
         var steps: [Step] = []
@@ -229,6 +230,116 @@ class RulesAcrossFramesTests: XCTestCase {
         }
         XCTAssertTrue(ends.contains("follows Optional(TeleopCore.GoMove.Verdict.arrived)"), "\(ends)")
         XCTAssertTrue(ends.contains("wall Optional(TeleopCore.GoMove.Verdict.stoppedShort)"), "\(ends)")
+    }
+
+    /// A correction on the way down never raises the command above the box's top: a box whose top is 5 mm over the
+    /// travel height leaves room for 5 mm of the 12 mm an arm that sags is missing. Whichever axis is up, the move
+    /// commands what the SO-101's does, carried, and the SO-101's own never commands above the top.
+    func testACorrectionIsLimitedByTheBoxTopAlongUp() {
+        let start = SIMD3(0.02, -0.14, 0.093), target = SIMD3(0.0, -0.18, 0.09)
+        let top = 0.095
+        for arm in [Arm.sags, .follows] {
+            let one = driven(so, start: start, target: target, arm: arm, boxTop: top)
+            let two = driven(b, start: carry(start), target: carry(target), arm: arm, boxTop: top)
+            XCTAssertEqual(one.steps.count, two.steps.count, "\(arm)")
+            for (i, (x, y)) in zip(one.steps, two.steps).enumerated() {
+                assertEqual(y.commanded, carry(x.commanded), "commanded \(arm) step \(i)")
+                assertEqual(y.link, TestFrames.carryLink(x.link, from: so, to: b), "link \(arm) step \(i)")
+                XCTAssertEqual(x.verdict, y.verdict, "\(arm) step \(i)")
+            }
+            let highest = one.steps.map(\.commanded.z).max() ?? 0
+            XCTAssertLessThanOrEqual(highest, top + 1e-9, "\(arm): the SO-101's command stays under the box's top")
+            if arm == .sags {
+                XCTAssertGreaterThan(highest, target.z + 0.004, "\(arm): the correction did raise the command")
+            }
+        }
+    }
+
+    // MARK: A going move that follows the measured offset, and is retargeted
+
+    /// What the arm does when the server reports the pinch point: the gripper link follows the link command of 0.2 s
+    /// before, and the pinch point hangs from it, at an offset the operator sees as 1 cm right, 3 cm forward and 9 cm
+    /// down plus some swing with the link's travel. One behaviour in the operator's view for every arm, so the same
+    /// arm is the same physical arm under any frames; `wall` stops the gripper link 3 cm to the operator's left.
+    private enum Reach: CaseIterable { case free, wall }
+
+    private struct FollowRun {
+        var steps: [Step]
+        var deadline: TimeInterval
+        var retargets: [Bool]
+    }
+
+    private func drivenFollowing(
+        _ frames: Frames, start: SIMD3<Double>, target: SIMD3<Double>, reach: Reach,
+        retarget: (at: TimeInterval, to: SIMD3<Double>)? = nil
+    ) -> FollowRun {
+        let toolSeen = SIMD3(0.01, 0.03, -0.09), swing = SIMD3(0.3, 0.2, 0.25)
+        let offset = frames.base(fromOperator: toolSeen)
+        let gripperAtTap = start - offset
+        let box = TestFrames.carry((boxLow, boxHigh), from: so, to: frames)
+        var move = GoMove(
+            frames: frames, start: start, target: target, limits: limits, at: 0, boxLow: box.low, boxHigh: box.high,
+            offset: offset)
+        var run = FollowRun(steps: [], deadline: 0, retargets: [])
+        var pausedAt: TimeInterval?
+        for i in 0..<1_500 {
+            let now = Double(i) / 30
+            if let retarget, run.retargets.isEmpty {
+                if let paused = pausedAt {
+                    if now >= paused + 0.3 { run.retargets.append(move.retarget(retarget.to, at: now)) }
+                } else if now >= retarget.at {
+                    move.pauseForRetarget(at: now)
+                    pausedAt = now
+                }
+            }
+            var travelSeen = frames.operatorPoint(frames.base(fromLink: move.linkOffset(at: now - 0.2)))
+            if reach == .wall { travelSeen.x = max(travelSeen.x, -0.03) }
+            let gripperSeen = frames.operatorPoint(gripperAtTap) + travelSeen
+            let pinchSeen = gripperSeen + toolSeen + swing * travelSeen
+            let fix = ArmFix(
+                pinch: frames.base(fromOperator: pinchSeen), ageS: 0.1, holdPaused: false,
+                gripper: frames.base(fromOperator: gripperSeen), pinchReported: true)
+            let verdict = move.observe(fix, at: now)
+            run.steps.append((move.commanded(at: now), move.linkOffset(at: now), verdict))
+            if verdict != nil { break }
+        }
+        run.deadline = move.deadline
+        return run
+    }
+
+    /// A move that follows the offset it measured, and one that is paused and retargeted on the way, command what the
+    /// SO-101's do, carried, step by step: the link offset, the clamp to the box less the tap's offset, the drift, the
+    /// retargeted legs and the end.
+    func testAFollowingMoveAndARetargetCommandAsTheSO101DoesCarried() {
+        let starts = [SIMD3(0.02, -0.14, 0.10), SIMD3(0.06, -0.2, 0.05), SIMD3(-0.03, -0.1, 0.14)]
+        let targets = [SIMD3(0.0, -0.18, 0.09), SIMD3(0.09, -0.12, 0.09), SIMD3(-0.04, -0.24, 0.09)]
+        let retargets = [SIMD3(0.07, -0.13, 0.09), SIMD3(-0.02, -0.2, 0.09), SIMD3(0.03, -0.15, 0.09)]
+        var ends = Set<String>()
+        var retargeted = 0
+        for (index, (start, target)) in zip(starts, targets).enumerated() {
+            for reach in Reach.allCases {
+                for new in [nil, retargets[index]] {
+                    let aim = new.map { (at: 1.0, to: $0) }
+                    let carriedAim = new.map { (at: 1.0, to: carry($0)) }
+                    let one = drivenFollowing(so, start: start, target: target, reach: reach, retarget: aim)
+                    let two = drivenFollowing(
+                        b, start: carry(start), target: carry(target), reach: reach, retarget: carriedAim)
+                    let place = "\(index) \(reach) retarget \(new != nil)"
+                    XCTAssertEqual(one.steps.count, two.steps.count, place)
+                    XCTAssertEqual(one.deadline, two.deadline, accuracy: 1e-9, place)
+                    XCTAssertEqual(one.retargets, two.retargets, place)
+                    for (i, (x, y)) in zip(one.steps, two.steps).enumerated() {
+                        assertEqual(y.commanded, carry(x.commanded), "commanded \(place) step \(i)")
+                        assertEqual(y.link, TestFrames.carryLink(x.link, from: so, to: b), "link \(place) step \(i)")
+                        XCTAssertEqual(x.verdict, y.verdict, "\(place) step \(i)")
+                    }
+                    ends.insert("\(reach) \(String(describing: one.steps.last?.verdict))")
+                    retargeted += one.retargets.filter { $0 }.count
+                }
+            }
+        }
+        XCTAssertTrue(ends.contains("free Optional(TeleopCore.GoMove.Verdict.arrived)"), "\(ends)")
+        XCTAssertEqual(retargeted, 6, "every retarget was taken")
     }
 
     // MARK: Cues
@@ -291,6 +402,39 @@ class RulesAcrossFramesTests: XCTestCase {
             }
         }
         return Outcome(told: told, lowest: monitor.lowestSeen, lowestPinch: monitor.lowestPinchSeen)
+    }
+
+    /// The operator is asking for lower only by the command held now: the states that arrived asked 4 mm lower, and a
+    /// state without the gripper link's position adds no sample, so nothing but the held command (12 mm lower) says
+    /// it. That silences the blocked cue; a command that is not lower, 12 mm to the side, does not. Whichever axis
+    /// is up, the same.
+    func testAnAskForLowerHeldNowSilencesTheBlockedCueAlongUp() {
+        let onTable = SIMD3(0.02, -0.14, 0.133)
+        func told(_ frames: Frames, finalGap: SIMD3<Double>) -> [Told] {
+            var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: frames)
+            monitor.reportsLowest = true
+            monitor.startSent(.pose, restart: false, at: 0)
+            let arm = TestFrames.carry(onTable, from: so, to: frames)
+            var told: [Told] = []
+            for ms in Swift.stride(from: 200, through: 1_400, by: 200) {
+                monitor.commanded(arm + TestFrames.carry(SIMD3(0, 0, -0.004), from: so, to: frames))
+                let state = ServerState(activity: .poseTracking, endEffector: arm, toolPoint: nil)
+                told += monitor.observe(state, at: ms).map { Told(ms: ms, event: $0) }
+            }
+            monitor.commanded(arm + TestFrames.carry(finalGap, from: so, to: frames))
+            let silent = ServerState(activity: .poseTracking, endEffector: nil, toolPoint: nil)
+            told += monitor.observe(silent, at: 1_500).map { Told(ms: 1_500, event: $0) }
+            return told
+        }
+        let asksLower = SIMD3(0.0, 0.0, -0.012), asksSideways = SIMD3(0.012, 0.0, -0.004)
+        XCTAssertEqual(told(so, finalGap: asksLower), [], "the SO-101: an ask for lower is not blocked")
+        XCTAssertEqual(
+            told(so, finalGap: asksSideways), [Told(ms: 1_500, event: .limit(.blocked))],
+            "the SO-101: a command held away from the arm, not lower, is")
+        for (name, frames) in TestFrames.all {
+            XCTAssertEqual(told(frames, finalGap: asksLower), [], name)
+            XCTAssertEqual(told(frames, finalGap: asksSideways), [Told(ms: 1_500, event: .limit(.blocked))], name)
+        }
     }
 
     func testTheLowestRuleTellsTheSameStallsAndKeepsTheSameHeights() {
