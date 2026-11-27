@@ -1,4 +1,5 @@
 import simd
+import TeleopCore
 import TeleopServerModel
 import XCTest
 @testable import Teleop
