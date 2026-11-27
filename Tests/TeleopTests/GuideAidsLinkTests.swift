@@ -58,7 +58,7 @@ final class GuideAidsLinkTests: XCTestCase {
     /// Standby on the real server with the link up and the gripper link reported at `arm` (robot base frame), the aids
     /// given to the model without saving them, and nothing felt or heard yet.
     private func bringUp(
-        aids: Bool, arm: SIMD3<Double>, tool: SIMD3<Double>? = nil, profile: RobotProfile = .so101Simulator
+        aids: Bool, arm: SIMD3<Double>, tool: SIMD3<Double>? = nil, profile: RobotProfile = TestProfiles.so101
     ) {
         position = .zero
         clock = 10_000
@@ -96,7 +96,7 @@ final class GuideAidsLinkTests: XCTestCase {
     }
 
     /// The work box in gripper-link space: the profile's box, kept for the pinch point, less its tool offset.
-    private func gripperBox(_ profile: RobotProfile = .so101Simulator) -> (low: SIMD3<Double>, high: SIMD3<Double>) {
+    private func gripperBox(_ profile: RobotProfile = TestProfiles.so101) -> (low: SIMD3<Double>, high: SIMD3<Double>) {
         let low = profile.workspaceMin - profile.toolOffset
         let high = profile.workspaceMax - profile.toolOffset
         return (SIMD3<Double>(low), SIMD3<Double>(high))
@@ -268,7 +268,7 @@ final class GuideAidsLinkTests: XCTestCase {
     /// The simulator's box floor is below its table: the table stops the arm first, and the lowest rule tells that, so
     /// the work-area rule does not also say "Too low.". On a profile whose box floor is above the table it does.
     func testAFloorBelowTheTableIsNotToldAndOneAboveItIs() {
-        let simulator = RobotProfile.so101Simulator
+        let simulator = TestProfiles.so101
         XCTAssertLessThan(simulator.workspaceMin.z, simulator.tableHeight, "the simulator's floor is below its table")
         var tableBelowTheBox = simulator
         tableBelowTheBox.tableHeight = simulator.workspaceMin.z - 0.02
@@ -288,7 +288,7 @@ final class GuideAidsLinkTests: XCTestCase {
 
     /// The simulator's profile with every aid but the lowest cue. Its box floor still lies below its table.
     private var withoutTheLowestCue: RobotProfile {
-        var profile = RobotProfile.so101Simulator
+        var profile = TestProfiles.so101
         profile.assist.guide?.lowestCue = false
         return profile
     }
@@ -316,7 +316,7 @@ final class GuideAidsLinkTests: XCTestCase {
     /// The gripper link where the arm stands on the table: the pinch point at the profile's table height, below the
     /// reset pose.
     private var onTheTable: SIMD3<Double> {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         return SIMD3(resetPose.x, resetPose.y, Double(profile.tableHeight - profile.toolOffset.z))
     }
 
@@ -446,7 +446,7 @@ final class GuideAidsLinkTests: XCTestCase {
     /// Pushed slowly past it, the server's clamp is the crossing, as at any watched face: the rule tells "Too low." at
     /// the clamp and the server's END is left out.
     func testAClampPastAFloorAboveTheTableTellsTheSide() {
-        var tableBelowTheBox = RobotProfile.so101Simulator
+        var tableBelowTheBox = TestProfiles.so101
         tableBelowTheBox.tableHeight = tableBelowTheBox.workspaceMin.z - 0.02
         // 9.65 mm above the floor, so no step lands on the face or on the slack's boundary.
         let start = SIMD3(resetPose.x, resetPose.y, gripperBox(tableBelowTheBox).low.z + 0.00965)

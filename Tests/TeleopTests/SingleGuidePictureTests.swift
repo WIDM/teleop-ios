@@ -87,7 +87,7 @@ final class SingleGuidePictureTests: XCTestCase {
         for (name, display) in OperatingFixtures.all {
             let aids = Self.fixtureAids[name]
             XCTAssertEqual(
-                display.guide, display.arm.map { GuidePicture(reading: $0, profile: .so101Simulator, aids: aids) },
+                display.guide, display.arm.map { GuidePicture(reading: $0, profile: TestProfiles.so101, aids: aids) },
                 name)
         }
         XCTAssertNotNil(OperatingFixtures.all["ready"]?.guide)

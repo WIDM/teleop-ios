@@ -8,7 +8,7 @@ import XCTest
 /// aid; no aids, or all of them off, is version 1.0.1's picture. Where a move to a point is headed is marked whenever
 /// one runs.
 final class GuidePictureAssistTests: XCTestCase {
-    private let profile = RobotProfile.so101Simulator
+    private let profile = TestProfiles.so101
     private var centre: SIMD3<Float> { (profile.workspaceMin + profile.workspaceMax) / 2 }
     private var table: Double { Double(profile.tableHeight) }
     private var savedLanguage = L10n.language

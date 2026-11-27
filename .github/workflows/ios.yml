@@ -39,6 +39,8 @@ jobs:
         run: python3 scripts/check-strings.py
       - name: No empty button actions
         run: python3 scripts/check-dead-buttons.py
+      - name: No robot numbers or named profiles in code (docs/PROFILE.md)
+        run: python3 scripts/check-arm-constants.py
       - name: Scripts' own unit tests
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: CI copy matches the workflow (ci/ios.yml)

@@ -59,7 +59,7 @@ public struct ServerModelConfig: Equatable, Sendable {
 
     // MARK: Robot
 
-    /// From the reported point to where the jaws pinch, base frame (the app's `RobotProfile.so101Simulator`).
+    /// From the reported point to where the jaws pinch, base frame (the app's SO-101 profile file).
     public var toolOffset = SIMD3<Double>(0.007, -0.036, -0.088)
     /// Model choice: nil keeps the pinch point at the reported point plus `toolOffset` wherever the arm is, as the
     /// app's profile assumes. Set, the pinch point turns with the arm's posture as the gripper does on the simulator

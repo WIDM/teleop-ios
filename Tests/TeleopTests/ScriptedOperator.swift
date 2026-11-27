@@ -564,3 +564,12 @@ final class ScriptedOperator {
         UserDefaults.standard.set(savedMode, forKey: AppModel.controlModeKey)
     }
 }
+
+extension ScriptedOperator {
+    /// The server the live tests drive: the test runner's `TELEOP_ADDRESS`, which `xcodebuild` passes on when the
+    /// command line sets `TEST_RUNNER_TELEOP_ADDRESS`, else the relay's port on this Mac.
+    static var liveServerAddress: String {
+        let address = ProcessInfo.processInfo.environment["TELEOP_ADDRESS"] ?? ""
+        return address.isEmpty ? "127.0.0.1:8765" : address
+    }
+}

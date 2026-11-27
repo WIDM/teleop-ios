@@ -77,10 +77,10 @@ final class BlockedReplayTests: XCTestCase {
 
     func testEarlierWorkspaceCueDoesNotSilenceANewObstruction() {
         for restart in [false, true] {
-            var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
-            monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+            monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
             monitor.reportsLowest = true
-            let face = SIMD3(0.02, RobotProfile.so101Simulator.gripperWorkspace.low.y, 0.15)
+            let face = SIMD3(0.02, TestProfiles.so101.gripperWorkspace.low.y, 0.15)
             monitor.startSent(.pose, restart: false, at: 0)
             monitor.commanded(face + SIMD3(0.02, -0.02, 0))
             var cues = monitor.observe(ServerState(activity: .poseTracking, endEffector: face), at: 0)
@@ -102,8 +102,8 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testBlockedDuringDescentDoesNotRepeatAsLowestAtTheSameHeight() {
-        var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
-        monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let arm = SIMD3(0.02, -0.14, 0.15)
         monitor.startSent(.pose, restart: false, at: 0)
@@ -117,8 +117,8 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testBlockedAtAHigherPointLeavesALaterLowerApproachArmed() {
-        var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
-        monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let high = SIMD3(0.02, -0.14, 0.17)
         let low = SIMD3(0.02, -0.14, 0.13)
@@ -138,8 +138,8 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testNewDownwardDirectionAtTheSameHeightCanSayLowest() {
-        var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
-        monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let arm = SIMD3(0.02, -0.14, 0.15)
         monitor.startSent(.pose, restart: false, at: 0)
@@ -155,8 +155,8 @@ final class BlockedReplayTests: XCTestCase {
     func testRecordedObstructionsStillSayBlockedIncludingAfterAnEarlierClamp() throws {
         let holds = try recordedHolds()
         for id in ["6950", "6954", "7187"] {
-            var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
-            monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+            monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
             monitor.reportsLowest = true
             var cues: [FeedbackEvent] = []
             for (index, segment) in try XCTUnwrap(holds[id]).enumerated() {
@@ -193,9 +193,9 @@ final class BlockedReplayTests: XCTestCase {
             let speech = SpySpeech()
             var now = 0
             let player = CuePlayer(haptics: felt, sounds: SpySounds(), speech: speech, nowMs: { now })
-            var monitor = FeedbackMonitor(limits: RobotProfile.so101Simulator.gripperLimits)
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
             monitor.reportsLowest = true
-            monitor.blockedWorkspace = RobotProfile.so101Simulator.gripperWorkspace
+            monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
 
             for (index, segment) in try XCTUnwrap(holds[id]).enumerated() {
                 monitor.startSent(.pose, restart: index > 0, at: segment.start)

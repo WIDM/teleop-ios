@@ -21,7 +21,7 @@ private final class ProfileTestTransport: LinkTransport {
 /// The robot's share of the hands-free aids: every number is the profile's, a robot that allows none of them is the
 /// master switch off for lock and taps, and the profile the model was given is the one the link judges the jaws by.
 final class RobotProfileAssistTests: XCTestCase {
-    private let profile = RobotProfile.so101Simulator
+    private let profile = TestProfiles.so101
 
     /// The level leg of a move to a tapped point runs at the travel height, so that height has to lie inside the box
     /// the server keeps the pinch point in, or every tap would be refused.
@@ -72,8 +72,8 @@ final class RobotProfileAssistTests: XCTestCase {
     }
 
     /// A robot whose profile allows no aid resolves lock and taps away whatever the operator chooses, as the master
-    /// switch off does; a profile that says nothing about the aids allows none.
-    func testARobotThatAllowsNoAidsResolvesLockAndTapsAway() {
+    /// switch off does; a profile file that gives none of the aids (each written as null) allows none.
+    func testARobotThatAllowsNoAidsResolvesLockAndTapsAway() throws {
         var bare = profile
         bare.assist = .none
         for choice in LockChoice.allCases {
@@ -81,7 +81,15 @@ final class RobotProfileAssistTests: XCTestCase {
             XCTAssertNil(assist.lock, "\(choice)")
             XCTAssertNil(assist.goTo, "\(choice)")
         }
-        let unsaid = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: SIMD3(0, 0, 0.05))
+        let written = try JSONSerialization.jsonObject(with: JSONEncoder().encode(TestProfiles.so101))
+        var file = try XCTUnwrap(written as? [String: Any])
+        file["assist"] = [
+            "lock": NSNull(), "go_to": NSNull(), "guide": NSNull(), "explain": NSNull(), "views": NSNull(),
+        ]
+        var scene = try XCTUnwrap(file["scene"] as? [String: Any])
+        scene["on_target_window_m"] = NSNull()
+        file["scene"] = scene
+        let unsaid = try RobotProfile.load(json: JSONSerialization.data(withJSONObject: file))
         XCTAssertEqual(unsaid.assist, .none)
         XCTAssertNil(unsaid.onTargetWindow)
     }
@@ -99,7 +107,7 @@ final class RobotProfileAssistTests: XCTestCase {
     /// the press. An aid that only speaks must not change that by itself, so every profile the app ships that has the
     /// phone explain something also gives the guide's additions.
     func testEveryProfileThatExplainsAlsoGuides() {
-        for shipped in [RobotProfile.so101Simulator] where shipped.assist.explain != nil {
+        for shipped in [TestProfiles.so101] where shipped.assist.explain != nil {
             XCTAssertNotNil(shipped.assist.guide, shipped.name)
         }
     }

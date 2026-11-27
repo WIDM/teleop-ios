@@ -140,7 +140,7 @@ final class OperatingRulesAssistTests: XCTestCase {
     /// reading is version 1.0.1's.
     func testTheGoTargetReachesTheReading() throws {
         let state = ServerState(activity: .poseTracking, endEffector: SIMD3(0.02, -0.14, 0.16))
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let plain = try XCTUnwrap(OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile))
         XCTAssertNil(plain.goTarget)
         let target = SIMD3<Float>(0.07, -0.15, 0.09)

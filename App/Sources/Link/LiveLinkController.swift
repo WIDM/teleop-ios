@@ -196,7 +196,7 @@ final class LiveLinkController {
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        gripperLimits: GripperLimits = RobotProfile.so101Simulator.gripperLimits,
+        gripperLimits: GripperLimits,
         clientName: String = LiveLinkController.clientName()
     ) {
         self.clientName = clientName

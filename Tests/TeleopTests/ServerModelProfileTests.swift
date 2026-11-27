@@ -1,4 +1,5 @@
 import simd
+import TeleopCore
 import TeleopServerModel
 import XCTest
 @testable import Teleop
@@ -8,7 +9,7 @@ import XCTest
 final class ServerModelProfileTests: XCTestCase {
     func testTheModelGraspsWhereTheAppsGuideSaysTheJawsPinch() {
         let model = ServerModelConfig.s4Simulator
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         XCTAssertEqual(SIMD3<Float>(model.toolOffset), profile.toolOffset)
         XCTAssertEqual(SIMD3<Float>(model.baseInWorld), profile.baseInWorld)
         XCTAssertEqual(Float(model.graspToleranceAcross), profile.graspTolerance.x)

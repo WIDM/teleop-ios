@@ -40,6 +40,9 @@ targets:
           NSAllowsArbitraryLoads: true
         # Only the system's own encryption (URLSession for wss://), which is exempt: no export question on upload.
         ITSAppUsesNonExemptEncryption: false
+        # The robot profile this build drives: a file in App/Resources/Profiles, named without .json (docs/PROFILE.md).
+        # The launch argument -robotProfile <id> overrides it.
+        TeleopRobotProfile: so101-s4-sim
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: widm.teleop.app

@@ -4,7 +4,7 @@ import XCTest
 
 final class GuideLayoutTests: XCTestCase {
     func testTheFixedGuideFitsAboveTheGapAtBothHeights() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let reading = ArmReading(
             pinchPoint: SIMD3(0, -0.17, 0.1), commanded: nil, jawOpening: nil, wristTurnDeg: nil, wristTiltDeg: nil,
             target: nil, goal: nil, gripping: false)
@@ -25,7 +25,7 @@ final class GuideLayoutTests: XCTestCase {
     }
 
     func testPrecisionFooterLeavesGuideReadoutAndHintAboveTheEntry() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let reading = ArmReading(
             pinchPoint: SIMD3(0, -0.17, 0.1), commanded: nil, jawOpening: nil, wristTurnDeg: nil, wristTiltDeg: nil,
             target: nil, goal: nil, gripping: false)
@@ -58,7 +58,7 @@ final class GuideLayoutTests: XCTestCase {
     }
 
     func testPrecisionFooterRetainsTheLargeGuideAndSeparatesTheHint() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let reading = ArmReading(
             pinchPoint: SIMD3(0, -0.17, 0.1), commanded: nil, jawOpening: nil, wristTurnDeg: nil, wristTiltDeg: nil,
             target: nil, goal: nil, gripping: false)
@@ -74,7 +74,7 @@ final class GuideLayoutTests: XCTestCase {
     }
 
     func testMovingTheGripperOffsetDoesNotMoveTheProjection() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         var reading = ArmReading(
             pinchPoint: SIMD3(0, -0.17, profile.tableHeight + 0.11), commanded: nil, jawOpening: nil,
             wristTurnDeg: nil, wristTiltDeg: nil, target: nil, goal: nil, gripping: false)

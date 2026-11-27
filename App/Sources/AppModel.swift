@@ -298,7 +298,7 @@ final class AppModel {
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
         inputClock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         clientName: String = LiveLinkController.clientName(),
-        profile: RobotProfile = .so101Simulator,
+        profile: RobotProfile = ProfileLoader.current,
         assistOn: Bool? = nil,
         lockChoice: LockChoice? = nil,
         sessionRecord: SessionRecord = .shared,

@@ -158,7 +158,7 @@ final class OperatingRulesTests: XCTestCase {
     }
 
     func testTheArmReadingComesFromTheNewestState() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         XCTAssertNil(OperatingRules.arm(nil, commanded: nil, gripping: false, profile: profile))
         let state = ServerState(payload: [
             "ee_pos": [0.02, -0.14, 0.16], "object_pos": [0.005, -0.2, 0.1025], "goal_pos": [0.075, -0.2, 0.1035],
@@ -185,7 +185,7 @@ final class OperatingRulesTests: XCTestCase {
     /// With `tool_pos` the guide's pinch point is the server's; the commanded ring and the box move by the measured
     /// `tool_pos − ee_pos` instead of the profile's offset.
     func testTheGuidesPinchPointIsTheReportedToolPoint() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let state = ServerState(payload: [
             "ee_pos": [0.02, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "object_pos": [0.005, -0.2, 0.1025],
             "estop": false,
@@ -202,7 +202,7 @@ final class OperatingRulesTests: XCTestCase {
     /// No `tool_pos`, or one that is not three finite numbers, or one too large for the guide's arithmetic: the
     /// estimate, as before, and a guide that can be drawn.
     func testTheGuidesPinchPointFallsBackToTheEstimate() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let tools: [Any] = [
             NSNull(), [0.03, -0.17], [0.03, Double.nan, 0.08], [0.03, Double.infinity, 0.08], "0.03",
             [1e39, -0.17, 0.08],
@@ -222,7 +222,7 @@ final class OperatingRulesTests: XCTestCase {
     /// A gripper point too large for the guide's arithmetic next to an ordinary tool point: the tool point is not used,
     /// so the box keeps its size and the guide is built, saying the pinch point is outside, instead of stopping the app.
     func testAGripperPointBeyondFloatRangeLeavesTheBoxAlone() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let state = ServerState(payload: [
             "ee_pos": [1e39, -0.14, 0.16], "tool_pos": [0.03, -0.17, 0.08], "estop": false,
         ])
@@ -238,7 +238,7 @@ final class OperatingRulesTests: XCTestCase {
     /// The estimate is judged on the state's own gripper point and wrist angles: solid where the offset was measured,
     /// approximate a tilt or a few millimetres toward the base away.
     func testTheStateDecidesWhetherTheEstimateIsApproximate() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         func source(_ arm: SIMD3<Float>, flex: Double) -> PinchSource? {
             let state = ServerState(payload: [
                 "ee_pos": [Double(arm.x), Double(arm.y), Double(arm.z)], "wrist_flex_deg": flex, "wrist_roll_deg": 90.0,

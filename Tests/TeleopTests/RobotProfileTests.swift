@@ -8,7 +8,9 @@ final class RobotProfileTests: XCTestCase {
     /// reported in the world frame are moved into the robot base frame.
     func testTheProfileMovesTheToolPointAndTheObjects() {
         // A gripper that pinches straight below the reported point, on a robot sitting 5 cm above the world origin.
-        let straightDown = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: SIMD3(0, 0, 0.05))
+        var straightDown = TestProfiles.so101
+        straightDown.toolOffset = SIMD3(0, 0, -0.10)
+        straightDown.baseInWorld = SIMD3(0, 0, 0.05)
         let estimated = straightDown.pinchPoint(gripper: SIMD3(0.01, -0.2, 0.15), tool: nil, flexDeg: nil, rollDeg: nil)
         XCTAssertLessThan(simd_distance(estimated.point, SIMD3(0.01, -0.2, 0.05)), 1e-6)
         XCTAssertEqual(estimated.offset, straightDown.toolOffset)
@@ -19,7 +21,7 @@ final class RobotProfileTests: XCTestCase {
     /// A reported tool point wins over the estimate, and the offset that moves the command and the box is the one
     /// measured in the same reading. It is never approximate, however far from where the offset was measured.
     func testAReportedToolPointIsPreferred() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let gripper = SIMD3<Float>(0.02, -0.14, 0.16), tool = SIMD3<Float>(0.03, -0.17, 0.08)
         for wrist in [(Double?.none, Double?.none), (70, 30)] {
             let pinch = profile.pinchPoint(gripper: gripper, tool: tool, flexDeg: wrist.0, rollDeg: wrist.1)
@@ -32,7 +34,7 @@ final class RobotProfileTests: XCTestCase {
     /// A finite number too large for a `Float` arrives as infinity. A tool point or gripper point like that gives no
     /// offset to move the box by, so the tool point counts as not reported.
     func testAToolPointBeyondFloatRangeIsNotUsed() {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let gripper = SIMD3<Float>(0.02, -0.14, 0.16), tool = SIMD3<Float>(0.03, -0.17, 0.08)
         for (g, t) in [(gripper, SIMD3(Float(1e39), -0.17, 0.08)), (SIMD3(Float(-1e39), -0.14, 0.16), tool)] {
             let pinch = profile.pinchPoint(gripper: g, tool: t, flexDeg: 40.24, rollDeg: 90)
@@ -43,7 +45,7 @@ final class RobotProfileTests: XCTestCase {
 
     // MARK: The estimate's accuracy rule
 
-    private let profile = RobotProfile.so101Simulator
+    private let profile = TestProfiles.so101
 
     /// Moved by `centimetres` from where the offset was measured, the wrist moved by `flex` and `roll` degrees.
     private func source(_ centimetres: SIMD3<Float> = .zero, flex: Double = 0, roll: Double = 0) -> PinchSource {

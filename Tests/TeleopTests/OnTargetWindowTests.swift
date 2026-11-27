@@ -25,7 +25,7 @@ private final class WindowTestTransport: LinkTransport {
 final class OnTargetWindowTests: XCTestCase {
     /// The simulator with a window twice its grasp tolerance across and half as wide again in height.
     private static let wide: RobotProfile = {
-        var profile = RobotProfile.so101Simulator
+        var profile = TestProfiles.so101
         profile.onTargetWindow = SIMD2(0.012, 0.012)
         return profile
     }()
@@ -54,7 +54,7 @@ final class OnTargetWindowTests: XCTestCase {
 
     /// The pinch point `across` metres to the side of the target and `above` metres over it, jaws open.
     private func reading(across: Float, above: Float, approximate: Bool = false) -> ArmReading {
-        let profile = RobotProfile.so101Simulator
+        let profile = TestProfiles.so101
         let target = (profile.workspaceMin + profile.workspaceMax) / 2
         var reading = ArmReading(
             pinchPoint: target + SIMD3(across, 0, above), commanded: nil, jawOpening: 0.7, wristTurnDeg: 90,
@@ -66,11 +66,11 @@ final class OnTargetWindowTests: XCTestCase {
     private func onTargetLine(_ picture: GuidePicture) -> Bool { picture.lines.contains(.onTarget) }
 
     func testTheWindowIsTheProfilesOnlyWithItsAid() {
-        let tolerance = SIMD2<Double>(RobotProfile.so101Simulator.graspTolerance)
+        let tolerance = SIMD2<Double>(TestProfiles.so101.graspTolerance)
         XCTAssertEqual(GuidePicture.onTargetWindow(Self.wide, aids: .all), SIMD2<Double>(Self.wide.onTargetWindow!))
         XCTAssertEqual(GuidePicture.onTargetWindow(Self.wide, aids: nil), tolerance)
         XCTAssertEqual(GuidePicture.onTargetWindow(Self.wide, aids: Self.noWiderWindow), tolerance)
-        XCTAssertEqual(GuidePicture.onTargetWindow(.so101Simulator, aids: .all), tolerance, "the profile gives none")
+        XCTAssertEqual(GuidePicture.onTargetWindow(TestProfiles.so101, aids: .all), tolerance, "the profile gives none")
     }
 
     /// 9 mm across is outside the grasp tolerance's 6 mm and inside the wider window's 12 mm.
@@ -80,7 +80,7 @@ final class OnTargetWindowTests: XCTestCase {
         XCTAssertTrue(wider.onTarget)
         XCTAssertTrue(onTargetLine(wider))
         let narrow: [(RobotProfile, GuideAids?)] = [
-            (Self.wide, nil), (Self.wide, Self.noWiderWindow), (.so101Simulator, .all),
+            (Self.wide, nil), (Self.wide, Self.noWiderWindow), (TestProfiles.so101, .all),
         ]
         for (profile, aids) in narrow {
             let picture = GuidePicture(reading: nine, profile: profile, aids: aids)
@@ -178,7 +178,7 @@ final class OnTargetWindowTests: XCTestCase {
     /// With a profile that gives no window, switching the aids leaves the window, and so the cue, as it was: no second
     /// cue for jaws that never left the target.
     func testAChangeOfTheAidsThatLeavesTheWindowKeepsTheCue() {
-        let (model, felt) = model(.so101Simulator, aids: true)
+        let (model, felt) = model(TestProfiles.so101, aids: true)
         objectAt(across: 0.02, model)
         objectAt(across: 0.003, model)
         XCTAssertEqual(onTargetFelt(felt), 1)

@@ -2,8 +2,8 @@ import XCTest
 @testable import Teleop
 
 /// The raw-input pick-and-place of `LocalPickAndPlaceTests`, one test per mode, against a real server on this Mac
-/// (port 8765: Isaac Sim behind the relay). It moves the simulated arm, so it runs only in the Live test plan and only
-/// when asked, as `ServerMotionTests` does:
+/// (port 8765: Isaac Sim behind the relay; `TEST_RUNNER_TELEOP_ADDRESS` names another address). It moves the
+/// simulated arm, so it runs only in the Live test plan and only when asked, as `ServerMotionTests` does:
 ///
 ///     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -testPlan Live
 ///
@@ -22,8 +22,9 @@ final class OperatorLiveTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
             throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
         }
-        hand = ScriptedOperator(address: "127.0.0.1:8765", mode: mode, smoothing: 0.3)
-        guard hand.connect(within: 4) else { throw XCTSkip("no server on 127.0.0.1:8765") }
+        let address = ScriptedOperator.liveServerAddress
+        hand = ScriptedOperator(address: address, mode: mode, smoothing: 0.3)
+        guard hand.connect(within: 4) else { throw XCTSkip("no server on \(address)") }
         let model = hand.model!
         hand.step = "the reset before the run"
         // The reset as a hand makes it: hold the top band 2 s. In the stop state the reset also releases the stop.
