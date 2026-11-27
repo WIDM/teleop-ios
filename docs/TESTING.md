@@ -33,7 +33,9 @@ going move, the work-area cue and the lowest rule through each set and checks th
 for the SO-101, carried through the frames (`TestFrames.carry`): no expected value of the other arms is typed by
 hand. `ServerModelFramesTests` serves the model with each set and checks that each direction moves the tool along the
 base axis it names, that the table stops the jaw tips at the same place in the world, and that the grasp and a whole
-pick and place work. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
+pick and place work. `ProfileFramesTests` does the same for the app's rules: the guide's picture and a tap read back
+through it, the world to base conversion, the floor-below-the-table question and the phone's offsets in the link's
+frame. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
 movement and the right button through the frames.
 
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
