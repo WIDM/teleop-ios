@@ -45,6 +45,10 @@ extension RobotProfile {
         if let window = onTargetWindow {
             positive("scene.on_target_window_m across", Double(window.x))
             positive("scene.on_target_window_m height", Double(window.y))
+            if window.x < graspTolerance.x || window.y < graspTolerance.y {
+                faults.append(
+                    "scene.on_target_window_m must not be narrower than scene.grasp_tolerance_m on either axis.")
+            }
         }
         finite("scene.tool_offset.offset_m", [toolOffset.x, toolOffset.y, toolOffset.z])
         finite("scene.tool_offset.measured_at_m", [offsetMeasuredAt.x, offsetMeasuredAt.y, offsetMeasuredAt.z])

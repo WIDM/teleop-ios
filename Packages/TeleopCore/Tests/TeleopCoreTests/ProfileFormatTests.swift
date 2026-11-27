@@ -242,6 +242,15 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual("\(refused)", "profile_version 2 is not supported; this app reads version 1.")
     }
 
+    /// The "On target" window may be as narrow as the grasp tolerance, or wider, or absent.
+    func testAnOnTargetWindowAsWideAsTheGraspToleranceIsValid() throws {
+        var profile = try RobotProfile.load(json: Data(Self.sample.utf8))
+        profile.onTargetWindow = profile.graspTolerance
+        XCTAssertEqual(profile.validate(), [])
+        profile.onTargetWindow = nil
+        XCTAssertEqual(profile.validate(), [])
+    }
+
     /// Each fault gives its own sentence naming the field, and `load` refuses the file with all of them.
     func testEachValidationFaultIsNamed() throws {
         let valid = try RobotProfile.load(json: Data(Self.sample.utf8))
@@ -268,6 +277,14 @@ final class ProfileFormatTests: XCTestCase {
             ("scene.grasp_tolerance_m height must be above zero.", { $0.graspTolerance.y = -1 }),
             ("scene.on_target_window_m across must be above zero.", { $0.onTargetWindow?.x = 0 }),
             ("scene.on_target_window_m height must be above zero.", { $0.onTargetWindow?.y = 0 }),
+            (
+                "scene.on_target_window_m must not be narrower than scene.grasp_tolerance_m on either axis.",
+                { $0.onTargetWindow?.x = 0.004 }
+            ),
+            (
+                "scene.on_target_window_m must not be narrower than scene.grasp_tolerance_m on either axis.",
+                { $0.onTargetWindow?.y = 0.006 }
+            ),
             ("scene.tool_offset.offset_m must be finite numbers.", { $0.toolOffset.z = .nan }),
             ("scene.tool_offset.measured_at_m must be finite numbers.", { $0.offsetMeasuredAt.y = .infinity }),
             (

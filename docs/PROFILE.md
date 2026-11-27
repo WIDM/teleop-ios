@@ -107,7 +107,7 @@ The jaw reading is the server's `gripper_deg`, in degrees for the SO-101.
 | `target_size_m` | m | the task object's size across, to draw it true to size | 0.025, the cube |
 | `goal_size_m` | m | the goal area's size across; the goal is the box the server judges success in | 0.05 |
 | `grasp_tolerance_m` | m, [across, height] | how close the pinch point must be to the object's centre for a close to take hold of it; also the level word, the threshold for an approximate estimate, and the server model's grasp window | [0.006, 0.008]: in the simulator the window is a few millimetres either way |
-| `on_target_window_m` | m, [across, height], or null | a wider window for the guide's "On target" and its cue, used when the guide's aids ask for it | null: the grasp tolerance is used |
+| `on_target_window_m` | m, [across, height], or null | a wider window for the guide's "On target" and its cue, used when the guide's aids ask for it; never narrower than `grasp_tolerance_m` on either axis | null: the grasp tolerance is used |
 
 ### `scene.tool_offset`
 
