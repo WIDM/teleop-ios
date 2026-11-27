@@ -105,6 +105,7 @@ class CheckArmConstantsTests(unittest.TestCase):
             "static let a: Int = 1,\n    b = RobotProfile(name: x)",
             "static let cache = Dictionary<String, Int>(), arm: RobotProfile = make()",
             "static let pairs = [Int: Set<String>](), arm = RobotProfile(name: x)",
+            "static let ok = (2 > 1), arm: RobotProfile = make()",
         ):
             self.assertFails({APP: text + "\n"}, "a robot profile held in code", text)
 
@@ -116,6 +117,7 @@ class CheckArmConstantsTests(unittest.TestCase):
             "static let handler: (\n    RobotProfile.Type\n) -> Void = { _ in }",
             "static let cache = Dictionary<String, Int>(), count: Int = 0",
             "static let ok = a < b, other = 1",
+            "static let count = consume(2 > 1, profiles: [Int]())",
         ):
             self.assertPasses({APP: text + "\n"}, text)
 
@@ -260,6 +262,7 @@ class CheckArmConstantsTests(unittest.TestCase):
             "struct Note {\n    let offsetMeasuredAt: SIMD3<Float>\n}",
             "struct Note {\n    let id: Int, offsetMeasuredAt: SIMD3<Float>\n}",
             "struct Note {\n    private(set) var id = 0, offsetMeasuredAt: Date?\n}",
+            "struct Note { let id: Int, offsetMeasuredAt: SIMD3<Float> }",
             "struct Note {\n    public var offsetMeasuredAt: Date?\n}",
             "extension RobotProfile {\n    var vector: SIMD3<Float> { .init(repeating: 0) }\n}",
             "extension RobotProfile {\n    func origin() -> SIMD3<Float> {\n"

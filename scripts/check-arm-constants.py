@@ -265,18 +265,27 @@ def read_type(code, i, end):
 
 def read_value(code, i, end):
     """The value written from i, to the first `,` or `;` outside brackets, a closing bracket it did not open, or the
-    end of its line once some of it is written. A `<` right after a name opens generic arguments (`Dictionary<K, V>()`);
-    a comparison is written with spaces."""
-    depth, j = 0, i
+    end of its line once some of it is written. A `<` right after a name opens generic arguments (`Dictionary<K, V>()`)
+    and only a `>` closes them; a comparison written without spaces (`1<2`) is read as generics, a known limit."""
+    stack, j = [], i
+    pairs = {")": "(", "]": "[", "}": "{", ">": "<"}
     while j < end:
         c = code[j]
         if c in "([{" or (c == "<" and j > i and (code[j - 1].isalnum() or code[j - 1] == "_")):
-            depth += 1
-        elif c in ")]}" or (c == ">" and depth > 0 and not code.startswith("->", j - 1)):
-            if depth == 0:
+            stack.append(c)
+        elif c in ")]}>":
+            if c == ">" and (not stack or stack[-1] != "<"):
+                pass
+            elif not stack:
                 break
-            depth -= 1
-        elif depth == 0 and (c in ",;" or (c == "\n" and code[i:j].strip())):
+            else:
+                while stack and stack[-1] == "<" and c != ">":
+                    stack.pop()
+                if stack and stack[-1] == pairs[c]:
+                    stack.pop()
+                elif not stack:
+                    break
+        elif not stack and (c in ",;" or (c == "\n" and code[i:j].strip())):
             break
         j += 1
     return code[i:j], j
@@ -459,7 +468,7 @@ def names_or_holds(text, code, literals, bodies, swift, report):
 
 def declared_field(code, k):
     """True when the label at k is one of several properties declared on one line, outside any call's brackets."""
-    line = code[code.rfind("\n", 0, k) + 1 : k]
+    line = code[max(code.rfind(c, 0, k) for c in "\n{;") + 1 : k]
     depth = sum(line.count(c) for c in "([") - sum(line.count(c) for c in ")]")
     return depth == 0 and bool(DECLARATION_LINE.match(line))
 
