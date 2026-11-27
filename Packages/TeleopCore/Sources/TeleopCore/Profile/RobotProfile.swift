@@ -29,7 +29,8 @@ public struct RobotProfile: Equatable, Sendable {
     /// At or below this when a close has ended with no contact, the jaws closed on nothing, degrees.
     public var gripperEmptyDeg: Double
     /// The box the server keeps the pinch point inside, robot base frame, metres. It holds while the wrist keeps its
-    /// start pose; with a reported tool point the guide moves it by the measured offset instead (`ArmReading.boxShift`).
+    /// start pose; with a reported tool point the guide moves it by the measured offset instead
+    /// (`ArmReading.boxShift`).
     public var workspaceMin: SIMD3<Float>
     public var workspaceMax: SIMD3<Float>
     /// Height of the table surface in the robot base frame, metres.

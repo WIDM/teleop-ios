@@ -2,8 +2,8 @@ import XCTest
 @testable import Teleop
 
 /// The raw-input pick-and-place of `LocalPickAndPlaceTests`, one test per mode, against a real server on this Mac
-/// (port 8765: Isaac Sim behind the relay; `TEST_RUNNER_TELEOP_ADDRESS` names another address). It moves the simulated arm, so it runs only in the Live test plan and only
-/// when asked, as `ServerMotionTests` does:
+/// (port 8765: Isaac Sim behind the relay; `TEST_RUNNER_TELEOP_ADDRESS` names another address). It moves the
+/// simulated arm, so it runs only in the Live test plan and only when asked, as `ServerMotionTests` does:
 ///
 ///     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -testPlan Live
 ///
