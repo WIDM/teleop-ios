@@ -19,6 +19,13 @@ final class ProfileFileTests: XCTestCase {
             ("estimateBound.flexMmPerDeg", p.estimateBound.flexMmPerDeg, Float(1.65)),
             ("estimateBound.rollMmPerDeg", p.estimateBound.rollMmPerDeg, Float(0.23)),
             ("baseInWorld", p.baseInWorld, SIMD3<Float>(0, 0, 0.05)),
+            ("frames.forward", p.frames.forward.text, "-y"),
+            ("frames.left", p.frames.left.text, "+x"),
+            ("frames.up", p.frames.up.text, "+z"),
+            ("frames.linkSigns", p.frames.linkSigns, SIMD3<Double>(1, 1, -1)),
+            ("frames.worldTurn.x", p.frames.worldTurn.x.text, "+x"),
+            ("frames.worldTurn.y", p.frames.worldTurn.y.text, "+y"),
+            ("frames.worldTurn.z", p.frames.worldTurn.z.text, "+z"),
             ("graspTolerance", p.graspTolerance, SIMD2<Float>(0.006, 0.008)),
             ("targetSize", p.targetSize, Float(0.025)),
             ("goalSize", p.goalSize, Float(0.05)),
@@ -63,12 +70,16 @@ final class ProfileFileTests: XCTestCase {
     /// Every stored field of the profile, its assist share included, has a row above: a new field must be pinned too.
     func testTheTableCoversEveryField() {
         let p = TestProfiles.so101
-        let stored = Mirror(reflecting: p).children.count - 2 + Mirror(reflecting: p.estimateBound).children.count
+        // The shift (`baseInWorld`) is the one stored field of the frames that the rows above name by the profile's own
+        // property; the rest of them are rows of their own.
+        let frames = Mirror(reflecting: p.frames).children.count - 1 + Mirror(reflecting: p.frames.worldTurn).children.count
+        let stored =
+            Mirror(reflecting: p).children.count - 3 + Mirror(reflecting: p.estimateBound).children.count + frames
         let assist = Mirror(reflecting: p.assist).children.compactMap { child -> Int? in
             guard let value = Mirror(reflecting: child.value).children.first?.value else { return nil }
             return Mirror(reflecting: value).children.count
         }
-        // Two stored fields are structures counted by their parts: estimateBound above and assist here.
+        // Three stored fields are structures counted by their parts: estimateBound and frames above, assist here.
         XCTAssertEqual(stored + assist.reduce(0, +), Self.rows(p).count)
     }
 }
