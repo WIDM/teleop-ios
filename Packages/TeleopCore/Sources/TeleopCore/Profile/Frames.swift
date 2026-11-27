@@ -1,7 +1,7 @@
 import simd
 
 /// One of the three coordinate axes of a frame: the robot base frame, the link frame or the world frame.
-public enum BaseAxis: String, CaseIterable, Sendable {
+public enum BaseAxis: String, CaseIterable, Sendable, Codable {
     case x, y, z
 
     /// 0, 1 or 2: the place of this axis in a vector.
@@ -16,7 +16,7 @@ public enum BaseAxis: String, CaseIterable, Sendable {
 
 /// A direction along one coordinate axis, one way or the other: `+x`, `-y` and so on. Only quarter turns can be said
 /// this way; a direction at another angle has no value of this type.
-public struct SignedAxis: Equatable, Sendable {
+public struct SignedAxis: Equatable, Sendable, Codable {
     public var axis: BaseAxis
     /// 1 or -1.
     public var sign: Double
@@ -59,11 +59,29 @@ public struct SignedAxis: Equatable, Sendable {
 
     /// The six values the profile file accepts, for the sentences that refuse anything else.
     public static let allowedText = "+x, -x, +y, -y, +z or -z"
+
+    /// Written and read as its text (`"-y"`), so that a sign other than 1 or -1 cannot be stored.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(text)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let text = try decoder.singleValueContainer().decode(String.self)
+        guard let value = SignedAxis(text: text) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "\(text) is not one of \(Self.allowedText)."))
+        }
+        self = value
+    }
+
+    /// True when the sign is exactly 1 or -1, as a value read from a file always is.
+    var hasUnitSign: Bool { sign == 1 || sign == -1 }
 }
 
 /// Which world axis each axis of the robot base lies along: the quarter turn from base to world. The base axes and
 /// the world axes are both right-handed, so a valid turn takes x cross y to z.
-public struct WorldTurn: Equatable, Sendable {
+public struct WorldTurn: Equatable, Sendable, Codable {
     public var x: SignedAxis
     public var y: SignedAxis
     public var z: SignedAxis
@@ -88,7 +106,7 @@ public struct WorldTurn: Equatable, Sendable {
 ///
 /// A pure value that travels inside the values that carry the profile's numbers. There is no default and no global:
 /// an arm that is mounted, wired or calibrated differently gives different frames, and the rules ask these.
-public struct Frames: Equatable, Sendable {
+public struct Frames: Equatable, Sendable, Codable {
     public var forward: SignedAxis
     public var left: SignedAxis
     public var up: SignedAxis
@@ -235,15 +253,27 @@ public struct Frames: Equatable, Sendable {
     public func faults() -> [String] {
         var faults: [String] = []
         let directions = [("forward", forward), ("left", left), ("up", up)]
-        if Set(directions.map(\.1.axis)).count != 3 {
-            let said = directions.map { "\($0.0) \($0.1.text)" }.joined(separator: ", ")
+        var directionSigns = true
+        var directionsAreATurn = false
+        for (name, direction) in directions where !direction.hasUnitSign {
+            directionSigns = false
             faults.append(
-                "robot.directions: forward, left and up must lie along three different base axes, one each; "
-                    + "they are \(said).")
-        } else if !Self.isTurn(right: left.reversed, forward: forward, up: up) {
-            faults.append(
-                "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "
-                    + "the base. Flip the sign of one of the three.")
+                "robot.directions.\(name) must point one way along its axis: a sign of 1 or -1, not "
+                    + "\(direction.sign).")
+        }
+        if directionSigns {
+            if Set(directions.map(\.1.axis)).count != 3 {
+                let said = directions.map { "\($0.0) \($0.1.text)" }.joined(separator: ", ")
+                faults.append(
+                    "robot.directions: forward, left and up must lie along three different base axes, one each; "
+                        + "they are \(said).")
+            } else if !Self.isTurn(right: left.reversed, forward: forward, up: up) {
+                faults.append(
+                    "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn "
+                        + "of the base. Flip the sign of one of the three.")
+            } else {
+                directionsAreATurn = true
+            }
         }
         if !(0..<3).allSatisfy({ linkSigns[$0] == 1 || linkSigns[$0] == -1 }) {
             faults.append("server.link_signs must each be 1 or -1; only a mirrored axis is supported.")
@@ -251,15 +281,38 @@ public struct Frames: Equatable, Sendable {
         if !(baseInWorld.x.isFinite && baseInWorld.y.isFinite && baseInWorld.z.isFinite) {
             faults.append("scene.base_in_world_m must be finite numbers.")
         }
-        if Set(worldTurn.axes.map(\.axis)).count != 3 {
-            let said = zip(["x", "y", "z"], worldTurn.axes).map { "\($0.0) \($0.1.text)" }.joined(separator: ", ")
+        var turnSigns = true
+        for (name, axis) in zip(["x", "y", "z"], worldTurn.axes) where !axis.hasUnitSign {
+            turnSigns = false
             faults.append(
-                "scene.base_axes_in_world: x, y and z must lie along three different world axes, one each; "
-                    + "they are \(said).")
-        } else if !Self.isTurn(right: worldTurn.x, forward: worldTurn.y, up: worldTurn.z) {
-            faults.append(
-                "scene.base_axes_in_world is a mirror image, not a turn: the base's x cross y must be its z. "
-                    + "Flip the sign of one of the three.")
+                "scene.base_axes_in_world.\(name) must point one way along its axis: a sign of 1 or -1, not "
+                    + "\(axis.sign).")
+        }
+        var turnIsValid = false
+        if turnSigns {
+            if Set(worldTurn.axes.map(\.axis)).count != 3 {
+                let said = zip(["x", "y", "z"], worldTurn.axes).map { "\($0.0) \($0.1.text)" }.joined(separator: ", ")
+                faults.append(
+                    "scene.base_axes_in_world: x, y and z must lie along three different world axes, one each; "
+                        + "they are \(said).")
+            } else if !Self.isTurn(right: worldTurn.x, forward: worldTurn.y, up: worldTurn.z) {
+                faults.append(
+                    "scene.base_axes_in_world is a mirror image, not a turn: the base's x cross y must be its z. "
+                        + "Flip the sign of one of the three.")
+            } else {
+                turnIsValid = true
+            }
+        }
+        if directionsAreATurn, turnIsValid {
+            let worldUp = base(fromWorldDirection: SIMD3(0, 0, 1))
+            if worldUp != up.vector {
+                let along =
+                    zip(BaseAxis.allCases, [worldUp.x, worldUp.y, worldUp.z])
+                    .first { $1 != 0 }.map { SignedAxis($0.0, $0.1).text } ?? "?"
+                faults.append(
+                    "robot.directions.up is \(up.text), but scene.base_axes_in_world puts base \(along) along world "
+                        + "+z. They must name the same base axis, the same way.")
+            }
         }
         return faults
     }

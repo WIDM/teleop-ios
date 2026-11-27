@@ -213,6 +213,64 @@ final class FramesTests: XCTestCase {
         XCTAssertEqual(frames.faults(), ["scene.base_in_world_m must be finite numbers."])
     }
 
+    func testASignOtherThanOneOrMinusOneIsRefusedWithASentenceForEachField() {
+        for bad in [2.0, -2, 0, 0.5, .nan] {
+            var frames = TestFrames.so101
+            frames.forward = SignedAxis(.y, bad)
+            XCTAssertEqual(
+                frames.faults(),
+                ["robot.directions.forward must point one way along its axis: a sign of 1 or -1, not \(bad)."],
+                "forward \(bad)")
+            frames = TestFrames.so101
+            frames.up = SignedAxis(.z, bad)
+            XCTAssertEqual(
+                frames.faults(),
+                ["robot.directions.up must point one way along its axis: a sign of 1 or -1, not \(bad)."],
+                "up \(bad)")
+            frames = TestFrames.so101
+            frames.worldTurn.y = SignedAxis(.y, bad)
+            XCTAssertEqual(
+                frames.faults(),
+                ["scene.base_axes_in_world.y must point one way along its axis: a sign of 1 or -1, not \(bad)."],
+                "world y \(bad)")
+        }
+        var frames = TestFrames.so101
+        frames.forward = SignedAxis(.y, -2)
+        frames.left = SignedAxis(.x, 3)
+        XCTAssertEqual(frames.faults().count, 2, "one sentence for each field")
+    }
+
+    func testUpMustBeTheBaseAxisThatLiesAlongWorldUp() {
+        for (name, valid) in TestFrames.all {
+            // Up is declared one way and the world turn puts world z along the other way.
+            var f = valid
+            f.up = f.up.reversed
+            f.left = f.left.reversed  // keeps the directions a turn, so only the two fields disagree
+            XCTAssertEqual(f.faults().count, 1, "\(name) up reversed")
+            XCTAssertTrue(f.faults()[0].hasPrefix("robot.directions.up is "), "\(name): \(f.faults())")
+            XCTAssertTrue(f.faults()[0].contains("scene.base_axes_in_world"), "\(name): \(f.faults())")
+        }
+        // The SO-101 with its base turned onto its side in the world while up still says z.
+        var f = TestFrames.so101
+        f.worldTurn = WorldTurn(x: SignedAxis(.x, 1), y: SignedAxis(.z, 1), z: SignedAxis(.y, -1))
+        XCTAssertEqual(
+            f.faults(),
+            [
+                "robot.directions.up is +z, but scene.base_axes_in_world puts base +y along world +z. They must name "
+                    + "the same base axis, the same way."
+            ])
+    }
+
+    func testFramesRoundTripThroughCodable() throws {
+        for (name, frames) in TestFrames.all {
+            let data = try JSONEncoder().encode(frames)
+            XCTAssertEqual(try JSONDecoder().decode(Frames.self, from: data), frames, name)
+        }
+        let text = String(decoding: try JSONEncoder().encode(TestFrames.so101.forward), as: UTF8.self)
+        XCTAssertEqual(text, "\"-y\"", "an axis is written as its text")
+        XCTAssertThrowsError(try JSONDecoder().decode(SignedAxis.self, from: Data("\"+w\"".utf8)))
+    }
+
     func testASignedAxisReadsAndWritesItsText() {
         for text in ["+x", "-x", "+y", "-y", "+z", "-z"] { XCTAssertEqual(SignedAxis(text: text)?.text, text) }
         for bad in ["x", "+", "++x", "+w", "up", "", "+xy", "1", "-0", " +x"] {
