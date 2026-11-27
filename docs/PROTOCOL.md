@@ -32,7 +32,7 @@ recordings of the real server back most of what is written here.
 - **Gripper link origin**: the point the server reports for the arm (`ee_pos`). It is not where the jaws close.
 - **Pinch point**: where the jaws close. A server can report it as `tool_pos`, the grasp point: the point to put on
   an object's centre before the jaws close. Without it the app estimates the pinch point as the gripper link origin
-  plus a fixed offset (`RobotProfile.toolOffset` in `App/Sources/Link/Guidance.swift`), which holds while the gripper
+  plus a fixed offset (the robot profile's `scene.tool_offset.offset_m`, `docs/PROFILE.md`), which holds while the gripper
   keeps the direction it had where the offset was measured: the gripper tilts as the arm moves, and as the wrist turns.
 - **Wrist roll** turns the jaws about the forearm; **wrist pitch** (the server says *flex*) tips them toward or
   away from the table. **Jaws** are the two fingers of the gripper.

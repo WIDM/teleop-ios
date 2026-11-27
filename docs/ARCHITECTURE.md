@@ -81,6 +81,7 @@ protocols (`HapticsPlaying`, `SoundPlaying`, `SpeechPlaying`, `LinkTransport`, `
 | `Link/` | `TeleopLink`, one conversation with the server: it builds every message, reads every answer and keeps the rules about holds, final acks and resets. `ServerState` reads a `state` message. `WristLeadBound` keeps a wrist command from running ahead of the measured wrist. `SimStall` (`SimStallDetector`) judges whether the simulation behind the server runs; `ObjectHold` knows whether the jaws hold an object and so which path a pad hold takes; `SessionDismissal` names why a server that keeps one phone per simulator let go of this phone. |
 | `Feedback/` | `FeedbackMonitor` turns what the link hears into `FeedbackEvent`s for the hold the operator has engaged; `OnTargetCue` decides the on-target haptic; `WorkAreaCue` tells when the commanded place leaves the work area; `JawsClosedReminder` decides when to tell the operator to open the gripper first; `ServerRefusalClass` sorts a server's refusal into what the operator can do about it; `CueTable` says how each event is felt, heard or spoken; `CueScheduler` decides what plays when two coincide. |
 | `Recording/` | `RecorderNarrator` compares successive states and says what happened to each take; `StopExits` decides which ways out of an emergency stop to offer. |
+| `Profile/` | `RobotProfile`, what the app knows about one robot setup, with its strict JSON form and its validation (`docs/PROFILE.md`). |
 
 `FakeTeleopState` is the session's real state, despite its name. With `liveLink` set, the connection, the latency
 and the emergency stop follow the server. With it off, the app runs **practice**: a built-in demo with no server,
@@ -94,7 +95,7 @@ where a press the session accepts goes live at once and no message is sent.
 | `Operating/` | The operating screen's logic: `OperatingController`, `OperatingRules`, `OperatingDisplay`, `GuidePicture`, and `OperatingFixtures` for UI tests. `Operating/Views/` draws it: `OperatingScreen`, `OperatingWords`, `GuideView`, `GuideWords`, `GuideLayout` (the fixed slots of the control surface). |
 | `Screens/` | `RootView` (picks the screen from `session.route`; there is no `NavigationStack`), `ConnectScreen`, `SettingsScreen` (with the aids' page), `TutorialScreens`, `PermissionsScreen`, `ButtonPadView`. |
 | `Components/` | `StopBand` (the STOP band of the other screens), the button styles, `HoldButton`, `PracticeBanner`. |
-| `Link/` | `LiveLinkController` (the two sockets and the 30 Hz timer), `LinkTransport` (one WebSocket), and `Guidance.swift`, which holds `RobotProfile`, `PhoneAxes` and `PhonePosture`. |
+| `Link/` | `LiveLinkController` (the two sockets and the 30 Hz timer), `LinkTransport` (one WebSocket), `ProfileLoader` (chooses and reads the robot profile file, `docs/PROFILE.md`), and `Guidance.swift`, which holds the profile's pinch-point helper, `PhoneAxes` and `PhonePosture`. |
 | `VolumeKeys/` | The volume keys' raw press and release events. |
 | `Input/` | `TouchSurfaceView`, a UIKit view that reports every raw touch with its radius and time. |
 | `Pose/` | `PoseTracker`: the phone's position and attitude from ARKit world tracking. |
@@ -768,7 +769,9 @@ stays until someone has read the change and moved the sync commit.
 
 ## Where robot and task numbers live
 
-`RobotProfile` (`App/Sources/Link/Guidance.swift`) holds what the app must know about one robot setup:
+`RobotProfile` (`Packages/TeleopCore/Sources/TeleopCore/Profile/`) holds what the app must know about one robot setup.
+It is read from a JSON file bundled with the app; `docs/PROFILE.md` gives the file's keys, units and the SO-101's
+values, and how a build chooses its file. The fields:
 
 | Field | What it is |
 |---|---|
@@ -806,7 +809,8 @@ stays until someone has read the change and moved the sync commit.
 box, the arrival tolerance under the blocked rule's 10 mm, an allowance of at least 3 s that leaves room for one
 re-sent start on the longest path in the box.
 
-`RobotProfile.so101Simulator` is the one profile. The input rules' thresholds are in `InputConstants`
+The SO-101 simulator's file (`App/Resources/Profiles/so101-s4-sim.json`) is the one profile; `ProfileLoader` reads
+it, and nothing else in the app names it. The input rules' thresholds are in `InputConstants`
 (`profile.inputConstants` adds the profile's wrist signs); the aids' thumb gestures add `slideUnderWayMm`, `tapMaxS`
 and `tapSlopMm`, the last parameters of its initializer. A few numbers that come from the server's rules sit next
 to the code that uses them: the 8 cm cap per server hold and the 1.5 s resync, and the pinch point's 5 mm lead and
