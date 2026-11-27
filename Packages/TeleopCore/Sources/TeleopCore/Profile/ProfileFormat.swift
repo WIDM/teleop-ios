@@ -12,6 +12,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case unknownKey(String)
     case wrongLength(String, expected: Int, found: Int)
     case unsupportedVersion(Int)
+    /// A value of the wrong kind (text where a number goes, say), or a file that is not JSON: the path is empty then.
+    case badValue(String)
     /// The file was read but its values do not make sense together: one sentence per fault.
     case invalid([String])
 
@@ -23,6 +25,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
             return "\(path) must have \(expected) numbers, not \(found)."
         case .unsupportedVersion(let version):
             return "profile_version \(version) is not supported; this app reads version \(RobotProfile.formatVersion)."
+        case .badValue(let path) where path.isEmpty: return "The profile is not a valid JSON object."
+        case .badValue(let path): return "\(path) has a value of the wrong kind."
         case .invalid(let faults): return faults.joined(separator: " ")
         }
     }
@@ -35,7 +39,12 @@ extension RobotProfile: Codable {
     /// Reads a profile file and checks it: a format error, or `ProfileFormatError.invalid` with every sentence
     /// `validate()` gives.
     public static func load(json: Data) throws -> RobotProfile {
-        let profile = try JSONDecoder().decode(RobotProfile.self, from: json)
+        let profile: RobotProfile
+        do {
+            profile = try JSONDecoder().decode(RobotProfile.self, from: json)
+        } catch let error as DecodingError {
+            throw ProfileFormatError.badValue(error.path)
+        }
         let faults = profile.validate()
         guard faults.isEmpty else { throw ProfileFormatError.invalid(faults) }
         return profile
@@ -248,6 +257,19 @@ extension ViewAim: Codable {
 }
 
 // MARK: Strict decoding
+
+extension DecodingError {
+    /// Where in the file the error is, such as `scene.target_size_m`; empty for the file as a whole.
+    fileprivate var path: String {
+        let context: Context
+        switch self {
+        case .typeMismatch(_, let c), .valueNotFound(_, let c), .keyNotFound(_, let c), .dataCorrupted(let c):
+            context = c
+        @unknown default: return ""
+        }
+        return context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }.joined(separator: ".")
+    }
+}
 
 /// A key of the profile format, written as the string it is in the file.
 struct ProfileKey: CodingKey, ExpressibleByStringLiteral {

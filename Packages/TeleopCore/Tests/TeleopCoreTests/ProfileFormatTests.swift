@@ -172,6 +172,19 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(error(long), .wrongLength("scene.grasp_tolerance_m", expected: 2, found: 3))
     }
 
+    /// Text where a number goes, or a file that is not JSON, is refused with where it is.
+    func testAValueOfTheWrongKindIsNamed() throws {
+        let text = changing(try object(), at: ["scene", "target_size_m"]) { $0["target_size_m"] = "25 mm" }
+        let data = try JSONSerialization.data(withJSONObject: text)
+        XCTAssertThrowsError(try RobotProfile.load(json: data)) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue("scene.target_size_m"))
+            XCTAssertEqual("\(error)", "scene.target_size_m has a value of the wrong kind.")
+        }
+        XCTAssertThrowsError(try RobotProfile.load(json: Data("{ \"name\": ".utf8))) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue(""))
+        }
+    }
+
     func testAnotherVersionIsRefused() throws {
         let later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
         XCTAssertEqual(error(later), .unsupportedVersion(2))
