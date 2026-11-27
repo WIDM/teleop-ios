@@ -3,8 +3,7 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
-/// The SO-101 profile file bundled with the app holds exactly the numbers the app ran with when the profile was a
-/// constant in code: each field against the literal it had there.
+/// The SO-101 profile file bundled with the app holds exactly these numbers: each field against the SO-101's literal.
 final class ProfileFileTests: XCTestCase {
     private static func rows(_ p: RobotProfile) -> [(String, AnyHashable, AnyHashable)] {
         [
@@ -55,7 +54,7 @@ final class ProfileFileTests: XCTestCase {
         ]
     }
 
-    func testTheSO101FileHoldsTheNumbersTheConstantHad() {
+    func testEachFieldOfTheSO101FileMatchesItsLiteral() {
         for (field, file, literal) in Self.rows(TestProfiles.so101) {
             XCTAssertEqual(file, literal, field)
         }

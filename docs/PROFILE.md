@@ -67,7 +67,8 @@ reports all of them at once. A profile is refused when:
 - `robot.gripper.open_deg` is not above zero, `empty_deg` is negative, or `empty_deg` is not below `open_deg`;
 - a position is not a finite number, or `scene.workspace_min_m` is not below `scene.workspace_max_m` on every axis;
 - a size or tolerance (`target_size_m`, `goal_size_m`, `grasp_tolerance_m`, `on_target_window_m` when given) is not
-  above zero, or a rate of `error_bound` is negative;
+  above zero, `on_target_window_m` is narrower than `grasp_tolerance_m` on either axis, or a rate of `error_bound` is
+  negative;
 - `assist.lock.time_limit_s` is not above zero;
 - a number of `assist.go_to` is out of range: the travel height, speed, arrival tolerance, settle time, time factor
   and arm-data timeout must be above zero; the correction reach, allowance and start grace zero or more; the
@@ -116,7 +117,7 @@ this offset. The estimate is exact where the offset was measured and grows less 
 
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
-| `offset_m` | m, [x, y, z] | from the point the server reports for the arm (the gripper link origin) to where the jaws pinch, robot base frame; holds while the wrist joints stay put | [0.007, -0.036, -0.088]: measured on the S4 simulator with the jaws turned sideways, where the reported point sat at the cube's centre plus (−0.007, +0.036, +0.088). The front-to-back grasp it replaced lifted the cube 1 time in 16. The scene starts with the jaws sideways (wrist roll 90 degrees), so the offset holds from the start pose |
+| `offset_m` | m, [x, y, z] | from the point the server reports for the arm (the gripper link origin) to where the jaws pinch, robot base frame; holds while the wrist joints stay put | [0.007, -0.036, -0.088]: measured on the S4 simulator on 2026-11-11 with the jaws turned sideways, where the reported point sat at the cube's centre plus (−0.007, +0.036, +0.088). The front-to-back grasp it replaced lifted the cube 1 time in 16. The scene starts with the jaws sideways (wrist roll 90 degrees), so the offset holds from the start pose |
 | `measured_at_m` | m, [x, y, z] | the reported point where the offset was measured (the cube's resting centre minus the offset) | [-0.002, -0.164, 0.1405] |
 | `measured_flex_deg`, `measured_roll_deg` | deg | the wrist flex and roll at that measurement | 40.24 and 90 |
 | `error_bound` | see below | how far the estimate may be off elsewhere; past half of `grasp_tolerance_m` across, the guide draws the pinch point as approximate | see below |
@@ -128,7 +129,9 @@ each base axis (`x_mm_per_cm` and `z_mm_per_cm` either way, `plus_y_mm_per_cm` t
 For the SO-101 the rates are 2.56, 11.12, 1.80, 8.43, 1.65 and 0.23. They were computed from the SO-101's
 description and the server's solver, fitted never to underestimate within 6 cm across and 5 cm above the measured
 place, and tested with tilt and turn up to 30 degrees. Below the measured height, where the fit has no places, the
-rate for up is used; outside the fitted region the bound is already over 10 mm.
+rate for up is used; outside the fitted region the bound is already over 10 mm. The line at half the grasp
+tolerance comes from hand trials, where a lift needed the jaws within about 1 cm, and the SO-101's tolerance is
+6 mm.
 
 ### `response`
 
