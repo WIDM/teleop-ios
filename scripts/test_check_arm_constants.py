@@ -98,8 +98,22 @@ class CheckArmConstantsTests(unittest.TestCase):
             "static let byID: [String: RobotProfile] = [:]",
             "static private(set) var bench: RobotProfile = make()",
             "nonisolated static let bench: RobotProfile = make()",
+            "static let all: [\n    RobotProfile\n] = []",
+            "static let byID: [\n    String: RobotProfile\n] = [:]",
+            "static var pair: (\n    Int,\n    TeleopCore.RobotProfile\n)? = nil",
+            "static let a = 1, b: RobotProfile = make()",
+            "static let a: Int = 1,\n    b = RobotProfile(name: x)",
         ):
             self.assertFails({APP: text + "\n"}, "a robot profile held in code", text)
+
+    def test_other_types_across_lines_and_other_bindings_pass(self):
+        for text in (
+            "static let all: [\n    String\n] = []\nlet p = profile",
+            "static let a = 1, b: Int = 2",
+            "static let a: Int = 1,\n    b = make(profile)",
+            "static let handler: (\n    RobotProfile.Type\n) -> Void = { _ in }",
+        ):
+            self.assertPasses({APP: text + "\n"}, text)
 
     def test_a_static_profile_in_the_profile_folder_fails_too(self):
         self.assertFails(
@@ -127,10 +141,22 @@ class CheckArmConstantsTests(unittest.TestCase):
             "extension RobotProfile {\n    static var arm: Self { make() }\n}",
             "public extension TeleopCore.RobotProfile {\n    static let arm =\n        .init(name: x)\n}",
             "extension RobotProfile: Sendable {\n    struct Inner {}\n    static let arm = Self.init(name: x)\n}",
+            "extension RobotProfile {\n    static let all: [\n        Self\n    ] = []\n}",
+            "extension RobotProfile {\n    static let arm: RobotProfile = .init(name: x)\n}",
         ):
             self.assertFails(
                 {PROFILE: text + "\n"}, "a robot profile held in code", text
             )
+
+    def test_a_static_of_another_type_inside_the_profile_type_passes(self):
+        self.assertPasses(
+            {
+                PROFILE: "extension RobotProfile {\n"
+                "    static let zero: SIMD3<Float> = .init(repeating: 0)\n"
+                "    static let id = 1, unit: SIMD3<Float> = .init(1, 0, 0)\n"
+                "}\n"
+            }
+        )
 
     def test_a_profile_built_outside_the_profile_folder_fails(self):
         for relative, text in (
@@ -161,10 +187,84 @@ class CheckArmConstantsTests(unittest.TestCase):
             ),
             (APP, "let p =\n    RobotProfile(name: n)"),
             (CORE, "let p = RobotProfile(name: n)"),
+            (
+                APP,
+                "func bench() throws -> TeleopCore.RobotProfile {\n"
+                "    guard ok else { throw Failure() }\n    return .init(name: n)\n}",
+            ),
+            (
+                APP,
+                "struct Maker {\n    func make() -> RobotProfile {\n        .init(name: n)\n    }\n}",
+            ),
+            (
+                APP,
+                "struct Fake {\n    var offsetMeasuredAt: Date\n}\n"
+                "let model = AppModel(profile: .init(name: n, offsetMeasuredAt: y))",
+            ),
+            (
+                APP,
+                "extension RobotProfile {\n    var moved: Self { .init(name: n) }\n}",
+            ),
+            (
+                APP,
+                "extension RobotProfile {\n    func moved() -> Self {\n"
+                "        if flag { return .init(name: n) }\n        return self\n    }\n}",
+            ),
+            (
+                APP,
+                "extension RobotProfile {\n    var moved: RobotProfile {\n        get { .init(name: n) }\n    }\n}",
+            ),
+            (
+                APP,
+                "extension RobotProfile {\n    func moved() -> RobotProfile? {\n        switch kind {\n"
+                "        case .a: return .init(name: n)\n        default: return nil\n        }\n    }\n}",
+            ),
         ):
             self.assertFails(
                 {relative: text + "\n"}, "a robot profile built in code", text
             )
+
+    def test_the_loader_may_name_and_hold_a_profile_but_not_build_one(self):
+        loader = "App/Sources/Link/ProfileLoader.swift"
+        for text in (
+            "let p = RobotProfile(name: n)",
+            "static let current: RobotProfile = .init(name: n)",
+            "static func spare() -> RobotProfile { .init(name: n) }",
+            "let model = AppModel(profile: .init(name: n, offsetMeasuredAt: y))",
+        ):
+            self.assertFails(
+                {loader: text + "\n"}, "a robot profile built in code", text
+            )
+        self.assertPasses(
+            {
+                loader: (
+                    'static let fallback = "so-arm"\n'
+                    "static let current: RobotProfile = {\n"
+                    "    try! RobotProfile.load(json: data)\n"
+                    "}()\n"
+                    "static func load(id: String) throws -> RobotProfile {\n"
+                    "    try RobotProfile.load(json: Data(contentsOf: url(id)))\n"
+                    "}\n"
+                )
+            }
+        )
+
+    def test_a_field_or_another_types_init_is_not_a_profile_built(self):
+        for text in (
+            "struct Note {\n    let offsetMeasuredAt: SIMD3<Float>\n}",
+            "struct Note {\n    public var offsetMeasuredAt: Date?\n}",
+            "extension RobotProfile {\n    var vector: SIMD3<Float> { .init(repeating: 0) }\n}",
+            "extension RobotProfile {\n    func origin() -> SIMD3<Float> {\n"
+            "        return .init(repeating: 0)\n    }\n}",
+            "extension RobotProfile {\n    var bound: EstimateBound {\n"
+            "        if ok { .init(x: 1) } else { .init(x: 2) }\n    }\n}",
+            "extension RobotProfile {\n    func moved() -> Self {\n"
+            "        let v: SIMD3<Float> = .init(repeating: 0)\n        return with(v)\n    }\n}",
+            "let v: SIMD3<Float> = .init(repeating: 0)",
+            "draw(at: .init(x: 1, y: 2))",
+            "struct Other {\n    func make() -> Self { .init() }\n}",
+        ):
+            self.assertPasses({APP: text + "\n"}, text)
 
     def test_a_profile_built_in_the_profile_folder_or_a_test_passes(self):
         text = (
@@ -253,6 +353,10 @@ class CheckArmConstantsTests(unittest.TestCase):
             ),
             (CORE, "let p = ProfileLoader.current\n"),
             (APP_TEST, "let p = ProfileLoader.current\n"),
+            (
+                "App/Sources/Link/ProfileLoader.swift",
+                "static var name: String { ProfileLoader.current.name }\n",
+            ),
         ):
             self.assertFails(
                 {relative: text},
@@ -268,6 +372,13 @@ class CheckArmConstantsTests(unittest.TestCase):
                 "App/Sources/Link/ProfileLoader.swift": "static let current: RobotProfile = chosen()\n",
                 APP: "// Comes from ProfileLoader.current, through AppModel.\nlet id = ProfileLoader.currentID\n",
             }
+        )
+
+    def test_a_name_spelled_with_swift_escapes_is_left_to_review(self):
+        """The documented limit: the check guards against accidents, not deliberate evasion. This pins it, so a change
+        in what the check catches is seen."""
+        self.assertPasses(
+            {APP: 'let isBench = profile.name == "SO-\\u{61}rm (bench)"\n'}
         )
 
 

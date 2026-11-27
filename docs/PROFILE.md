@@ -24,9 +24,11 @@ without `.json`.
 `ProfileLoader` (`App/Sources/Link/ProfileLoader.swift`) is the only code that turns an id into a profile. If the
 chosen file is missing, cannot be read or fails validation, the app stops at launch with a sentence that names the
 file and the fault. A check in CI (`scripts/check-arm-constants.py`) fails when any other code names a profile id or a
-profile's name, holds a profile in a `static let` or `static var`, builds a profile outside the core's `Profile`
-folder or names `so101Simulator`, and when any code, tests included, reads `ProfileLoader.current` outside
-`AppModel` and `OperatingFixtures`. Tests read profiles through `TestProfiles` in `Tests/TeleopTests`.
+profile's name, holds a profile in a `static let` or `static var` or names `so101Simulator`; when any code but the
+core's `Profile` folder and the tests builds a profile, the loader included (it reads one through the core); and when
+any code, tests and the loader included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`. The
+check reads text, not types: it catches accidents, and review catches deliberate workarounds. Tests read profiles
+through `TestProfiles` in `Tests/TeleopTests`.
 
 ## The file format
 
