@@ -25,8 +25,11 @@ without `.json`.
 chosen file is missing, cannot be read or fails validation, the app stops at launch with a sentence that names the
 file and the fault. A check in CI (`scripts/check-arm-constants.py`) fails when any other code names a profile id or a
 profile's name, holds a profile in a `static let` or `static var` or names `so101Simulator`; when any code but the
-core's `Profile` folder and the tests builds a profile, the loader included (it reads one through the core); and when
-any code, tests and the loader included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`. The
+core's `Profile` folder and the tests builds a profile, the loader included (it reads one through the core); when
+code outside the tests holds a direction table or a conversion by base axis (`OperatorDirection.baseAxis`,
+`OperatorFrame`, a direction's `baseVector` or `linkVector` property, the static `GuideProjection` conversions) or
+holds or builds a `Frames` outside the core's `Profile` folder, a static whose type is not written included; and when any code,
+tests and the loader included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`. The
 check reads text, not types: it catches accidents, and review catches deliberate workarounds. Tests read profiles
 through `TestProfiles` in `Tests/TeleopTests`.
 
@@ -36,8 +39,9 @@ through `TestProfiles` in `Tests/TeleopTests`.
 {
   "profile_version": 1,
   "name": "SO-101 (S4 simulator)",
-  "robot":    { "wrist": { ... }, "gripper": { ... } },
-  "scene":    { ..., "tool_offset": { ..., "error_bound": { ... } } },
+  "robot":    { "directions": { ... }, "wrist": { ... }, "gripper": { ... } },
+  "server":   { "link_signs": [ ... ] },
+  "scene":    { ..., "base_axes_in_world": { ... }, "tool_offset": { ..., "error_bound": { ... } } },
   "response": { ... },
   "assist":   { "lock": ..., "go_to": ..., "guide": ..., "explain": ..., "views": ... }
 }
@@ -58,13 +62,26 @@ The rules:
   a sign, a factor or a yes/no.
 - **Vectors are arrays:** `[x, y, z]` in the robot base frame, or `[across, height]`. An array of the wrong length is
   refused.
+- **Axes are written as text:** `+x`, `-x`, `+y`, `-y`, `+z` or `-z`. Those six are the only ones: the app handles
+  quarter turns, so a direction at another angle (a base mounted at 30 degrees, say) cannot be given. Anything else
+  stops the load with a sentence that says so.
 - **The robot base frame** is the frame the server reports the arm in. For the SO-101 in the S4 simulator, base +x
-  is the operator's left, base −y is forward (away from the base) and +z is up.
+  is the operator's left, base −y is forward (away from the base) and +z is up (`robot.directions`).
 
 After the format, the values are validated. Each fault gives one sentence that names the field, and the load
 reports all of them at once. A profile is refused when:
 
 - `name` is empty;
+- `robot.directions`: forward, left and up do not lie along three different base axes, one each; or they do but make
+  a mirror image of the operator's view and not a turn of the base (this catches one wrong sign; two wrong signs are a
+  valid half turn that only the direction check below catches); or a direction built in code has a sign other than
+  1 or -1 (a file cannot say one);
+- `robot.directions.up` is not the base axis that `scene.base_axes_in_world` puts along world +z, the same way; the
+  sentence names both fields;
+- `server.link_signs` has a value that is not 1 or -1;
+- `scene.base_axes_in_world`: x, y and z do not lie along three different world axes, or they make a mirror image (the
+  base's x cross y must be its z), or one has a sign other than 1 or -1 when built in code; `scene.base_in_world_m` is
+  not finite numbers;
 - `robot.wrist.roll_sign` or `tilt_sign` is not 1 or -1;
 - `robot.gripper.open_deg` is not above zero, `empty_deg` is negative, or `empty_deg` is not below `open_deg`;
 - a position is not a finite number, or `scene.workspace_min_m` is not below `scene.workspace_max_m` on every axis;
@@ -82,6 +99,38 @@ reports all of them at once. A profile is refused when:
 ## Fields
 
 Each table gives the key, its unit, what it does, and the SO-101 value with how it was found.
+
+### `robot.directions`
+
+Which base axis, and which way along it, is forward, left and up as the operator at the table sees them; right, back
+and down are the opposites. Buttons, voice and the phone all send these directions, and the guide draws them.
+
+| Key | Unit | What it does | SO-101 |
+|---|---|---|---|
+| `forward` | axis | the base axis the arm moves along, away from the operator, when told forward | `-y` |
+| `left` | axis | the base axis the arm moves along toward the operator's left | `+x`: toward the goal |
+| `up` | axis | the base axis the arm moves along when told up; "height" everywhere in the app (the table, "lowest", the travel height) is the part along this axis | `+z` |
+
+The SO-101's values: base +x runs toward the goal, which is at the operator's left; base −y is away from the base,
+which is forward; base +z is up. A wrong value goes wrong in the loudest way: every direction moves the arm the
+wrong way, the guide is mirrored, or, with one sign wrong, the arm moves toward the operator. To find them for a new
+arm, with the arm's start pose clear, press each of the six direction buttons once and read the change of `ee_pos` in
+the server's state: the axis that changed is the base axis and the sign of the change is the sign. Write the three axes
+for forward, left and up; the load refuses a set that makes a mirror image, and the six presses confirm the rest.
+`up` must also be the base axis that `scene.base_axes_in_world` puts along world +z: the two fields say the same fact
+about the mounting, and the load refuses a file in which they differ.
+
+### `server`
+
+What the server does to what it is sent, which is a fact about the server, not about the arm.
+
+| Key | Unit | What it does | SO-101 |
+|---|---|---|---|
+| `link_signs` | [x, y, z], each 1 or -1 | the server moves the base by a translation hold's offset with each axis multiplied by these: the frame the app sends offsets in is the base frame with some axes mirrored | [1, 1, -1]: the S4 server was calibrated on a WebXR phone (mapping `phone_axes_20261025_v1`, `frame: webxr_local`) and moves the arm by [p0, p1, −p2] of the offset it is sent. A server whose z is up in its own frame would give [1, 1, 1] |
+
+A wrong sign reverses that axis: for the SO-101's z, every vertical move would go the other way. To find them, send a
+translation hold of +1 cm along each of the link's axes and read the change of `ee_pos`; the sign of the change is the
+sign.
 
 ### `robot.wrist`
 
@@ -105,7 +154,8 @@ The jaw reading is the server's `gripper_deg`, in degrees for the SO-101.
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `base_in_world_m` | m, [x, y, z] | where the robot base sits in the world frame; the server reports the arm in the base frame and objects in the world frame, and this brings objects into the base frame | [0, 0, 0.05], `ROBOT_BASE_POS_W` in the simulator's source |
-| `table_height_m` | m | the table surface's height in the robot base frame, for the guide | 0.04: the simulator's `TABLE_TOP_Z_M` minus the base height |
+| `base_axes_in_world` | axes, `x`, `y`, `z` | which world axis each axis of the robot base lies along: the quarter turn from the base to the world, applied with the shift above | `x`: `+x`, `y`: `+y`, `z`: `+z`: the SO-101's base axes lie along the world's. The base axis that lies along world +z must be `robot.directions.up`, the same way |
+| `table_height_m` | m | the table surface's height over the base origin, along up (`robot.directions.up`), for the guide | 0.04: the simulator's `TABLE_TOP_Z_M` minus the base height. For a base whose up is the other way along its z, the table under it has a negative height |
 | `workspace_min_m`, `workspace_max_m` | m, [x, y, z] | the box the server keeps the pinch point inside, for the guide and the "Blocked." rule; moved back by `offset_m` it is the box for the gripper link | the simulator clamps the point it reports to 8 cm either way of where it is after a reset (`WORKSPACE_RADIUS_M` around `initial_ee_pos_b`); this is that box moved by `offset_m`, so it holds while the wrist keeps its start pose. When the server reports a tool point, the guide moves the box by the measured offset instead |
 | `target_size_m` | m | the task object's size across, to draw it true to size | 0.025, the cube |
 | `goal_size_m` | m | the goal area's size across; the goal is the box the server judges success in | 0.05 |

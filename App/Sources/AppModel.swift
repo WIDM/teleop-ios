@@ -264,8 +264,7 @@ final class AppModel {
     /// table is still told.
     private func guideAidsChanged() {
         var sides = Set(OperatorDirection.allCases)
-        let floorBelowTable = min(profile.workspaceMin.z, profile.workspaceMax.z) < profile.tableHeight
-        if floorBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
+        if profile.workspaceFloorIsBelowTable, assist.guide?.lowestCue == true { sides.remove(.down) }
         link.guideAidsChanged(
             assist.guide, gripperBox: profile.gripperWorkspace, sides: sides,
             directionalBlocked: profile.usesDirectionalBlockedFeedback)
@@ -350,7 +349,7 @@ final class AppModel {
         self.nowMs = nowMs
         link = LiveLinkController(
             makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
-            gripperLimits: profile.gripperLimits, clientName: clientName
+            gripperLimits: profile.gripperLimits, frames: profile.frames, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         self.experimentTiming.send = { [weak self] type, payload in
@@ -1203,7 +1202,8 @@ final class AppModel {
         // A stop the server reports counts before the session has latched it: the same state may bring both.
         let stopped = session.state.emergencyStop || serverState?.estop == true
         let look = OnTargetCue.Look(
-            gap: picture?.targetGap, target: display.arm?.target.map(GuidePicture.operatorPoint),
+            gap: picture?.targetGap,
+            target: display.arm?.target.map { GuidePicture.operatorPoint($0, frames: profile.frames) },
             approximate: picture?.approximate ?? false, holding: picture?.holding ?? false, taskAid: display.taskAid,
             jawsOpen: serverState?.gripper.map { $0 == .open }, stopped: stopped
         )

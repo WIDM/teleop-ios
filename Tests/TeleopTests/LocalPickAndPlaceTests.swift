@@ -31,7 +31,8 @@ final class LocalPickAndPlaceTests: XCTestCase {
     ) throws {
         // Three and a half times the lab server's pace, so the script's waits shrink by about as much.
         server = LocalTeleopServer(
-            config: .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint))
+            config: try .s4Simulator(stepsPerSecond: 60, recorder: recorder, reportsToolPoint: toolPoint).settingFrames(
+                from: TestProfiles.so101.frames))
         try server.start()
         hand = ScriptedOperator(
             address: server.address, mode: mode, smoothing: 0.3, pace: 0.3, makeTransport: path.map { $0.transport })

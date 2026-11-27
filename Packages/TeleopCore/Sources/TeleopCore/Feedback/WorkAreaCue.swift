@@ -6,8 +6,7 @@ import simd
 /// It judges in gripper-link space: the commanded gripper-link point against the profile's box minus its tool offset.
 /// The server keeps the gripper link in its box, and the guide draws the commanded ring and the box with the same
 /// measured offset added to both, so this is the judgement the picture shows. A point beyond a face by more than
-/// `slackMeters` is outside, on the side whose face it is farthest beyond, named through the axis table of
-/// `OperatorDirection`.
+/// `slackMeters` is outside, on the side whose face it is farthest beyond, named through the profile's `Frames`.
 ///
 /// A side not yet told plays when it becomes the side outside: on the tick that turns inside into outside, or when the
 /// farthest side changes while outside. Each side is told again only after the point has been back inside its own
@@ -37,6 +36,8 @@ public struct WorkAreaCue: Sendable {
     /// The box in gripper-link space, robot base frame, metres.
     public let low: SIMD3<Double>
     public let high: SIMD3<Double>
+    /// Which base axis each side lies along.
+    public let frames: Frames
     /// The sides whose faces count. A point past any other face is judged as if that face were not there.
     public let sides: Set<OperatorDirection>
     /// The side the commanded point is outside on now, for the guide's line; nil while inside. The line and the cue
@@ -55,8 +56,10 @@ public struct WorkAreaCue: Sendable {
     /// `low` and `high` are opposite corners of the box in gripper-link space, robot base frame; either order.
     /// `sides`: the faces that count; all six unless a face cannot be reached.
     public init(
-        low: SIMD3<Double>, high: SIMD3<Double>, sides: Set<OperatorDirection> = Set(OperatorDirection.allCases)
+        frames: Frames, low: SIMD3<Double>, high: SIMD3<Double>,
+        sides: Set<OperatorDirection> = Set(OperatorDirection.allCases)
     ) {
+        self.frames = frames
         self.low = simd_min(low, high)
         self.high = simd_max(low, high)
         self.sides = sides
@@ -130,7 +133,7 @@ public struct WorkAreaCue: Sendable {
 
     /// How far `point` lies past the box's face on `side`, metres: positive outside, negative inside.
     private func excess(of point: SIMD3<Double>, past side: OperatorDirection) -> Double {
-        let way = side.baseVector
+        let way = frames.baseVector(side)
         return simd_dot(point, way) - max(simd_dot(low, way), simd_dot(high, way))
     }
 }

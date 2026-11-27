@@ -1533,7 +1533,7 @@ struct ArmModel {
             commanded = []
             frozen = nil
         }
-        commanded.append((time, move!.start + OperatorFrame.base(fromLink: offset)))
+        commanded.append((time, move!.start + TestFrames.so101.base(fromLink: offset)))
     }
 }
 
@@ -1761,7 +1761,7 @@ struct GoWatch {
         if !track.travelHeightSeen, offset.x != 0 || offset.y != 0 {
             return "a move to a point goes level only once a fresh position reached the travel height: \(offset)"
         }
-        let point = track.start + OperatorFrame.base(fromLink: offset)
+        let point = track.start + TestFrames.so101.base(fromLink: offset)
         let low = simd_min(track.boxLow, track.start) - 1e-9
         let high = simd_max(track.boxHigh, track.start) + 1e-9
         if any(point .< low) || any(point .> high) {

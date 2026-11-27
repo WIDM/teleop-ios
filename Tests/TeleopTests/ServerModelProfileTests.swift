@@ -12,6 +12,12 @@ final class ServerModelProfileTests: XCTestCase {
         let profile = TestProfiles.so101
         XCTAssertEqual(SIMD3<Float>(model.toolOffset), profile.toolOffset)
         XCTAssertEqual(SIMD3<Float>(model.baseInWorld), profile.baseInWorld)
+        XCTAssertEqual(model.baseInWorld, profile.frames.baseInWorld)
+        XCTAssertEqual(model.linkSigns, profile.frames.linkSigns, "the link's signs")
+        XCTAssertEqual(
+            [model.baseXInWorld, model.baseYInWorld, model.baseZInWorld],
+            [profile.frames.worldTurn.x.vector, profile.frames.worldTurn.y.vector, profile.frames.worldTurn.z.vector],
+            "which world axis each base axis lies along")
         XCTAssertEqual(Float(model.graspToleranceAcross), profile.graspTolerance.x)
         XCTAssertEqual(Float(model.graspToleranceHeight), profile.graspTolerance.y)
         XCTAssertEqual(Float(model.cubeSize), profile.targetSize)

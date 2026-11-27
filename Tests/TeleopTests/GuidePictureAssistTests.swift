@@ -194,7 +194,7 @@ final class GuidePictureAssistTests: XCTestCase {
         for aids in [nil, GuideAids.all] {
             let p = picture(going, aids)
             let mark = try XCTUnwrap(p.goTarget, "\(String(describing: aids))")
-            let point = GuidePicture.operatorPoint(target)
+            let point = GuidePicture.operatorPoint(target, frames: TestProfiles.so101.frames)
             XCTAssertEqual(mark.above.x, p.projection.above(point).x, accuracy: 1e-12)
             XCTAssertEqual(mark.above.y, p.projection.above(point).y, accuracy: 1e-12)
             XCTAssertEqual(mark.behind.x, p.projection.behind(point).x, accuracy: 1e-12)

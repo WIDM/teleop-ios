@@ -672,7 +672,7 @@ final class GuideAidsLinkTests: XCTestCase {
             let guide = try XCTUnwrap(model.operating.guide)
             var farthest: (side: OperatorDirection, by: Double)?
             for side in OperatorDirection.allCases where side != .down {
-                let way = side.baseVector
+                let way = TestProfiles.so101.frames.baseVector(side)
                 let by = simd_dot(ring, way) - max(simd_dot(guide.workBoxLow, way), simd_dot(guide.workBoxHigh, way))
                 if by > (farthest?.by ?? -.infinity) { farthest = (side, by) }
             }

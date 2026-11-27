@@ -14,9 +14,11 @@ public struct RobotProfile: Equatable, Sendable {
     public var offsetMeasuredRollDeg: Double
     /// How far the estimate may be off away from where `toolOffset` was measured.
     public var estimateBound: EstimateBound
-    /// Where the robot base sits in the world frame, metres. The server reports the arm in the base frame
-    /// and objects in the world frame; this brings objects into the base frame.
-    public var baseInWorld: SIMD3<Float>
+    /// How the operator's view, the robot base, the link and the world relate: which base axis is forward, left and
+    /// up, how the link's offsets are signed against the base's, and where the base sits in the world frame and how
+    /// it is turned there. The server reports the arm in the base frame and objects in the world frame; the frames
+    /// bring objects into the base frame.
+    public var frames: Frames
     /// How close the pinch point must be to an object's centre, across the table and in height, metres, for closing
     /// the jaws to take hold of it.
     public var graspTolerance: SIMD2<Float>
@@ -33,7 +35,8 @@ public struct RobotProfile: Equatable, Sendable {
     /// (`ArmReading.boxShift`).
     public var workspaceMin: SIMD3<Float>
     public var workspaceMax: SIMD3<Float>
-    /// Height of the table surface in the robot base frame, metres.
+    /// Height of the table surface over the robot base origin, metres, along up (`frames.height(of:)`): the base's
+    /// own z when z is up, the other way round when it points down.
     public var tableHeight: Float
     /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt; 1 or -1.
     public var rollSign: Double
@@ -61,7 +64,7 @@ public struct RobotProfile: Equatable, Sendable {
         offsetMeasuredFlexDeg: Double,
         offsetMeasuredRollDeg: Double,
         estimateBound: EstimateBound,
-        baseInWorld: SIMD3<Float>,
+        frames: Frames,
         graspTolerance: SIMD2<Float>,
         targetSize: Float,
         goalSize: Float,
@@ -83,7 +86,7 @@ public struct RobotProfile: Equatable, Sendable {
         self.offsetMeasuredFlexDeg = offsetMeasuredFlexDeg
         self.offsetMeasuredRollDeg = offsetMeasuredRollDeg
         self.estimateBound = estimateBound
-        self.baseInWorld = baseInWorld
+        self.frames = frames
         self.graspTolerance = graspTolerance
         self.targetSize = targetSize
         self.goalSize = goalSize
@@ -134,8 +137,22 @@ public struct RobotProfile: Equatable, Sendable {
         return error > graspTolerance.x / 2
     }
 
+    /// Where the robot base sits in the world frame, metres: the shift of `frames`.
+    public var baseInWorld: SIMD3<Float> {
+        get { SIMD3<Float>(frames.baseInWorld) }
+        set { frames.baseInWorld = SIMD3<Double>(newValue) }
+    }
+
+    /// The work box's floor, along up, lies below the table: the table stops the arm before it reaches the box's bottom
+    /// face.
+    public var workspaceFloorIsBelowTable: Bool {
+        let floor = min(
+            frames.height(of: SIMD3<Double>(workspaceMin)), frames.height(of: SIMD3<Double>(workspaceMax)))
+        return floor < Double(tableHeight)
+    }
+
     /// A world-frame position in the robot base frame.
-    public func inBase(world: SIMD3<Float>) -> SIMD3<Float> { world - baseInWorld }
+    public func inBase(world: SIMD3<Float>) -> SIMD3<Float> { frames.base(fromWorld: world) }
 }
 
 /// A bound on how far an estimated pinch point is from the true one, in millimetres: so many per centimetre the

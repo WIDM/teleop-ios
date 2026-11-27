@@ -41,6 +41,7 @@ final class RetargetTests: XCTestCase {
     func testARetargetWaitsForAPositionMeasuredAfterTheChange() {
         let start = SIMD3(0.027617, -0.177418, Rig.travelZ)
         var move = GoMove(
+            frames: TestFrames.so101,
             start: start, target: start + SIMD3(0.04, 0, 0), limits: Rig.goLimits, at: 10,
             boxLow: Rig.boxLow, boxHigh: Rig.boxHigh)
         move.pauseForRetarget(at: 10.2)
@@ -100,7 +101,7 @@ final class RetargetTests: XCTestCase {
     private func rearPoint(height: Double) -> SIMD2<Double> {
         let panel = rearPanel()
         let share = panel.projection.behind(
-            GuideProjection.operatorPoint(SIMD3(0.027617, -0.177418, Rig.table + height)))
+            TestFrames.so101.operatorPoint(SIMD3(0.027617, -0.177418, Rig.table + height)))
         return SIMD2(118 + share.x * 166, 440 + share.y * 100)
     }
 

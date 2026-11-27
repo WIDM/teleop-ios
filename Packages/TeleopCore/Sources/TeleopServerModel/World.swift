@@ -46,26 +46,31 @@ public struct World: Equatable, Sendable {
     /// Where the jaws pinch, base frame.
     func pinch(_ config: ServerModelConfig) -> SIMD3<Double> { config.toolTurn?.pinch(arm) ?? arm + config.toolOffset }
 
-    func cubeInBase(_ config: ServerModelConfig) -> SIMD3<Double> { cube - config.baseInWorld }
+    func cubeInBase(_ config: ServerModelConfig) -> SIMD3<Double> { config.baseFromWorld(cube) }
 
     /// Moves the arm toward `target` by at most `maxStep`, stopping its jaw tips (or a held cube) on the table.
     mutating func moveArm(toward target: SIMD3<Double>, maxStep: Double, _ config: ServerModelConfig) {
         var next = arm + limited(target - arm, to: maxStep)
+        // Heights are along up, the base axis that lies along world z: the table's, over the base origin, is the
+        // world's table height less the base's own height.
         let tableTop = config.tableTopWorld - config.baseInWorld.z
         var lowest: Double
         if let turn = config.toolTurn {
             // The pinch point's lowest height, and the height of the reported point that puts it there at this place.
             var pinchFloor = tableTop + config.jawReachBelowPinch
-            if holdingCube { pinchFloor = max(pinchFloor, tableTop - gripOffset.z + config.cubeSize / 2) }
+            if holdingCube {
+                pinchFloor = max(pinchFloor, tableTop - config.height(of: gripOffset) + config.cubeSize / 2)
+            }
             lowest = turn.armHeight(over: SIMD2(next.x, next.y), pinchAt: pinchFloor)
         } else {
-            lowest = tableTop - config.toolOffset.z + config.jawReachBelowPinch
+            let toolHeight = config.height(of: config.toolOffset)
+            lowest = tableTop - toolHeight + config.jawReachBelowPinch
             if holdingCube {
-                lowest = max(lowest, tableTop - config.toolOffset.z - gripOffset.z + config.cubeSize / 2)
+                lowest = max(lowest, tableTop - toolHeight - config.height(of: gripOffset) + config.cubeSize / 2)
             }
         }
         if let obstacleUnderArm { lowest = max(lowest, obstacleUnderArm) }
-        next.z = max(next.z, lowest)
+        next = config.settingHeight(max(config.height(of: next), lowest), of: next)
         arm = next
     }
 
@@ -84,7 +89,7 @@ public struct World: Equatable, Sendable {
             holdingCube = false
         }
         if holdingCube {
-            cube = pinchPoint + gripOffset + config.baseInWorld
+            cube = config.worldFromBase(pinchPoint + gripOffset)
         } else {
             cube.z = restingHeight(config)
         }
@@ -97,8 +102,8 @@ public struct World: Equatable, Sendable {
         if holdingCube { return true }
         let gap = cubeInBase(config) - pinch(config)
         return jaw >= config.jawAngleOnCube
-            && (gap.x * gap.x + gap.y * gap.y).squareRoot() <= config.graspToleranceAcross
-            && abs(gap.z) <= config.graspToleranceHeight
+            && config.across(gap) <= config.graspToleranceAcross
+            && abs(config.height(of: gap)) <= config.graspToleranceHeight
             && abs(wristRoll - config.sidewaysRoll) <= config.sidewaysRollTolerance
             && abs(wristFlex - config.wristFlexStart) <= config.graspFlexTolerance
     }

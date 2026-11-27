@@ -2,10 +2,10 @@ import XCTest
 @testable import TeleopCore
 
 final class FeedbackMonitorTests: XCTestCase {
-    private var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+    private var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
 
     override func setUp() {
-        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
     }
 
     private func state(
@@ -230,7 +230,7 @@ final class FeedbackMonitorTests: XCTestCase {
     /// take its outcome away: the first state after the close still decides it.
     func testTheNextArmOrWristHoldLeavesAnEmptyCloseToBeTold() {
         for next in [ControlKind.wrist, .pose] {
-            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
             monitor.startSent(.gripper(.closed), restart: false, at: 0)
             XCTAssertEqual(monitor.observe(state(.gripperJogging, jaw: 0.4), at: 200), [])
             monitor.released(.gripper(.closed))
@@ -244,7 +244,7 @@ final class FeedbackMonitorTests: XCTestCase {
     /// The mirror case: contact the server reports after the next hold has started still belongs to the close.
     func testContactAfterTheNextHoldStartedStillGrips() {
         for next in [ControlKind.wrist, .pose] {
-            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+            monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
             monitor.startSent(.gripper(.closed), restart: false, at: 0)
             monitor.released(.gripper(.closed))
             monitor.startSent(next, restart: false, at: 100)
@@ -303,7 +303,7 @@ final class FeedbackMonitorTests: XCTestCase {
     private func blockedEvents(
         short: Double, crawlMetresPerSecond: Double = 0, stillFromMs: Int = 0, until end: Int = 1500
     ) -> [Int] {
-        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2))
+        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
         let start = SIMD3(0.02, -0.14, 0.133)
         monitor.startSent(.pose, restart: false, at: 0)
         var raised: [Int] = []

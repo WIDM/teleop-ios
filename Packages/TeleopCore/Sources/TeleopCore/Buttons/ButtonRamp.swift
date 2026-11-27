@@ -19,9 +19,12 @@ public struct ButtonRamp: Equatable, Sendable {
     public let direction: OperatorDirection
     public let speed: ButtonSpeed
     public let startMs: Int
+    /// Which way the button's direction goes out in the link's frame.
+    public let frames: Frames
     public private(set) var frozenAtMs: Int?
 
-    public init(direction: OperatorDirection, speed: ButtonSpeed, startMs: Int) {
+    public init(direction: OperatorDirection, speed: ButtonSpeed, startMs: Int, frames: Frames) {
+        self.frames = frames
         self.direction = direction
         self.speed = speed
         self.startMs = startMs
@@ -35,7 +38,7 @@ public struct ButtonRamp: Equatable, Sendable {
 
     /// The offset to send at `nowMs`.
     public func offset(atMs nowMs: Int) -> SIMD3<Double> {
-        direction.linkVector * distance(atMs: nowMs)
+        frames.linkVector(direction) * distance(atMs: nowMs)
     }
 
     /// The target stays where it is at `nowMs` from now on. A second freeze changes nothing.

@@ -815,7 +815,8 @@ final class LiveLinkTests: XCTestCase {
     /// What the robot base does with an offset, per the server's calibrated mapping: [x, y, −z].
     private func baseMotion(_ world: SIMD3<Float>, camera: simd_float4x4) -> SIMD3<Float> {
         let axes = LiveLinkController.operatorAxes(camera)
-        let sent = LiveLinkController.serverOffset(world, right: axes.right, forward: axes.forward)
+        let sent = LiveLinkController.serverOffset(
+            world, right: axes.right, forward: axes.forward, frames: TestProfiles.so101.frames)
         return SIMD3(sent.x, sent.y, -sent.z)
     }
 

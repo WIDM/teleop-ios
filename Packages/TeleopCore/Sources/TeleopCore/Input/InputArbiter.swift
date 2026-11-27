@@ -1384,7 +1384,8 @@ public struct InputArbiter: Sendable {
         // the pinch point gives the move its measured offset to follow.
         let offset = fix.pinchReported ? fix.gripper.map { fix.pinch - $0 } : nil
         move = GoMove(
-            start: fix.pinch, target: target, limits: rule, at: now, boxLow: panel.boxLow, boxHigh: panel.boxHigh,
+            frames: panel.projection.frames, start: fix.pinch, target: target, limits: rule, at: now,
+            boxLow: panel.boxLow, boxHigh: panel.boxHigh,
             offset: offset)
         moveTouchDown = point
         engaged = .going(target: target, since: now)

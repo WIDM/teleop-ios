@@ -23,11 +23,11 @@ public enum TranslationAxis: String, CaseIterable, Equatable, Sendable {
         }
     }
 
-    public func project(right: Double, forward: Double, up: Double) -> SIMD3<Double> {
+    public func project(right: Double, forward: Double, up: Double, frames: Frames) -> SIMD3<Double> {
         switch self {
-        case .height: return OperatorFrame.linkOffset(right: 0, forward: 0, up: up)
-        case .foreAft: return OperatorFrame.linkOffset(right: 0, forward: forward, up: 0)
-        case .leftRight: return OperatorFrame.linkOffset(right: right, forward: 0, up: 0)
+        case .height: return frames.linkOffset(right: 0, forward: 0, up: up)
+        case .foreAft: return frames.linkOffset(right: 0, forward: forward, up: 0)
+        case .leftRight: return frames.linkOffset(right: right, forward: 0, up: 0)
         }
     }
 }

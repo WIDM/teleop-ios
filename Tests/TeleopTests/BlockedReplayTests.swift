@@ -77,7 +77,7 @@ final class BlockedReplayTests: XCTestCase {
 
     func testEarlierWorkspaceCueDoesNotSilenceANewObstruction() {
         for restart in [false, true] {
-            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
             monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
             monitor.reportsLowest = true
             let face = SIMD3(0.02, TestProfiles.so101.gripperWorkspace.low.y, 0.15)
@@ -102,7 +102,7 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testBlockedDuringDescentDoesNotRepeatAsLowestAtTheSameHeight() {
-        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
         monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let arm = SIMD3(0.02, -0.14, 0.15)
@@ -117,7 +117,7 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testBlockedAtAHigherPointLeavesALaterLowerApproachArmed() {
-        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
         monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let high = SIMD3(0.02, -0.14, 0.17)
@@ -138,7 +138,7 @@ final class BlockedReplayTests: XCTestCase {
     }
 
     func testNewDownwardDirectionAtTheSameHeightCanSayLowest() {
-        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+        var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
         monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
         monitor.reportsLowest = true
         let arm = SIMD3(0.02, -0.14, 0.15)
@@ -155,7 +155,7 @@ final class BlockedReplayTests: XCTestCase {
     func testRecordedObstructionsStillSayBlockedIncludingAfterAnEarlierClamp() throws {
         let holds = try recordedHolds()
         for id in ["6950", "6954", "7187"] {
-            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
             monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
             monitor.reportsLowest = true
             var cues: [FeedbackEvent] = []
@@ -193,7 +193,7 @@ final class BlockedReplayTests: XCTestCase {
             let speech = SpySpeech()
             var now = 0
             let player = CuePlayer(haptics: felt, sounds: SpySounds(), speech: speech, nowMs: { now })
-            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits)
+            var monitor = FeedbackMonitor(limits: TestProfiles.so101.gripperLimits, frames: TestProfiles.so101.frames)
             monitor.reportsLowest = true
             monitor.blockedWorkspace = TestProfiles.so101.gripperWorkspace
 

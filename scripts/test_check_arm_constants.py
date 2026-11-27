@@ -82,6 +82,80 @@ class CheckArmConstantsTests(unittest.TestCase):
     def test_the_name_so101Simulator_passes_in_the_tests(self):
         self.assertPasses({APP_TEST: "// no so101Simulator here any more\n"})
 
+    def test_a_removed_direction_table_or_conversion_fails(self):
+        for text, what in (
+            ("let (axis, sign) = direction.baseAxis\n", "OperatorDirection.baseAxis"),
+            ("public var baseAxis: (axis: BaseAxis, sign: Double) {\n    (.y, -1)\n}\n", "OperatorDirection.baseAxis"),
+            ("let way = side.baseVector\n", "baseVector or linkVector property"),
+            ("let sent = OperatorDirection.up.linkVector * 2\n", "baseVector or linkVector property"),
+            ("let moved = OperatorFrame.link(fromBase: b)\n", "OperatorFrame's conversions"),
+            ("let p = OperatorFrame.linkOffset(right: 0, forward: 0, up: 1)\n", "OperatorFrame's conversions"),
+            ("let p = GuideProjection.operatorPoint(base)\n", "static GuideProjection conversions"),
+            ("let b = GuideProjection.base(fromOperator: p)\n", "static GuideProjection conversions"),
+        ):
+            for relative in (APP, CORE):
+                out = self.assertFails({relative: text}, what, f"{relative}: {text}")
+                self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_direction_read_through_the_frames_passes(self):
+        self.assertPasses(
+            {
+                APP: "let way = frames.baseVector(side)\nlet p = frames.linkVector(.up) * 2\n"
+                "let q = projection.operatorPoint(base)\nlet m = GuideProjection.marginShare\n",
+                CORE: "// the old baseAxis table and OperatorFrame are gone\nlet text = \"OperatorFrame.baseAxis\"\n",
+            }
+        )
+
+    def test_a_removed_direction_table_passes_in_the_tests_and_the_documents(self):
+        self.assertPasses(
+            {
+                APP_TEST: "let way = side.baseVector\nlet x = OperatorFrame.link(fromBase: b)\n",
+                CORE_TEST: "let (axis, sign) = direction.baseAxis\n",
+                "docs/PROFILE.md": "OperatorDirection.baseAxis is gone\n",
+            }
+        )
+
+    def test_frames_held_or_built_in_code_fail(self):
+        for relative, text in (
+            (APP, "static let arm = Frames(forward: f, left: l, up: u)\n"),
+            (CORE, "public static let arm: Frames = make()\n"),
+            (CORE, "static var frames: Frames { make() }\n"),
+            (CORE, "static let frames: TeleopCore.Frames? = nil\n"),
+            (APP, "static let arm = TeleopCore.Frames(forward: f, left: l, up: u)\n"),
+            (APP, "static let arm = Frames.init(forward: f, left: l, up: u)\n"),
+            (APP, "static let arm = Frames.so101\n"),
+            (APP, "static let arm = profile.frames\n"),
+            (APP, "static let arm = ProfileLoader.loaded.frames\n"),
+            (CORE, "static var arm = frames\n"),
+        ):
+            self.assertFails({relative: text}, "robot frames held in a static", f"{relative}: {text}")
+        for relative, text in (
+            (APP, "let frames = Frames(forward: f, left: l, up: u)\n"),
+            (CORE, "func make() -> Frames { Frames(forward: f, left: l, up: u) }\n"),
+        ):
+            self.assertFails({relative: text}, "robot frames built in code", f"{relative}: {text}")
+
+    def test_statics_that_only_look_like_frames_pass(self):
+        self.assertPasses(
+            {
+                APP: "static let kind = Frames.self\nstatic let count = profile.frames.count\n"
+                "static let rate = player.framesPerSecond\nstatic let up = profile.frames.up\n"
+                "static let name = \"Frames.so101\"\n// static let arm = Frames.so101\n",
+            }
+        )
+
+    def test_frames_passed_around_or_built_in_the_profile_folder_or_tests_pass(self):
+        self.assertPasses(
+            {
+                APP: "struct Rule { let frames: Frames\n    init(frames: Frames) { self.frames = frames }\n"
+                "    static let limit = 3\n}\n",
+                PROFILE: "func decode() -> Frames { Frames(forward: f, left: l, up: u) }\n"
+                "public struct RobotProfile {\n    public var frames: Frames\n}\n",
+                APP_TEST: "enum TestFrames {\n    static let b = Frames(forward: f, left: l, up: u)\n}\n",
+                CORE_TEST: "enum TestFrames {\n    static let so: Frames = Frames(forward: f)\n}\n",
+            }
+        )
+
     def test_a_static_profile_fails_however_it_is_written(self):
         for text in (
             'static let benchArm = RobotProfile(name: "B")',

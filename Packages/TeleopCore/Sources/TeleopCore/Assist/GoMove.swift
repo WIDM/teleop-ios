@@ -65,6 +65,9 @@ struct GoMove: Equatable, Sendable {
     /// A fresh reading this many arrive tolerances from the leg ahead ends a following move stopped short.
     static let pathWatchTolerances = 2.5
 
+    /// Which base axis is up, and how the link's offsets are signed: "vertical", "level", "raise" and "travel height"
+    /// below are along up.
+    let frames: Frames
     /// The measured pinch point at the tap, robot base frame, metres.
     let start: SIMD3<Double>
     /// The latest tapped point. Corrections never move it, and arrival is judged against it.
@@ -126,10 +129,11 @@ struct GoMove: Equatable, Sendable {
     /// - offset: the measured gripper-to-pinch offset of the reading `start` came from, when the server reported the
     ///   pinch point. Left out, the move follows nothing.
     init(
-        start: SIMD3<Double>, target: SIMD3<Double>, limits: GoToLimits, at now: TimeInterval,
+        frames: Frames, start: SIMD3<Double>, target: SIMD3<Double>, limits: GoToLimits, at now: TimeInterval,
         boxLow: SIMD3<Double> = SIMD3(repeating: -.infinity), boxHigh: SIMD3<Double> = SIMD3(repeating: .infinity),
         offset: SIMD3<Double>? = nil
     ) {
+        self.frames = frames
         self.start = start
         self.target = target
         self.limits = limits
@@ -139,9 +143,9 @@ struct GoMove: Equatable, Sendable {
         stage = .vertical
         correctionsLeft = limits.corrections
         legFrom = start
-        legTo = SIMD3(start.x, start.y, target.z)
+        legTo = frames.settingHeight(frames.height(of: target), of: start)
         legStartedAt = now
-        let path = abs(target.z - start.z) + simd_length(SIMD2(target.x - start.x, target.y - start.y))
+        let path = abs(frames.height(of: target) - frames.height(of: start)) + Self.across(target - start, frames)
         deadline = now + path / limits.speedMps * limits.timeFactor + limits.allowanceS
         tapOffset = offset
         if offset != nil {
@@ -153,6 +157,14 @@ struct GoMove: Equatable, Sendable {
     /// When the current leg's command reaches its end. At and after this moment `commanded` is the leg's end exactly.
     private var legEndsAt: TimeInterval {
         legStartedAt + simd_length(legTo - legFrom) / (limits.speedMps * speedShare)
+    }
+
+    /// The height of the work box's top face, along up.
+    private var boxTop: Double { max(frames.height(of: boxLow), frames.height(of: boxHigh)) }
+
+    /// How far `offset` goes across the table: its length without the part along up.
+    private static func across(_ offset: SIMD3<Double>, _ frames: Frames) -> Double {
+        simd_length(frames.level(offset))
     }
 
     private var isVerticalStage: Bool { stage == .vertical || stage == .correcting(.vertical) }
@@ -174,9 +186,9 @@ struct GoMove: Equatable, Sendable {
     /// following move takes off what the measured offset has changed (`drift`), and keeps the gripper link it asks for
     /// inside the box less the tap's offset, which is the server's box for the gripper link.
     func linkOffset(at time: TimeInterval) -> SIMD3<Double> {
-        guard let tapOffset else { return OperatorFrame.link(fromBase: commanded(at: time) - start) }
+        guard let tapOffset else { return frames.link(fromBase: commanded(at: time) - start) }
         let link = simd_clamp(commanded(at: time) - tapOffset - drift, boxLow - tapOffset, boxHigh - tapOffset)
-        return OperatorFrame.link(fromBase: link - (start - tapOffset))
+        return frames.link(fromBase: link - (start - tapOffset))
     }
 
     mutating func pauseForRetarget(at time: TimeInterval) {
@@ -203,12 +215,12 @@ struct GoMove: Equatable, Sendable {
         correctionsLeft = limits.corrections
         stage = .vertical
         legFrom = here
-        legTo = SIMD3(here.x, here.y, point.z)
+        legTo = frames.settingHeight(frames.height(of: point), of: here)
         legStartedAt = time
         nextShare = nil
         endShort = false
         seenMoving = false
-        let distance = abs(point.z - here.z) + simd_length(SIMD2(point.x - here.x, point.y - here.y))
+        let distance = abs(frames.height(of: point) - frames.height(of: here)) + Self.across(point - here, frames)
         deadline = time + distance / (limits.speedMps * speedShare) * limits.timeFactor + limits.allowanceS
         return true
     }
@@ -236,8 +248,8 @@ struct GoMove: Equatable, Sendable {
         let atLegEnd = now >= legEndsAt
         // Only a measured point lower than the travel height less the tolerance holds the corner: sweeping low is what
         // this guards against, and an arm above the travel height comes down towards it along the level leg.
-        if isVerticalStage, atLegEnd, target.z - pinch.z <= limits.arriveToleranceM {
-            begin(.level, to: target + SIMD3(0, 0, heightAim), at: now)
+        if isVerticalStage, atLegEnd, frames.height(of: target) - frames.height(of: pinch) <= limits.arriveToleranceM {
+            begin(.level, to: target + frames.upVector * heightAim, at: now)
             return nil
         }
         // A stall is judged only from positions measured after all of these: the command reached the leg's end, the
@@ -261,15 +273,15 @@ struct GoMove: Equatable, Sendable {
             // Settled below the travel height less the tolerance, since anything higher turned the corner above, so
             // the missing height is positive and a correction here only ever raises the command. Only how far the
             // command goes to hold the travel height changes; the target stays where it was tapped.
-            let missing = target.z - pinch.z
+            let missing = frames.height(of: target) - frames.height(of: pinch)
             guard correctionsLeft > 0, missing <= limits.correctionReachM else { return .stoppedShort }
             correctionsLeft -= 1
             // Never above the box's top: the raise is what the box leaves room for, and the level leg keeps that
             // much. The time limit grows by the whole height missing, as it does at the end.
-            let raise = max(0, min(missing, boxHigh.z - legTo.z))
+            let raise = max(0, min(missing, boxTop - frames.height(of: legTo)))
             heightAim += raise
             deadline += missing / limits.speedMps * limits.timeFactor + limits.settleS
-            begin(.correcting(.vertical), to: legTo + SIMD3(0, 0, raise), at: now)
+            begin(.correcting(.vertical), to: legTo + frames.upVector * raise, at: now)
         } else {
             let remainder = target - pinch
             guard correctionsLeft > 0, simd_length(remainder) <= limits.correctionReachM else { return .stoppedShort }
@@ -284,7 +296,7 @@ struct GoMove: Equatable, Sendable {
             // short again and stops short. The time limit grows by the whole remainder, even when the floor or the
             // box shortens the leg.
             var end = simd_clamp(legTo + remainder, boxLow, boxHigh)
-            end.z = max(end.z, target.z)
+            end = frames.settingHeight(max(frames.height(of: end), frames.height(of: target)), of: end)
             begin(.correcting(.level), to: end, at: now)
         }
         return nil

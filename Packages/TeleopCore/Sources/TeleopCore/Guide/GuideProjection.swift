@@ -13,6 +13,10 @@ public struct GuideProjection: Equatable, Sendable {
     /// Room around the workspace box, as a share of its larger side, so a mark on the box's edge is drawn whole.
     public static let marginShare = 0.15
 
+    /// How the robot base frame relates to the operator's view: `operatorPoint` and `base(fromOperator:)` go through
+    /// it, so what is drawn and what a tap asks for use one source.
+    public let frames: Frames
+
     /// What the views span in the operator's frame, metres: right, forward (from above) and up (from behind).
     public let across: ClosedRange<Double>
     public let depth: ClosedRange<Double>
@@ -20,7 +24,10 @@ public struct GuideProjection: Equatable, Sendable {
 
     /// `boxLow` and `boxHigh` are the work box in the operator's frame, corners sorted; `table` is the table's height,
     /// metres.
-    public init(boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>, table: Double, behindTop: Double? = nil) {
+    public init(
+        frames: Frames, boxLow: SIMD3<Double>, boxHigh: SIMD3<Double>, table: Double, behindTop: Double? = nil
+    ) {
+        self.frames = frames
         let span = boxHigh - boxLow
         let margin = max(span.x, span.y) * Self.marginShare
         across = (boxLow.x - margin)...(boxHigh.x + margin)
@@ -33,22 +40,12 @@ public struct GuideProjection: Equatable, Sendable {
     public var aboveAspect: Double { width / Self.length(depth) }
     public var behindAspect: Double { width / Self.length(height) }
 
-    /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by the axis table
-    /// of `OperatorDirection`, the one source.
-    public static func operatorPoint(_ base: SIMD3<Double>) -> SIMD3<Double> {
-        SIMD3(
-            simd_dot(base, OperatorDirection.right.baseVector),
-            simd_dot(base, OperatorDirection.forward.baseVector),
-            simd_dot(base, OperatorDirection.up.baseVector)
-        )
-    }
+    /// Right, forward and up as the operator sees them, metres, from a point in the robot base frame, by the profile's
+    /// frames, the one source.
+    public func operatorPoint(_ base: SIMD3<Double>) -> SIMD3<Double> { frames.operatorPoint(base) }
 
-    /// The robot base frame point of an operator-frame point: the inverse of `operatorPoint`. The axis table is a
-    /// signed permutation, so its inverse is its transpose.
-    public static func base(fromOperator point: SIMD3<Double>) -> SIMD3<Double> {
-        OperatorDirection.right.baseVector * point.x + OperatorDirection.forward.baseVector * point.y
-            + OperatorDirection.up.baseVector * point.z
-    }
+    /// The robot base frame point of an operator-frame point: the inverse of `operatorPoint`.
+    public func base(fromOperator point: SIMD3<Double>) -> SIMD3<Double> { frames.base(fromOperator: point) }
 
     /// Where an operator-frame point sits in the view from above.
     public func above(_ point: SIMD3<Double>) -> SIMD2<Double> {

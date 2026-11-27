@@ -12,11 +12,14 @@ final class ProfileFormatTests: XCTestCase {
           "profile_version": 1,
           "name": "Test arm",
           "robot": {
+            "directions": { "forward": "+x", "left": "-y", "up": "-z" },
             "wrist": { "roll_sign": -1, "tilt_sign": 1 },
             "gripper": { "open_deg": 80, "empty_deg": 3, "reclose_loosens_grip": false }
           },
+          "server": { "link_signs": [1, 1, 1] },
           "scene": {
             "base_in_world_m": [0.1, 0.2, 0.3],
+            "base_axes_in_world": { "x": "+y", "y": "+x", "z": "-z" },
             "table_height_m": 0.02,
             "workspace_min_m": [-0.1, -0.3, 0.0],
             "workspace_max_m": [0.1, -0.1, 0.2],
@@ -105,6 +108,10 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.graspTolerance, SIMD2(0.005, 0.007))
         XCTAssertEqual(profile.onTargetWindow, SIMD2(0.01, 0.012))
         XCTAssertEqual(profile.rollSign, -1)
+        var expected = TestFrames.benchB
+        expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
+        XCTAssertEqual(profile.frames, expected)
+        XCTAssertEqual(profile.baseInWorld, SIMD3<Float>(0.1, 0.2, 0.3))
         XCTAssertEqual(profile.assist.goTo?.corrections, 1)
         XCTAssertEqual(profile.assist.views?.maxRetargetedMoveS, 20)
         XCTAssertEqual(profile.validate(), [])
@@ -226,6 +233,64 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// An axis that is not one of the six signed axes is refused with its path and a sentence that says only quarter
+    /// turns are supported.
+    func testAnAxisThatIsNotAQuarterTurnIsRefused() throws {
+        let paths: [[String]] = [
+            ["robot", "directions", "forward"], ["robot", "directions", "left"], ["robot", "directions", "up"],
+            ["scene", "base_axes_in_world", "x"], ["scene", "base_axes_in_world", "y"],
+            ["scene", "base_axes_in_world", "z"],
+        ]
+        for path in paths {
+            for text in ["x", "+w", "up", "+xy", "45", "-0", ""] {
+                let wrong = changing(try object(), at: path) { $0[path.last!] = text }
+                let named = path.joined(separator: ".")
+                let refused = try XCTUnwrap(error(wrong), named)
+                XCTAssertEqual(refused, .notAnAxis(named, found: text))
+                XCTAssertEqual(
+                    "\(refused)",
+                    "\(named) is \"\(text)\", which is not an axis; write one of +x, -x, +y, -y, +z or -z. "
+                        + "Only quarter turns are supported, so a direction at another angle cannot be given.")
+            }
+        }
+    }
+
+    func testAnAxisOfTheWrongKindIsNamed() throws {
+        let wrong = changing(try object(), at: ["robot", "directions", "up"]) { $0["up"] = 3 }
+        let data = try JSONSerialization.data(withJSONObject: wrong)
+        XCTAssertThrowsError(try RobotProfile.load(json: data)) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue("robot.directions.up"))
+        }
+        let signs = changing(try object(), at: ["server", "link_signs"]) { $0["link_signs"] = ["+", 1, 1] }
+        let signsData = try JSONSerialization.data(withJSONObject: signs)
+        XCTAssertThrowsError(try RobotProfile.load(json: signsData)) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue("server.link_signs[0]"))
+        }
+    }
+
+    func testTheLinkSignsNeedThreeNumbers() throws {
+        let short = changing(try object(), at: ["server", "link_signs"]) { $0["link_signs"] = [1, -1] }
+        XCTAssertEqual(error(short), .wrongLength("server.link_signs", expected: 3, found: 2))
+    }
+
+    /// A file whose directions make a mirror image, or whose world axes repeat, loads no further than the sentence.
+    func testFramesThatMakeNoSenseAreRefusedWhenLoading() throws {
+        let mirrored = changing(try object(), at: ["robot", "directions", "left"]) { $0["left"] = "+y" }
+        XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: mirrored))) { error in
+            XCTAssertEqual(
+                "\(error)",
+                "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "
+                    + "the base. Flip the sign of one of the three.")
+        }
+        let repeated = changing(try object(), at: ["scene", "base_axes_in_world", "y"]) { $0["y"] = "+y" }
+        XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: repeated))) { error in
+            XCTAssertEqual(
+                "\(error)",
+                "scene.base_axes_in_world: x, y and z must lie along three different world axes, one each; "
+                    + "they are x +y, y +y, z -z.")
+        }
+    }
+
     func testAnotherVersionIsRefused() throws {
         let later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
         XCTAssertEqual(error(later), .unsupportedVersion(2))
@@ -262,6 +327,30 @@ final class ProfileFormatTests: XCTestCase {
             ("robot.gripper.empty_deg must be zero or more.", { $0.gripperEmptyDeg = -1 }),
             ("robot.gripper.empty_deg must be below robot.gripper.open_deg.", { $0.gripperEmptyDeg = 80 }),
             ("scene.base_in_world_m must be finite numbers.", { $0.baseInWorld.x = .infinity }),
+            (
+                "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "
+                    + "the base. Flip the sign of one of the three.",
+                { $0.frames.forward = $0.frames.forward.reversed }
+            ),
+            (
+                "robot.directions: forward, left and up must lie along three different base axes, one each; "
+                    + "they are forward +x, left +x, up -z.",
+                { $0.frames.left = SignedAxis(.x, 1) }
+            ),
+            (
+                "server.link_signs must each be 1 or -1; only a mirrored axis is supported.",
+                { $0.frames.linkSigns.z = 0 }
+            ),
+            (
+                "scene.base_axes_in_world is a mirror image, not a turn: the base's x cross y must be its z. "
+                    + "Flip the sign of one of the three.",
+                { $0.frames.worldTurn.z = $0.frames.worldTurn.z.reversed }
+            ),
+            (
+                "scene.base_axes_in_world: x, y and z must lie along three different world axes, one each; "
+                    + "they are x +y, y +y, z -z.",
+                { $0.frames.worldTurn.y = SignedAxis(.y, 1) }
+            ),
             ("scene.table_height_m must be finite numbers.", { $0.tableHeight = .nan }),
             (
                 "scene.workspace_min_m must be below scene.workspace_max_m on every axis; it is not on y, z.",

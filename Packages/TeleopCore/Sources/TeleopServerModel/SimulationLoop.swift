@@ -237,8 +237,9 @@ extension ServerModel {
             poseWristStep(command)
             return
         }
-        // Phone x, y, z to robot base x, y, −z (the server's calibrated mapping), relative to where the arm was.
-        let requested = command.startPoint + SIMD3(command.pRel.x, command.pRel.y, -command.pRel.z)
+        // The phone's x, y, z to the robot base through the link's signs (`linkSigns`; x, y, −z is the server's
+        // calibrated mapping), relative to where the arm was.
+        let requested = command.startPoint + config.baseFromLink(command.pRel)
         let target = clampToWorkspace(requested)
         let clampedNow = !allClose(target, requested)
         command.wasClamped = command.wasClamped || clampedNow

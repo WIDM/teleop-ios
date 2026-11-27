@@ -16,7 +16,7 @@ final class OperatingController {
     private unowned let model: AppModel
     let now: () -> TimeInterval
     private(set) var arbiter: InputArbiter
-    private(set) var buttons = ButtonArbiter()
+    private(set) var buttons: ButtonArbiter
     private(set) var mode: ControlMode
     private(set) var precisionPanelOpen = false
     private var precisionKeys: Set<InputKey> = []
@@ -97,6 +97,7 @@ final class OperatingController {
         self.mode = mode
         self.hand = hand
         self.now = now
+        buttons = ButtonArbiter(frames: model.profile.frames)
         arbiter = InputArbiter(
             scheme: Self.scheme(mode) ?? .screenTurns, hand: hand,
             layout: SurfaceLayout(width: 402, height: 874, safeTop: 62, safeBottom: 34, constants: constants),

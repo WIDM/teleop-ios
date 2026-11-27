@@ -141,7 +141,8 @@ final class LinkStallTests: XCTestCase {
 
     /// The server and the path, and the hand with the app not yet connected.
     private func makeTheHand(_ mode: ControlMode) throws {
-        server = LocalTeleopServer(config: .s4Simulator(stepsPerSecond: 60))
+        server = LocalTeleopServer(
+            config: try .s4Simulator(stepsPerSecond: 60).settingFrames(from: TestProfiles.so101.frames))
         try server.start()
         path = StallingPath()
         hand = ScriptedOperator(
@@ -461,7 +462,8 @@ final class LinkStallTests: XCTestCase {
     private func restartTheServer() throws {
         waitForTheAppsSocketsToClose("restarting the server")
         server.stop()
-        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60)
+        var config = try ServerModelConfig.s4Simulator(stepsPerSecond: 60).settingFrames(
+            from: TestProfiles.so101.frames)
         config.session = "00000000-0000-4000-8000-000000000002"
         server = LocalTeleopServer(config: config)
         try server.start()

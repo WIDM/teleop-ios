@@ -175,8 +175,9 @@ path the app plans (`GoMove`) to that point from where the arm was measured, in 
 follows how `tool_pos − ee_pos` has changed since, and kept so that the gripper link asked for stays inside the box
 the move was given less that reading's offset (`docs/ARCHITECTURE.md`, "Tap-to-go"). It is an absolute target within
 the hold, not a speed: the server sends the arm to where it was at the start plus that displacement. The server turns
-`[a, b, c]` into a base-frame move of `[a, b, −c]`. So the app sends the operator's right as −x, forward as −y
-and up as −z (`OperatorFrame.linkOffset`).
+`[a, b, c]` into a base-frame move of `[a, b, −c]` (the SO-101 server's mapping; the signs are the profile's
+`server.link_signs`, `docs/PROFILE.md`). So the app sends the operator's right as −x, forward as −y and up as −z
+(`Frames.linkOffset`).
 
 The server requires `frame`, `rate_hz` (exactly 30), `gain` (0.1 to 2), `deadband_deg` (0 to 15) and `smoothing`
 (0 to 0.95), and then ignores the last three in translation mode. `frame` is a fixed name, not a choice: `pose_start`

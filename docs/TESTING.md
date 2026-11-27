@@ -25,6 +25,22 @@ to the real thing.
 | UI | `Tests/TeleopUITests` | every operating state, in both languages and at two screen heights (`OperatingScreenTests`); touches on the bands and the gear (`OperatingTouchTests`); where the STOP band ends on every screen, read from the picture's pixels, and that a press under it does nothing (`StopBandTests`); scheme B's words against everything else on the screen (`SchemeBHintTests`); practice, Settings, Connect, the tutorial and the first-run camera prompt (`PracticeTests`, `SettingsTests`, `ConnectFlowTests`, `ManualCheckTests`); the app connecting to a model served by the test process (`LocalServerUITests`); which haptics the app asks for; the aids' page that the Aids button in the Settings header opens, with the master switch and the lock choices, the word Lock drawn on the page's background as a section header and not on a row, what VoiceOver calls the way back to Settings in both languages, Settings opening on its form again after a STOP on that page, and the aids' tutorial lines (`AssistSettingsTests`), the locked, going and ended states and the guide with its aids (`AssistOperatingScreenTests`, `GuideAidsScreenTests`), and a tap on the drawn view from above that goes and arrives, taps 6 pt outside each of its four edges, which name the top view without starting a move, and 6 pt inside each, which are judged against the view (`GuidePanelTapUITests`), the Fine controls panel and its pages against the local server (`PrecisionPanelUITests`), the voice experiment's control, shown only when asked for (`VoiceAxisEntryUITests`), the words of a refused tap (`TapWordsScreenTests`) and the aids-off line (`AidsOffScreenTests`) | how a haptic feels, the volume keys (XCUITest cannot press them), ARKit motion |
 | Live | `OperatorLiveTests`, `ServerMotionTests` in `Tests/TeleopTests` | the app against the real server in Isaac Sim: its lag, its safety stop, a pick-and-place in each control mode | anything, unless someone runs it: it moves the shared arm in Isaac Sim, so it never runs by default or in CI |
 
+Rules that take the profile's frames run with more than the SO-101's. `TestFrames` (in the core tests, the server
+model tests and the app tests) holds two test-only sets: a bench arm whose forward is base +x, whose z points down,
+whose link has no flip and whose world is turned, and an arm mounted on its side, so that up is not along the base's z
+at all. `RulesAcrossFramesTests` runs the buttons' ramps, the voice axes, the guide's projection and a tap on it, a
+going move (also one that follows the measured offset and is retargeted, and one whose correction the box top limits),
+the work-area cue and the blocked and lowest rules through each set and checks that what a rule does is what it does
+for the SO-101, carried through the frames (`TestFrames.carry`): no expected value of the other arms is typed by
+hand. `ServerModelFramesTests` serves the model with each set and checks that each direction moves the tool along the
+base axis it names, that the table stops the jaw tips at the same place in the world, and that the grasp and a whole
+pick and place work; `ServerModelConfigFramesTests` that the model refuses frames that cannot be a base. `LinkFramesTests`
+runs the link controller over a fake socket with each set: a resync after a hand that went right and up, and a
+coordinated height hold, reading back what it sends. `ProfileFramesTests` does the same for the app's rules: the guide's picture and a tap read back
+through it, the world to base conversion, the floor-below-the-table question and the phone's offsets in the link's
+frame. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
+movement and the right button through the frames.
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
@@ -43,8 +59,9 @@ Two more checks sit beside the tests:
   `swift format format -i --parallel` lays them out. `python3 scripts/check-arm-constants.py` fails when code outside
   the profile loader and the tests names a profile id or a profile's name, holds a profile in a `static let` or
   `static var`, builds a profile outside `Packages/TeleopCore/Sources/TeleopCore/Profile/` or names `so101Simulator`,
-  and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`
-  (`docs/PROFILE.md`).
+  when code outside the tests holds a direction table or a conversion by base axis or holds a
+  `Frames` in a static (a static whose type is not written included), and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and
+  `OperatingFixtures` (`docs/PROFILE.md`).
   `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
   scripts/test_check_arm_constants.py` tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for
   `git status` to show.

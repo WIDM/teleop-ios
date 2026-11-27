@@ -39,7 +39,7 @@ extension ScriptedOperator {
     /// own inputs, as `pickAndPlace` does before it carries the object. False, after failing the test, when no object
     /// is reported, the arm does not reach the grasp point, the jaws do not close on the object or it does not rise.
     func graspAndLift(file: StaticString = #filePath, line: UInt = #line) -> Bool {
-        let lift = SIMD3<Float>(0, 0, 0.03)
+        let lift = SIMD3<Float>(frames.upVector) * 0.03
         gripper(.open, seconds: 5)
         guard let object = model.link.objectPosition else {
             XCTFail("\(mode): no task object reported", file: file, line: line)

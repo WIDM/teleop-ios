@@ -62,8 +62,9 @@ extension ArbiterRig {
     /// The view from above drawn in `rect`, of the SO-101 box moved by `shift`, as the app builds it from the guide.
     static func panel(_ rect: SurfaceLayout.Rect = panelRect, shift: SIMD3<Double> = .zero) -> GoPanel {
         let low = boxLow + shift, high = boxHigh + shift
-        let a = GuideProjection.operatorPoint(low), b = GuideProjection.operatorPoint(high)
-        let projection = GuideProjection(boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
+        let a = TestFrames.so101.operatorPoint(low), b = TestFrames.so101.operatorPoint(high)
+        let projection = GuideProjection(
+            frames: TestFrames.so101, boxLow: simd_min(a, b), boxHigh: simd_max(a, b), table: table)
         return GoPanel(
             rect: rect, projection: projection, boxLow: simd_min(low, high), boxHigh: simd_max(low, high),
             tableHeight: table)
@@ -102,6 +103,6 @@ extension ArbiterRig {
 
     /// The pinch point the going move commands now, robot base frame: where it began plus the offset it streams.
     func commanded(from start: SIMD3<Double>) -> SIMD3<Double>? {
-        arbiter.goOffset(at: time).map { start + OperatorFrame.base(fromLink: $0) }
+        arbiter.goOffset(at: time).map { start + TestFrames.so101.base(fromLink: $0) }
     }
 }

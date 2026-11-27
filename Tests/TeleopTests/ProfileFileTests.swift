@@ -19,6 +19,13 @@ final class ProfileFileTests: XCTestCase {
             ("estimateBound.flexMmPerDeg", p.estimateBound.flexMmPerDeg, Float(1.65)),
             ("estimateBound.rollMmPerDeg", p.estimateBound.rollMmPerDeg, Float(0.23)),
             ("baseInWorld", p.baseInWorld, SIMD3<Float>(0, 0, 0.05)),
+            ("frames.forward", p.frames.forward.text, "-y"),
+            ("frames.left", p.frames.left.text, "+x"),
+            ("frames.up", p.frames.up.text, "+z"),
+            ("frames.linkSigns", p.frames.linkSigns, SIMD3<Double>(1, 1, -1)),
+            ("frames.worldTurn.x", p.frames.worldTurn.x.text, "+x"),
+            ("frames.worldTurn.y", p.frames.worldTurn.y.text, "+y"),
+            ("frames.worldTurn.z", p.frames.worldTurn.z.text, "+z"),
             ("graspTolerance", p.graspTolerance, SIMD2<Float>(0.006, 0.008)),
             ("targetSize", p.targetSize, Float(0.025)),
             ("goalSize", p.goalSize, Float(0.05)),
@@ -60,15 +67,34 @@ final class ProfileFileTests: XCTestCase {
         }
     }
 
-    /// Every stored field of the profile, its assist share included, has a row above: a new field must be pinned too.
+    /// Every stored field of the profile, its assist share included, has a row above and every row names a stored
+    /// field: a new field must be pinned, and a row for a field that is gone must go. Compared by name, so that one
+    /// miscount cannot hide another.
     func testTheTableCoversEveryField() {
         let p = TestProfiles.so101
-        let stored = Mirror(reflecting: p).children.count - 2 + Mirror(reflecting: p.estimateBound).children.count
-        let assist = Mirror(reflecting: p.assist).children.compactMap { child -> Int? in
-            guard let value = Mirror(reflecting: child.value).children.first?.value else { return nil }
-            return Mirror(reflecting: value).children.count
+        // The structures the rows name by their parts. A value of any other type is a field of its own, however many
+        // parts it has (a vector, a signed axis).
+        func isStructure(_ value: Any) -> Bool {
+            value is EstimateBound || value is Frames || value is WorldTurn || value is AssistProfile
+                || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids
+                || value is ViewAim
         }
-        // Two stored fields are structures counted by their parts: estimateBound above and assist here.
-        XCTAssertEqual(stored + assist.reduce(0, +), Self.rows(p).count)
+        func fields(of value: Any, under prefix: String) -> [String] {
+            Mirror(reflecting: value).children.flatMap { child -> [String] in
+                guard let label = child.label else { return [] }
+                let path = prefix.isEmpty ? label : prefix + "." + label
+                let inner = Mirror(reflecting: child.value)
+                let held: Any? = inner.displayStyle == .optional ? inner.children.first?.value : child.value
+                if let held, isStructure(held) { return fields(of: held, under: path) }
+                return [path]
+            }
+        }
+        // The shift is a stored field of the frames; the profile's own property of that name is what its row reads.
+        let stored = fields(of: p, under: "").map { $0 == "frames.baseInWorld" ? "baseInWorld" : $0 }
+        let named = Self.rows(p).map(\.0)
+        XCTAssertEqual(stored.count, Set(stored).count, "a field is listed twice: \(stored)")
+        XCTAssertEqual(named.count, Set(named).count, "a row is listed twice: \(named)")
+        XCTAssertEqual(Set(stored).subtracting(named).sorted(), [], "stored fields with no row")
+        XCTAssertEqual(Set(named).subtracting(stored).sorted(), [], "rows that name no stored field")
     }
 }

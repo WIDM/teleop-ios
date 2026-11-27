@@ -16,6 +16,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case unsupportedVersion(Int)
     /// A value of the wrong kind (text where a number goes, say), or a file that is not JSON: the path is empty then.
     case badValue(String)
+    /// A direction or axis that is not one of the six signed axes. The file can only say quarter turns.
+    case notAnAxis(String, found: String)
     /// The file was read but its values do not make sense together: one sentence per fault.
     case invalid([String])
 
@@ -30,6 +32,9 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
             return "profile_version \(version) is not supported; this app reads version \(RobotProfile.formatVersion)."
         case .badValue(let path) where path.isEmpty: return "The profile is not a valid JSON object."
         case .badValue(let path): return "\(path) has a value of the wrong kind."
+        case .notAnAxis(let path, let found):
+            return "\(path) is \"\(found)\", which is not an axis; write one of \(SignedAxis.allowedText). "
+                + "Only quarter turns are supported, so a direction at another angle cannot be given."
         case .invalid(let faults): return faults.joined(separator: " ")
         }
     }
@@ -63,16 +68,20 @@ extension RobotProfile: Codable {
         let version = try container.decode(Int.self, forKey: "profile_version")
         guard version == Self.formatVersion else { throw ProfileFormatError.unsupportedVersion(version) }
         let top = try StrictObject(
-            checking: container, ["profile_version", "name", "robot", "scene", "response", "assist"])
-        let robot = try top.section("robot", ["wrist", "gripper"])
+            checking: container, ["profile_version", "name", "robot", "server", "scene", "response", "assist"])
+        let robot = try top.section("robot", ["directions", "wrist", "gripper"])
+        let directions = try robot.section("directions", ["forward", "left", "up"])
+        let server = try top.section("server", ["link_signs"])
         let wrist = try robot.section("wrist", ["roll_sign", "tilt_sign"])
         let gripper = try robot.section("gripper", ["open_deg", "empty_deg", "reclose_loosens_grip"])
         let scene = try top.section(
             "scene",
             [
-                "base_in_world_m", "table_height_m", "workspace_min_m", "workspace_max_m", "target_size_m",
+                "base_in_world_m", "base_axes_in_world", "table_height_m", "workspace_min_m", "workspace_max_m",
+                "target_size_m",
                 "goal_size_m", "grasp_tolerance_m", "on_target_window_m", "tool_offset",
             ])
+        let worldAxes = try scene.section("base_axes_in_world", ["x", "y", "z"])
         let tool = try scene.section(
             "tool_offset", ["offset_m", "measured_at_m", "measured_flex_deg", "measured_roll_deg", "error_bound"])
         let response = try top.section("response", ["directional_blocked_feedback"])
@@ -83,7 +92,12 @@ extension RobotProfile: Codable {
             offsetMeasuredFlexDeg: try tool.value("measured_flex_deg"),
             offsetMeasuredRollDeg: try tool.value("measured_roll_deg"),
             estimateBound: try tool.value("error_bound"),
-            baseInWorld: try scene.vector3("base_in_world_m"),
+            frames: Frames(
+                forward: try directions.axis("forward"), left: try directions.axis("left"),
+                up: try directions.axis("up"), linkSigns: try server.vector3Double("link_signs"),
+                baseInWorld: try scene.vector3Double("base_in_world_m"),
+                worldTurn: WorldTurn(
+                    x: try worldAxes.axis("x"), y: try worldAxes.axis("y"), z: try worldAxes.axis("z"))),
             graspTolerance: try scene.vector2("grasp_tolerance_m"),
             targetSize: try scene.value("target_size_m"),
             goalSize: try scene.value("goal_size_m"),
@@ -106,6 +120,10 @@ extension RobotProfile: Codable {
         try top.encode(Self.formatVersion, forKey: "profile_version")
         try top.encode(name, forKey: "name")
         var robot = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "robot")
+        var directions = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "directions")
+        try directions.encode(frames.forward.text, forKey: "forward")
+        try directions.encode(frames.left.text, forKey: "left")
+        try directions.encode(frames.up.text, forKey: "up")
         var wrist = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "wrist")
         try wrist.encode(rollSign, forKey: "roll_sign")
         try wrist.encode(tiltSign, forKey: "tilt_sign")
@@ -113,8 +131,14 @@ extension RobotProfile: Codable {
         try gripper.encode(gripperOpenDeg, forKey: "open_deg")
         try gripper.encode(gripperEmptyDeg, forKey: "empty_deg")
         try gripper.encode(recloseLoosensGrip, forKey: "reclose_loosens_grip")
+        var server = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "server")
+        try server.encode([frames.linkSigns.x, frames.linkSigns.y, frames.linkSigns.z], forKey: "link_signs")
         var scene = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "scene")
-        try scene.encode(Self.array(baseInWorld), forKey: "base_in_world_m")
+        try scene.encode([frames.baseInWorld.x, frames.baseInWorld.y, frames.baseInWorld.z], forKey: "base_in_world_m")
+        var worldAxes = scene.nestedContainer(keyedBy: ProfileKey.self, forKey: "base_axes_in_world")
+        try worldAxes.encode(frames.worldTurn.x.text, forKey: "x")
+        try worldAxes.encode(frames.worldTurn.y.text, forKey: "y")
+        try worldAxes.encode(frames.worldTurn.z.text, forKey: "z")
         try scene.encode(tableHeight, forKey: "table_height_m")
         try scene.encode(Self.array(workspaceMin), forKey: "workspace_min_m")
         try scene.encode(Self.array(workspaceMax), forKey: "workspace_max_m")
@@ -405,12 +429,24 @@ struct StrictObject {
     }
 
     func vector3(_ key: String) throws -> SIMD3<Float> {
-        let numbers = try numbers(key, count: 3)
+        let numbers: [Float] = try numbers(key, count: 3)
         return SIMD3(numbers[0], numbers[1], numbers[2])
     }
 
+    func vector3Double(_ key: String) throws -> SIMD3<Double> {
+        let numbers: [Double] = try numbers(key, count: 3)
+        return SIMD3(numbers[0], numbers[1], numbers[2])
+    }
+
+    /// A signed axis written as text: `+x`, `-z` and so on.
+    func axis(_ key: String) throws -> SignedAxis {
+        let text: String = try value(key)
+        guard let axis = SignedAxis(text: text) else { throw ProfileFormatError.notAnAxis(path(key), found: text) }
+        return axis
+    }
+
     func vector2(_ key: String) throws -> SIMD2<Float> {
-        let numbers = try numbers(key, count: 2)
+        let numbers: [Float] = try numbers(key, count: 2)
         return SIMD2(numbers[0], numbers[1])
     }
 
@@ -420,8 +456,8 @@ struct StrictObject {
         return try vector2(key)
     }
 
-    private func numbers(_ key: String, count: Int) throws -> [Float] {
-        let numbers: [Float] = try value(key)
+    private func numbers<T: Decodable>(_ key: String, count: Int) throws -> [T] {
+        let numbers: [T] = try value(key)
         guard numbers.count == count else {
             throw ProfileFormatError.wrongLength(path(key), expected: count, found: numbers.count)
         }

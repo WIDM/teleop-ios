@@ -30,8 +30,8 @@ final class GoMoveFollowTests: XCTestCase {
     }
 
     func testWithoutAMeasuredOffsetNothingChanges() {
-        var plain = GoMove(start: start, target: target, limits: limits, at: 0)
-        var told = GoMove(start: start, target: target, limits: limits, at: 0, offset: nil)
+        var plain = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
+        var told = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: nil)
         XCTAssertEqual(plain.deadline, told.deadline)
         for i in 0..<300 {
             let now = Double(i) / 30
@@ -45,8 +45,9 @@ final class GoMoveFollowTests: XCTestCase {
     }
 
     func testAFollowingMoveStartsAtHalfSpeedAndHasTheTimeForIt() {
-        let plain = GoMove(start: start, target: target, limits: limits, at: 0)
-        let following = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+        let plain = GoMove(frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0)
+        let following = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         XCTAssertEqual(simd_distance(plain.commanded(at: 0.5), start), 0.02, accuracy: 1e-12)
         XCTAssertEqual(simd_distance(following.commanded(at: 0.5), start), 0.01, accuracy: 1e-12)
         let path = 0.03 + 0.03
@@ -54,24 +55,28 @@ final class GoMoveFollowTests: XCTestCase {
     }
 
     func testEachFreshReadingTakesHalfTheOffsetsChangeOffTheLinkCommand() {
-        var move = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         let gripper = start - tapOffset + SIMD3(0, 0, -0.001)
         let change = SIMD3(0.0002, 0, 0.0004)
         XCTAssertNil(move.observe(reading(gripper: gripper, offset: tapOffset + change), at: 0.2))
-        let planned = OperatorFrame.link(fromBase: move.commanded(at: 0.2) - start)
+        let planned = TestFrames.so101.link(fromBase: move.commanded(at: 0.2) - start)
         let sent = move.linkOffset(at: 0.2)
-        XCTAssertEqual(simd_distance(sent - planned, OperatorFrame.link(fromBase: -change * 0.5)), 0, accuracy: 1e-12)
+        XCTAssertEqual(
+            simd_distance(sent - planned, TestFrames.so101.link(fromBase: -change * 0.5)), 0, accuracy: 1e-12)
         // The same reading seen again changes nothing.
         XCTAssertNil(move.observe(reading(gripper: gripper, offset: tapOffset + change, age: 0.2), at: 0.3))
         XCTAssertEqual(
             simd_distance(
-                move.linkOffset(at: 0.3) - OperatorFrame.link(fromBase: move.commanded(at: 0.3) - start), sent - planned
+                move.linkOffset(at: 0.3) - TestFrames.so101.link(fromBase: move.commanded(at: 0.3) - start),
+                sent - planned
             ),
             0, accuracy: 1e-12)
     }
 
     func testAnOffsetThatSwingsMoreThanTheLinkMovesSlowsTheCommand() {
-        var move = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         let gripper0 = start - tapOffset
         XCTAssertNil(move.observe(reading(gripper: gripper0, offset: tapOffset), at: 0.1))
         let before = move.deadline
@@ -96,7 +101,8 @@ final class GoMoveFollowTests: XCTestCase {
             "faster": (offset: SIMD3(0.0002, 0, 0), share: 1.0),
         ]
         for (name, pace) in paces {
-            var move = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+            var move = GoMove(
+                frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
             XCTAssertNil(move.observe(reading(gripper: gripper0, offset: tapOffset), at: 0.1), name)
             let commanded = move.commanded(at: 0.4)
             let sent = move.linkOffset(at: 0.4)
@@ -106,13 +112,14 @@ final class GoMoveFollowTests: XCTestCase {
             XCTAssertEqual(stepped, 0.04 * pace.share * 0.1, accuracy: 1e-9, "\(name): the pace changed")
             XCTAssertEqual(simd_distance(move.commanded(at: 0.4), commanded), 0, accuracy: 1e-12, name)
             XCTAssertEqual(
-                simd_distance(move.linkOffset(at: 0.4) - sent, OperatorFrame.link(fromBase: -pace.offset * 0.5)), 0,
+                simd_distance(move.linkOffset(at: 0.4) - sent, TestFrames.so101.link(fromBase: -pace.offset * 0.5)), 0,
                 accuracy: 1e-12, name)
         }
     }
 
     func testAReadingOffTheLegAheadEndsTheMoveStoppedShort() {
-        var near = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+        var near = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         var far = near
         let aside = { (d: Double) in self.start - self.tapOffset + SIMD3(0, d, 0) }
         XCTAssertNil(near.observe(reading(gripper: aside(0.019), offset: tapOffset), at: 0.2))
@@ -120,7 +127,8 @@ final class GoMoveFollowTests: XCTestCase {
     }
 
     func testAReadingWithoutThePinchPointEndsTheMoveAndAStaleOneDoesNot() {
-        var move = GoMove(start: start, target: target, limits: limits, at: 0, offset: tapOffset)
+        var move = GoMove(
+            frames: TestFrames.so101, start: start, target: target, limits: limits, at: 0, offset: tapOffset)
         let gripper = start - tapOffset
         XCTAssertNil(move.observe(reading(gripper: gripper, offset: tapOffset), at: 0.2))
         XCTAssertNil(move.observe(reading(gripper: gripper, offset: tapOffset, age: 0.5, reported: false), at: 0.4))
@@ -132,11 +140,12 @@ final class GoMoveFollowTests: XCTestCase {
     func testTheGripperLinkAskedForStaysInsideTheBoxLessTheTapsOffset() {
         let low = target - SIMD3(0.04, 0.04, 0.0), high = start + SIMD3(0.04, 0.04, 0.01)
         var move = GoMove(
+            frames: TestFrames.so101,
             start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high, offset: tapOffset)
         let gripper = start - tapOffset
         // An offset that grew by 9 cm sideways would send the link far outside the box.
         _ = move.observe(reading(gripper: gripper, offset: tapOffset + SIMD3(0, 0.09, 0)), at: 0.2)
-        let link = OperatorFrame.base(fromLink: move.linkOffset(at: 0.3)) + (start - tapOffset)
+        let link = TestFrames.so101.base(fromLink: move.linkOffset(at: 0.3)) + (start - tapOffset)
         XCTAssertTrue(all(link .>= low - tapOffset - 1e-12) && all(link .<= high - tapOffset + 1e-12), "\(link)")
     }
 
@@ -154,7 +163,8 @@ final class GoMoveFollowTests: XCTestCase {
     /// A move that starts at the travel height turns its corner at the first fresh reading and goes level at half
     /// speed, so the level leg's command reaches the target 2.5 s later, at 2.6 s.
     private func levelMove() -> GoMove {
-        var move = GoMove(start: levelStart, target: levelTarget, limits: limits, at: 0, offset: downOffset)
+        var move = GoMove(
+            frames: TestFrames.so101, start: levelStart, target: levelTarget, limits: limits, at: 0, offset: downOffset)
         XCTAssertNil(move.observe(reading(pinch: levelStart, offset: downOffset), at: 0.1))
         XCTAssertEqual(move.stage, .level)
         return move
@@ -191,7 +201,7 @@ final class GoMoveFollowTests: XCTestCase {
 
     /// A move that follows nothing goes on while its reading is stale, as it always did.
     func testWithoutAMeasuredOffsetAStaleReadingDoesNotHoldTheCommand() {
-        var move = GoMove(start: levelStart, target: levelTarget, limits: limits, at: 0)
+        var move = GoMove(frames: TestFrames.so101, start: levelStart, target: levelTarget, limits: limits, at: 0)
         XCTAssertNil(move.observe(ArmFix(pinch: levelStart, ageS: 0.1, holdPaused: false), at: 0.1))
         let a = move.commanded(at: 0.5)
         XCTAssertNil(move.observe(ArmFix(pinch: levelStart, ageS: 0.5, holdPaused: false), at: 0.5))
@@ -288,6 +298,7 @@ final class GoMoveFollowTests: XCTestCase {
         let offset = start - link
         let low = linkLow + offset, high = linkHigh + offset
         var move = GoMove(
+            frames: TestFrames.so101,
             start: start, target: target, limits: limits, at: 0, boxLow: low, boxHigh: high, offset: offset)
         var sent: [(at: TimeInterval, link: SIMD3<Double>)] = [(0, link)]
         var arm = link, setpoint = link
@@ -333,7 +344,7 @@ final class GoMoveFollowTests: XCTestCase {
             let floor = move.stage == .vertical ? min(start.z, target.z) : target.z
             XCTAssertGreaterThanOrEqual(
                 commanded.z, floor - 1e-12, "\(label): commanded below the travel height, \(move.stage) at \(now)")
-            let asked = link + OperatorFrame.base(fromLink: move.linkOffset(at: now))
+            let asked = link + TestFrames.so101.base(fromLink: move.linkOffset(at: now))
             XCTAssertTrue(
                 all(asked .>= linkLow - 1e-9) && all(asked .<= linkHigh + 1e-9),
                 "\(label): the gripper link asked for outside the server's box, \(asked) at \(now)")

@@ -5,12 +5,12 @@ final class ButtonArbiterTests: XCTestCase {
     // MARK: Holds
 
     func testADirectionButtonHoldsATranslationThatRampsAndStopsOnRelease() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         XCTAssertEqual(pad.press(.forward, atMs: 1_000, gripping: false), [.startTranslation(.forward)])
         XCTAssertEqual(pad.engaged, .forward)
         XCTAssertEqual(pad.tick(atMs: 1_000), [.updateTranslation(.zero)])
         XCTAssertEqual(
-            pad.tick(atMs: 1_500), [.updateTranslation(OperatorDirection.forward.linkVector * 0.02)],
+            pad.tick(atMs: 1_500), [.updateTranslation(TestFrames.so101.linkVector(.forward) * 0.02)],
             "Coarse by default")
         XCTAssertEqual(pad.release(.forward), [.stopTranslation])
         XCTAssertNil(pad.engaged)
@@ -20,15 +20,16 @@ final class ButtonArbiterTests: XCTestCase {
     func testEveryDirectionButtonRampsAlongItsOwnAxis() {
         for button in ButtonID.allCases {
             guard let direction = button.direction else { continue }
-            var pad = ButtonArbiter(speed: .fine)
+            var pad = ButtonArbiter(frames: TestFrames.so101, speed: .fine)
             XCTAssertEqual(pad.press(button, atMs: 0, gripping: false), [.startTranslation(direction)])
-            XCTAssertEqual(pad.tick(atMs: 2_000), [.updateTranslation(direction.linkVector * 0.02)], "\(button)")
+            XCTAssertEqual(
+                pad.tick(atMs: 2_000), [.updateTranslation(TestFrames.so101.linkVector(direction) * 0.02)], "\(button)")
         }
         XCTAssertEqual(ButtonID.allCases.compactMap(\.direction), OperatorDirection.allCases)
     }
 
     func testTheGripperButtonsHoldTheJogAndStreamNoTarget() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         XCTAssertEqual(pad.press(.open, atMs: 0, gripping: true), [.startGripper(.open)], "open runs while gripping")
         XCTAssertEqual(pad.tick(atMs: 500), [])
         XCTAssertEqual(pad.release(.open), [.stopGripper])
@@ -38,23 +39,23 @@ final class ButtonArbiterTests: XCTestCase {
     }
 
     func testANewPressRampsAgainFromZero() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.up, atMs: 0, gripping: false)
         _ = pad.release(.up)
         _ = pad.press(.up, atMs: 5_000, gripping: false)
         XCTAssertEqual(pad.tick(atMs: 5_000), [.updateTranslation(.zero)])
-        XCTAssertEqual(pad.tick(atMs: 5_250), [.updateTranslation(OperatorDirection.up.linkVector * 0.01)])
+        XCTAssertEqual(pad.tick(atMs: 5_250), [.updateTranslation(TestFrames.so101.linkVector(.up) * 0.01)])
     }
 
     // MARK: One button at a time
 
     func testAPressWhileAnotherIsHeldIsDeadAndCuesOnce() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.forward, atMs: 0, gripping: false)
         XCTAssertEqual(pad.press(.up, atMs: 100, gripping: false), [.cue(.deadInput)])
         XCTAssertEqual(pad.engaged, .forward, "first press wins")
         XCTAssertEqual(pad.press(.up, atMs: 150, gripping: false), [], "the same finger again is nothing new")
-        XCTAssertEqual(pad.tick(atMs: 500), [.updateTranslation(OperatorDirection.forward.linkVector * 0.02)])
+        XCTAssertEqual(pad.tick(atMs: 500), [.updateTranslation(TestFrames.so101.linkVector(.forward) * 0.02)])
 
         XCTAssertEqual(pad.release(.forward), [.stopTranslation])
         XCTAssertNil(pad.engaged, "releasing the held button does not wake the dead one")
@@ -65,7 +66,7 @@ final class ButtonArbiterTests: XCTestCase {
     }
 
     func testAPressWhileADeadButtonIsStillDownIsDeadToo() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.open, atMs: 0, gripping: false)
         _ = pad.press(.left, atMs: 50, gripping: false)
         _ = pad.release(.open)
@@ -74,7 +75,7 @@ final class ButtonArbiterTests: XCTestCase {
     }
 
     func testReleasingAButtonThatIsNotDownDoesNothing() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         XCTAssertEqual(pad.release(.back), [])
         _ = pad.press(.back, atMs: 0, gripping: false)
         XCTAssertEqual(pad.release(.forward), [])
@@ -84,7 +85,7 @@ final class ButtonArbiterTests: XCTestCase {
     // MARK: The re-close guard
 
     func testCloseWhileGrippingSendsNothingAndSaysAlreadyGripping() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         XCTAssertEqual(pad.press(.close, atMs: 0, gripping: true), [.cue(.alreadyGripping)])
         XCTAssertNil(pad.engaged)
         XCTAssertEqual(
@@ -99,7 +100,7 @@ final class ButtonArbiterTests: XCTestCase {
     func testAFingerSlippingOffItsButtonEndsTheHoldOnce() {
         let layout = ButtonPadLayout.make(width: 402, height: ButtonPadLayout.referenceHeight)
         let forward = layout.buttons[.forward]!
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.forward, atMs: 0, gripping: false)
 
         var commands: [ButtonCommand] = []
@@ -123,7 +124,7 @@ final class ButtonArbiterTests: XCTestCase {
     // MARK: Fine / Coarse
 
     func testTheSpeedSwitchIsRefusedWhileAnyButtonIsDown() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         XCTAssertEqual(pad.speed, .coarse, "Coarse is the default")
         _ = pad.press(.down, atMs: 0, gripping: false)
         XCTAssertEqual(pad.selectSpeed(.fine), [.cue(.speedRefused)])
@@ -140,19 +141,19 @@ final class ButtonArbiterTests: XCTestCase {
     }
 
     func testTheRampUsesTheSpeedChosenBeforeThePress() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.selectSpeed(.fine)
         _ = pad.press(.right, atMs: 0, gripping: false)
-        XCTAssertEqual(pad.tick(atMs: 1_000), [.updateTranslation(OperatorDirection.right.linkVector * 0.01)])
+        XCTAssertEqual(pad.tick(atMs: 1_000), [.updateTranslation(TestFrames.so101.linkVector(.right) * 0.01)])
     }
 
     // MARK: Holds ended from outside
 
     func testABlockedRampStopsMovingUntilRelease() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.left, atMs: 0, gripping: false)
         pad.rampBlocked(atMs: 500)
-        let held = OperatorDirection.left.linkVector * 0.02
+        let held = TestFrames.so101.linkVector(.left) * 0.02
         XCTAssertEqual(pad.tick(atMs: 500), [.updateTranslation(held)])
         XCTAssertEqual(pad.tick(atMs: 3_000), [.updateTranslation(held)], "the hold stays, the target does not move")
         XCTAssertEqual(pad.release(.left), [.stopTranslation])
@@ -161,7 +162,7 @@ final class ButtonArbiterTests: XCTestCase {
     }
 
     func testAHoldEndedElsewhereLeavesItsButtonDeadUntilReleased() {
-        var pad = ButtonArbiter()
+        var pad = ButtonArbiter(frames: TestFrames.so101)
         _ = pad.press(.back, atMs: 0, gripping: false)
         pad.holdEnded()
         XCTAssertNil(pad.engaged)
@@ -180,7 +181,7 @@ final class ButtonArbiterTests: XCTestCase {
     func testOneButtonAtATimeHoldsForEveryOrdering() {
         var random = SplitMix64(seed: 0x5EED)
         for _ in 0..<2_000 {
-            var pad = ButtonArbiter()
+            var pad = ButtonArbiter(frames: TestFrames.so101)
             var running: ButtonCommand?
             var dead: Set<ButtonID> = []
             var now = 0

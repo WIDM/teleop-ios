@@ -77,11 +77,11 @@ protocols (`HapticsPlaying`, `SoundPlaying`, `SpeechPlaying`, `LinkTransport`, `
 | `Input/` | The input rules for the two phone schemes: `InputArbiter` decides what each key press, touch and phone turn means; `Engagement` says who drives the arm now; `SurfaceLayout` gives the screen's zones; `RotationMapper` turns the phone's rotation into a wrist angle; `ThumbSlide` judges a thumb slid up the glass; `TranslationAxis` is the movement axis the voice experiment can choose; `InputConstants` holds every threshold. |
 | `Assist/` | The hands-free aids: `Assist`, their one configuration; `GoPanel`, the guide's view from above as a tap is judged against it; `GoMove`, the path of a move to a tapped point. |
 | `Guide/` | `GuideProjection`, the guide's projection, which the drawing and the tap both use. |
-| `Buttons/` | Buttons mode: `ButtonArbiter` (one button at a time), `ButtonRamp` (the target a held direction button moves), `ButtonPadLayout` (where each button sits), `OperatorFrame` (forward, back, left, right, up and down as robot axes, for the buttons and the phone alike), `WristButtons` (the Wrist page's four buttons, and `WristButtonRamp`, the angle a held one asks for). |
+| `Buttons/` | Buttons mode: `ButtonArbiter` (one button at a time), `ButtonRamp` (the target a held direction button moves), `ButtonPadLayout` (where each button sits), `OperatorDirection` (the six directions; which robot axis each one is comes from the profile's `Frames`), `WristButtons` (the Wrist page's four buttons, and `WristButtonRamp`, the angle a held one asks for). |
 | `Link/` | `TeleopLink`, one conversation with the server: it builds every message, reads every answer and keeps the rules about holds, final acks and resets. `ServerState` reads a `state` message. `WristLeadBound` keeps a wrist command from running ahead of the measured wrist. `SimStall` (`SimStallDetector`) judges whether the simulation behind the server runs; `ObjectHold` knows whether the jaws hold an object and so which path a pad hold takes; `SessionDismissal` names why a server that keeps one phone per simulator let go of this phone. |
 | `Feedback/` | `FeedbackMonitor` turns what the link hears into `FeedbackEvent`s for the hold the operator has engaged; `OnTargetCue` decides the on-target haptic; `WorkAreaCue` tells when the commanded place leaves the work area; `JawsClosedReminder` decides when to tell the operator to open the gripper first; `ServerRefusalClass` sorts a server's refusal into what the operator can do about it; `CueTable` says how each event is felt, heard or spoken; `CueScheduler` decides what plays when two coincide. |
 | `Recording/` | `RecorderNarrator` compares successive states and says what happened to each take; `StopExits` decides which ways out of an emergency stop to offer. |
-| `Profile/` | `RobotProfile`, what the app knows about one robot setup, with its strict JSON form and its validation (`docs/PROFILE.md`). |
+| `Profile/` | `RobotProfile`, what the app knows about one robot setup, with its strict JSON form and its validation (`docs/PROFILE.md`); `Frames`, how the operator's view, the robot base, the link and the world relate. |
 
 `FakeTeleopState` is the session's real state, despite its name. With `liveLink` set, the connection, the latency
 and the emergency stop follow the server. With it off, the app runs **practice**: a built-in demo with no server,
@@ -777,11 +777,11 @@ values, and how a build chooses its file. The fields:
 |---|---|
 | `toolOffset` | from the point the server reports for the arm to where the jaws pinch, in the robot base frame; used when a state has no `tool_pos` |
 | `estimateBound` | how far a pinch point estimated with `toolOffset` may be off, per centimetre the arm has moved from where the offset was measured and per degree of wrist; past half the grasp tolerance the estimate is approximate |
-| `baseInWorld` | where the robot base sits in the world frame (the server reports objects in the world frame) |
+| `frames` | `Frames`: which base axis is forward, left and up (`robot.directions`), how the link's offsets are signed against the base's (`server.link_signs`), and where the base sits in the world frame and which world axis each base axis lies along (`base_in_world_m`, `scene.base_axes_in_world`). `baseInWorld` is its shift |
 | `graspTolerance` | how close the pinch point must be to the target's centre to count as on target |
 | `targetSize`, `goalSize` | the task object's and the goal area's size across, for drawing them true to size |
 | `gripperOpenDeg`, `gripperEmptyDeg` | the measured jaw angles that count as fully open and as closed on nothing |
-| `workspaceMin`, `workspaceMax`, `tableHeight` | the box the server keeps the pinch point in, and the table's height, for the guide |
+| `workspaceMin`, `workspaceMax`, `tableHeight` | the box the server keeps the pinch point in, in the base frame, and the table's height over the base origin along up, for the guide |
 | `rollSign`, `tiltSign` | which way a turn or a tilt of the phone moves the wrist; both +1 until a check on the live robot sets them |
 | `recloseLoosensGrip` | a second close while gripping is refused, because on this robot it loosens the grip |
 | `usesDirectionalBlockedFeedback` | this profile's gripper-link box (`gripperWorkspace`: `workspaceMin` and `workspaceMax` moved back by `toolOffset`) has been checked against the workspace in the server recordings, so with the guide's additions on "Blocked." is told by the direction asked ("The guide's additions") |
@@ -804,6 +804,31 @@ values, and how a build chooses its file. The fields:
 | `guide` | which of the guide's additions run (`GuideAids`) |
 | `explain` | what the phone says about its link beyond 1.0.1's words (`ExplainAids.slowLinkLetGo`: a hold a slow link stops says "Slow link."); a robot that sets it also sets `guide` |
 | `views` | the fixed aiming views (`ViewAim`): `behindTopAboveTableM`, the height of the rear view's top above the table, which must reach the travel height, and `maxRetargetedMoveS`, how long a retargeted move may run |
+
+### Frames
+
+`Frames` (`Profile/Frames.swift`) is a pure value inside the profile. Three relations, each a quarter turn or a shift:
+operator to base (which base axis, and which way, is forward, left and up; right is the opposite of left), base to
+link (one sign per axis: the frame a translation hold's offset is sent in is the base frame with some axes mirrored)
+and world to base (the base's place in the world and which world axis each base axis lies along). It converts both
+ways and gives "height", the part of a vector along up. It can be written and read back (`Codable`), an axis as its
+text, and `faults()` says in one sentence each what cannot be used: three directions that are not a turn, a sign other
+than 1 or -1, link signs, a world turn that is not a turn, and an `up` that is not the base axis the world turn puts
+along world +z. Rules ask `Frames` and never read an axis by name: the buttons' ramps, the
+voice axes, the phone's motion, the guide's projection and a tap on it, a going move's legs and corrections, the
+work-area cue's sides, the blocked and lowest rules' heights and the link's mirrored axis all ask `Frames`, and it
+travels inside the values that carry the profile's numbers (`GuideProjection`, `ButtonArbiter`, `GoMove`,
+`FeedbackMonitor`, `WorkAreaCue`, `LiveLinkController`). There is no global and no default: `scripts/check-arm-constants.py`
+refuses a `Frames` held in a static or built outside the core's `Profile` folder and the tests.
+
+The in-app server model (`ServerModelConfig`) takes the same three relations as plain numbers (`baseInWorld`, which
+way each base axis points in the world, `linkSigns`); its table rule and its grasp window go by the base axis that lies
+along world z. They are set together through `settingFrames`, and the turning pinch point (`ToolTurn`, written for a
+base whose z is up) through `settingToolTurn`; each throws a `Refusal` with one sentence per fault (an axis that is not
+a quarter turn, two base axes on one world axis, a mirror image, link signs other than 1 or -1, a shift that is not
+finite, a turning pinch point on a base whose up is not along world +z), whichever order they are set in. The tests that
+build it from the profile pass the profile's frames to `settingFrames`. Heights the guide keeps
+(`lowestGripperZ`, `lowestPinchZ`, the table) are along up, which is the base's z only where z is up.
 
 `RobotProfileAssistTests` holds the shipped profile to what these numbers must satisfy: the travel height inside the
 box, the arrival tolerance under the blocked rule's 10 mm, an allowance of at least 3 s that leaves room for one

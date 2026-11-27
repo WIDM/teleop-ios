@@ -20,6 +20,8 @@ extension RobotProfile {
 
         if name.trimmingCharacters(in: .whitespaces).isEmpty { faults.append("name must not be empty.") }
 
+        faults += frames.faults()
+
         sign("robot.wrist.roll_sign", rollSign)
         sign("robot.wrist.tilt_sign", tiltSign)
         positive("robot.gripper.open_deg", gripperOpenDeg)
@@ -28,7 +30,6 @@ extension RobotProfile {
             faults.append("robot.gripper.empty_deg must be below robot.gripper.open_deg.")
         }
 
-        finite("scene.base_in_world_m", [baseInWorld.x, baseInWorld.y, baseInWorld.z])
         finite("scene.table_height_m", [tableHeight])
         finite("scene.workspace_min_m", [workspaceMin.x, workspaceMin.y, workspaceMin.z])
         finite("scene.workspace_max_m", [workspaceMax.x, workspaceMax.y, workspaceMax.z])

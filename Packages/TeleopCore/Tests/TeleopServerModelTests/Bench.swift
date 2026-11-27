@@ -100,13 +100,23 @@ final class Bench {
             send("pose_start", Self.poseParameters.setting("control_mode", .string(mode)))
         }
 
-        /// A pose update asking the arm to go `base` metres (robot base frame) from where the hold began.
+        /// A pose update asking the arm to go `base` metres (robot base frame) from where the hold began, sent in the
+        /// link's frame (the base's with the config's signs).
         func poseUpdate(base: SIMD3<Double>, gripperDelta: Double = 0, q: [Double] = [0, 0, 0, 1]) {
             send(
                 "pose_update",
                 .object([
-                    "p_rel_m": .numbers([base.x, base.y, -base.z]), "q_rel": .numbers(q),
+                    "p_rel_m": .numbers(bench.config.baseFromLink(base).array), "q_rel": .numbers(q),
                     "gripper_delta": .double(gripperDelta),
+                ]))
+        }
+
+        /// A pose update that is already in the link's frame, as the app sends one.
+        func poseUpdate(link: SIMD3<Double>, gripperDelta: Double = 0, q: [Double] = [0, 0, 0, 1]) {
+            send(
+                "pose_update",
+                .object([
+                    "p_rel_m": .numbers(link.array), "q_rel": .numbers(q), "gripper_delta": .double(gripperDelta),
                 ]))
         }
 
@@ -156,9 +166,9 @@ final class Bench {
         /// jaws until they stop, and says whether they took hold of the cube.
         func closeJaws(offFromCube offset: SIMD3<Double>) -> Bool {
             let config = bench.config
-            let grasp = config.cubeStartWorld - config.baseInWorld - config.toolOffset + offset
+            let grasp = config.baseFromWorld(config.cubeStartWorld) - config.toolOffset + offset
             gripperJog("open", seconds: 2.5)
-            moveArm(to: grasp + SIMD3(0, 0, 0.03))
+            moveArm(to: grasp + config.upVector * 0.03)
             moveArm(to: grasp)
             gripperJog("close", seconds: 7)
             return bench.model.world.holdingCube
@@ -168,9 +178,9 @@ final class Bench {
         /// close until the jaws stop on the cube, lift, carry, lower. Leaves the jaws closed on the cube.
         func carryCubeOntoGoal(file: StaticString = #filePath, line: UInt = #line) {
             let config = bench.config
-            let cube = config.cubeStartWorld - config.baseInWorld
+            let cube = config.baseFromWorld(config.cubeStartWorld)
             let grasp = cube - config.toolOffset
-            let lift = SIMD3<Double>(0, 0, 0.03)
+            let lift = config.upVector * 0.03
             gripperJog("open", seconds: 2.5)
             moveArm(to: grasp + lift)
             moveArm(to: grasp)
@@ -179,11 +189,17 @@ final class Bench {
                 bench.model.world.holdingCube, "the jaws did not take hold of the cube", file: file, line: line)
             let overGoal =
                 grasp
-                + SIMD3(config.goalWorld.x - config.cubeStartWorld.x, config.goalWorld.y - config.cubeStartWorld.y, 0)
+                + config.baseFromWorldDirection(
+                    SIMD3(config.goalWorld.x - config.cubeStartWorld.x, config.goalWorld.y - config.cubeStartWorld.y, 0)
+                )
             moveArm(to: grasp + lift, seconds: 3)
             moveArm(to: overGoal + lift, seconds: 4)
-            moveArm(to: overGoal + SIMD3(0, 0, 0.002), seconds: 3)
+            moveArm(to: overGoal + config.upVector * 0.002, seconds: 3)
             XCTAssertTrue(bench.model.world.holdingCube, "the cube was dropped on the way", file: file, line: line)
         }
     }
+}
+
+extension SIMD3 where Scalar == Double {
+    var array: [Double] { [x, y, z] }
 }

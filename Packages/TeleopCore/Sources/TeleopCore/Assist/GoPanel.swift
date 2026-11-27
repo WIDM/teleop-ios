@@ -15,7 +15,7 @@ public struct GoPanel: Equatable, Sendable {
     /// metres, corners sorted.
     public var boxLow: SIMD3<Double>
     public var boxHigh: SIMD3<Double>
-    /// The table's height, robot base frame, metres.
+    /// The table's height over the base origin, along up, metres.
     public var tableHeight: Double
 
     public init(
@@ -51,7 +51,7 @@ public struct GoPanel: Equatable, Sendable {
         limits: GoToLimits, views: ViewAim
     ) -> BehindAim {
         guard let behind, behind.contains(x: point.x, y: point.y) else { return .outsideWorkArea }
-        let reference = GuideProjection.operatorPoint(running ?? measured)
+        let reference = projection.operatorPoint(running ?? measured)
         let share = SIMD2((point.x - behind.x) / behind.width, (point.y - behind.y) / behind.height)
         var aim = projection.point(behindShare: share, forward: reference.y)
         let columnCentre = min(max(projection.behind(reference).x, 0), 1) * behind.width + behind.x
@@ -60,14 +60,14 @@ public struct GoPanel: Equatable, Sendable {
         let ceiling = tableHeight + views.behindTopAboveTableM
         guard floor <= ceiling else { return .outsideWorkArea }
         if heightOnly {
-            let measuredHeight = GuideProjection.operatorPoint(measured).z
+            let measuredHeight = projection.operatorPoint(measured).z
             if aim.z < floor, measuredHeight <= floor + limits.arriveToleranceM {
                 return .useUpperKey
             }
             aim.x = reference.x
         }
         aim.z = min(max(aim.z, floor), ceiling)
-        let target = GuideProjection.base(fromOperator: aim)
+        let target = projection.base(fromOperator: aim)
         return inBox(target) ? .target(target) : .outsideWorkArea
     }
 
@@ -76,7 +76,7 @@ public struct GoPanel: Equatable, Sendable {
     public func target(x: Double, y: Double, travelHeight: Double) -> SIMD3<Double> {
         let share = SIMD2((x - rect.x) / rect.width, (y - rect.y) / rect.height)
         let up = tableHeight + travelHeight
-        return GuideProjection.base(fromOperator: projection.point(aboveShare: share, up: up))
+        return projection.base(fromOperator: projection.point(aboveShare: share, up: up))
     }
 
     /// Inside the work box as drawn, on all three axes, with no slack: the guide counts a reading a millimetre outside
@@ -88,7 +88,7 @@ public struct GoPanel: Equatable, Sendable {
     /// Where on the glass the view from above draws `base`, a robot base frame point (its height does not matter
     /// there): the forward projection, for tests and scripted hands that write their taps in metres.
     public func point(over base: SIMD3<Double>) -> SIMD2<Double> {
-        let share = projection.above(GuideProjection.operatorPoint(base))
+        let share = projection.above(projection.operatorPoint(base))
         return SIMD2(rect.x + share.x * rect.width, rect.y + share.y * rect.height)
     }
 }

@@ -50,7 +50,7 @@ final class GoingFollowTests: XCTestCase {
         XCTAssertEqual(turned.wait(step), [])
         let a = try XCTUnwrap(still.arbiter.goOffset(at: still.time))
         let b = try XCTUnwrap(turned.arbiter.goOffset(at: turned.time))
-        XCTAssertEqual(simd_distance(b - a, OperatorFrame.link(fromBase: -change * 0.5)), 0, accuracy: 1e-12)
+        XCTAssertEqual(simd_distance(b - a, TestFrames.so101.link(fromBase: -change * 0.5)), 0, accuracy: 1e-12)
         plain.facts.arm = ArmFix(pinch: start, ageS: 0.1, holdPaused: false)
         XCTAssertEqual(plain.wait(step), [])
         XCTAssertEqual(

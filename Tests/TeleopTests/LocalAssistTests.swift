@@ -56,7 +56,9 @@ final class LocalAssistTests: XCTestCase {
         _ mode: ControlMode, lock: LockChoice, path: StallingPath? = nil, serverBox: Double? = nil,
         reportsPinch: Bool = true, transport: ((URL) -> LinkTransport)? = nil
     ) throws {
-        var config = ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: reportsPinch)
+        var config = try ServerModelConfig.s4Simulator(stepsPerSecond: 60, reportsToolPoint: reportsPinch)
+            .settingFrames(
+                from: TestProfiles.so101.frames)
         if let serverBox { config.workspaceHalfSize = serverBox }
         server = LocalTeleopServer(config: config)
         try server.start()
@@ -768,7 +770,11 @@ private final class CommandLegs {
         }
         guard offset != last else { return }
         if lastSampledAt - changedAt >= rest {
-            setOffs.append((OperatorFrame.base(fromLink: last), OperatorFrame.base(fromLink: offset - last)))
+            setOffs.append(
+                (
+                    TestProfiles.so101.frames.base(fromLink: last),
+                    TestProfiles.so101.frames.base(fromLink: offset - last)
+                ))
         }
         changedAt = now
     }
@@ -816,7 +822,9 @@ final class CommandLegsTests: XCTestCase {
         var t = 0.0
         while t <= 3.5 + stand {
             now = t
-            if gap?.contains(t) != true { legs.sample(OperatorFrame.link(fromBase: command(at: t, stand: stand))) }
+            if gap?.contains(t) != true {
+                legs.sample(TestProfiles.so101.frames.link(fromBase: command(at: t, stand: stand)))
+            }
             t += 0.004
         }
         return legs.corrections
@@ -840,9 +848,9 @@ final class CommandLegsTests: XCTestCase {
         for (lasted, counted) in [(rest, 1), (rest - 0.004, 0)] {
             now = 0
             let legs = CommandLegs(rest: rest, clock: { [unowned self] in now })
-            let start = OperatorFrame.link(fromBase: SIMD3(0.01, -0.02, 0))
-            let moved = OperatorFrame.link(fromBase: SIMD3(0.01, -0.03, 0))
-            legs.sample(OperatorFrame.link(fromBase: SIMD3(0.01, -0.01, 0)))
+            let start = TestProfiles.so101.frames.link(fromBase: SIMD3(0.01, -0.02, 0))
+            let moved = TestProfiles.so101.frames.link(fromBase: SIMD3(0.01, -0.03, 0))
+            legs.sample(TestProfiles.so101.frames.link(fromBase: SIMD3(0.01, -0.01, 0)))
             now = 0.1
             legs.sample(start)
             now = 0.1 + lasted
