@@ -3,7 +3,8 @@ import TeleopCore
 import XCTest
 @testable import Teleop
 
-/// Scripted phone motion through the real app code against a real server on this Mac (port 8765):
+/// Scripted phone motion through the real app code against a real server on this Mac (port 8765, or the address in
+/// `TEST_RUNNER_TELEOP_ADDRESS`):
 /// the stub, or Isaac Sim behind the SSH tunnel. It moves the simulated arm, so it only runs when asked, and only
 /// in the Live test plan:
 ///
@@ -20,9 +21,10 @@ final class ServerMotionTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
             throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
         }
-        hand = ScriptedOperator(address: "127.0.0.1:8765", smoothing: 0.3)
+        let address = ScriptedOperator.liveServerAddress
+        hand = ScriptedOperator(address: address, smoothing: 0.3)
         guard hand.connect(within: 4) else {
-            throw XCTSkip("no server on 127.0.0.1:8765")
+            throw XCTSkip("no server on \(address)")
         }
         // What the top band does when held: from the stop state the server's reset also clears the stop.
         model.runReset()

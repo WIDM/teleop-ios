@@ -224,7 +224,10 @@ The live tests move the arm in Isaac Sim on a machine other people use, so three
 1. They are in the Live plan only; the Default and Critical plans skip them by name.
 2. They skip unless the test runner's environment has `TELEOP_MOTION` set, which `xcodebuild` passes on when the
    command line sets `TEST_RUNNER_TELEOP_MOTION=1`.
-3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below).
+3. They connect to `127.0.0.1:8765` and skip if nothing answers there. That is the relay's port (below). To drive
+   a server at another address, set `TEST_RUNNER_TELEOP_ADDRESS` on the command line, beside
+   `TEST_RUNNER_TELEOP_MOTION`; the test runner sees it as `TELEOP_ADDRESS`. For example
+   `TEST_RUNNER_TELEOP_ADDRESS=127.0.0.1:9100`.
 
 Run them only when Isaac Sim is free and you mean to move its arm. They need the scene at its reset pose with nobody
 else driving it. `OperatorLiveTests` may run in a recording session, where each success saves a take; it has not
