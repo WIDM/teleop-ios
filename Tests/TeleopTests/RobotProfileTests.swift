@@ -8,7 +8,9 @@ final class RobotProfileTests: XCTestCase {
     /// reported in the world frame are moved into the robot base frame.
     func testTheProfileMovesTheToolPointAndTheObjects() {
         // A gripper that pinches straight below the reported point, on a robot sitting 5 cm above the world origin.
-        let straightDown = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: SIMD3(0, 0, 0.05))
+        var straightDown = TestProfiles.so101
+        straightDown.toolOffset = SIMD3(0, 0, -0.10)
+        straightDown.baseInWorld = SIMD3(0, 0, 0.05)
         let estimated = straightDown.pinchPoint(gripper: SIMD3(0.01, -0.2, 0.15), tool: nil, flexDeg: nil, rollDeg: nil)
         XCTAssertLessThan(simd_distance(estimated.point, SIMD3(0.01, -0.2, 0.05)), 1e-6)
         XCTAssertEqual(estimated.offset, straightDown.toolOffset)

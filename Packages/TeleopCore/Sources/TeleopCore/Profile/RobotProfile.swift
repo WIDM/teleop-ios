@@ -64,28 +64,25 @@ public struct RobotProfile: Equatable, Sendable {
     public init(
         name: String,
         toolOffset: SIMD3<Float>,
-        offsetMeasuredAt: SIMD3<Float> = SIMD3<Float>(-0.002, -0.164, 0.1405),
-        offsetMeasuredFlexDeg: Double = 40.24,
-        offsetMeasuredRollDeg: Double = 90.0,
-        estimateBound: EstimateBound = EstimateBound(
-            xMmPerCm: 2.56, plusYMmPerCm: 11.12, minusYMmPerCm: 1.80, zMmPerCm: 8.43, flexMmPerDeg: 1.65,
-            rollMmPerDeg: 0.23
-        ),
+        offsetMeasuredAt: SIMD3<Float>,
+        offsetMeasuredFlexDeg: Double,
+        offsetMeasuredRollDeg: Double,
+        estimateBound: EstimateBound,
         baseInWorld: SIMD3<Float>,
-        graspTolerance: SIMD2<Float> = SIMD2<Float>(0.006, 0.008),
-        targetSize: Float = 0.025,
-        goalSize: Float = 0.05,
-        gripperOpenDeg: Double = 97.0,
-        gripperEmptyDeg: Double = 2.0,
-        workspaceMin: SIMD3<Float> = SIMD3<Float>(-0.052383, -0.257418, -0.008015),
-        workspaceMax: SIMD3<Float> = SIMD3<Float>(0.107617, -0.097418, 0.151985),
-        tableHeight: Float = 0.04,
-        rollSign: Double = 1.0,
-        tiltSign: Double = 1.0,
-        recloseLoosensGrip: Bool = true,
-        usesDirectionalBlockedFeedback: Bool = false,
-        assist: AssistProfile = .none,
-        onTargetWindow: SIMD2<Float>? = nil
+        graspTolerance: SIMD2<Float>,
+        targetSize: Float,
+        goalSize: Float,
+        gripperOpenDeg: Double,
+        gripperEmptyDeg: Double,
+        workspaceMin: SIMD3<Float>,
+        workspaceMax: SIMD3<Float>,
+        tableHeight: Float,
+        rollSign: Double,
+        tiltSign: Double,
+        recloseLoosensGrip: Bool,
+        usesDirectionalBlockedFeedback: Bool,
+        assist: AssistProfile,
+        onTargetWindow: SIMD2<Float>?
     ) {
         self.name = name
         self.toolOffset = toolOffset

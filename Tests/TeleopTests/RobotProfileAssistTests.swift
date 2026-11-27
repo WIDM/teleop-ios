@@ -72,8 +72,8 @@ final class RobotProfileAssistTests: XCTestCase {
     }
 
     /// A robot whose profile allows no aid resolves lock and taps away whatever the operator chooses, as the master
-    /// switch off does; a profile that says nothing about the aids allows none.
-    func testARobotThatAllowsNoAidsResolvesLockAndTapsAway() {
+    /// switch off does; a profile file that gives none of the aids (each written as null) allows none.
+    func testARobotThatAllowsNoAidsResolvesLockAndTapsAway() throws {
         var bare = profile
         bare.assist = .none
         for choice in LockChoice.allCases {
@@ -81,7 +81,15 @@ final class RobotProfileAssistTests: XCTestCase {
             XCTAssertNil(assist.lock, "\(choice)")
             XCTAssertNil(assist.goTo, "\(choice)")
         }
-        let unsaid = RobotProfile(name: "test", toolOffset: SIMD3(0, 0, -0.10), baseInWorld: SIMD3(0, 0, 0.05))
+        let written = try JSONSerialization.jsonObject(with: JSONEncoder().encode(TestProfiles.so101))
+        var file = try XCTUnwrap(written as? [String: Any])
+        file["assist"] = [
+            "lock": NSNull(), "go_to": NSNull(), "guide": NSNull(), "explain": NSNull(), "views": NSNull(),
+        ]
+        var scene = try XCTUnwrap(file["scene"] as? [String: Any])
+        scene["on_target_window_m"] = NSNull()
+        file["scene"] = scene
+        let unsaid = try RobotProfile.load(json: JSONSerialization.data(withJSONObject: file))
         XCTAssertEqual(unsaid.assist, .none)
         XCTAssertNil(unsaid.onTargetWindow)
     }
