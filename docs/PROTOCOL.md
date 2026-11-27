@@ -268,15 +268,17 @@ the table.
 The app moves one axis per hold, and the angle it asks for follows the phone. The input rules commit the hold to
 turn (roll) or tilt (pitch) from the phone's first clear rotation; from then on the angle is the phone's rotation on
 that axis since the input began (the thumb's touch-down in scheme A, the vol− press in scheme B), times
-`rollSign` or `tiltSign` from the robot profile (`RotationMapper`). It is held to these limits:
+`rollSign` or `tiltSign` from the robot profile (`RotationMapper`). It is held to these limits, which are the profile's
+`robot.wrist` numbers (the SO-101's are given here):
 
-- at most 55 degrees of turn and 20 degrees of tilt per hold (`InputConstants.rollClampDeg`, `tiltClampDeg`);
+- at most 55 degrees of turn and 20 degrees of tilt per hold (`roll_clamp_deg`, `tilt_clamp_deg`);
 - the roll asked for stays within 150 degrees either way of zero, judged from the measured roll, and the flex within
-  25 degrees of the flex measured after the last reset (`rollWindowDeg`, `tiltWindowDeg`); for a server that reports
-  no wrist angles, the tilt commanded since the last reset counts instead;
+  25 degrees of the tilt window's centre, which is the flex measured after the last reset unless the profile gives a
+  fixed one (`roll_window_deg`, `tilt_window_deg`, `tilt_centre_deg`); for a server that reports no wrist angles, the
+  tilt commanded since the last reset counts instead;
 - the commanded angle never leads the newest measured angle by more than 2 degrees plus 10 degrees for each second
   of that state's age, and with no state younger than 400 ms it does not move further from the wrist
-  (`WristLeadBound`). The server keeps moving its target toward a blocked wrist, and the wrist would jump by that
+  (`WristLeadBound`; `lead.lead_deg`, `lead.rate_max_deg_s`, `lead.fresh_state_ms`). The server keeps moving its target toward a blocked wrist, and the wrist would jump by that
   lead once it is free. A server that reports no wrist angles gets the angle unbounded.
 
 The operator feels a long buzz at a limit. If the start waited behind a finishing hold, the rotation made meanwhile is
@@ -285,7 +287,8 @@ dropped. Releasing leaves the wrist where it got to. Each update is also the hol
 The Wrist page of the Fine controls panel sends the same three messages with no phone involved. A held button asks
 for an angle that grows from the moment `orient_start` went out: 20 degrees a second for Turn left and Turn right
 (roll, left negative) and 10 degrees a second for Tilt up and Tilt down (pitch, up negative, so Tilt down points the
-jaws toward the table), held to the same range as the phone's hold (`RotationMapper.limits`) and sent through the
+jaws toward the table), the profile's `turn_rate_deg_s` and `tilt_rate_deg_s` for the SO-101 and its signs, the same
+pair the phone's hold uses (`roll_sign`, `tilt_sign`), held to the same range as the phone's hold (`RotationMapper.limits`) and sent through the
 same lead bound. The long buzz plays once per hold, at the end of the range (`WristButton`, `WristButtonRamp`).
 
 ## What the app receives
@@ -560,7 +563,7 @@ The app reads it in `ServerState(payload:)`. A field that is missing or of the w
 | `object_pos`, `goal_pos` | the task object's centre and the goal's centre, **world** frame, metres | the guide's target and goal, moved into the base frame (`RobotProfile.baseInWorld`) |
 | `task_success` | true from the moment the task counts as done until the automatic reset | told to the operator; the screen says Wait (Saving) meanwhile |
 | `episode` | counts scene resets of this server run | a change means the scene started over: the jaws hold nothing, and the wrist's tilt limit counts from the new start |
-| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch, wrist roll and jaw angle, degrees; `null` when a measurement is not a number | "fully open" when opening, "closed on nothing" when closing; the guide's jaw and wrist read-outs; the wrist limits above. Without the wrist angles, the angle the operating screen shows during a turn or tilt is marked "estimated" |
+| `wrist_flex_deg`, `wrist_roll_deg`, `gripper_deg` | measured wrist pitch and wrist roll, degrees, and the jaw reading in the unit of the profile's `robot.gripper.unit` (degrees for a hinged jaw, millimetres for parallel jaws; the field keeps the name `gripper_deg`); `null` when a measurement is not a number. A wrist angle outside ±360 and a jaw reading outside the profile's `valid_min` to `valid_max` count as not sent | "fully open" when opening, "closed on nothing" when closing; the guide's jaw and wrist read-outs; the wrist limits above. Without the wrist angles, the angle the operating screen shows during a turn or tilt is marked "estimated" |
 | `rec` | the recorder: `none` (started without recording), `off` (recording, but nothing is captured: after an emergency stop until a reset, and after a success until the automatic reset), `armed` (the take starts at the next command), `capturing` | the REC line (below), what the operator hears per take, and which ways out of a stop are offered |
 | `rec_saved` | demonstrations in the output file, including earlier server runs | a rise is a saved take: "Saved N" on the operating screen for 2 s, and spoken; the count in the REC line and in Settings → Recording |
 | `rec_discarded` | takes thrown away since the server started | a rise is a discarded take, spoken; the count in the REC line and in Settings → Recording |

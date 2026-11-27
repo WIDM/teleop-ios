@@ -301,7 +301,7 @@ switch.
 - **Wrist page.** The cross's four buttons become Tilt up, Tilt down, Turn left and Turn right (`WristButton`); Up,
   Down, Open and Close stay. A held wrist button sends the wrist hold the phone's rotation sends (`orient_start`,
   `orient_update`, `orient_stop`), with an angle that grows from the moment the start went on the wire: 20 degrees a
-  second for turn, 10 for tilt (`WristButton.turnRate`, `tiltRate`), held to `RotationMapper.limits`, the range of the
+  second for turn, 10 for tilt (the profile's `wrist.turnRateDegS`, `tiltRateDegS`, with the same signs as the phone's turn and tilt), held to `RotationMapper.limits`, the range of the
   phone's own wrist hold, and sent through `WristLeadBound`. The long buzz at the end of the range plays once per hold
   (`OperatingController.claimWristLimitCue`). For a server that reports no wrist angles, the tilt a button
   asks for is added to the tilt commanded since the last reset (`InputArbiter.addPanelTilt`). A finger that slides off its button ends the hold and stays dead until lifted. The
@@ -780,9 +780,9 @@ values, and how a build chooses its file. The fields:
 | `frames` | `Frames`: which base axis is forward, left and up (`robot.directions`), how the link's offsets are signed against the base's (`server.link_signs`), and where the base sits in the world frame and which world axis each base axis lies along (`base_in_world_m`, `scene.base_axes_in_world`). `baseInWorld` is its shift |
 | `graspTolerance` | how close the pinch point must be to the target's centre to count as on target |
 | `targetSize`, `goalSize` | the task object's and the goal area's size across, for drawing them true to size |
-| `gripperOpenDeg`, `gripperEmptyDeg` | the measured jaw angles that count as fully open and as closed on nothing |
+| `gripper` | `GripperProfile`: the jaw's unit (`deg` or `mm`), the two readings the opening share is drawn between, the readings that count as a jaw reading, and the readings that count as fully open and as closed on nothing (`fullyOpenAt`, `emptyAt`) |
 | `workspaceMin`, `workspaceMax`, `tableHeight` | the box the server keeps the pinch point in, in the base frame, and the table's height over the base origin along up, for the guide |
-| `rollSign`, `tiltSign` | which way a turn or a tilt of the phone moves the wrist; both +1 until a check on the live robot sets them |
+| `wrist` | `WristProfile`: the roll and tilt windows and per-hold limits, the centre of the tilt window, one pair of signs for the phone and the wrist buttons (both +1 until a check on the live robot sets them), the buttons' rates, and the lead bound's four numbers (`WristLeadLimits`) |
 | `recloseLoosensGrip` | a second close while gripping is refused, because on this robot it loosens the grip |
 | `usesDirectionalBlockedFeedback` | this profile's gripper-link box (`gripperWorkspace`: `workspaceMin` and `workspaceMax` moved back by `toolOffset`) has been checked against the workspace in the server recordings, so with the guide's additions on "Blocked." is told by the direction asked ("The guide's additions") |
 | `assist` | which hands-free aids this robot allows, with their numbers (`AssistProfile`, below); `.none` allows none and needs no code path of its own |
@@ -804,6 +804,16 @@ values, and how a build chooses its file. The fields:
 | `guide` | which of the guide's additions run (`GuideAids`) |
 | `explain` | what the phone says about its link beyond 1.0.1's words (`ExplainAids.slowLinkLetGo`: a hold a slow link stops says "Slow link."); a robot that sets it also sets `guide` |
 | `views` | the fixed aiming views (`ViewAim`): `behindTopAboveTableM`, the height of the rear view's top above the table, which must reach the travel height, and `maxRetargetedMoveS`, how long a retargeted move may run |
+
+### The wrist and the jaw
+
+`WristProfile` and `GripperProfile` (`Profile/`) are pure values inside the profile. The wrist's numbers reach the rules
+through `InputConstants(wrist:)`, which has no default wrist, through `WristButton.degreesPerSecond(in:)` and
+`WristButtonRamp(button:range:wrist:)`, through `WristLeadBound(limits:)` and, for the tilt window's centre, through
+`WristProfile.tiltCentreDeg(measuredAfterReset:)`. The jaw reaches them as `GripperLimits` (from `GripperProfile.limits`),
+`GripperProfile.opening(at:)` for the share the guide draws, and `jawReadings` of `ServerState` and `TeleopLink`, the
+readings that count as a jaw reading; the wrist joints keep their own bound of ±360 degrees. `scripts/check-arm-constants.py`
+refuses a wrist or jaw number written in code again (see `docs/TESTING.md`).
 
 ### Frames
 
