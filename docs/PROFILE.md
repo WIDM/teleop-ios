@@ -26,9 +26,9 @@ chosen file is missing, cannot be read or fails validation, the app stops at lau
 file and the fault. A check in CI (`scripts/check-arm-constants.py`) fails when any other code names a profile id or a
 profile's name, holds a profile in a `static let` or `static var` or names `so101Simulator`; when any code but the
 core's `Profile` folder and the tests builds a profile, the loader included (it reads one through the core); when
-code outside the tests brings back a direction table or conversion that the profile's frames replaced
-(`OperatorDirection.baseAxis`, `OperatorFrame`, a direction's `baseVector` or `linkVector` property, the static
-`GuideProjection` conversions) or holds or builds a `Frames` outside the core's `Profile` folder; and when any code,
+code outside the tests holds a direction table or a conversion by base axis (`OperatorDirection.baseAxis`,
+`OperatorFrame`, a direction's `baseVector` or `linkVector` property, the static `GuideProjection` conversions) or
+holds or builds a `Frames` outside the core's `Profile` folder, a static whose type is not written included; and when any code,
 tests and the loader included, reads `ProfileLoader.current` outside `AppModel` and `OperatingFixtures`. The
 check reads text, not types: it catches accidents, and review catches deliberate workarounds. Tests read profiles
 through `TestProfiles` in `Tests/TeleopTests`.
@@ -74,10 +74,14 @@ reports all of them at once. A profile is refused when:
 - `name` is empty;
 - `robot.directions`: forward, left and up do not lie along three different base axes, one each; or they do but make
   a mirror image of the operator's view and not a turn of the base (this catches one wrong sign; two wrong signs are a
-  valid half turn that only the direction check below catches);
+  valid half turn that only the direction check below catches); or a direction built in code has a sign other than
+  1 or -1 (a file cannot say one);
+- `robot.directions.up` is not the base axis that `scene.base_axes_in_world` puts along world +z, the same way; the
+  sentence names both fields;
 - `server.link_signs` has a value that is not 1 or -1;
 - `scene.base_axes_in_world`: x, y and z do not lie along three different world axes, or they make a mirror image (the
-  base's x cross y must be its z); `scene.base_in_world_m` is not finite numbers;
+  base's x cross y must be its z), or one has a sign other than 1 or -1 when built in code; `scene.base_in_world_m` is
+  not finite numbers;
 - `robot.wrist.roll_sign` or `tilt_sign` is not 1 or -1;
 - `robot.gripper.open_deg` is not above zero, `empty_deg` is negative, or `empty_deg` is not below `open_deg`;
 - a position is not a finite number, or `scene.workspace_min_m` is not below `scene.workspace_max_m` on every axis;
@@ -107,12 +111,14 @@ and down are the opposites. Buttons, voice and the phone all send these directio
 | `left` | axis | the base axis the arm moves along toward the operator's left | `+x`: toward the goal |
 | `up` | axis | the base axis the arm moves along when told up; "height" everywhere in the app (the table, "lowest", the travel height) is the part along this axis | `+z` |
 
-The SO-101's values are the app's former direction table (INTERACTION §3.3), the one source for them before this
-file; its comment says base +x is left "toward the goal". A wrong value goes wrong in the loudest way: every direction moves the arm the
+The SO-101's values: base +x runs toward the goal, which is at the operator's left; base −y is away from the base,
+which is forward; base +z is up. A wrong value goes wrong in the loudest way: every direction moves the arm the
 wrong way, the guide is mirrored, or, with one sign wrong, the arm moves toward the operator. To find them for a new
 arm, with the arm's start pose clear, press each of the six direction buttons once and read the change of `ee_pos` in
 the server's state: the axis that changed is the base axis and the sign of the change is the sign. Write the three axes
 for forward, left and up; the load refuses a set that makes a mirror image, and the six presses confirm the rest.
+`up` must also be the base axis that `scene.base_axes_in_world` puts along world +z: the two fields say the same fact
+about the mounting, and the load refuses a file in which they differ.
 
 ### `server`
 
@@ -148,7 +154,7 @@ The jaw reading is the server's `gripper_deg`, in degrees for the SO-101.
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `base_in_world_m` | m, [x, y, z] | where the robot base sits in the world frame; the server reports the arm in the base frame and objects in the world frame, and this brings objects into the base frame | [0, 0, 0.05], `ROBOT_BASE_POS_W` in the simulator's source |
-| `base_axes_in_world` | axes, `x`, `y`, `z` | which world axis each axis of the robot base lies along: the quarter turn from the base to the world, applied with the shift above | `x`: `+x`, `y`: `+y`, `z`: `+z`: until this field, the app took world to base as a shift only, and the server model does too |
+| `base_axes_in_world` | axes, `x`, `y`, `z` | which world axis each axis of the robot base lies along: the quarter turn from the base to the world, applied with the shift above | `x`: `+x`, `y`: `+y`, `z`: `+z`: the SO-101's base axes lie along the world's. The base axis that lies along world +z must be `robot.directions.up`, the same way |
 | `table_height_m` | m | the table surface's height over the base origin, along up (`robot.directions.up`), for the guide | 0.04: the simulator's `TABLE_TOP_Z_M` minus the base height. For a base whose up is the other way along its z, the table under it has a negative height |
 | `workspace_min_m`, `workspace_max_m` | m, [x, y, z] | the box the server keeps the pinch point inside, for the guide and the "Blocked." rule; moved back by `offset_m` it is the box for the gripper link | the simulator clamps the point it reports to 8 cm either way of where it is after a reset (`WORKSPACE_RADIUS_M` around `initial_ee_pos_b`); this is that box moved by `offset_m`, so it holds while the wrist keeps its start pose. When the server reports a tool point, the guide moves the box by the measured offset instead |
 | `target_size_m` | m | the task object's size across, to draw it true to size | 0.025, the cube |

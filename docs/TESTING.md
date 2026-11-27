@@ -29,11 +29,14 @@ Rules that take the profile's frames run with more than the SO-101's. `TestFrame
 model tests and the app tests) holds two test-only sets: a bench arm whose forward is base +x, whose z points down,
 whose link has no flip and whose world is turned, and an arm mounted on its side, so that up is not along the base's z
 at all. `RulesAcrossFramesTests` runs the buttons' ramps, the voice axes, the guide's projection and a tap on it, a
-going move, the work-area cue and the lowest rule through each set and checks that what a rule does is what it does
+going move (also one that follows the measured offset and is retargeted, and one whose correction the box top limits),
+the work-area cue and the blocked and lowest rules through each set and checks that what a rule does is what it does
 for the SO-101, carried through the frames (`TestFrames.carry`): no expected value of the other arms is typed by
 hand. `ServerModelFramesTests` serves the model with each set and checks that each direction moves the tool along the
 base axis it names, that the table stops the jaw tips at the same place in the world, and that the grasp and a whole
-pick and place work. `ProfileFramesTests` does the same for the app's rules: the guide's picture and a tap read back
+pick and place work; `ServerModelConfigFramesTests` that the model refuses frames that cannot be a base. `LinkFramesTests`
+runs the link controller over a fake socket with each set: a resync after a hand that went right and up, and a
+coordinated height hold, reading back what it sends. `ProfileFramesTests` does the same for the app's rules: the guide's picture and a tap read back
 through it, the world to base conversion, the floor-below-the-table question and the phone's offsets in the link's
 frame. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
 movement and the right button through the frames.
@@ -56,8 +59,8 @@ Two more checks sit beside the tests:
   `swift format format -i --parallel` lays them out. `python3 scripts/check-arm-constants.py` fails when code outside
   the profile loader and the tests names a profile id or a profile's name, holds a profile in a `static let` or
   `static var`, builds a profile outside `Packages/TeleopCore/Sources/TeleopCore/Profile/` or names `so101Simulator`,
-  when code outside the tests brings back a direction table or conversion that the profile's frames replaced or holds a
-  `Frames` in a static, and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and
+  when code outside the tests holds a direction table or a conversion by base axis or holds a
+  `Frames` in a static (a static whose type is not written included), and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and
   `OperatingFixtures` (`docs/PROFILE.md`).
   `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
   scripts/test_check_arm_constants.py` tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for

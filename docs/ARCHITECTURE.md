@@ -811,7 +811,10 @@ values, and how a build chooses its file. The fields:
 operator to base (which base axis, and which way, is forward, left and up; right is the opposite of left), base to
 link (one sign per axis: the frame a translation hold's offset is sent in is the base frame with some axes mirrored)
 and world to base (the base's place in the world and which world axis each base axis lies along). It converts both
-ways and gives "height", the part of a vector along up. No rule reads an axis by name any more: the buttons' ramps, the
+ways and gives "height", the part of a vector along up. It can be written and read back (`Codable`), an axis as its
+text, and `faults()` says in one sentence each what cannot be used: three directions that are not a turn, a sign other
+than 1 or -1, link signs, a world turn that is not a turn, and an `up` that is not the base axis the world turn puts
+along world +z. Rules ask `Frames` and never read an axis by name: the buttons' ramps, the
 voice axes, the phone's motion, the guide's projection and a tap on it, a going move's legs and corrections, the
 work-area cue's sides, the blocked and lowest rules' heights and the link's mirrored axis all ask `Frames`, and it
 travels inside the values that carry the profile's numbers (`GuideProjection`, `ButtonArbiter`, `GoMove`,
@@ -820,7 +823,11 @@ refuses a `Frames` held in a static or built outside the core's `Profile` folder
 
 The in-app server model (`ServerModelConfig`) takes the same three relations as plain numbers (`baseInWorld`, which
 way each base axis points in the world, `linkSigns`); its table rule and its grasp window go by the base axis that lies
-along world z. The tests that build it from the profile copy the profile's frames into it. Heights the guide keeps
+along world z. They are set together through `settingFrames`, and the turning pinch point (`ToolTurn`, written for a
+base whose z is up) through `settingToolTurn`; each throws a `Refusal` with one sentence per fault (an axis that is not
+a quarter turn, two base axes on one world axis, a mirror image, link signs other than 1 or -1, a shift that is not
+finite, a turning pinch point on a base whose up is not along world +z), whichever order they are set in. The tests that
+build it from the profile pass the profile's frames to `settingFrames`. Heights the guide keeps
 (`lowestGripperZ`, `lowestPinchZ`, the table) are along up, which is the base's z only where z is up.
 
 `RobotProfileAssistTests` holds the shipped profile to what these numbers must satisfy: the travel height inside the
