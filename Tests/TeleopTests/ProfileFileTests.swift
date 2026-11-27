@@ -29,8 +29,13 @@ final class ProfileFileTests: XCTestCase {
             ("graspTolerance", p.graspTolerance, SIMD2<Float>(0.006, 0.008)),
             ("targetSize", p.targetSize, Float(0.025)),
             ("goalSize", p.goalSize, Float(0.05)),
-            ("gripperOpenDeg", p.gripperOpenDeg, 97.0),
-            ("gripperEmptyDeg", p.gripperEmptyDeg, 2.0),
+            ("gripper.unit", p.gripper.unit, JawUnit.deg),
+            ("gripper.closedReading", p.gripper.closedReading, 0.0),
+            ("gripper.openReading", p.gripper.openReading, 97.0),
+            ("gripper.validMin", p.gripper.validMin, -360.0),
+            ("gripper.validMax", p.gripper.validMax, 360.0),
+            ("gripper.fullyOpenAt", p.gripper.fullyOpenAt, 97.0),
+            ("gripper.emptyAt", p.gripper.emptyAt, 2.0),
             ("workspaceMin", p.workspaceMin, SIMD3<Float>(-0.052383, -0.257418, -0.008015)),
             ("workspaceMax", p.workspaceMax, SIMD3<Float>(0.107617, -0.097418, 0.151985)),
             ("tableHeight", p.tableHeight, Float(0.04)),
@@ -86,7 +91,8 @@ final class ProfileFileTests: XCTestCase {
         // The structures the rows name by their parts. A value of any other type is a field of its own, however many
         // parts it has (a vector, a signed axis).
         func isStructure(_ value: Any) -> Bool {
-            value is EstimateBound || value is WristProfile || value is WristLeadLimits || value is Frames
+            value is EstimateBound || value is WristProfile || value is GripperProfile || value is WristLeadLimits
+                || value is Frames
                 || value is WorldTurn || value is AssistProfile
                 || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids
                 || value is ViewAim

@@ -22,6 +22,16 @@ enum TestProfiles {
         tiltCentre: .fixed(15), turnRateDegS: 40, tiltRateDegS: 20,
         lead: WristLeadLimits(leadDeg: 3, rateMaxDegS: 20, memoryDeg: 1, freshStateMs: 300))
 
+    /// A jaw unlike the SO-101's: parallel, read in millimetres between the pads, 0 shut and 40 open (the same numbers
+    /// as the package tests' `TestJaw.benchB`).
+    static let benchBGripper = GripperProfile(
+        unit: .mm, closedReading: 0, openReading: 40, validMin: 0, validMax: 45, fullyOpenAt: 39, emptyAt: 1)
+
+    /// The jaws the app tests run a jaw rule through.
+    static let grippers: [(name: String, gripper: GripperProfile)] = [
+        ("SO-101", so101.gripper), ("bench arm B", benchBGripper),
+    ]
+
     /// The wrists the app tests run a wrist rule through.
     static let wrists: [(name: String, wrist: WristProfile)] = [
         ("SO-101", so101.wrist), ("bench arm B", benchBWrist),
@@ -40,4 +50,11 @@ extension SurfaceLayout {
 extension OperatingFacts {
     /// Facts with the SO-101's wrist, as the rule tests start from.
     init() { self.init(wrist: TestProfiles.so101.wrist) }
+}
+
+extension ServerState {
+    /// A state read with the SO-101's jaw readings, as the rule tests build one.
+    init(payload: [String: Any]) {
+        self.init(payload: payload, jawReadings: TestProfiles.so101.gripper.validReadings)
+    }
 }

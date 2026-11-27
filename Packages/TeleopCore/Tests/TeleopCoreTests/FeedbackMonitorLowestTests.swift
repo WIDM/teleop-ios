@@ -7,7 +7,7 @@ import XCTest
 /// welcome; "Blocked." stays silent while the operator asks for lower. Off, which is the default, every event is
 /// version 1.0.1's.
 final class FeedbackMonitorLowestTests: XCTestCase {
-    private var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+    private var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
     /// Where the jaws stop on the table from the reset pose, gripper link, robot base frame.
     private let onTable = SIMD3(0.02, -0.14, 0.133)
     /// The pinch point there, robot base frame.
@@ -16,7 +16,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
     private let atZero = SIMD3(0.02, -0.14, 0.0)
 
     override func setUp() {
-        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+        monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
         monitor.reportsLowest = true
     }
 
@@ -194,7 +194,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
     /// The default, which every existing test and the aids-off path use: the same inputs give version 1.0.1's events,
     /// blocked once and silenced after a clamp, and no lowest height.
     func testTheDefaultIsOneZeroOne() {
-        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+        monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
         XCTAssertFalse(monitor.reportsLowest)
         monitor.startSent(.pose, restart: false, at: 0)
         var events = stand(at: onTable, commanded: SIMD3(0, 0, -0.02), from: 200, through: 4400)
@@ -233,7 +233,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
         let event: FeedbackEvent
     }
 
-    private static let limits = GripperLimits(openDeg: 97, emptyDeg: 2)
+    private static let limits = GripperLimits(fullyOpenAt: 97, emptyAt: 2)
 
     /// `inputs` on a monitor with the rule on or off: the events, and the monitor afterwards.
     private func run(_ inputs: [Input], lowest: Bool = true) -> (heard: [Heard], monitor: FeedbackMonitor) {

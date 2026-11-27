@@ -18,7 +18,10 @@ final class ProfileFormatTests: XCTestCase {
               "tilt_clamp_deg": 30, "tilt_centre_deg": 15, "turn_rate_deg_s": 40, "tilt_rate_deg_s": 20,
               "lead": { "lead_deg": 3, "rate_max_deg_s": 20, "memory_deg": 1, "fresh_state_ms": 300 }
             },
-            "gripper": { "open_deg": 80, "empty_deg": 3, "reclose_loosens_grip": false }
+            "gripper": {
+              "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
+              "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
+            }
           },
           "server": { "link_signs": [1, 1, 1] },
           "scene": {
@@ -115,6 +118,8 @@ final class ProfileFormatTests: XCTestCase {
         var wrist = TestWrist.benchB
         wrist.tiltSign = 1
         XCTAssertEqual(profile.wrist, wrist)
+        XCTAssertEqual(profile.gripper, TestJaw.benchB)
+        XCTAssertEqual(profile.gripper.validReadings, 0...45)
         var expected = TestFrames.benchB
         expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
         XCTAssertEqual(profile.frames, expected)
@@ -300,6 +305,30 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// A jaw unit that is neither of the two is refused with its path and the two that are allowed; a unit of the
+    /// wrong kind is named like any value of the wrong kind.
+    func testAJawUnitThatIsNotDegOrMmIsRefused() throws {
+        for text in ["cm", "DEG", "degrees", ""] {
+            let wrong = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = text }
+            let refused = try XCTUnwrap(error(wrong), text)
+            XCTAssertEqual(refused, .notAUnit("robot.gripper.unit", found: text))
+            XCTAssertEqual(
+                "\(refused)", "robot.gripper.unit is \"\(text)\", which is not a unit; write \"deg\" or \"mm\".")
+        }
+        let number = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = 3 }
+        XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: number))) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue("robot.gripper.unit"))
+        }
+    }
+
+    /// Both units load, and the unit is what the profile says it is.
+    func testBothJawUnitsLoad() throws {
+        for unit in JawUnit.allCases {
+            let file = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = unit.rawValue }
+            XCTAssertEqual(try decode(file).gripper.unit, unit)
+        }
+    }
+
     func testAnotherVersionIsRefused() throws {
         let later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
         XCTAssertEqual(error(later), .unsupportedVersion(2))
@@ -351,9 +380,42 @@ final class ProfileFormatTests: XCTestCase {
             ("robot.wrist.lead.rate_max_deg_s must be zero or more.", { $0.wrist.lead.rateMaxDegS = -1 }),
             ("robot.wrist.lead.memory_deg must be zero or more.", { $0.wrist.lead.memoryDeg = -0.5 }),
             ("robot.wrist.lead.fresh_state_ms must be above zero.", { $0.wrist.lead.freshStateMs = 0 }),
-            ("robot.gripper.open_deg must be above zero.", { $0.gripperOpenDeg = 0 }),
-            ("robot.gripper.empty_deg must be zero or more.", { $0.gripperEmptyDeg = -1 }),
-            ("robot.gripper.empty_deg must be below robot.gripper.open_deg.", { $0.gripperEmptyDeg = 80 }),
+            (
+                "robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.",
+                { $0.gripper.openReading = 0 }
+            ),
+            (
+                "robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.",
+                { $0.gripper.closedReading = .nan }
+            ),
+            (
+                "robot.gripper.closed_reading must be below robot.gripper.open_reading; a jaw whose reading falls "
+                    + "as it opens is not supported.",
+                {
+                    $0.gripper.closedReading = 40; $0.gripper.openReading = 0
+                }
+            ),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMax = 0 }),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMin = 50 }),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMax = .infinity }),
+            (
+                "robot.gripper.fully_open_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.fullyOpenAt = 46 }
+            ),
+            (
+                "robot.gripper.fully_open_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.fullyOpenAt = .nan }
+            ),
+            (
+                "robot.gripper.empty_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.emptyAt = -1 }
+            ),
+            (
+                "robot.gripper.empty_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.emptyAt = 50 }
+            ),
+            ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
+            ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),
             ("scene.base_in_world_m must be finite numbers.", { $0.baseInWorld.x = .infinity }),
             (
                 "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "

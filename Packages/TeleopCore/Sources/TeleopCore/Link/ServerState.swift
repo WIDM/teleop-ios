@@ -115,8 +115,10 @@ public struct ServerState: Equatable, Sendable {
         self.gripperDeg = gripperDeg
     }
 
-    /// Reads a `state` payload. Fields of the wrong type count as missing.
-    public init(payload: [String: Any]) {
+    /// Reads a `state` payload. Fields of the wrong type count as missing. `jawReadings` are the readings of the
+    /// jaw that count (`GripperProfile.validReadings`): a `gripper_deg` outside them counts as missing, as does a
+    /// wrist joint angle outside ±360.
+    public init(payload: [String: Any], jawReadings: ClosedRange<Double>) {
         estop = payload["estop"] as? Bool ?? false
         gripper = (payload["gripper"] as? String).flatMap(Self.gripperState)
         activity = (payload["ik"] as? String).map(ServerActivity.init)
@@ -130,7 +132,7 @@ public struct ServerState: Equatable, Sendable {
         episode = Self.integer(payload["episode"])
         wristFlexDeg = Self.jointAngle(payload["wrist_flex_deg"])
         wristRollDeg = Self.jointAngle(payload["wrist_roll_deg"])
-        gripperDeg = Self.jointAngle(payload["gripper_deg"])
+        gripperDeg = Self.number(payload["gripper_deg"]).flatMap { jawReadings.contains($0) ? $0 : nil }
         // An unrecognised label is treated like a missing key: the recorder's state is unknown.
         if let label = (payload["rec"] as? String).flatMap(RecorderLabel.init(rawValue:)) {
             recorder = RecorderStatus(
@@ -170,8 +172,9 @@ public struct ServerState: Equatable, Sendable {
         return number.doubleValue
     }
 
-    /// A joint angle in degrees, or nil when it cannot be one: the guide rounds these to whole degrees, and a value
-    /// an Int cannot hold (say `1e20` from a broken server) would crash the app there.
+    /// A wrist joint angle in degrees, or nil when it cannot be one: the guide rounds these to whole degrees, and a
+    /// value an Int cannot hold (say `1e20` from a broken server) would crash the app there. The jaw is judged by
+    /// its own readings (`GripperProfile.validReadings`), not by this check.
     private static func jointAngle(_ value: Any?) -> Double? {
         number(value).flatMap { $0.isFinite && abs($0) <= 360 ? $0 : nil }
     }

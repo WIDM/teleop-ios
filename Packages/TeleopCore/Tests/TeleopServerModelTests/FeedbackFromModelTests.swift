@@ -18,7 +18,7 @@ final class FeedbackFromModelTests: XCTestCase {
     private var bench: Bench!
     private var phone: Bench.Client!
     private var observer: Bench.Client!
-    private var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+    private var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
     private var events: [(atMs: Int, event: FeedbackEvent)] = []
     private var read = 0
 
@@ -26,7 +26,7 @@ final class FeedbackFromModelTests: XCTestCase {
         bench = Bench(.s4Simulator(stepsPerSecond: 17))
         phone = bench.client()
         observer = bench.client()
-        monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+        monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
         events = []
         bench.wait(0.5)
         read = observer.received.count

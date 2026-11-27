@@ -116,7 +116,7 @@ final class RobotProfileAssistTests: XCTestCase {
     /// jaws open only to 50 degrees hears it at 60, the SO-101 (97 degrees) does not.
     func testTheLinkJudgesTheJawsByTheModelsProfile() {
         var narrow = profile
-        narrow.gripperOpenDeg = 50
+        narrow.gripper.fullyOpenAt = 50
         XCTAssertTrue(heardFullyOpen(atDegrees: 60, profile: narrow))
         XCTAssertFalse(heardFullyOpen(atDegrees: 60, profile: profile))
     }

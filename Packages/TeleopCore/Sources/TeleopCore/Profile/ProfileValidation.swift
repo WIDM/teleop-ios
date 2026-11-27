@@ -43,10 +43,25 @@ extension RobotProfile {
         notNegative("robot.wrist.lead.rate_max_deg_s", wrist.lead.rateMaxDegS)
         notNegative("robot.wrist.lead.memory_deg", wrist.lead.memoryDeg)
         if wrist.lead.freshStateMs <= 0 { faults.append("robot.wrist.lead.fresh_state_ms must be above zero.") }
-        positive("robot.gripper.open_deg", gripperOpenDeg)
-        notNegative("robot.gripper.empty_deg", gripperEmptyDeg)
-        if gripperEmptyDeg.isFinite, gripperOpenDeg.isFinite, gripperEmptyDeg >= gripperOpenDeg {
-            faults.append("robot.gripper.empty_deg must be below robot.gripper.open_deg.")
+        let jaw = gripper
+        if !(jaw.closedReading.isFinite && jaw.openReading.isFinite && jaw.closedReading != jaw.openReading) {
+            faults.append("robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.")
+        } else if jaw.closedReading > jaw.openReading {
+            faults.append(
+                "robot.gripper.closed_reading must be below robot.gripper.open_reading; a jaw whose reading falls "
+                    + "as it opens is not supported.")
+        }
+        let validEnds = jaw.validMin.isFinite && jaw.validMax.isFinite && jaw.validMin < jaw.validMax
+        if !validEnds { faults.append("robot.gripper.valid_min must be below robot.gripper.valid_max.") }
+        if validEnds {
+            for (path, reading) in [("fully_open_at", jaw.fullyOpenAt), ("empty_at", jaw.emptyAt)]
+            where !(reading >= jaw.validMin && reading <= jaw.validMax) {
+                faults.append(
+                    "robot.gripper.\(path) must be inside the valid readings, robot.gripper.valid_min to valid_max.")
+            }
+        }
+        if jaw.emptyAt.isFinite, jaw.fullyOpenAt.isFinite, jaw.emptyAt >= jaw.fullyOpenAt {
+            faults.append("robot.gripper.empty_at must be below robot.gripper.fully_open_at.")
         }
 
         finite("scene.table_height_m", [tableHeight])

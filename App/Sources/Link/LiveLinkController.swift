@@ -196,7 +196,7 @@ final class LiveLinkController {
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        gripperLimits: GripperLimits,
+        gripper: GripperProfile,
         wrist: WristProfile,
         frames: Frames,
         clientName: String = LiveLinkController.clientName()
@@ -209,9 +209,14 @@ final class LiveLinkController {
         self.makeObserverTransport = makeObserverTransport ?? makeTransport
         self.pose = pose
         self.nowMs = nowMs
-        monitor = FeedbackMonitor(limits: gripperLimits, frames: frames)
-        jawsReminder = JawsClosedReminder(limits: gripperLimits)
+        self.gripper = gripper
+        monitor = FeedbackMonitor(limits: gripper.limits, frames: frames)
+        jawsReminder = JawsClosedReminder(limits: gripper.limits)
     }
+
+    /// What the jaw's readings mean: the readings that count, the unit the session record writes them in, and the
+    /// thresholds the feedback rules judge them by.
+    let gripper: GripperProfile
 
     /// The arm's wrist numbers; the lead bound's come from them.
     let wrist: WristProfile
@@ -416,7 +421,8 @@ final class LiveLinkController {
         closeQuietly()
         self.url = url
         let transport = makeTransport(url)
-        let link = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
+        let link = TeleopLink(
+            send: { [weak transport] in transport?.send($0) }, now: nowMs, jawReadings: gripper.validReadings)
         link.onReceivedEnvelope = { [weak self] type, payload in
             self?.onWireEvent?(type, payload, DispatchTime.now().uptimeNanoseconds)
         }
@@ -1003,7 +1009,7 @@ final class LiveLinkController {
         let activity = state?.activity.map { String(describing: $0) } ?? "none"
         return "tool_base=\(tool) wrist_flex_deg=\(number(state?.wristFlexDeg)) "
             + "wrist_roll_deg=\(number(state?.wristRollDeg)) jaw_deg=\(number(state?.gripperDeg)) "
-            + "server_activity=\(activity)"
+            + "jaw_unit=\(gripper.unit.symbol) server_activity=\(activity)"
     }
 
     private func recordGripper() {
@@ -1457,7 +1463,8 @@ final class LiveLinkController {
     private func openObserver() {
         guard let url, observerTransport == nil else { return }
         let transport = makeObserverTransport(url)
-        let observer = TeleopLink(send: { [weak transport] in transport?.send($0) }, now: nowMs)
+        let observer = TeleopLink(
+            send: { [weak transport] in transport?.send($0) }, now: nowMs, jawReadings: gripper.validReadings)
         observer.onReceivedEnvelope = { [weak self] type, payload in
             guard type == "state" else { return }
             self?.onWireEvent?(type, payload, DispatchTime.now().uptimeNanoseconds)

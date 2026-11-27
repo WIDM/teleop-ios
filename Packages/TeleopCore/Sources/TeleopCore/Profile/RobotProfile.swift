@@ -26,10 +26,9 @@ public struct RobotProfile: Equatable, Sendable {
     /// The goal is the box the server judges success in.
     public var targetSize: Float
     public var goalSize: Float
-    /// A measured jaw angle at or above this while opening is fully open, degrees.
-    public var gripperOpenDeg: Double
-    /// At or below this when a close has ended with no contact, the jaws closed on nothing, degrees.
-    public var gripperEmptyDeg: Double
+    /// What the jaw readings mean: their unit, the readings the opening share is drawn between, the readings that
+    /// count, and the two thresholds "fully open" and "closed on nothing".
+    public var gripper: GripperProfile
     /// The box the server keeps the pinch point inside, robot base frame, metres. It holds while the wrist keeps its
     /// start pose; with a reported tool point the guide moves it by the measured offset instead
     /// (`ArmReading.boxShift`).
@@ -68,8 +67,7 @@ public struct RobotProfile: Equatable, Sendable {
         graspTolerance: SIMD2<Float>,
         targetSize: Float,
         goalSize: Float,
-        gripperOpenDeg: Double,
-        gripperEmptyDeg: Double,
+        gripper: GripperProfile,
         workspaceMin: SIMD3<Float>,
         workspaceMax: SIMD3<Float>,
         tableHeight: Float,
@@ -89,8 +87,7 @@ public struct RobotProfile: Equatable, Sendable {
         self.graspTolerance = graspTolerance
         self.targetSize = targetSize
         self.goalSize = goalSize
-        self.gripperOpenDeg = gripperOpenDeg
-        self.gripperEmptyDeg = gripperEmptyDeg
+        self.gripper = gripper
         self.workspaceMin = workspaceMin
         self.workspaceMax = workspaceMax
         self.tableHeight = tableHeight
@@ -105,7 +102,7 @@ public struct RobotProfile: Equatable, Sendable {
         (SIMD3<Double>(workspaceMin - toolOffset), SIMD3<Double>(workspaceMax - toolOffset))
     }
 
-    public var gripperLimits: GripperLimits { GripperLimits(openDeg: gripperOpenDeg, emptyDeg: gripperEmptyDeg) }
+    public var gripperLimits: GripperLimits { gripper.limits }
 
     /// Server wrist roll = `rollSign` × the phone's turn, and server wrist flex = `tiltSign` × its tilt; 1 or -1.
     public var rollSign: Double {

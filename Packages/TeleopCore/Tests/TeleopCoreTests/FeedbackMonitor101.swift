@@ -202,12 +202,12 @@ public struct FeedbackMonitor101 {
                 current.contact = true
                 gripping = true
                 events.append(.contact)
-            } else if !current.contact, !current.empty, let angle = state.gripperDeg, angle <= limits.emptyDeg {
+            } else if !current.contact, !current.empty, let angle = state.gripperDeg, angle <= limits.emptyAt {
                 current.empty = true
                 events.append(.limit(.empty))
             }
         case .gripper(.open):
-            if !current.fullyOpen, let angle = state.gripperDeg, angle >= limits.openDeg {
+            if !current.fullyOpen, let angle = state.gripperDeg, angle >= limits.fullyOpenAt {
                 current.fullyOpen = true
                 events.append(.limit(.fullyOpen))
             }

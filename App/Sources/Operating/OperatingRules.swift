@@ -161,7 +161,7 @@ enum OperatingRules {
         return ArmReading(
             pinchPoint: pinch.point,
             commanded: commanded.map { $0 + pinch.offset },
-            jawOpening: state.gripperDeg.map { min(max($0 / profile.gripperOpenDeg, 0), 1) },
+            jawOpening: state.gripperDeg.map(profile.gripper.opening(at:)),
             wristTurnDeg: state.wristRollDeg,
             wristTiltDeg: state.wristFlexDeg,
             target: state.object.map { profile.inBase(world: float($0)) },

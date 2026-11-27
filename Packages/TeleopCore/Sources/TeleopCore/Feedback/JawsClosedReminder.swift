@@ -53,7 +53,7 @@ public struct JawsClosedReminder: Equatable, Sendable {
     /// below the empty angle and open above it. Nil when neither is known.
     public static func jawsClosed(_ jaws: GripperState?, degrees: Double?, limits: GripperLimits) -> Bool? {
         if let jaws { return jaws == .closed }
-        return degrees.map { $0 <= limits.emptyDeg }
+        return degrees.map { $0 <= limits.emptyAt }
     }
 
     /// A state from either connection. One naming another episode than the last begins a new episode.

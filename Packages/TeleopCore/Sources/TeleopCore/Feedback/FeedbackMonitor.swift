@@ -1,15 +1,16 @@
 import simd
 
-/// Robot numbers the monitor judges the gripper by. The app fills them from its robot profile.
+/// Robot numbers the monitor judges the gripper by, in the unit of the jaw reading (`GripperProfile.unit`). The app
+/// fills them from its robot profile.
 public struct GripperLimits: Equatable, Sendable {
-    /// A measured jaw angle at or above this while opening is fully open.
-    public var openDeg: Double
-    /// A measured jaw angle at or below this when a close has ended with no contact: closed on nothing.
-    public var emptyDeg: Double
+    /// A measured jaw reading at or above this while opening is fully open.
+    public var fullyOpenAt: Double
+    /// A measured jaw reading at or below this when a close has ended with no contact: closed on nothing.
+    public var emptyAt: Double
 
-    public init(openDeg: Double, emptyDeg: Double) {
-        self.openDeg = openDeg
-        self.emptyDeg = emptyDeg
+    public init(fullyOpenAt: Double, emptyAt: Double) {
+        self.fullyOpenAt = fullyOpenAt
+        self.emptyAt = emptyAt
     }
 }
 
@@ -294,7 +295,7 @@ public struct FeedbackMonitor {
                 // The close has ended without contact. Only now are shut jaws empty: while they close, contact can
                 // still come after the angle has passed the limit, and a grip on a small object rests under it.
                 releasedClose = false
-                if !state.estop, let angle = state.gripperDeg, angle <= limits.emptyDeg {
+                if !state.estop, let angle = state.gripperDeg, angle <= limits.emptyAt {
                     closeOutcome = [.limit(.empty)]
                 }
             }
@@ -373,7 +374,7 @@ public struct FeedbackMonitor {
                 events.append(.contact)
             }
         case .gripper(.open):
-            if !current.fullyOpen, let angle = state.gripperDeg, angle >= limits.openDeg {
+            if !current.fullyOpen, let angle = state.gripperDeg, angle >= limits.fullyOpenAt {
                 current.fullyOpen = true
                 events.append(.limit(.fullyOpen))
             }

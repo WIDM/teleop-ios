@@ -25,8 +25,13 @@
       }
     },
     "gripper": {
-      "open_deg": 97,
-      "empty_deg": 2,
+      "unit": "deg",
+      "closed_reading": 0,
+      "open_reading": 97,
+      "valid_min": -360,
+      "valid_max": 360,
+      "fully_open_at": 97,
+      "empty_at": 2,
       "reclose_loosens_grip": true
     }
   },
