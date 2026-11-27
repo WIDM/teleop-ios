@@ -30,8 +30,6 @@ public enum OperatorDirection: String, CaseIterable, Sendable {
     public var linkVector: SIMD3<Double> { OperatorFrame.link(fromBase: baseVector) }
 }
 
-public enum BaseAxis: String, Sendable { case x, y, z }
-
 /// Converts between the operator's frame, the robot base frame and the frame the link's translation hold is sent in.
 public enum OperatorFrame {
     /// Metres right, forward and up as the operator sees them, as an offset for the link's translation hold, taken
