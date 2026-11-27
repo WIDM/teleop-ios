@@ -10,7 +10,14 @@ loader, the profile files, the tests, the build settings and the test plans this
      (`static let a = 1, b: RobotProfile = ...`) and the whole type, on one line or several, with or without the
      module name;
   3. a profile id (the name of a profile file, bundled or test-only, without .json);
-  4. a profile's `name`, or its leading words, written as a string in code.
+  4. a profile's `name`, or its leading words, written as a string in code;
+  5. a direction table or conversion that the profile's frames replaced: `OperatorDirection.baseAxis`, the
+     `baseVector` and `linkVector` properties of a direction, the `OperatorFrame` conversions and the static
+     `GuideProjection.operatorPoint` and `base(fromOperator:)`. Which base axis is forward, left and up, how the link's
+     offsets are signed and how the world sits against the base are `robot.directions`, `server.link_signs` and
+     `scene.base_axes_in_world` of the profile file, read through `Frames`;
+  6. a `Frames` held in a `static let` or `static var`, or built (`Frames(...)`), outside the core's Profile folder and
+     the tests: the frames travel inside the values that carry the profile, never as a global or a default.
 Naming a profile is not building one. Everywhere but the core's Profile folder and the tests, the loader included, it
 refuses a RobotProfile built in code: `RobotProfile(...)`, `RobotProfile.init(...)`, `.init(...)` whose type is
 RobotProfile (inside the type, also `Self`): written beside it (`let p: RobotProfile = .init(...)`) or as the type of
@@ -78,6 +85,29 @@ SCANNED = {".swift", ".py", ".sh", ".yml", ".yaml", ".plist", ".json", ".xctestp
 SKIPPED_DIRS = {".git", ".build", ".swiftpm", "build", "DerivedData", "__pycache__"}
 
 REMOVED = re.compile(r"\bso101Simulator\b")
+# Direction tables and conversions that the profile's frames replaced. Each is refused in code (comments and the text
+# of strings are not code) of every Swift file outside ALLOWED. A direction's `baseVector` and `linkVector` are
+# properties that were removed; `Frames.baseVector(_:)` and `linkVector(_:)` are calls and pass.
+REMOVED_DIRECTIONS = (
+    (
+        re.compile(r"\bbaseAxis\b"),
+        "the direction table OperatorDirection.baseAxis, replaced by the profile's frames (robot.directions)",
+    ),
+    (
+        re.compile(r"\.\s*(?:baseVector|linkVector)\b(?!\s*\()"),
+        "a direction's baseVector or linkVector property, replaced by the profile's frames",
+    ),
+    (
+        re.compile(r"\bOperatorFrame\b"),
+        "OperatorFrame's conversions, replaced by the profile's frames (server.link_signs)",
+    ),
+    (
+        re.compile(r"\bGuideProjection\s*\.\s*(?:operatorPoint|base)\b"),
+        "the static GuideProjection conversions, replaced by the profile's frames",
+    ),
+)
+FRAMES_TYPE = re.compile(r"\bFrames\b(?!\s*\.\s*\w)")
+BUILDS_FRAMES = re.compile(r"(?<!\w)Frames\s*\(")
 MODIFIERS = (
     r"(?:(?:public|private|fileprivate|internal|package|nonisolated|final|lazy)"
     r"(?:\(\w+\))?\s+)*"
@@ -443,6 +473,11 @@ def names_or_holds(text, code, literals, bodies, swift, report):
         for m in pattern.finditer(text):
             report(m.start(), f"the profile id {pid} named outside the loader")
 
+    if swift:
+        for pattern, what in REMOVED_DIRECTIONS:
+            for m in pattern.finditer(code):
+                report(m.start(), what)
+
     if not swift:
         for name, _ in names:
             for m in re.finditer(re.escape(name), text):
@@ -457,6 +492,8 @@ def names_or_holds(text, code, literals, bodies, swift, report):
     for offset, kind, value in static_bindings(code):
         if PROFILE_TYPE.search(kind) or STARTS_BUILDING.match(value):
             report(offset, "a robot profile held in code")
+        if FRAMES_TYPE.search(kind) or BUILDS_FRAMES.match(value):
+            report(offset, "robot frames held in a static")
     for opening, closing, body in bodies:
         for offset, kind, value in static_bindings(body, opening, closing):
             implicit = IMPLICIT_INIT.match(value) and (
@@ -482,6 +519,8 @@ def declared_field(code, k):
 def builds(code, bodies, report):
     for m in BUILDS_PROFILE.finditer(code):
         report(m.start(), "a robot profile built in code")
+    for m in BUILDS_FRAMES.finditer(code):
+        report(m.start(), "robot frames built in code")
     for m in INIT_LABEL.finditer(code):
         if not (DECLARES.search(code, max(0, m.start() - 40), m.start()) or declared_field(code, m.start())):
             report(m.start(), "a robot profile built in code")
