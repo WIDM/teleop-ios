@@ -121,9 +121,11 @@ What the repository already gives an upload:
 
 - a privacy manifest, `App/PrivacyInfo.xcprivacy`, which App Store Connect requires: the app reads and writes its
   own settings in user defaults (reason `CA92.1`) and times events with the system uptime (reason `35F9.1`); it
-  tracks no one and collects no data. When code starts to use another required-reason API (file timestamps, disk
-  space, active keyboards, or user defaults shared with another app), the manifest must say so before the next
-  upload;
+  tracks no one. It declares one kind of collected data: the install code the app puts in its client name (see
+  "The simulation, a refusal and a dismissal" in `docs/ARCHITECTURE.md`), as a device identifier linked to the
+  install, used for analytics and not for tracking. When code starts to use another required-reason API (file
+  timestamps, disk space, active keyboards, or user defaults shared with another app), or sends other data about the
+  phone or its user to a server, the manifest must say so before the next upload;
 - `ITSAppUsesNonExemptEncryption` set to false in `project.yml` (and so in `App/Info.plist`): the app uses only the
   system's own encryption, so no export compliance question comes up for a build;
 - no signing team, on purpose: the team is picked in Xcode at archive time.
