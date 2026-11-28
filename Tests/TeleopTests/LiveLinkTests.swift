@@ -814,7 +814,31 @@ final class LiveLinkTests: XCTestCase {
         transport.server("state", ["estop": true])
         XCTAssertEqual(model.session.route, .s4)
         XCTAssertEqual(model.stopCause, .armBehind)
-        XCTAssertTrue(model.stopCause!.text.contains("10 cm"))
+        XCTAssertTrue(
+            model.stopCause!.text(stopDistanceM: model.profile.server.stopDistanceM).contains("10 cm"))
+    }
+
+    /// The sentence names the stop distance of the profile it is told, in both languages: bench arm B's server stops
+    /// the arm at 6 cm, and its sentence says 6 cm, not the SO-101's 10.
+    func testTheArmBehindSentenceSaysTheProfilesStopDistance() {
+        let language = L10n.language
+        defer { L10n.language = language }
+        for (name, profile) in TestProfiles.motions {
+            let cm = (profile.server.stopDistanceM * 100).rounded()
+            let expected = String(format: "%g", cm)
+            L10n.language = .en
+            XCTAssertTrue(
+                StopCause.armBehind.text(stopDistanceM: profile.server.stopDistanceM).contains("\(expected) cm behind"),
+                name)
+            L10n.language = .zhHant
+            XCTAssertTrue(
+                StopCause.armBehind.text(stopDistanceM: profile.server.stopDistanceM).contains("超過 \(expected) 公分"),
+                name)
+        }
+        L10n.language = .en
+        XCTAssertTrue(StopCause.armBehind.text(stopDistanceM: 0.06).contains("6 cm"))
+        XCTAssertTrue(StopCause.armBehind.text(stopDistanceM: 0.075).contains("7.5 cm"))
+        XCTAssertTrue(StopCause.armBehind.text(stopDistanceM: 0.07).contains("7 cm"))
     }
 
     func testServerAlreadyStoppedOnConnectSaysSo() {

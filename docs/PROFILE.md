@@ -162,9 +162,9 @@ A wrong sign reverses that axis: for the SO-101's z, every vertical move would g
 translation hold of +1 cm along each of the link's axes and read the change of `ee_pos`; the sign of the change is the
 sign.
 
-The sentence the operator reads when the server stops the arm for falling behind (`stop.cause_arm_behind`) says "10 cm"
-in both languages. It is a screen string, not a profile field: a server with another stop distance needs that string
-changed as well.
+The sentence the operator reads when the server stops the arm for falling behind (`stop.cause_arm_behind`) takes the
+profile's `server.stop_distance_m` as its number, in centimetres, in both languages: 10 cm for the SO-101, 6 cm for a
+server that stops at 6 cm.
 
 What goes wrong when a value is wrong:
 

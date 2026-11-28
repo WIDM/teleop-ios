@@ -2822,13 +2822,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The robot stopped itself: the arm fell more than 10 cm behind the phone. Move slower."
+            "value": "The robot stopped itself: the arm fell more than %@ cm behind the phone. Move slower."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "機器人自己急停：手臂落後手機超過 10 公分。請放慢移動。"
+            "value": "機器人自己急停：手臂落後手機超過 %@ 公分。請放慢移動。"
           }
         }
       }
