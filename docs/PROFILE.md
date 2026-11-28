@@ -8,6 +8,10 @@ the app drives needs one profile. The app ships one: the SO-101 arm in the S4 pi
 Not every number about an arm is in the profile yet. The ones still in code are listed under "Where robot and task
 numbers live" in `ARCHITECTURE.md`.
 
+To drive a new arm: write its file with the SO-101's as the model (the last section reads that file top to bottom),
+measure each field the way its section says, then run the direction check (the section "Before the first move on a
+new arm") before the arm moves under the app for the first time.
+
 ## Choosing a profile
 
 Profile files live in `App/Resources/Profiles/` and are bundled with the app. A profile's **id** is its file name
@@ -78,7 +82,8 @@ reports all of them at once. A profile is refused when:
 - `name` is empty;
 - `robot.directions`: forward, left and up do not lie along three different base axes, one each; or they do but make
   a mirror image of the operator's view and not a turn of the base (this catches one wrong sign; two wrong signs are a
-  valid half turn that only the direction check below catches); or a direction built in code has a sign other than
+  valid half turn that the load cannot see and the direction check below cannot either: only a person watching the
+  arm tells, see "Before the first move on a new arm"); or a direction built in code has a sign other than
   1 or -1 (a file cannot say one);
 - `robot.directions.up` is not the base axis that `scene.base_axes_in_world` puts along world +z, the same way; the
   sentence names both fields;
@@ -120,6 +125,43 @@ reports all of them at once. A profile is refused when:
   zero, or is given without `assist.go_to`;
 - `assist.explain` is given without `assist.guide`.
 
+## Before the first move on a new arm
+
+Run the direction check against the server with the arm clear, before the arm moves under the app for any other
+reason. The check presses each of the six directions once on the pad, about 1 cm each (the Fine speed's time), reads the
+arm's `ee_pos` from the server's state after each, and passes a direction only when the arm went along the base axis the
+file names for it, the way it names, by 0.5 to 1.5 cm, and no more than 3 mm along either other axis. Its three pairs
+(forward and back, left and right, up and down) leave the arm where it started. Keep a hand on the server's stop and
+the area around the arm clear: a wrong file moves the arm the wrong way by a centimetre or more.
+
+To run it, put the new file in `App/Resources/Profiles/`, run `xcodegen generate`, start the server and the path to it
+(`TESTING.md`, "The test plans"), and run, with the file's id for `<id>` and the server's address for `<address>`:
+
+    TEST_RUNNER_TELEOP_MOTION=1 TEST_RUNNER_TELEOP_ADDRESS=<address> TEST_RUNNER_TELEOP_PROFILE=<id> \
+      xcodebuild test -project Teleop.xcodeproj -scheme Teleop -testPlan Live \
+      -only-testing:TeleopTests/OperatorLiveTests/testEveryDirectionGoesTheNamedWay \
+      -destination "platform=iOS Simulator,name=$SIM"
+
+Each direction prints a line (`DIRECTION forward (base -y): moved +0.0 -1.0 +0.0 cm`), and a failure is one sentence
+that begins with the direction. Without a server the same check runs against the in-app server model for the SO-101
+and for a second, different arm in the Default plan, which is how the check itself is tested.
+
+What each failure means and what to change:
+
+| The sentence says | It means | Change |
+|---|---|---|
+| the arm did not move | the hold did not reach the server, or the arm was blocked at its start pose, or the server answered a refusal | check the address and that no stop is latched; move the arm's start pose off any limit; read the app's log lines the test prints |
+| the arm went the wrong way along an axis | the sign of that axis is the other way between what the app sends and what the server does with it. For both `up` and `down` it is the sign of the vertical axis | `server.link_signs`: flip the sign of the base axis that the sentence names, and run the check again |
+| the arm went along another axis instead | the server's link frame is not the base frame with some axes mirrored: it swaps axes, which a profile cannot say | stop; this arm's server needs code, not only a file |
+| the arm also went sideways | a sign of another axis is wrong, or the arm was against a limit at its start pose | check `server.link_signs` on the other axes; move the start pose clear and run again |
+| the arm went too short or too far | the arm's real speed on the Fine button is not `robot.motion.fine_mps` | measure the speed (`robot.motion`) and write it |
+
+A pass says that what the app sends and what the server does agree, and nothing about the room. Then look at the arm
+and press each of the six buttons once on the pad: forward must go away from the operator, left to the operator's left
+and up up. If forward goes toward you and left goes to your right, flip the sign of both in `robot.directions` (one
+flip alone makes a mirror image and the load refuses it). If up goes down, the load tells you the other field to
+change, `scene.base_axes_in_world`. Run the check again afterwards.
+
 ## Fields
 
 Each table gives the key, its unit, what it does, and the SO-101 value with how it was found.
@@ -138,9 +180,13 @@ and down are the opposites. Buttons, voice and the phone all send these directio
 The SO-101's values: base +x runs toward the goal, which is at the operator's left; base −y is away from the base,
 which is forward; base +z is up. A wrong value goes wrong in the loudest way: every direction moves the arm the
 wrong way, the guide is mirrored, or, with one sign wrong, the arm moves toward the operator. To find them for a new
-arm, with the arm's start pose clear, press each of the six direction buttons once and read the change of `ee_pos` in
-the server's state: the axis that changed is the base axis and the sign of the change is the sign. Write the three axes
-for forward, left and up; the load refuses a set that makes a mirror image, and the six presses confirm the rest.
+arm, stand where the operator stands, with the arm's start pose clear. Move the arm a few centimetres along one base
+axis at a time by anything the server gives that names a base axis (its own jog, or a `move_delta`, `PROTOCOL.md`), and
+read the change of `ee_pos` in the server's state. For each of +x, +y and +z, say whether the arm went away from you
+(forward), toward your left, or up; the opposite axis is back, right or down. Write the three axes for forward, left
+and up. The load refuses a set that makes a mirror image. It cannot refuse a set with two wrong signs (told forward
+and left, the arm goes back and right), and the direction check cannot either, because the app sends what the file
+says and the arm then goes there: after the check passes, look at the arm for each direction once.
 `up` must also be the base axis that `scene.base_axes_in_world` puts along world +z: the two fields say the same fact
 about the mounting, and the load refuses a file in which they differ.
 
@@ -165,6 +211,19 @@ sign.
 The sentence the operator reads when the server stops the arm for falling behind (`stop.cause_arm_behind`) takes the
 profile's `server.stop_distance_m` as its number, in centimetres, in both languages: 10 cm for the SO-101, 6 cm for a
 server that stops at 6 cm.
+
+How to measure the rest on a new arm:
+
+- `stop_distance_m`: read it in the server's source or its documentation; or, on a test arm, ask for larger and larger
+  offsets until it stops the arm, and write a little under the largest distance it let through.
+- `resync.after_ms`, `tool_after_ms`: hold a button for 10 s on Coarse and watch whether the arm keeps up with the
+  command; write how long the arm may fall behind before the hold should be ended and started again from where the arm
+  is. Start from the SO-101's numbers and shorten them while holds still arrive.
+- `resync.timeout_ms`: time from sending the end of a hold to the server's final answer (`pose_stopped`) on a loaded
+  server, and write about twice the longest.
+- `held_object_point`: see the last item below.
+- `stall_detection`: does the server run a simulation loop that can stop while its network side still answers
+  (`sim_stalled` in its states)? `simulation` if so, else `none`.
 
 What goes wrong when a value is wrong:
 
@@ -218,6 +277,21 @@ four buttons both drive them, with one pair of signs.
 | `lead.memory_deg` | deg | the lead left by one hold counts for the next only if the wrist has moved no more than this since | 0.5 |
 | `lead.fresh_state_ms` | ms | a measured angle older than this is not fresh; with none fresh the command may only come back toward the wrist | 400 |
 
+How to measure on a new arm:
+
+- `roll_window_deg`, `tilt_window_deg`, `roll_clamp_deg`, `tilt_clamp_deg`: read the wrist's range and per-hold limits
+  from the server (`orient_start` is clamped at its limits, `PROTOCOL.md`), or turn and tilt the wrist to each end with
+  the server's own jog and read `wrist_roll_deg` and `wrist_flex_deg`. Write a window a few degrees inside the range
+  and a clamp inside the server's own per-hold clamp.
+- `tilt_centre_deg`: the flex at the pose the arm starts from after a reset, if it is always the same; null if it is
+  not.
+- `turn_rate_deg_s`, `tilt_rate_deg_s`: hold a wrist button for 3 s and divide the change of the angle the server
+  reports by 3; write the speed the arm follows without lagging.
+- `lead.*`: the lead is how far the command may run ahead of the measured wrist. Hold a wrist button on the arm and
+  note how far the measured angle trails the command: `lead_deg` a little above that, `rate_max_deg_s` the wrist's own
+  speed, `memory_deg` the smallest angle the server's report resolves, `fresh_state_ms` about twice the interval
+  between the server's states.
+
 What goes wrong when a value is wrong:
 
 - A sign other than the arm's turns or tilts the wrist the wrong way, and does so for the phone and the buttons
@@ -248,6 +322,19 @@ between, the readings that count at all, and the two thresholds the feedback rul
 | `empty_at` | reading | at or below this when a close has ended with no contact, the jaws closed on nothing; below `fully_open_at` | 2: an empty close settled at 0.4 degrees on the S4 simulator, and a check on the device may set it later |
 | `reclose_loosens_grip` | yes/no | a second close while gripping is refused until the jaws have opened, because a close starts from the measured reading and so loosens the grip | true; a robot that must squeeze harder to hold would set it false |
 
+How to measure on a new arm:
+
+- `unit`: read it off the server: a hinged jaw reports an angle (`deg`), parallel jaws a gap (`mm`).
+- `closed_reading`, `open_reading`: read `gripper_deg` with the jaws shut on nothing and with them open as far as they
+  go.
+- `valid_min`, `valid_max`: a little beyond those two readings; as wide as the server's own limits for the joint.
+- `fully_open_at`: the reading while the jaws are open, a little under the open reading so a jaw that stops just short
+  still counts.
+- `empty_at`: close the jaws on nothing, let them settle, and write the reading a little above it; then close on the
+  smallest object the arm picks and check that its reading stays above `empty_at`.
+- `reclose_loosens_grip`: close on an object, send a second close, and see whether the grip loosens (true) or tightens
+  (false).
+
 What goes wrong when a value is wrong:
 
 - Readings and `unit` that do not match the server's: the jaw is drawn open when it is shut, "fully open" is told at
@@ -275,6 +362,26 @@ What goes wrong when a value is wrong:
 | `grasp_tolerance_m` | m, [across, height] | how close the pinch point must be to the object's centre for a close to take hold of it; also the level word, the threshold for an approximate estimate, and the server model's grasp window | [0.006, 0.008]: in the simulator the window is a few millimetres either way |
 | `on_target_window_m` | m, [across, height], or null | a wider window for the guide's "On target" and its cue, used when the guide's aids ask for it; never narrower than `grasp_tolerance_m` on either axis | null: the grasp tolerance is used |
 
+How to measure on a new arm, and what goes wrong:
+
+- `base_in_world_m`, `base_axes_in_world`: from the server's scene setup if it gives where the base sits; else move the
+  pinch point onto an object whose world position the server reports, three times along three different base axes, and
+  compare the pinch point in the base frame with the object in the world frame: the shift is the difference at the
+  first place, and the axes are which world axis changed for each base axis. A wrong value draws the object, the goal
+  and the table in the wrong place on the guide, so "On target" is told at the wrong place or never.
+- `table_height_m`: lower the arm onto the table and read the pinch point's height along up; it is negative for a base
+  that hangs above the table with up pointing down. A wrong value gives a wrong table line and a wrong "lowest" and
+  travel height.
+- `workspace_min_m`, `workspace_max_m`: the box the server keeps the pinch point in, from its source, or drive the arm
+  against each face and read the pinch point. Too small a box tells "Blocked." where the arm could still go; too large a
+  box lets the guide draw the arm outside what the server allows.
+- `target_size_m`, `goal_size_m`: measure the object and the goal area, or read them from the server's scene.
+- `grasp_tolerance_m`: close the jaws with the pinch point off the object's centre by 2, 4, 6 and 8 mm across and in
+  height, and write where the object still lifts. Too tight and "On target" is never told; too loose and it is told
+  where the grasp misses.
+- `on_target_window_m`: null unless the guide should say "On target" in a wider window than the grasp needs; never
+  narrower than `grasp_tolerance_m`.
+
 ### `scene.tool_offset`
 
 When the server's state has no `tool_pos`, the app estimates where the jaws pinch as the reported gripper point plus
@@ -286,6 +393,15 @@ this offset. The estimate is exact where the offset was measured and grows less 
 | `measured_at_m` | m, [x, y, z] | the reported point where the offset was measured (the cube's resting centre minus the offset) | [-0.002, -0.164, 0.1405] |
 | `measured_flex_deg`, `measured_roll_deg` | deg | the wrist flex and roll at that measurement | 40.24 and 90 |
 | `error_bound` | see below | how far the estimate may be off elsewhere; past half of `grasp_tolerance_m` across, the guide draws the pinch point as approximate | see below |
+
+To measure the offset on a new arm: with the wrist at the pose it keeps while the operator works, bring the jaws so
+that a close takes hold of the object, centred. Read `ee_pos` there (`measured_at_m`) and the wrist's flex and roll
+(`measured_flex_deg`, `measured_roll_deg`); the offset is the object's centre (in the base frame) less `ee_pos`. A server
+that reports `tool_pos` makes the offset unnecessary, but the file still needs one. To measure `error_bound`, move the arm
+a few centimetres along each axis and turn the wrist a few degrees, measure the offset again each time, and write for
+each axis and each wrist angle the largest change of the offset per centimetre or per degree, rounded up. A wrong offset
+draws the pinch point away from where the jaws close, so the operator lines up the wrong point and the grasp misses; a
+bound that is too small hides that the estimate is approximate.
 
 `error_bound` adds, in millimetres: so many per centimetre the reported point has moved from `measured_at_m` along
 each base axis (`x_mm_per_cm` and `z_mm_per_cm` either way, `plus_y_mm_per_cm` toward the base and
@@ -380,9 +496,57 @@ the robot does not allow that aid. With all five `null` the robot allows none an
 | `views.behind_top_above_table_m` | m | the fixed aiming views: how high above the table the rear view's top lies; at least the travel height | 0.09: keeps the heights used for positioning visible without spending space on the upper workspace |
 | `views.max_retargeted_move_s` | s, or null | how long a retargeted move may run | 30 |
 
+How to measure on a new arm: the SO-101's numbers are a safe start; nearly all of them are tuned, and few were measured.
+Measure these, and tune the rest while watching tap-to-go reach a point:
+
+- `go_to.travel_height_m`: the height of the pinch point over the table for the level leg, at least the held object's
+  height plus a clearance, and inside the work box.
+- `go_to.speed_mps`: hold a button on Coarse for 5 s and divide the change of the arm's position by 5; write the speed
+  the arm follows, or less.
+- `go_to.arrive_tolerance_m`: no more than the grasp tolerance's height, so that arriving counts as on target.
+- `go_to.arm_data_timeout_s`: more than the longest the server goes without a state on the network used (about 0.2 s
+  between states on the SO-101's, and up to 1.8 s measured on an ordinary wireless network).
+- `guide`, `explain`, `views`, `lock`: choices, not measurements; give `null` for an aid the robot should not allow.
+
+What goes wrong in `assist` when a value is wrong: a speed above what the arm follows makes the move stall and end
+short; an arrival tolerance under what the arm settles to never arrives; a timeout under the network's longest quiet
+ends a move for nothing; a travel height under the object's height drags it across the table.
+
 What goes wrong when a pacing value is wrong: a follow share near 1 overshoots on an arm whose jaws swing, and one
 near 0 follows nothing; a pace gain that is too large lets the command outrun the readings; a start share that is too
 low makes every move start slowly and a deadline that is too long; path watch tolerances that are too tight end moves
 that were fine.
 
 `ARCHITECTURE.md` ("The hands-free aids" and "The guide's additions") says how each aid uses these numbers.
+
+## Worked example: the SO-101's file, top to bottom
+
+`App/Resources/Profiles/so101-s4-sim.json`, read as one person would read it to write another arm's.
+
+1. `profile_version` is 1 and `name` is a label the app shows.
+2. `robot.directions`: forward is base −y, left is base +x, up is base +z. The base's x runs toward the operator's
+   left and its y away from the base; the table is in front of the arm, so away from the base is forward.
+3. `robot.wrist`: both signs are 1 (a positive roll turns right; a positive flex tips the jaws toward the table). The
+   roll may go 150 degrees either way and 55 per hold, the tilt 25 either way of where the wrist stood after the reset
+   (`tilt_centre_deg` null) and 20 per hold. The wrist buttons turn at 20 degrees a second and tilt at 10. `lead`
+   says the command may be 2 degrees ahead of the measured angle, plus 10 degrees for each second of the state's age,
+   with 0.5 degrees of memory and states over 400 ms old not counted.
+4. `robot.gripper`: a hinged jaw in degrees, reading 0 shut and 97 fully open, any reading between −360 and 360
+   believed, fully open at 97 and closed on nothing at 2, and a second close while gripping is refused.
+5. `robot.motion`: buttons move the target 1 cm a second on Fine and 4 on Coarse; a command may run 8 cm ahead of
+   where the server's hold began on the gripper link's path and 5 mm on the tool point's.
+6. `server`: the link's z is mirrored (`[1, 1, -1]`), the server stops the arm for good at 10 cm, a hold is ended and
+   started again from where the arm is after 1.5 s (0.5 s on the tool point's path), waiting at most 1.5 s for the old
+   hold to end; a gripped object is carried on the gripper link's path; the server runs a simulation loop that can stop.
+7. `scene`: the base is 5 cm above the world's origin and its axes lie along the world's. The table is 4 cm above
+   the base origin. The work box is 16 cm on a side; the cube is 2.5 cm and the goal 5 cm across; the jaws must be within
+   6 mm across and 8 mm in height of the cube's centre to take hold; `on_target_window_m` is null, so the same window
+   serves for "On target". `tool_offset` says the jaws pinch 7 mm to base +x, 36 mm to −y and 88 mm below the point the
+   server reports, as measured with the wrist at flex 40.24 and roll 90, and `error_bound` says how fast that grows
+   away from there.
+8. `response`: "Blocked." is told by the direction asked; its numbers say the arm is blocked when the command is
+   at least 1 cm ahead, the arm has moved under 2 mm in a second of fresh states (under 400 ms old, none more than
+   400 ms apart); "Can't go lower." has its own numbers. They suit a server that sends about 12 to 17 states a second.
+9. `assist`: all five aids are on, with the numbers `assist` lists above: a latched follow runs for at most 30 s; a tap
+   moves the pinch point at 0.04 m/s at 5 cm above the table.
+
