@@ -182,6 +182,81 @@ class CheckArmConstantsTests(unittest.TestCase):
             }
         )
 
+    def test_a_removed_motion_or_response_number_fails(self):
+        for text, what in (
+            ("let cap = LiveLinkController.maxLeadMeters\n", "the link controller's lead caps"),
+            ("static let toolMaxLeadMeters: Float = 0.005\n", "the link controller's lead caps"),
+            ("if wait > Self.resyncTimeoutMs { }\n", "the link controller's resync times"),
+            ("let after = toolControl ? Self.toolResyncAfterMs : Self.resyncAfterMs\n", "the link controller's resync times"),
+            ("return speed.metresPerSecond * Double(ms) / 1000\n", "a button speed's own metresPerSecond"),
+            ("if gap >= FeedbackMonitor.blockedShortMeters { }\n", "the feedback monitor's blocked and lowest statics"),
+            ("let w = Self.blockedWindowMs + 1\n", "the feedback monitor's blocked and lowest statics"),
+            ("static let lowestDescentMetersPerSecond = 0.0005\n", "the feedback monitor's blocked and lowest statics"),
+            ("(0...FeedbackMonitor.freshStateMs).contains(age)\n", "the feedback monitor's blocked and lowest statics"),
+            ("guard $1.atMs - $0.atMs <= FeedbackMonitor.arrivalGapMs\n", "the feedback monitor's blocked and lowest statics"),
+            ("guard fix.ageS <= GoMove.freshS else { }\n", "the going move's statics"),
+            ("drift += change * GoMove.followShare\n", "the going move's statics"),
+            ("let g = GoMove.paceGain / swing\n", "the going move's statics"),
+            ("let s = GoMove.pathWatchTolerances * tol\n", "the going move's statics"),
+            ("var maxLeadM: Float = 0.08\n", "written as a default or a constant"),
+            ("static let stopDistanceM = 0.10\n", "written as a default or a constant"),
+            ("let followShare: Double = 0.5\n", "written as a default or a constant"),
+            ("public var sameWayDeg = 45\n", "written as a default or a constant"),
+            ("quickMs: Int = 300,\n", "written as a default or a constant"),
+            ("var toolAfterMs = 500\n", "written as a default or a constant"),
+        ):
+            for relative in (APP, CORE):
+                out = self.assertFails({relative: text}, what, f"{relative}: {text}")
+                self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_motion_or_response_number_read_from_the_profile_passes(self):
+        self.assertPasses(
+            {
+                APP: "let cap = profile.motion.maxLeadM\nlet after = server.resync.afterMs\n"
+                "let fresh = blocked.freshMs\nlet rate = speed.metresPerSecond(in: motion)\n"
+                "let ok = abs(x) <= pacing.stillM\nvar maxLeadM: Float\nfacts.maxLeadM = motion.maxLeadM\n"
+                "if arrivalGapMs == 400 { }\nlet n = wrist.lead.freshStateMs\n",
+                CORE: "// the old maxLeadMeters and GoMove.followShare are gone\nlet t = \"blockedShortMeters = 0.01\"\n"
+                "public static let acceptMinMs = 100\nlet gap = rule.arrivalGapMs\n",
+            }
+        )
+
+    def test_a_removed_motion_or_response_number_passes_in_the_tests_and_the_documents(self):
+        self.assertPasses(
+            {
+                APP_TEST: "let c = LiveLinkController.maxLeadMeters\nvar maxLeadM: Float = 0.08\n",
+                CORE_TEST: "var metresPerSecond: Double { 1 }\nlet f = FeedbackMonitor.blockedShortMeters\n"
+                "let g = GoMove.followShare\nstatic let followShare = 0.5\n",
+                "docs/PROFILE.md": "GoMove.paceGain = 0.25 and resyncAfterMs were code\n",
+            }
+        )
+
+    def test_a_motion_or_response_profile_built_or_held_in_code_fails(self):
+        for relative, text in (
+            (APP, "let m = MotionProfile(fineMps: 0.01, coarseMps: 0.04)\n"),
+            (CORE, "let s = ServerProfile(stopDistanceM: 0.1)\n"),
+            (APP, "let r = ResyncTimes.init(afterMs: 1, toolAfterMs: 2, timeoutMs: 3)\n"),
+            (CORE, "let b = BlockedRule(shortM: 0.01)\n"),
+            (APP, "let l = LowestRule(sustainM: 0.005)\n"),
+            (CORE, "let p = GoToPacing(followShare: 0.5)\n"),
+            (APP, "static let motion = MotionProfile.so101\n"),
+            (CORE, "static let blocked: BlockedRule = load()\n"),
+            (APP, "private static var rules: [LowestRule] = []\n"),
+        ):
+            out = self.assertFails({relative: text}, "motion, server or response", f"{relative}: {text}")
+            self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_motion_or_response_profile_passed_around_or_built_in_the_profile_folder_or_tests_pass(self):
+        self.assertPasses(
+            {
+                APP: "func use(_ motion: MotionProfile, rule: BlockedRule) -> Double { motion.maxLeadM }\n"
+                "let motion = profile.motion\nlet rules = [BlockedRule.Type.self]\n",
+                PROFILE: "public struct MotionProfile {}\nlet m = MotionProfile(fineMps: 0.01)\n",
+                APP_TEST: "static let motion = MotionProfile(fineMps: 0.01)\n",
+                CORE_TEST: "static let pacing = GoToPacing(followShare: 0.5)\n",
+            }
+        )
+
     def test_frames_held_or_built_in_code_fail(self):
         for relative, text in (
             (APP, "static let arm = Frames(forward: f, left: l, up: u)\n"),
