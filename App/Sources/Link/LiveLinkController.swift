@@ -208,7 +208,7 @@ final class LiveLinkController {
         self.gripper = gripper
         objectHold = ObjectHold(heldObjectPoint: profile.server.heldObjectPoint)
         stall = SimStallDetector(detection: profile.server.stallDetection)
-        blocked = profile.blocked
+        blockedRule = profile.blocked
         monitor = FeedbackMonitor(
             limits: gripper.limits, frames: frames, blocked: profile.blocked, lowest: profile.lowest)
         jawsReminder = JawsClosedReminder(limits: gripper.limits)
@@ -228,7 +228,7 @@ final class LiveLinkController {
     let server: ServerProfile
 
     /// How old a measured position may be and still say something about now: the blocked rule's freshness.
-    let blocked: BlockedRule
+    let blockedRule: BlockedRule
 
     /// The profile's frames: which base axis each direction moves the arm along, and how the link's offsets are signed
     /// against the base frame.
@@ -256,8 +256,8 @@ final class LiveLinkController {
     var freshToolPointForStep: SIMD3<Double>? {
         guard toolCalibrationID != nil, !stall.stalled, armHeardAfterLastStop, link?.unfinishedStop == nil,
             let state = newestState, !state.estop, state.activity == .ok, newestStateServerMs != nil,
-            let receivedAt = newestStateAtMs, (0...blocked.freshMs).contains(nowMs() - receivedAt),
-            let age = newestArmAgeMs, (0...blocked.freshMs).contains(age)
+            let receivedAt = newestStateAtMs, (0...blockedRule.freshMs).contains(nowMs() - receivedAt),
+            let age = newestArmAgeMs, (0...blockedRule.freshMs).contains(age)
         else { return nil }
         return newestArmState?.toolPoint
     }
@@ -299,7 +299,7 @@ final class LiveLinkController {
         guard armHeardAfterLastStop, link?.unfinishedStop == nil else { return .busy }
         guard toolCalibrationID != nil else { return nil }
         guard let state = newestState, let receivedAt = newestStateAtMs,
-            (0...blocked.freshMs).contains(nowMs() - receivedAt),
+            (0...blockedRule.freshMs).contains(nowMs() - receivedAt),
             state.endEffector != nil, state.toolPoint != nil
         else { return .noArmData }
         switch state.activity {
@@ -940,13 +940,13 @@ final class LiveLinkController {
         // left says nothing about this hold: a refusal before it, or the clamp that ended the hold before.
         let waitingOutLeftOverLabel =
             coordinatedLeftOverLabel != nil
-            && (0...blocked.freshMs).contains(now - segmentStartedMs)
+            && (0...blockedRule.freshMs).contains(now - segmentStartedMs)
             && newestArmState?.activity == coordinatedLeftOverLabel
         // The hold moves the tool along up only: the link axis that is up carries the offset, the other two stay zero.
         let up = frames.up.axis.index
         guard let start = armAtSegmentStart, let state = newestArmState,
             let measured = state.toolPoint, let age = newestArmAgeMs,
-            (0...blocked.freshMs).contains(age), !state.estop, !state.simBusy,
+            (0...blockedRule.freshMs).contains(age), !state.estop, !state.simBusy,
             newestState?.estop != true, newestState?.simBusy != true,
             (0..<3).allSatisfy({ $0 == up || wanted[$0] == 0 }), wanted[up].isFinite
         else {

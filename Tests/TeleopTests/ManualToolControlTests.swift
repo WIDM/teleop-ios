@@ -47,7 +47,7 @@ final class ManualToolControlTests: XCTestCase {
 
     private func bringUp(
         tool: Bool = true, mode: ControlMode = .screenTurns, aids: Bool = false, coordinated: Bool = false,
-        profile: RobotProfile = ProfileLoader.current
+        profile: RobotProfile = TestProfiles.so101
     ) {
         clock = 10_000
         camera = TestPose.portrait
