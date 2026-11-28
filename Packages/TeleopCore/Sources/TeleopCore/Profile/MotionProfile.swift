@@ -28,11 +28,16 @@ public struct ServerProfile: Equatable, Sendable {
     public var resync: ResyncTimes
     /// Which point a pad hold moves while the jaws hold an object.
     public var heldObjectPoint: HeldObjectPoint
+    /// Whether the app watches for a server whose simulation loop has stopped.
+    public var stallDetection: StallDetection
 
-    public init(stopDistanceM: Double, resync: ResyncTimes, heldObjectPoint: HeldObjectPoint) {
+    public init(
+        stopDistanceM: Double, resync: ResyncTimes, heldObjectPoint: HeldObjectPoint, stallDetection: StallDetection
+    ) {
         self.stopDistanceM = stopDistanceM
         self.resync = resync
         self.heldObjectPoint = heldObjectPoint
+        self.stallDetection = stallDetection
     }
 }
 
@@ -59,4 +64,13 @@ public enum HeldObjectPoint: String, CaseIterable, Sendable {
     case gripperLink = "gripper_link"
     /// The tool point, held or not: a server that lifts fine through it.
     case toolPoint = "tool_point"
+}
+
+/// Whether the app watches for a server whose simulation loop has stopped, and says so when it has.
+public enum StallDetection: String, CaseIterable, Sendable {
+    /// The server runs a simulation loop that can stop (it says `sim_stalled`, answers `busy`, stamps its states with
+    /// the loop's age): the detector reads those signs.
+    case simulation
+    /// The server has no such loop, so there is nothing to detect: the detector never fires.
+    case none
 }

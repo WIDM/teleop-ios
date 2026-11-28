@@ -174,7 +174,7 @@ final class LiveLinkController {
     private var lastNotedStop: Int?
     /// Whether the simulator behind this connection's server has stopped responding. Starts afresh with every
     /// connection: a reconnect may reach a restarted server.
-    private var stall = SimStallDetector()
+    private var stall: SimStallDetector
     /// The newest state handed to the stall decision said the server is stopped.
     private(set) var serverSaysStopped = false
     /// Whether the jaws hold an object, which decides the path of the pad's holds (`startPadHold`).
@@ -207,6 +207,7 @@ final class LiveLinkController {
         self.nowMs = nowMs
         self.gripper = gripper
         objectHold = ObjectHold(heldObjectPoint: profile.server.heldObjectPoint)
+        stall = SimStallDetector(detection: profile.server.stallDetection)
         blocked = profile.blocked
         monitor = FeedbackMonitor(
             limits: gripper.limits, frames: frames, blocked: profile.blocked, lowest: profile.lowest)
@@ -501,7 +502,7 @@ final class LiveLinkController {
         leadCapped = false
         stopUnanswered = nil
         lastNotedStop = nil
-        stall = SimStallDetector()
+        stall = SimStallDetector(detection: server.stallDetection)
         serverSaysStopped = false
         closeAfterStop = nil
         objectHold.apply(.reconnected)

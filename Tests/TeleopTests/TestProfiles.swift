@@ -32,11 +32,11 @@ enum TestProfiles {
     /// package tests' `TestMotion.benchB`).
     static let benchBMotion = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.005)
 
-    /// Bench arm B's server: a 6 cm stop distance and its own resync times (the same numbers as the package tests'
-    /// `TestServer.benchB`).
+    /// Bench arm B's server: a 6 cm stop distance, its own resync times and no simulation loop to watch (the same
+    /// numbers as the package tests' `TestServer.benchB`).
     static let benchBServer = ServerProfile(
         stopDistanceM: 0.06, resync: ResyncTimes(afterMs: 1200, toolAfterMs: 400, timeoutMs: 1000),
-        heldObjectPoint: .gripperLink)
+        heldObjectPoint: .gripperLink, stallDetection: .none)
 
     /// The SO-101's profile, and the SO-101's with bench arm B's motion and server facts: what a rule that reads them
     /// is run through.

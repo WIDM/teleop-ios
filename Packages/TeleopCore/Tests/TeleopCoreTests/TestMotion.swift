@@ -19,12 +19,12 @@ enum TestServer {
     /// object through the gripper link.
     static let so101 = ServerProfile(
         stopDistanceM: 0.10, resync: ResyncTimes(afterMs: 1500, toolAfterMs: 500, timeoutMs: 1500),
-        heldObjectPoint: .gripperLink)
+        heldObjectPoint: .gripperLink, stallDetection: .simulation)
 
-    /// Bench arm B's server: stops the arm at 6 cm, and resyncs sooner.
+    /// Bench arm B's server: stops the arm at 6 cm, resyncs sooner and has no simulation loop to watch.
     static let benchB = ServerProfile(
         stopDistanceM: 0.06, resync: ResyncTimes(afterMs: 1200, toolAfterMs: 400, timeoutMs: 1000),
-        heldObjectPoint: .gripperLink)
+        heldObjectPoint: .gripperLink, stallDetection: .none)
 
     static let all: [(name: String, server: ServerProfile)] = [("SO-101", so101), ("bench arm B", benchB)]
 }
@@ -45,6 +45,11 @@ extension ButtonArbiter {
     init(frames: Frames, speed: ButtonSpeed = .coarse) {
         self.init(frames: frames, motion: TestMotion.so101, speed: speed)
     }
+}
+
+extension SimStallDetector {
+    /// The S4 server's detector, as the tests that are not about the choice build one.
+    init() { self.init(detection: TestServer.so101.stallDetection) }
 }
 
 extension ObjectHold {

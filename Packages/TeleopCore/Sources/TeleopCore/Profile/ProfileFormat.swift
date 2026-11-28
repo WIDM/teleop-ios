@@ -80,7 +80,7 @@ extension RobotProfile: Codable {
         let robot = try top.section("robot", ["directions", "wrist", "gripper", "motion"])
         let directions = try robot.section("directions", ["forward", "left", "up"])
         let server = try top.section(
-            "server", ["link_signs", "stop_distance_m", "resync", "held_object_point"])
+            "server", ["link_signs", "stop_distance_m", "resync", "held_object_point", "stall_detection"])
         let resync = try server.section("resync", ["after_ms", "tool_after_ms", "timeout_ms"])
         let motion = try robot.section("motion", ["fine_mps", "coarse_mps", "max_lead_m", "tool_max_lead_m"])
         let wrist = try robot.section(
@@ -157,7 +157,8 @@ extension RobotProfile: Codable {
                 resync: ResyncTimes(
                     afterMs: try resync.value("after_ms"), toolAfterMs: try resync.value("tool_after_ms"),
                     timeoutMs: try resync.value("timeout_ms")),
-                heldObjectPoint: try server.choice("held_object_point", HeldObjectPoint.self)),
+                heldObjectPoint: try server.choice("held_object_point", HeldObjectPoint.self),
+                stallDetection: try server.choice("stall_detection", StallDetection.self)),
             blocked: BlockedRule(
                 shortM: try blocked.value("short_m"), movedM: try blocked.value("moved_m"),
                 windowMs: try blocked.value("window_ms"), freshMs: try blocked.value("fresh_ms"),
@@ -226,6 +227,7 @@ extension RobotProfile: Codable {
         try resync.encode(self.server.resync.toolAfterMs, forKey: "tool_after_ms")
         try resync.encode(self.server.resync.timeoutMs, forKey: "timeout_ms")
         try server.encode(self.server.heldObjectPoint.rawValue, forKey: "held_object_point")
+        try server.encode(self.server.stallDetection.rawValue, forKey: "stall_detection")
         var scene = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "scene")
         try scene.encode([frames.baseInWorld.x, frames.baseInWorld.y, frames.baseInWorld.z], forKey: "base_in_world_m")
         var worldAxes = scene.nestedContainer(keyedBy: ProfileKey.self, forKey: "base_axes_in_world")

@@ -27,7 +27,7 @@ final class ProfileFormatTests: XCTestCase {
           "server": {
             "link_signs": [1, 1, 1], "stop_distance_m": 0.06,
             "resync": { "after_ms": 1200, "tool_after_ms": 400, "timeout_ms": 1000 },
-            "held_object_point": "gripper_link"
+            "held_object_point": "gripper_link", "stall_detection": "none"
           },
           "scene": {
             "base_in_world_m": [0.1, 0.2, 0.3],
@@ -359,6 +359,18 @@ final class ProfileFormatTests: XCTestCase {
             $0["held_object_point"] = "tool_point"
         }
         XCTAssertEqual(try decode(tool).server.heldObjectPoint, .toolPoint)
+    }
+
+    /// A stall detection that is neither `simulation` nor `none` is refused with the two it accepts.
+    func testAStallDetectionThatIsNeitherOfTheTwoIsRefused() throws {
+        let wrong = changing(try object(), at: ["server", "stall_detection"]) { $0["stall_detection"] = "always" }
+        XCTAssertEqual(
+            error(wrong),
+            .notAChoice("server.stall_detection", found: "always", allowed: "\"simulation\" or \"none\""))
+        for (word, expected) in [("simulation", StallDetection.simulation), ("none", .none)] {
+            let right = changing(try object(), at: ["server", "stall_detection"]) { $0["stall_detection"] = word }
+            XCTAssertEqual(try decode(right).server.stallDetection, expected)
+        }
     }
 
     func testBothJawUnitsLoad() throws {

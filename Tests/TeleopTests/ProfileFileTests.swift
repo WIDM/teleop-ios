@@ -61,6 +61,7 @@ final class ProfileFileTests: XCTestCase {
             ("server.resync.toolAfterMs", p.server.resync.toolAfterMs, 500),
             ("server.resync.timeoutMs", p.server.resync.timeoutMs, 1500),
             ("server.heldObjectPoint", p.server.heldObjectPoint, HeldObjectPoint.gripperLink),
+            ("server.stallDetection", p.server.stallDetection, StallDetection.simulation),
             ("recloseLoosensGrip", p.recloseLoosensGrip, true),
             ("usesDirectionalBlockedFeedback", p.usesDirectionalBlockedFeedback, true),
             ("blocked.shortM", p.blocked.shortM, 0.010),

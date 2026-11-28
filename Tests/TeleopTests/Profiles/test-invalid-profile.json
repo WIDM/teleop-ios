@@ -53,7 +53,8 @@
       "tool_after_ms": 500,
       "timeout_ms": 1500
     },
-    "held_object_point": "gripper_link"
+    "held_object_point": "gripper_link",
+    "stall_detection": "simulation"
   },
   "scene": {
     "base_in_world_m": [
