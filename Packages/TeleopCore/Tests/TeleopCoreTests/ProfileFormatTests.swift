@@ -478,6 +478,8 @@ final class ProfileFormatTests: XCTestCase {
                 "robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.",
                 { $0.gripper.fullyOpenAt = .nan }
             ),
+            ("robot.gripper.empty_at must be a finite number.", { $0.gripper.emptyAt = .infinity }),
+            ("robot.gripper.fully_open_at must be a finite number.", { $0.gripper.fullyOpenAt = -.infinity }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),
             ("robot.motion.fine_mps must be above zero.", { $0.motion.fineMps = 0 }),

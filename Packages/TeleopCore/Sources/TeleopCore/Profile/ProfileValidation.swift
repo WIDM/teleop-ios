@@ -80,6 +80,10 @@ extension RobotProfile {
                     "robot.gripper.\(path) must be inside the valid readings, robot.gripper.valid_min to valid_max.")
             }
         }
+        for (path, threshold) in [("empty_at", jaw.emptyAt), ("fully_open_at", jaw.fullyOpenAt)]
+        where !threshold.isFinite {
+            faults.append("robot.gripper.\(path) must be a finite number.")
+        }
         if !(jaw.emptyAt >= jaw.closedReading) {
             faults.append("robot.gripper.empty_at must be at or above robot.gripper.closed_reading.")
         }
