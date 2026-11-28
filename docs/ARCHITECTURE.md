@@ -860,12 +860,15 @@ build it from the profile pass the profile's frames to `settingFrames`. Heights 
 
 The direction check (`Tests/TeleopTests/DirectionCheck.swift`) is the test-side guard on these three relations. A
 `ScriptedOperator` in the buttons mode presses the pad's six direction buttons once each for about 1 cm on the Fine
-speed, reads the arm's `ee_pos` from the server's state after each, and `DirectionCheck.fault` judges each move against
-the base axis `Frames.axis(for:)` names: along it, the right way, by 0.5 to 1.5 cm, within 3 mm along the other two. It
-checks that what the app sends (the directions and the link signs) and what the server does with it agree; it cannot say
-which way forward points in the room, since the app sends what the profile says. `DirectionCheckTests` runs it in the
-Default plan against the server model set up for the SO-101 and for the second test arm, with a planted wrong link sign
-that must fail it; `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it against a real server in the Live plan.
+speed and reads back the point the buttons drive (`tool_pos` when the link has a tool calibration, else `ee_pos`) from
+the server's state. `DirectionCheck.fault` judges each move as it is read and the run stops at the first fault: the move
+must lie within 30 degrees of the base axis `Frames.axis(for:)` names, the named way. The distance (usually 0.5 to
+1.5 cm) is only a warning, and a warning also says when the work box lies clearly behind the base along forward. The check
+neither resets the scene nor releases a stop. It checks that what the app sends (the directions and the link signs) and
+what the server does with it agree; it cannot say which way forward points in the room, since the app sends what the
+profile says. `DirectionCheckTests` runs it in the Default plan against the server model set up for the SO-101 and for
+the second test arm, on both control-point paths, with planted wrong link signs and a server frame with swapped axes that
+must fail it; `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it against a real server in the Live plan.
 `docs/PROFILE.md` ("Before the first move on a new arm") says how to run it and what each failure means.
 
 `RobotProfileAssistTests` holds the shipped profile to what these numbers must satisfy: the travel height inside the

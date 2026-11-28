@@ -75,16 +75,20 @@ run the whole task on B 20 times in a row:
 `xcodebuild test ... -testPlan Default -test-iterations 20 -only-testing:TeleopTests/BenchArmBTests/<test>`.
 
 The direction check is the test to run before the first move on a new arm. `DirectionCheck` (in `Tests/TeleopTests`)
-has the scripted hand press the six direction buttons once each for about 1 cm, read the arm's position from the
-server's state, and fail a direction that did not go along the base axis the profile names, the right way, by 0.5 to
-1.5 cm and within 3 mm along the other axes; the failure names the direction and the axis the arm went along instead.
-`DirectionCheckTests` runs it in the Default plan against the in-app server model for the SO-101 and for bench arm B, and
-plants a wrong link sign in B's file, which must fail it. `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it
-against a real server in the Live plan (skipped unless `TEST_RUNNER_TELEOP_MOTION=1`, at `TEST_RUNNER_TELEOP_ADDRESS`),
-with the SO-101's profile or the one `TEST_RUNNER_TELEOP_PROFILE=<id>` names; for example
-`TEST_RUNNER_TELEOP_MOTION=1 TEST_RUNNER_TELEOP_PROFILE=<id> xcodebuild test ... -testPlan Live
--only-testing:TeleopTests/OperatorLiveTests/testEveryDirectionGoesTheNamedWay`. It cannot tell which way forward points
-in the room (`docs/PROFILE.md`, "Before the first move on a new arm").
+has the scripted hand press the six direction buttons once each for about 1 cm and read back from the server's state the
+point the buttons drive (`tool_pos` where the server has a tool calibration, else `ee_pos`). It judges each move as it is
+read and stops at the first one that did not lie within 30 degrees of the base axis the profile names, the right way; the
+failure names the direction and the axis the arm went along instead. A short or long move is a warning, as is a work box
+that lies clearly behind the base along forward. It does not reset the scene or release a stop, so the arm must be
+brought to a clear start pose first. `DirectionCheckTests` runs it in the Default plan against the in-app server model for
+the SO-101 and for bench arm B, with planted wrong link signs and a swapped server frame, which must fail it.
+`OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it against a real server in the Live plan (skipped unless
+`TEST_RUNNER_TELEOP_MOTION=1`, at `TEST_RUNNER_TELEOP_ADDRESS`), with the SO-101's profile or the one
+`TEST_RUNNER_TELEOP_PROFILE=<id>` names; for example `TEST_RUNNER_TELEOP_MOTION=1 TEST_RUNNER_TELEOP_PROFILE=<id>
+xcodebuild test ... -testPlan Live -only-testing:TeleopTests/OperatorLiveTests/testEveryDirectionGoesTheNamedWay`. It
+cannot tell which way forward points in the room (`docs/PROFILE.md`, "Before the first move on a new arm").
+`python3 scripts/check-profile-doc.py` fails when the file printed in the guide is not a bundled profile file (the scripts'
+unit tests run it, so CI does too).
 
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
