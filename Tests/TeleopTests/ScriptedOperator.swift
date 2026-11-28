@@ -314,13 +314,28 @@ final class ScriptedOperator {
 
     /// Where the server reports the arm now, in the newest `state` from either connection (the one `freshState` waited
     /// for); nil, and said why, when it cannot be known.
-    private func reportedArm(_ name: String) -> SIMD3<Float>? {
+    func reportedArm(_ name: String) -> SIMD3<Float>? {
         guard freshState() else { return nil }
         guard let arm = model.serverState?.endEffector else {
             print("PICK \(name): the server's newest state has no arm position. log: \(model.debugLog.suffix(3))")
             return nil
         }
         return SIMD3(Float(arm.x), Float(arm.y), Float(arm.z))
+    }
+
+    /// Where the server reports the point the pad's buttons drive, as `reportedArm` does: the tool point (`tool_pos`)
+    /// when the server has a tool calibration, which is when the app drives it, else the arm's own point (`ee_pos`).
+    /// Nil, and said why, when it cannot be known.
+    func reportedControlledPoint(_ name: String) -> (point: SIMD3<Float>, kind: DirectionCheck.Point)? {
+        guard model.link.toolCalibrationID != nil else { return reportedArm(name).map { ($0, .gripperLink) } }
+        guard freshState() else { return nil }
+        guard let tool = model.serverState?.toolPoint else {
+            print(
+                "PICK \(name): the server has a tool calibration but its newest state has no tool_pos. log: \(model.debugLog.suffix(3))"
+            )
+            return nil
+        }
+        return (SIMD3(Float(tool.x), Float(tool.y), Float(tool.z)), .tool)
     }
 
     /// One vol+ hold that moves the phone by the base-frame offset `remaining`.

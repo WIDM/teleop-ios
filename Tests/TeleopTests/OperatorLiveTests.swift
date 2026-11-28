@@ -1,3 +1,4 @@
+import TeleopCore
 import XCTest
 @testable import Teleop
 
@@ -6,6 +7,8 @@ import XCTest
 /// simulated arm, so it runs only in the Live test plan and only when asked, as `ServerMotionTests` does:
 ///
 ///     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -testPlan Live
+///
+/// `testEveryDirectionGoesTheNamedWay` is the direction check for a new arm; see `docs/PROFILE.md`.
 ///
 /// It needs the simulator's scene at its reset pose with nobody else driving it. It may run in a recording session,
 /// where each success saves a take; it has not been tried in one yet.
@@ -18,12 +21,12 @@ import XCTest
 final class OperatorLiveTests: XCTestCase {
     private var hand: ScriptedOperator!
 
-    private func start(_ mode: ControlMode) throws {
+    private func start(_ mode: ControlMode, profile: RobotProfile = TestProfiles.so101) throws {
         guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
             throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
         }
         let address = ScriptedOperator.liveServerAddress
-        hand = ScriptedOperator(address: address, mode: mode, smoothing: 0.3)
+        hand = ScriptedOperator(address: address, mode: mode, smoothing: 0.3, profile: profile)
         guard hand.connect(within: 4) else { throw XCTSkip("no server on \(address)") }
         let model = hand.model!
         hand.step = "the reset before the run"
@@ -54,5 +57,25 @@ final class OperatorLiveTests: XCTestCase {
     func testPickAndPlaceButtons() throws {
         try start(.buttons)
         try hand.pickAndPlace(warmUpHolds: 0)
+    }
+
+    /// The direction check (`DirectionCheck`) against the real server: six 1 cm moves, each read back from the server's
+    /// state, each along the base axis the profile names: the SO-101's, or the one `TEST_RUNNER_TELEOP_PROFILE` names by
+    /// id (a file in `App/Resources/Profiles`). Run it first on a new arm. Unlike the runs above it does not reset the
+    /// scene and does not release a stop: it connects, reads and presses, so the operator brings the arm to a clear
+    /// start pose first (`docs/PROFILE.md`, "Before the first move on a new arm").
+    func testEveryDirectionGoesTheNamedWay() throws {
+        guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
+            throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
+        }
+        let address = ScriptedOperator.liveServerAddress
+        hand = ScriptedOperator(
+            address: address, mode: .buttons, smoothing: 0.3, profile: try TestProfiles.chosenForLiveRuns())
+        guard hand.connect(within: 4) else { throw XCTSkip("no server on \(address)") }
+        hand.step = "waiting for the first state"
+        hand.pump(1)
+        let result = try XCTUnwrap(hand.directionCheck(), "the check could not read the arm")
+        XCTAssertEqual(result.faults, [], result.faults.joined(separator: "\n"))
+        XCTAssertEqual(result.moves.count, 6, "all six directions pressed")
     }
 }
