@@ -784,6 +784,9 @@ values, and how a build chooses its file. The fields:
 | `gripper` | `GripperProfile`: the jaw's unit (`deg` or `mm`), the two readings the opening share is drawn between, the readings that count as a jaw reading, and the readings that count as fully open and as closed on nothing (`fullyOpenAt`, `emptyAt`) |
 | `workspaceMin`, `workspaceMax`, `tableHeight` | the box the server keeps the pinch point in, in the base frame, and the table's height over the base origin along up, for the guide |
 | `wrist` | `WristProfile`: the roll and tilt windows and per-hold limits, the centre of the tilt window, one pair of signs for the phone and the wrist buttons (both +1 until a check on the live robot sets them), the buttons' rates, and the lead bound's four numbers (`WristLeadLimits`) |
+| `motion` | `MotionProfile`: the Fine and Coarse button speeds and the two caps on how far a translation command may run ahead of where the server's hold began (`maxLeadM` on the gripper link's path, `toolMaxLeadM` on the tool point's) |
+| `server` | `ServerProfile`: the server's stop distance (each cap must be under it), the resync times (`ResyncTimes`), the point that holds a gripped object (`HeldObjectPoint`) and whether the app watches for a stopped simulation loop (`StallDetection`) |
+| `blocked`, `lowest` | `BlockedRule` and `LowestRule`: the numbers the feedback monitor judges "Blocked." and "Can't go lower." by |
 | `recloseLoosensGrip` | a second close while gripping is refused, because on this robot it loosens the grip |
 | `usesDirectionalBlockedFeedback` | this profile's gripper-link box (`gripperWorkspace`: `workspaceMin` and `workspaceMax` moved back by `toolOffset`) has been checked against the workspace in the server recordings, so with the guide's additions on "Blocked." is told by the direction asked ("The guide's additions") |
 | `assist` | which hands-free aids this robot allows, with their numbers (`AssistProfile`, below); `.none` allows none and needs no code path of its own |
@@ -802,6 +805,7 @@ values, and how a build chooses its file. The fields:
 | `goTo.timeFactor`, `goTo.allowanceS` | the deadline: the path's length over the speed, times the factor, plus the allowance; each correction adds its own share, and so do a following move's slow start, each slow-down measured while a leg's command is still moving and each wait for a fresh reading; a pace measured after a leg's command has reached its end is kept for the next leg and adds nothing |
 | `goTo.armDataTimeoutS` | no measured position younger than this ends the move ("No arm data.") |
 | `goTo.startGraceS` | no stall is judged from positions measured this soon after the start, or after the end of the hold's last pause if that is later, unless the arm has already moved 2 mm |
+| `goTo.pacing` | `GoToPacing`: how a move follows the arm's actual pace (the share of each reading's offset change taken off the command, the pace gain, the slowest and the start share, the path watch's tolerances, the freshness time, the still distance and the pace change share) |
 | `guide` | which of the guide's additions run (`GuideAids`) |
 | `explain` | what the phone says about its link beyond 1.0.1's words (`ExplainAids.slowLinkLetGo`: a hold a slow link stops says "Slow link."); a robot that sets it also sets `guide` |
 | `views` | the fixed aiming views (`ViewAim`): `behindTopAboveTableM`, the height of the rear view's top above the table, which must reach the travel height, and `maxRetargetedMoveS`, how long a retargeted move may run |
@@ -817,6 +821,17 @@ through `InputConstants(wrist:)`, which has no default wrist, through `WristButt
 readings that count as a jaw reading; the wrist joints keep their own bound of ±360 degrees.
 `scripts/check-arm-constants.py`
 refuses a wrist or jaw number written in code again (see `docs/TESTING.md`).
+
+### Motion, server and response
+
+`MotionProfile`, `ServerProfile`, `BlockedRule`, `LowestRule` and `GoToPacing` are pure values inside the profile.
+`ButtonRamp(motion:)` and `ButtonArbiter(frames:motion:)` take the button speeds (`ButtonSpeed.metresPerSecond(in:)`);
+`LiveLinkController(profile:)` takes the lead caps, the resync times and the stop distance's caps from it, gives
+`ObjectHold(heldObjectPoint:)` the held-object point and `SimStallDetector(detection:)` the stall choice, which with
+`.none` reads nothing; `FeedbackMonitor(limits:frames:blocked:lowest:)` and `GoMove` (through `GoToLimits.pacing`) judge
+by the profile's numbers. None of them has a default. The timed rules of the stall detector (2, 3 and 3 seconds) stay
+in code, since they describe the S4 server's loop. `scripts/check-arm-constants.py` refuses the removed statics and a
+number written in code again (see `docs/TESTING.md`).
 
 ### Frames
 

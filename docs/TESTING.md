@@ -51,6 +51,16 @@ share, "fully open", "closed on nothing", the reminder and the readings that cou
 runs the Wrist page's buttons and window through both wrists at the app, `OperatingRulesTests` the opening share, and
 `ScriptedHandJawTests` checks that the scripted hand names the jaw's readings in the jaw's unit.
 
+Motion and response run the same way, with test-only numbers as bench arm B will have them (`TestMotion`, `TestServer`,
+`TestResponse` and `TestPacing` in the core tests, `TestProfiles.benchBMotion` and `benchBServer` in the app tests):
+buttons twice as fast, a 6 cm stop distance with a lead cap under it, quicker resync times, no simulation loop to watch,
+and a blocked rule, lowest rule and pacing of their own. `MotionAcrossMotionsTests` runs the button ramp, the pad and the
+path of a pad hold through both; `ResponseAcrossResponsesTests` and `GoMoveAcrossPacingsTests` run each number of the
+blocked rule, the lowest rule and a going move's pacing just inside and just outside through both, each case built from
+the profile's own numbers; `StallDetectionAcrossServersTests` runs every way the stall detector fires through `simulation`
+and `none`; `LiveLinkTests` runs the lead cap and the resync times through both at the link controller. The scripted
+hand holds a button for the time the profile's speed needs.
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
@@ -72,7 +82,10 @@ Two more checks sit beside the tests:
   when code outside the tests holds a direction table or a conversion by base axis or holds a
   `Frames` in a static (a static whose type is not written included), when code outside the tests gives a wrist or jaw
 number as a default or a constant, names a removed one (`WristButton.turnRate`, `InputConstants.appendixA`,
-`gripperOpenDeg`) or builds or holds a `WristProfile` or `GripperProfile`, and when any code, tests included, reads
+`gripperOpenDeg`) or builds or holds a `WristProfile` or `GripperProfile`, when it does the same for the motion, server
+and response numbers (`LiveLinkController.maxLeadMeters`, `FeedbackMonitor.blockedShortMeters`, `GoMove.followShare` and
+the rest of the removed statics; a `MotionProfile`, `ServerProfile`, `BlockedRule`, `LowestRule` or `GoToPacing` built or
+held in a static), and when any code, tests included, reads
 `ProfileLoader.current` outside `AppModel` and
   `OperatingFixtures` (`docs/PROFILE.md`).
   `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
