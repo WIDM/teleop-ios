@@ -72,7 +72,8 @@ Two more checks sit beside the tests:
   when code outside the tests holds a direction table or a conversion by base axis or holds a
   `Frames` in a static (a static whose type is not written included), when code outside the tests gives a wrist or jaw
 number as a default or a constant, names a removed one (`WristButton.turnRate`, `InputConstants.appendixA`,
-`gripperOpenDeg`) or builds or holds a `WristProfile` or `GripperProfile`, and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and
+`gripperOpenDeg`) or builds or holds a `WristProfile` or `GripperProfile`, and when any code, tests included, reads
+`ProfileLoader.current` outside `AppModel` and
   `OperatingFixtures` (`docs/PROFILE.md`).
   `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
   scripts/test_check_arm_constants.py` tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for

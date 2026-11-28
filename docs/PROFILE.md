@@ -91,8 +91,9 @@ reports all of them at once. A profile is refused when:
   `lead.memory_deg` is negative, or `lead.fresh_state_ms` is not above zero;
 - `robot.gripper.unit` is neither `deg` nor `mm` (the sentence names the two), `closed_reading` and `open_reading` are
   not different finite numbers, `closed_reading` is not below `open_reading` (a jaw whose reading falls as it opens is
-  not supported), `valid_min` is not below `valid_max`, `fully_open_at` or `empty_at` is not inside the valid
-  readings, or `empty_at` is not below `fully_open_at`;
+  not supported), `valid_min` is not below `valid_max`, `closed_reading` or `open_reading` is not inside the valid
+  readings, `empty_at` is below `closed_reading`, `fully_open_at` is above `open_reading`, or `empty_at` is not below
+  `fully_open_at`;
 - a position is not a finite number, or `scene.workspace_min_m` is not below `scene.workspace_max_m` on every axis;
 - a size or tolerance (`target_size_m`, `goal_size_m`, `grasp_tolerance_m`, `on_target_window_m` when given) is not
   above zero, `on_target_window_m` is narrower than `grasp_tolerance_m` on either axis, or a rate of `error_bound` is
@@ -148,14 +149,14 @@ four buttons both drive them, with one pair of signs.
 
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
-| `roll_sign` | 1 or -1 | server wrist roll = this × the turn. The turn is clockwise as the operator sees the screen; the Turn right button is the same turn | 1, the value kept until the live mapping check (C-I5) measures it. Turn right is a positive roll, as seen in the top and side views |
+| `roll_sign` | 1 or -1 | server wrist roll = this × the turn. The turn is clockwise as the operator sees the screen; the Turn right button is the same turn | 1: Turn right is a positive roll, as seen in the top and side views |
 | `tilt_sign` | 1 or -1 | server wrist flex = this × the tilt. The tilt is the top of the phone away from the operator; the Tilt down button is the same tilt | 1. A positive pitch points the jaws toward the table (PROTOCOL.md, "the wrist"), so Tilt down is positive |
 | `roll_window_deg` | deg | the roll a hold asks for stays within this either way of 0, judged from the measured roll; a hold may always turn back toward 0 | 150. The S4 server's soft limit is ±160, so this keeps 10 degrees clear of it |
 | `tilt_window_deg` | deg | the flex stays within this either way of `tilt_centre_deg` | 25 (Appendix A of the interaction specification); the code carried no measurement for it |
 | `roll_clamp_deg`, `tilt_clamp_deg` | deg | the most one hold may turn or tilt the wrist from where the hold began; never above the window of the same direction | 55 and 20: inside the S4 server's own per-hold clamps of 60 and 35 degrees |
-| `tilt_centre_deg` | deg, or null | where the tilt window is centred. A number is a fixed flex; null centres it on the flex measured in the first state after the last reset | null: centred on the flex measured after the last reset, as the app always did |
+| `tilt_centre_deg` | deg, or null | where the tilt window is centred. A number is a fixed flex; null centres it on the flex measured in the first state after the last reset | null: centred on the flex measured after the last reset |
 | `turn_rate_deg_s`, `tilt_rate_deg_s` | deg/s | how fast a held wrist button moves the wrist, whichever way | 20 and 10: a held Turn button reaches the 55 degree limit in 2.75 s and a Tilt button the 20 degree limit in 2 s; no measurement is recorded for them |
-| `lead.lead_deg` | deg | the commanded angle may lead the newest fresh measured angle by this much, always | 2 (specification I-8.6, test C-I6) |
+| `lead.lead_deg` | deg | the commanded angle may lead the newest fresh measured angle by this much, always | 2 |
 | `lead.rate_max_deg_s` | deg/s | and by this much more for each second of that state's age. Not a speed limit of the wrist | 10 |
 | `lead.memory_deg` | deg | the lead left by one hold counts for the next only if the wrist has moved no more than this since | 0.5 |
 | `lead.fresh_state_ms` | ms | a measured angle older than this is not fresh; with none fresh the command may only come back toward the wrist | 400 |
@@ -184,11 +185,11 @@ between, the readings that count at all, and the two thresholds the feedback rul
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `unit` | `deg` or `mm` | what the readings are measured in; the session record writes it beside the jaw reading (`jaw_unit`) | `deg`: a hinged jaw |
-| `closed_reading`, `open_reading` | reading | the readings the jaw's opening share is drawn between: the share is 0 at the first and 1 at the second, held to that range, and the guide's jaw drawing and its percentage use it. Different numbers, closed below open | 0 and 97: the jaw read 0 when shut in the build 32 trial, and 97 is where the S4 jaw has fully opened; the joint's limit is 100 |
-| `valid_min`, `valid_max` | reading | the readings that count as a jaw reading; a `gripper_deg` outside them is read as if the server had not sent it. The wrist joints have their own bound (a full turn either way) | -360 and 360: what the parser has accepted since the first version, which also keeps a number an integer cannot hold from reaching the guide |
+| `closed_reading`, `open_reading` | reading | the readings the jaw's opening share is drawn between: the share is 0 at the first and 1 at the second, held to that range, and the guide's jaw drawing and its percentage use it. Different numbers, closed below open | 0 and 97: the S4 jaw reads 0 with the jaws shut and 97 when they are open as far as they go; the joint's limit is 100 |
+| `valid_min`, `valid_max` | reading | the readings that count as a jaw reading; a `gripper_deg` outside them is read as if the server had not sent it. The wrist joints have their own bound (a full turn either way) | -360 and 360: wide enough for any reading the S4 jaw gives, and it keeps a number an integer cannot hold from reaching the guide |
 | `fully_open_at` | reading | a reading at or above this while opening counts as fully open | 97 |
 | `empty_at` | reading | at or below this when a close has ended with no contact, the jaws closed on nothing; below `fully_open_at` | 2: an empty close settled at 0.4 degrees on the S4 simulator, and a check on the device may set it later |
-| `reclose_loosens_grip` | yes/no | a second close while gripping is refused until the jaws have opened, because a close starts from the measured angle and so loosens the grip | true; a robot that must squeeze harder to hold would set it false |
+| `reclose_loosens_grip` | yes/no | a second close while gripping is refused until the jaws have opened, because a close starts from the measured reading and so loosens the grip | true; a robot that must squeeze harder to hold would set it false |
 
 What goes wrong when a value is wrong:
 
@@ -198,8 +199,9 @@ What goes wrong when a value is wrong:
 - `valid_min` and `valid_max` that are too narrow throw away good readings (the jaw seems to report nothing, so
   "fully open" and "closed on nothing" are never told); too wide let a nonsense number through to the guide.
 - A `fully_open_at` that is beyond what the jaw can reach is never told; an `empty_at` that is above the reading of a
-  gentle grip tells "closed on nothing" when the jaws hold something small. Both must lie inside the valid readings
-  and `empty_at` must be below `fully_open_at`; the load refuses a file that does not.
+  gentle grip tells "closed on nothing" when the jaws hold something small. `empty_at` must be at or above
+  `closed_reading`, `fully_open_at` at or below `open_reading` and `empty_at` below `fully_open_at`; the two readings
+  must lie inside the valid readings. The load refuses a file that breaks any of these.
 - A jaw whose reading falls as it opens is not supported: the rules read "at or above" for open and "at or below" for
   closed.
 

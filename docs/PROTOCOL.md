@@ -278,7 +278,8 @@ that axis since the input began (the thumb's touch-down in scheme A, the vol− 
   tilt commanded since the last reset counts instead;
 - the commanded angle never leads the newest measured angle by more than 2 degrees plus 10 degrees for each second
   of that state's age, and with no state younger than 400 ms it does not move further from the wrist
-  (`WristLeadBound`; `lead.lead_deg`, `lead.rate_max_deg_s`, `lead.fresh_state_ms`). The server keeps moving its target toward a blocked wrist, and the wrist would jump by that
+  (`WristLeadBound`; `lead.lead_deg`, `lead.rate_max_deg_s`, `lead.fresh_state_ms`). The server keeps moving its
+  target toward a blocked wrist, and the wrist would jump by that
   lead once it is free. A server that reports no wrist angles gets the angle unbounded.
 
 The operator feels a long buzz at a limit. If the start waited behind a finishing hold, the rotation made meanwhile is
@@ -288,7 +289,8 @@ The Wrist page of the Fine controls panel sends the same three messages with no 
 for an angle that grows from the moment `orient_start` went out: 20 degrees a second for Turn left and Turn right
 (roll, left negative) and 10 degrees a second for Tilt up and Tilt down (pitch, up negative, so Tilt down points the
 jaws toward the table), the profile's `turn_rate_deg_s` and `tilt_rate_deg_s` for the SO-101 and its signs, the same
-pair the phone's hold uses (`roll_sign`, `tilt_sign`), held to the same range as the phone's hold (`RotationMapper.limits`) and sent through the
+pair the phone's hold uses (`roll_sign`, `tilt_sign`), held to the same range as the phone's hold
+(`RotationMapper.limits`) and sent through the
 same lead bound. The long buzz plays once per hold, at the end of the range (`WristButton`, `WristButtonRamp`).
 
 ## What the app receives

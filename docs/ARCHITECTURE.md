@@ -301,7 +301,8 @@ switch.
 - **Wrist page.** The cross's four buttons become Tilt up, Tilt down, Turn left and Turn right (`WristButton`); Up,
   Down, Open and Close stay. A held wrist button sends the wrist hold the phone's rotation sends (`orient_start`,
   `orient_update`, `orient_stop`), with an angle that grows from the moment the start went on the wire: 20 degrees a
-  second for turn, 10 for tilt (the profile's `wrist.turnRateDegS`, `tiltRateDegS`, with the same signs as the phone's turn and tilt), held to `RotationMapper.limits`, the range of the
+  second for turn, 10 for tilt (the profile's `wrist.turnRateDegS`, `tiltRateDegS`, with the same signs as the phone's
+  turn and tilt), held to `RotationMapper.limits`, the range of the
   phone's own wrist hold, and sent through `WristLeadBound`. The long buzz at the end of the range plays once per hold
   (`OperatingController.claimWristLimitCue`). For a server that reports no wrist angles, the tilt a button
   asks for is added to the tilt commanded since the last reset (`InputArbiter.addPanelTilt`). A finger that slides off its button ends the hold and stays dead until lifted. The
@@ -810,9 +811,11 @@ values, and how a build chooses its file. The fields:
 `WristProfile` and `GripperProfile` (`Profile/`) are pure values inside the profile. The wrist's numbers reach the rules
 through `InputConstants(wrist:)`, which has no default wrist, through `WristButton.degreesPerSecond(in:)` and
 `WristButtonRamp(button:range:wrist:)`, through `WristLeadBound(limits:)` and, for the tilt window's centre, through
-`WristProfile.tiltCentreDeg(measuredAfterReset:)`. The jaw reaches them as `GripperLimits` (from `GripperProfile.limits`),
+`WristProfile.tiltCentreDeg(measuredAfterReset:)`. The jaw reaches them as `GripperLimits` (from
+`GripperProfile.limits`),
 `GripperProfile.opening(at:)` for the share the guide draws, and `jawReadings` of `ServerState` and `TeleopLink`, the
-readings that count as a jaw reading; the wrist joints keep their own bound of ±360 degrees. `scripts/check-arm-constants.py`
+readings that count as a jaw reading; the wrist joints keep their own bound of ±360 degrees.
+`scripts/check-arm-constants.py`
 refuses a wrist or jaw number written in code again (see `docs/TESTING.md`).
 
 ### Frames
