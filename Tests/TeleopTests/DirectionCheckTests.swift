@@ -107,7 +107,8 @@ final class DirectionCheckTests: XCTestCase {
         XCTAssertTrue(wrongWay.contains("base +y"), wrongWay)
 
         let other = try XCTUnwrap(fault(.forward, expected: forward, SIMD3(1, 0, 0)))
-        XCTAssertTrue(other.hasPrefix("forward:") && other.contains("along base +x") && other.contains("instead"), other)
+        XCTAssertTrue(other.hasPrefix("forward:"), other)
+        XCTAssertTrue(other.contains("along base +x") && other.contains("instead"), other)
 
         let still = try XCTUnwrap(fault(.forward, expected: forward, SIMD3(0, -0.1, 0)))
         XCTAssertTrue(still.contains("did not move"), still)

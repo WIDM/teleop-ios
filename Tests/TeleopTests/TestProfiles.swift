@@ -24,6 +24,13 @@ enum TestProfiles {
         }
     }()
 
+    /// The profile a live check runs with: the file `TELEOP_PROFILE` names by id among the app's bundled profiles (set
+    /// as `TEST_RUNNER_TELEOP_PROFILE`), else the SO-101's.
+    static func chosenForLiveRuns() throws -> RobotProfile {
+        guard let id = ProcessInfo.processInfo.environment["TELEOP_PROFILE"], !id.isEmpty else { return so101 }
+        return try ProfileLoader.load(id: id, bundle: Bundle(for: AppModel.self))
+    }
+
     /// B's wrist, jaw, motion and server, as the file gives them: a wrist unlike the SO-101's in every number (a narrower
     /// turn, a wider tilt on a fixed centre, a turn sign the other way and a tilt sign the same as the SO-101's, so a
     /// rule that reads one axis's sign for the other gives a different answer, buttons twice as fast); a parallel jaw

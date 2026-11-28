@@ -1,3 +1,4 @@
+import TeleopCore
 import XCTest
 @testable import Teleop
 
@@ -20,12 +21,12 @@ import XCTest
 final class OperatorLiveTests: XCTestCase {
     private var hand: ScriptedOperator!
 
-    private func start(_ mode: ControlMode) throws {
+    private func start(_ mode: ControlMode, profile: RobotProfile = TestProfiles.so101) throws {
         guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
             throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
         }
         let address = ScriptedOperator.liveServerAddress
-        hand = ScriptedOperator(address: address, mode: mode, smoothing: 0.3)
+        hand = ScriptedOperator(address: address, mode: mode, smoothing: 0.3, profile: profile)
         guard hand.connect(within: 4) else { throw XCTSkip("no server on \(address)") }
         let model = hand.model!
         hand.step = "the reset before the run"
@@ -59,9 +60,10 @@ final class OperatorLiveTests: XCTestCase {
     }
 
     /// The direction check (`DirectionCheck`) against the real server: six 1 cm moves, each read back from the server's
-    /// state, each along the base axis the build's profile names. Run it first on a new arm, with the arm clear.
+    /// state, each along the base axis the profile names: the SO-101's, or the one `TEST_RUNNER_TELEOP_PROFILE` names by
+    /// id (a file in `App/Resources/Profiles`). Run it first on a new arm, with the arm clear.
     func testEveryDirectionGoesTheNamedWay() throws {
-        try start(.buttons)
+        try start(.buttons, profile: try TestProfiles.chosenForLiveRuns())
         let faults = try XCTUnwrap(hand.directionCheckFaults(), "the check could not read the arm")
         XCTAssertEqual(faults, [], faults.joined(separator: "\n"))
     }
