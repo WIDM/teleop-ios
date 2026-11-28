@@ -93,8 +93,10 @@ enum DirectionCheck {
         }
         if went.axis != move.expected.axis {
             return "\(name): the arm went along base \(went.text) (\(cm(delta[axis.index]))) instead of base "
-                + "\(move.expected.text) (\(cm(along)); \(said)). The server's frame has axes swapped, which a "
-                + "profile cannot say: this arm's server needs code, not only a file."
+                + "\(move.expected.text) (\(cm(along)); \(said)). One cause is a server frame with axes swapped, which "
+                + "a profile cannot say; a limit near the start pose, a sag under gravity or a path that is not "
+                + "straight are others. Move the start pose clear of limits and run again; if the move goes along the "
+                + "same other axis again, the frame is swapped: this arm's server needs code, not only a file."
         }
         let others = BaseAxis.allCases.filter { $0 != move.expected.axis }
         let other = others.max { abs(delta[$0.index]) < abs(delta[$1.index]) } ?? .x

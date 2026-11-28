@@ -101,6 +101,7 @@ final class DirectionCheckTests: XCTestCase {
         let up = try XCTUnwrap(result.faults.first, "\(result.faults)")
         XCTAssertTrue(up.hasPrefix("up:") && up.contains("wrong way"), up)
         XCTAssertTrue(up.contains("server.link_signs") && !up.contains("robot.directions"), up)
+        XCTAssertTrue(up.contains("base -z") || up.contains("base +z"), "the sentence names the axis: \(up)")
         XCTAssertEqual(result.moves.last?.direction, .up, "stopped at the first bad step")
         XCTAssertEqual(result.moves.count, 5, "forward, back, left, right, up")
     }
@@ -175,6 +176,16 @@ final class DirectionCheckTests: XCTestCase {
         XCTAssertTrue(sideways.hasPrefix("up:") && sideways.contains("also") && sideways.contains("base +x"), sideways)
     }
 
+    /// A largest move on another axis does not prove a swapped server frame: 8 mm along x with 9 mm of sag in z lands
+    /// there too. The sentence names the swapped frame as one cause beside a limit, a sag and a path.
+    func testAMoveOnAnotherAxisNamesASwappedFrameAsOneCauseOfSeveral() throws {
+        let sag = try XCTUnwrap(fault(.left, expected: SignedAxis(.x, 1), SIMD3(0.8, 0, -0.9)))
+        XCTAssertTrue(sag.hasPrefix("left:") && sag.contains("along base -z") && sag.contains("instead"), sag)
+        XCTAssertTrue(sag.contains("One cause is") && sag.contains("swapped"), sag)
+        XCTAssertTrue(sag.contains("limit") && sag.contains("sag") && sag.contains("path"), sag)
+        XCTAssertTrue(sag.contains("needs code") && !sag.contains("robot.directions"), sag)
+    }
+
     /// Direction is judged by angle; a short or long move is a warning and never a fault.
     func testDistanceIsAWarningNotAFault() throws {
         let up = SignedAxis(.z, 1)
@@ -187,6 +198,24 @@ final class DirectionCheckTests: XCTestCase {
         XCTAssertNil(DirectionCheck.warning(move(SIMD3(0, 0, 1))))
         XCTAssertNotNil(DirectionCheck.fault(move(SIMD3(0, 0, 0.1))), "under 2 mm is no move")
         XCTAssertNil(DirectionCheck.warning(move(SIMD3(0, 0, -1))), "a wrong-way move is a fault, not a warning")
+    }
+
+    /// The limit of the forward warning, pinned. Bench arm B hangs over its work area: the box's centre is 2.8 cm
+    /// behind the base along forward, inside the dead zone of a quarter of the box's width (4 cm), so neither B nor B
+    /// with forward and left reversed is warned. The warning helps for an arm whose work area lies clearly in front;
+    /// a person watching the arm is still required (docs/PROFILE.md, "The work box and forward").
+    func testForwardWarningDoesNotFireForBenchArmBInEitherDirection() throws {
+        let b = TestProfiles.benchB
+        let low = SIMD3<Double>(b.workspaceMin), high = SIMD3<Double>(b.workspaceMax)
+        let centre = b.frames.forward.component(of: (low + high) / 2)
+        let width = high[b.frames.forward.axis.index] - low[b.frames.forward.axis.index]
+        XCTAssertEqual(centre, -0.028, accuracy: 1e-9, "B's box centre is 2.8 cm behind the base along forward")
+        XCTAssertEqual(DirectionCheck.behindShare * width, 0.04, accuracy: 1e-9, "against a dead zone of 4 cm")
+        XCTAssertNil(DirectionCheck.forwardWarning(b))
+        var reversed = b
+        reversed.frames.forward = reversed.frames.forward.reversed
+        reversed.frames.left = reversed.frames.left.reversed
+        XCTAssertNil(DirectionCheck.forwardWarning(reversed), "forward reversed on B is not seen by the warning")
     }
 
     /// The forward plausibility rule: the work box is not clearly behind the base along forward.
