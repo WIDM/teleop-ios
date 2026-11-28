@@ -65,20 +65,9 @@ final class LocalPickAndPlaceTests: XCTestCase {
         let model = hand.model!
         var reported = false, estimated = false, approximate = false
         var onTargetBeforeTheClose = false
-        var cuesSeen = 0, grasped = false
-        var cuesBeforeTheGrasp: [CueLogEntry] = [], cuesWhileHolding = 0, cuesAfterTheRelease = 0
+        var cues = OnTargetCueTally()
         hand.watch = {
-            let cues = model.cueLog.filter { $0.event == .onTarget }
-            let new = cues.dropFirst(cuesSeen)
-            cuesSeen = cues.count
-            if model.gripping { grasped = true }
-            if !grasped {
-                cuesBeforeTheGrasp += new
-            } else if model.gripping {
-                cuesWhileHolding += new.count
-            } else {
-                cuesAfterTheRelease += new.count
-            }
+            cues.update(model)
             guard let arm = model.operating.arm else { return }
             switch arm.pinchSource {
             case .reported: reported = true
@@ -99,14 +88,10 @@ final class LocalPickAndPlaceTests: XCTestCase {
         XCTAssertEqual(estimated, !toolPoint, "\(mode)")
         XCTAssertEqual(approximate, !toolPoint, "\(mode): the estimate is approximate away from the grasp")
         XCTAssertTrue(onTargetBeforeTheClose, "\(mode): the guide never said On target at the grasp")
-        XCTAssertLessThan(model.cueLog.count, 200, "the cue log still holds the whole script")
-        XCTAssertEqual(cuesBeforeTheGrasp.count, 1, "\(mode): ON TARGET once on the approach, \(cuesBeforeTheGrasp)")
-        XCTAssertEqual(cuesBeforeTheGrasp.first?.dropped, false, "\(mode): and felt")
-        XCTAssertEqual(cuesWhileHolding, 0, "\(mode)")
-        XCTAssertEqual(cuesAfterTheRelease, 0, "\(mode): letting go of the carried object is no new approach")
+        cues.assertOnceOnTheApproach(model, mode: mode)
         print(
-            "ON TARGET (\(mode.rawValue), tool point \(toolPoint)): \(cuesBeforeTheGrasp.count) on the approach, "
-                + "\(cuesAfterTheRelease) after letting go")
+            "ON TARGET (\(mode.rawValue), tool point \(toolPoint)): \(cues.beforeTheGrasp.count) on the approach, "
+                + "\(cues.afterTheRelease) after letting go")
     }
 
     func testPickAndPlaceSchemeA() throws {

@@ -22,18 +22,19 @@ struct OperatingFixtures {
         all["not_connected"] = display(.notConnected(reason: nil), link: false, arm: nil, recorder: .unknown)
         all["connecting"] = display(
             .connecting(address: "192.168.0.10:8765"), link: false, arm: nil, recorder: .unknown)
-        all["ready"] = display(.ready, arm: task(), recorder: armed)
-        all["ready_hotel"] = display(.ready, arm: hotel(), recorder: notRecording)
-        all["moving"] = display(.moving(catchingUp: false), arm: task(moving: true), recorder: capturing)
-        all["moving_hotel"] = display(.moving(catchingUp: true), arm: hotel(moving: true), recorder: notRecording)
+        all["ready"] = display(.ready, arm: task(), recorder: recorderArmed)
+        all["ready_hotel"] = display(.ready, arm: hotel(), recorder: recorderNotRecording)
+        all["moving"] = display(.moving(catchingUp: false), arm: task(moving: true), recorder: recorderCapturing)
+        all["moving_hotel"] = display(
+            .moving(catchingUp: true), arm: hotel(moving: true), recorder: recorderNotRecording)
         all["moving_no_arm"] = display(.moving(catchingUp: false), arm: nil, recorder: .unknown)
         // A follow nobody holds: lock chosen, the key let go of after the press.
-        all["locked"] = display(.locked(catchingUp: false), arm: task(moving: true), recorder: capturing)
+        all["locked"] = display(.locked(catchingUp: false), arm: task(moving: true), recorder: recorderCapturing)
         // A move to a point tapped on the guide: the commanded ring on its way, the cross where it is headed.
-        all["going"] = display(.going(catchingUp: false), arm: going(), recorder: capturing)
+        all["going"] = display(.going(catchingUp: false), arm: going(), recorder: recorderCapturing)
         all["turning"] = display(
             .turning(degrees: 42, limit: profile.wrist.rollClampDeg, estimated: false), mode: .keyTurns,
-            arm: hotel(), recorder: capturing)
+            arm: hotel(), recorder: recorderCapturing)
         var turningLeft = all["turning"]!
         turningLeft.hand = .left
         all["turning_left"] = turningLeft
@@ -42,59 +43,62 @@ struct OperatingFixtures {
             .tilting(degrees: 8, limit: profile.wrist.tiltClampDeg, estimated: true), arm: approximate(task()),
             recorder: .unknown
         )
-        all["opening"] = display(.opening, arm: onTarget(), recorder: armed)
-        all["closing_gripped"] = display(.closing(gripped: true), mode: .keyTurns, arm: holding(), recorder: capturing)
-        all["holding"] = display(.moving(catchingUp: false), arm: holding(moving: true), recorder: capturing)
-        all["wait_saving"] = display(.wait(.saving), arm: task(), recorder: waiting)
-        all["wait_resetting"] = display(.wait(.resetting), arm: hotel(), recorder: armed)
-        all["camera_stopped"] = display(.trackingLost, arm: task(), recorder: armed)
-        all["refused"] = display(.refused(.posture), arm: hotel(), recorder: armed)
+        all["opening"] = display(.opening, arm: onTarget(), recorder: recorderArmed)
+        all["closing_gripped"] = display(
+            .closing(gripped: true), mode: .keyTurns, arm: holding(), recorder: recorderCapturing)
+        all["holding"] = display(.moving(catchingUp: false), arm: holding(moving: true), recorder: recorderCapturing)
+        all["wait_saving"] = display(.wait(.saving), arm: task(), recorder: recorderWaiting)
+        all["wait_resetting"] = display(.wait(.resetting), arm: hotel(), recorder: recorderArmed)
+        all["camera_stopped"] = display(.trackingLost, arm: task(), recorder: recorderArmed)
+        all["refused"] = display(.refused(.posture), arm: hotel(), recorder: recorderArmed)
         // Why a touch on the guide was not a tap, for a second.
-        all["refused_tap_still"] = display(.refused(.tapStill), arm: task(), recorder: armed)
-        all["refused_tap_let_go"] = display(.refused(.tapLetGo), arm: task(), recorder: armed)
-        all["refused_tap_view_above"] = display(.refused(.tapViewAbove), arm: task(), recorder: armed)
-        all["refused_use_upper_key"] = display(.refused(.useUpperKey), arm: task(), recorder: armed)
+        all["refused_tap_still"] = display(.refused(.tapStill), arm: task(), recorder: recorderArmed)
+        all["refused_tap_let_go"] = display(.refused(.tapLetGo), arm: task(), recorder: recorderArmed)
+        all["refused_tap_view_above"] = display(.refused(.tapViewAbove), arm: task(), recorder: recorderArmed)
+        all["refused_use_upper_key"] = display(.refused(.useUpperKey), arm: task(), recorder: recorderArmed)
         // A follow or a move nobody held that ran out of time: why it ended, for a second.
-        all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: armed)
-        all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: armed, latency: 450)
-        all["stopped"] = display(.stopped(cause: .button), arm: task(), recorder: off, exits: recordingExits)
-        all["stopped_release"] = display(.stopped(cause: .behind), arm: hotel(), recorder: notRecording)
+        all["ended_time_limit"] = display(.ended(.timeLimit), arm: task(), recorder: recorderArmed)
+        all["slow_link"] = display(.slowLink(ms: 450), arm: task(), recorder: recorderArmed, latency: 450)
+        all["stopped"] = display(
+            .stopped(cause: .button), arm: task(), recorder: recorderOff, exits: exitsWhileRecording)
+        all["stopped_release"] = display(.stopped(cause: .behind), arm: hotel(), recorder: recorderNotRecording)
         all["stopped_unknown_server"] = display(
-            .stopped(cause: .onConnect), arm: task(), recorder: .unknown, exits: unknownServerExits)
-        all["link_lost"] = display(.linkLost, link: false, arm: task(), recorder: armed)
-        all["saved"] = display(.saved(count: 13), arm: task(), recorder: waiting)
-        var countdown = display(.ready, arm: task(), recorder: off)
+            .stopped(cause: .onConnect), arm: task(), recorder: .unknown, exits: exitsOfAnUnknownServer)
+        all["link_lost"] = display(.linkLost, link: false, arm: task(), recorder: recorderArmed)
+        all["saved"] = display(.saved(count: 13), arm: task(), recorder: recorderWaiting)
+        var countdown = display(.ready, arm: task(), recorder: recorderOff)
         countdown.resetCountdown = 0.6
         all["rec_off_countdown"] = countdown
-        all["outside"] = display(.ready, arm: outside(), recorder: notRecording)
+        all["outside"] = display(.ready, arm: outside(), recorder: recorderNotRecording)
         // An estimated pinch point that may be off by more than half the grasp tolerance: hollow, said so, and no
         // "On target" though it sits inside the window.
-        all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: armed)
+        all["approximate"] = display(.ready, arm: approximate(onTarget()), recorder: recorderArmed)
         all["approximate_hotel"] = display(
-            .moving(catchingUp: false), arm: approximate(hotel(moving: true)), recorder: notRecording)
+            .moving(catchingUp: false), arm: approximate(hotel(moving: true)), recorder: recorderNotRecording)
         // Practice. The model reads no arm from the practice link, so these show no guide, as the app does.
         all["practice_ready"] = display(.ready, arm: nil, recorder: .unknown, practice: true)
         all["practice_stopped"] = display(.stopped(cause: .button), arm: nil, recorder: .unknown, practice: true)
         // Buttons mode.
-        all["buttons_ready"] = display(.ready, mode: .buttons, arm: task(), recorder: armed)
-        var moving = display(.moving(catchingUp: false), mode: .buttons, arm: task(moving: true), recorder: capturing)
+        all["buttons_ready"] = display(.ready, mode: .buttons, arm: task(), recorder: recorderArmed)
+        var moving = display(
+            .moving(catchingUp: false), mode: .buttons, arm: task(moving: true), recorder: recorderCapturing)
         moving.heldButton = .forward
         moving.speed = .fine
         moving.engaged = .translation
         all["buttons_moving"] = moving
         var stopped = display(
-            .stopped(cause: .other), mode: .buttons, arm: hotel(), recorder: .unknown, exits: unknownServerExits)
+            .stopped(cause: .other), mode: .buttons, arm: hotel(), recorder: .unknown, exits: exitsOfAnUnknownServer)
         stopped.hand = .left
         all["buttons_stopped"] = stopped
         all["buttons_practice"] = display(.ready, mode: .buttons, arm: nil, recorder: .unknown, practice: true)
         // The guide's aids drawn: the shadow under the jaws, the lowest height a stall reached just above the table,
         // and which way is forward and which way is up.
-        all["ready_aids"] = display(.ready, arm: stalledOnTheTableBefore(task()), recorder: armed, aids: .all)
+        all["ready_aids"] = display(.ready, arm: stalledOnTheTableBefore(task()), recorder: recorderArmed, aids: .all)
         // The jaws back at the lowest height a stall reached, on something above the table: the height says "lowest",
         // and the dashed line from behind lies at the jaws, clear of the table line.
-        all["lowest_aids"] = display(.ready, arm: atTheLowestOnSomething(), recorder: armed, aids: .all)
+        all["lowest_aids"] = display(.ready, arm: atTheLowestOnSomething(), recorder: recorderArmed, aids: .all)
         // The hands-free aids' master switch off on the real server: the line under the state says a tap does nothing.
-        var aidsOff = display(.ready, arm: task(), recorder: armed)
+        var aidsOff = display(.ready, arm: task(), recorder: recorderArmed)
         aidsOff.aidsOff = true
         all["ready_aids_off"] = aidsOff
         return all
@@ -104,7 +108,7 @@ struct OperatingFixtures {
     /// `aids`: the guide's aids it draws; nil draws version 1.0.1's guide.
     private func display(
         _ state: OperatingState, mode: ControlMode = .screenTurns, link: Bool = true, arm: ArmReading?,
-        recorder: RecorderDisplay, exits: StopExits = noRecorderExits, practice: Bool = false, latency: Int = 60,
+        recorder: RecorderDisplay, exits: StopExits = exitsWithNoRecorder, practice: Bool = false, latency: Int = 60,
         aids: GuideAids? = nil
     ) -> OperatingDisplay {
         OperatingDisplay(
@@ -233,11 +237,11 @@ struct OperatingFixtures {
 }
 
 // Recorder states and stop exits that do not depend on the robot.
-private let armed = RecorderDisplay(mode: .armed, saved: 12, discarded: 3)
-private let capturing = RecorderDisplay(mode: .capturing, saved: 12, discarded: 3, secondsCaptured: 12.4)
-private let waiting = RecorderDisplay(mode: .waiting, saved: 13, discarded: 3)
-private let off = RecorderDisplay(mode: .off, saved: 12, discarded: 4)
-private let notRecording = RecorderDisplay(mode: .notRecording)
-private let recordingExits = StopExits(exits: [.resetScene], recordingMayStayOff: false)
-private let noRecorderExits = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false)
-private let unknownServerExits = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true)
+private let recorderArmed = RecorderDisplay(mode: .armed, saved: 12, discarded: 3)
+private let recorderCapturing = RecorderDisplay(mode: .capturing, saved: 12, discarded: 3, secondsCaptured: 12.4)
+private let recorderWaiting = RecorderDisplay(mode: .waiting, saved: 13, discarded: 3)
+private let recorderOff = RecorderDisplay(mode: .off, saved: 12, discarded: 4)
+private let recorderNotRecording = RecorderDisplay(mode: .notRecording)
+private let exitsWhileRecording = StopExits(exits: [.resetScene], recordingMayStayOff: false)
+private let exitsWithNoRecorder = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: false)
+private let exitsOfAnUnknownServer = StopExits(exits: [.resetScene, .releaseKeepScene], recordingMayStayOff: true)

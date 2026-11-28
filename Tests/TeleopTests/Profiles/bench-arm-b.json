@@ -64,8 +64,8 @@
     "workspace_max_m": [0.052, 0.05, 0.305],
     "target_size_m": 0.025,
     "goal_size_m": 0.05,
-    "grasp_tolerance_m": [0.007, 0.01],
-    "on_target_window_m": [0.009, 0.012],
+    "grasp_tolerance_m": [0.006, 0.008],
+    "on_target_window_m": null,
     "tool_offset": {
       "offset_m": [0.012, 0.02, 0.095],
       "measured_at_m": [-0.062, -0.09, 0.1725],
