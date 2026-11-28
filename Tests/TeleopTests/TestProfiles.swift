@@ -30,13 +30,13 @@ enum TestProfiles {
 
     /// Bench arm B's motion: buttons twice as fast, and a lead cap under its 6 cm stop distance (the same numbers as the
     /// package tests' `TestMotion.benchB`).
-    static let benchBMotion = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.005)
+    static let benchBMotion = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.02)
 
-    /// Bench arm B's server: a 6 cm stop distance, its own resync times and no simulation loop to watch (the same
+    /// Bench arm B's server: a 6 cm stop distance, its own resync times, a held object lifted through the tool point and no simulation loop to watch (the same
     /// numbers as the package tests' `TestServer.benchB`).
     static let benchBServer = ServerProfile(
         stopDistanceM: 0.06, resync: ResyncTimes(afterMs: 1200, toolAfterMs: 400, timeoutMs: 1000),
-        heldObjectPoint: .gripperLink, stallDetection: .none)
+        heldObjectPoint: .toolPoint, stallDetection: .none)
 
     /// The SO-101's profile, and the SO-101's with bench arm B's motion and server facts: what a rule that reads them
     /// is run through.

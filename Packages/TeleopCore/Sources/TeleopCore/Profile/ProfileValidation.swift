@@ -51,9 +51,11 @@ extension RobotProfile {
         positive("robot.motion.max_lead_m", Double(motion.maxLeadM))
         positive("robot.motion.tool_max_lead_m", Double(motion.toolMaxLeadM))
         positive("server.stop_distance_m", server.stopDistanceM)
-        if server.stopDistanceM.isFinite {
+        // Caps are single-precision numbers: compare at that precision, so a cap written equal to the stop distance in
+        // the file is refused rather than rounded below it.
+        if server.stopDistanceM.isFinite && server.stopDistanceM > 0 {
             for (path, cap) in [("max_lead_m", motion.maxLeadM), ("tool_max_lead_m", motion.toolMaxLeadM)]
-            where cap.isFinite && cap > 0 && Double(cap) >= server.stopDistanceM {
+            where cap.isFinite && cap > 0 && cap >= Float(server.stopDistanceM) {
                 faults.append("robot.motion.\(path) must be under server.stop_distance_m.")
             }
         }

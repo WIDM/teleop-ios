@@ -229,6 +229,32 @@ final class ResponseAcrossResponsesTests: XCTestCase {
         }
     }
 
+    /// The SO-101's 45 degrees gives the same answer, to the last bit, as the form the monitor always used
+    /// (`sqrt(aa * bb * 0.5)`): two leads where the cosine form `sqrt(aa * bb) * cos(45 deg)` says the other thing.
+    func testTheSO101SameWayTestGivesTheAnswersOfTheFormItAlwaysUsed() {
+        let rule = TestResponse.so101Blocked
+        XCTAssertEqual(rule.sameWayCosineSquared, 0.5)
+        let pairs: [(SIMD3<Double>, SIMD3<Double>)] = [
+            (SIMD3(0.01, 0.008, 0), SIMD3(0.002, 0.018, 0)),
+            (SIMD3(0.012, 0.004, 0), SIMD3(0.003, 0.02, 0)),
+            (SIMD3(0.1, 0, 0), SIMD3(0.1, 0.1, 0)), (SIMD3(0.1, 0, 0), SIMD3(0.1, 0.11, 0)),
+            (SIMD3(0.1, 0, 0), SIMD3(0.1, 0.09, 0)),
+        ]
+        let cosineForm: (SIMD3<Double>, SIMD3<Double>) -> Bool = { a, b in
+            simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b)).squareRoot() * cos(45 * .pi / 180)
+        }
+        var cosineFormDiffers = 0
+        for (a, b) in pairs {
+            let always = simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b) * 0.5).squareRoot()
+            XCTAssertEqual(rule.pointsSameWay(a, b), always, "\(a) \(b)")
+            XCTAssertEqual(rule.pointsSameWay(b, a), always, "\(b) \(a)")
+            if cosineForm(a, b) != always { cosineFormDiffers += 1 }
+        }
+        // The first pair is the one that told the two forms apart: this test would not mean anything if it did not.
+        XCTAssertGreaterThan(cosineFormDiffers, 0)
+        XCTAssertTrue(rule.pointsSameWay(pairs[0].0, pairs[0].1))
+    }
+
     /// A window of states is judged only when they arrived no further apart than the arrival gap.
     func testTheDirectionalRuleNeedsStatesNoFurtherApartThanItsArrivalGap() {
         for (name, blocked, lowest) in TestResponse.all {

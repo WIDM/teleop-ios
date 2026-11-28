@@ -22,12 +22,12 @@ final class ProfileFormatTests: XCTestCase {
               "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
               "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
             },
-            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.005 }
+            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.02 }
           },
           "server": {
             "link_signs": [1, 1, 1], "stop_distance_m": 0.06,
             "resync": { "after_ms": 1200, "tool_after_ms": 400, "timeout_ms": 1000 },
-            "held_object_point": "gripper_link", "stall_detection": "none"
+            "held_object_point": "tool_point", "stall_detection": "none"
           },
           "scene": {
             "base_in_world_m": [0.1, 0.2, 0.3],
@@ -57,7 +57,7 @@ final class ProfileFormatTests: XCTestCase {
               "lead_progress_share": 0.15, "exclusion_m": 0.06, "following_share": 0.8, "same_way_deg": 30
             },
             "lowest": {
-              "sustain_m": 0.01, "quick_short_m": 0.01, "quick_moved_m": 0.002, "quick_ms": 150, "descent_mps": 0.001
+              "sustain_m": 0.01, "quick_short_m": 0.014, "quick_moved_m": 0.002, "quick_ms": 150, "descent_mps": 0.001
             }
           },
           "assist": {
@@ -342,7 +342,6 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
-    /// Both units load, and the unit is what the profile says it is.
     /// A held-object point that is neither `gripper_link` nor `tool_point` is refused with the two it accepts.
     func testAHeldObjectPointThatIsNeitherOfTheTwoIsRefused() throws {
         let wrong = changing(try object(), at: ["server", "held_object_point"]) { $0["held_object_point"] = "elbow" }
@@ -359,6 +358,10 @@ final class ProfileFormatTests: XCTestCase {
             $0["held_object_point"] = "tool_point"
         }
         XCTAssertEqual(try decode(tool).server.heldObjectPoint, .toolPoint)
+        let link = changing(try object(), at: ["server", "held_object_point"]) {
+            $0["held_object_point"] = "gripper_link"
+        }
+        XCTAssertEqual(try decode(link).server.heldObjectPoint, .gripperLink)
     }
 
     /// A stall detection that is neither `simulation` nor `none` is refused with the two it accepts.
@@ -373,10 +376,34 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// Both units load, and the unit is what the profile says it is.
     func testBothJawUnitsLoad() throws {
         for unit in JawUnit.allCases {
             let file = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = unit.rawValue }
             XCTAssertEqual(try decode(file).gripper.unit, unit)
+        }
+    }
+
+    /// A cap written equal to the stop distance in the file is refused, though the cap is a single-precision number
+    /// and the stop distance a double: 0.06 as a float is a little below 0.06 as a double.
+    func testACapWrittenEqualToTheStopDistanceInTheFileIsRefused() throws {
+        for key in ["max_lead_m", "tool_max_lead_m"] {
+            let equal = changing(try object(), at: ["robot", "motion", key]) { $0[key] = 0.06 }
+            XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: equal))) { error in
+                XCTAssertEqual(
+                    "\(error)", "robot.motion.\(key) must be under server.stop_distance_m.")
+            }
+        }
+        let just = changing(try object(), at: ["robot", "motion", "max_lead_m"]) { $0["max_lead_m"] = 0.059 }
+        XCTAssertNoThrow(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: just)))
+    }
+
+    /// A stop distance that is not above zero is one fault, not that one and a cap fault for each cap.
+    func testAStopDistanceOfZeroGivesOneSentence() throws {
+        var profile = try RobotProfile.load(json: Data(Self.sample.utf8))
+        for bad in [0.0, -0.06] {
+            profile.server.stopDistanceM = bad
+            XCTAssertEqual(profile.validate(), ["server.stop_distance_m must be above zero."])
         }
     }
 

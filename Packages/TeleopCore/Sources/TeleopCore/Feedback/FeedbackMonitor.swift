@@ -579,7 +579,7 @@ public struct FeedbackMonitor {
 
     /// A change of less than `sameWayDeg` is part of the same request.
     private func pointsSameWay(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Bool {
-        simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b)).squareRoot() * cos(blockedRule.sameWayDeg * .pi / 180)
+        blockedRule.pointsSameWay(a, b)
     }
 
     /// From the last sample at least `ms` older than the newest to the newest, with every sample that arrived in that

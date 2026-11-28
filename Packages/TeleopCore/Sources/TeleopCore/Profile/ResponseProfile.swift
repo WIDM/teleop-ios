@@ -1,3 +1,6 @@
+import Foundation
+import simd
+
 /// The numbers the feedback monitor decides "Blocked." by: the commanded point is ahead of the measured arm, and the arm
 /// has made little progress. They come from how one arm and its server answer a command (the SO-101 in the S4 simulator
 /// moves at about 12 to 17 passes a second): a faster arm stalls inside the window, a slower one is told it is blocked
@@ -37,6 +40,18 @@ public struct BlockedRule: Equatable, Sendable {
         self.exclusionM = exclusionM
         self.followingShare = followingShare
         self.sameWayDeg = sameWayDeg
+    }
+
+    /// The square of the cosine of `sameWayDeg`, in the form the same-way test multiplies into the product of the two
+    /// squared lengths. For 45 degrees it is exactly 0.5, the number that test has always used, so its result does not
+    /// move by a last bit.
+    public var sameWayCosineSquared: Double {
+        0.5 * (1 + cos(2 * sameWayDeg * .pi / 180))
+    }
+
+    /// Whether two leads turn by less than `sameWayDeg` from one another.
+    public func pointsSameWay(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Bool {
+        simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b) * sameWayCosineSquared).squareRoot()
     }
 }
 
