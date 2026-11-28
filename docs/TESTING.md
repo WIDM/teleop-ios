@@ -74,7 +74,8 @@ offset, table height, work box, sizes). `BenchArmBScenesTests` draws the UI test
 grasp tolerance is the SO-101's and it has no wider on-target window, and the cue rules (on target felt once on the
 approach, none while holding, none after the release) are the SO-101's, counted by the same `OnTargetCueTally`. The
 task cannot prove B's forward, left, wrist or jaw numbers: the script and the app read them from the same file, so a
-wrong sign there moves both and the task still finishes. A direction check against the arm's own axes covers those. To
+wrong sign there moves both and the task still finishes. The wrist and jaw numbers are pinned by their own rule
+tests; directions are checked on the arm itself before its first move (`docs/PROFILE.md`). To
 run the whole task on B 20 times in a row:
 `xcodebuild test ... -testPlan Default -test-iterations 20 -only-testing:TeleopTests/BenchArmBTests/<test>`.
 
