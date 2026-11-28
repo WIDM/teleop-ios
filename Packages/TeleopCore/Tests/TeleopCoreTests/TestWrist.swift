@@ -10,10 +10,11 @@ enum TestWrist {
         tiltCentre: .measuredAfterReset, turnRateDegS: 20, tiltRateDegS: 10,
         lead: WristLeadLimits(leadDeg: 2, rateMaxDegS: 10, memoryDeg: 0.5, freshStateMs: 400))
 
-    /// The wrist of bench arm B: a narrower turn, a wider tilt centred on a fixed flex, both signs the other way,
-    /// buttons twice as fast, and its own lead numbers.
+    /// The wrist of bench arm B: a narrower turn, a wider tilt centred on a fixed flex, a turn sign the other way
+    /// and a tilt sign the same as the SO-101's (so a rule that reads one axis's sign for the other gives a
+    /// different answer), buttons twice as fast, and its own lead numbers.
     static let benchB = WristProfile(
-        rollSign: -1, tiltSign: -1, rollWindowDeg: 90, tiltWindowDeg: 45, rollClampDeg: 40, tiltClampDeg: 30,
+        rollSign: -1, tiltSign: 1, rollWindowDeg: 90, tiltWindowDeg: 45, rollClampDeg: 40, tiltClampDeg: 30,
         tiltCentre: .fixed(15), turnRateDegS: 40, tiltRateDegS: 20,
         lead: WristLeadLimits(leadDeg: 3, rateMaxDegS: 20, memoryDeg: 1, freshStateMs: 300))
 

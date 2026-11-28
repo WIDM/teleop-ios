@@ -15,7 +15,8 @@ final class WristAcrossWristsTests: XCTestCase {
     func testBenchBDiffersFromTheSO101InEveryWristNumber() {
         let a = TestWrist.so101, b = TestWrist.benchB
         XCTAssertNotEqual(a.rollSign, b.rollSign)
-        XCTAssertNotEqual(a.tiltSign, b.tiltSign)
+        // B's two signs are opposite, so a rule that reads one axis's sign for the other cannot pass for both wrists.
+        XCTAssertNotEqual(b.rollSign, b.tiltSign)
         XCTAssertNotEqual(a.rollWindowDeg, b.rollWindowDeg)
         XCTAssertNotEqual(a.tiltWindowDeg, b.tiltWindowDeg)
         XCTAssertNotEqual(a.rollClampDeg, b.rollClampDeg)

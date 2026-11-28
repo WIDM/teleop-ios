@@ -15,10 +15,11 @@ enum TestProfiles {
     }()
 
     /// A wrist unlike the SO-101's in every number, as bench arm B will have it (the same numbers as the package
-    /// tests' `TestWrist.benchB`): a narrower turn, a wider tilt on a fixed centre, both signs the other way, buttons
-    /// twice as fast.
+    /// tests' `TestWrist.benchB`): a narrower turn, a wider tilt on a fixed centre, a turn sign the other way and a
+    /// tilt sign the same as the SO-101's (so a rule that reads one axis's sign for the other gives a different
+    /// answer), buttons twice as fast.
     static let benchBWrist = WristProfile(
-        rollSign: -1, tiltSign: -1, rollWindowDeg: 90, tiltWindowDeg: 45, rollClampDeg: 40, tiltClampDeg: 30,
+        rollSign: -1, tiltSign: 1, rollWindowDeg: 90, tiltWindowDeg: 45, rollClampDeg: 40, tiltClampDeg: 30,
         tiltCentre: .fixed(15), turnRateDegS: 40, tiltRateDegS: 20,
         lead: WristLeadLimits(leadDeg: 3, rateMaxDegS: 20, memoryDeg: 1, freshStateMs: 300))
 
