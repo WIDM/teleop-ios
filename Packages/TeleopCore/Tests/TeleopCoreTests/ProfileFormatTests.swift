@@ -22,7 +22,7 @@ final class ProfileFormatTests: XCTestCase {
               "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
               "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
             },
-            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.02 }
+            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.004 }
           },
           "server": {
             "link_signs": [1, 1, 1], "stop_distance_m": 0.06,

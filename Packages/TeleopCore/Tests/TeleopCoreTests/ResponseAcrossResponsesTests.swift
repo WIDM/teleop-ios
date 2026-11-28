@@ -269,6 +269,105 @@ final class ResponseAcrossResponsesTests: XCTestCase {
         }
     }
 
+    // MARK: Lowest, on the tool point
+
+    /// The events of a tool-point hold with the lowest rule on: the arm stands where it is, the command is the arm plus
+    /// a lead of `lead(t)` (a lateral part and a part lower), every `stepMs`.
+    private func toolRun(
+        _ blocked: BlockedRule, _ lowest: LowestRule, through: Int, lead: (Int) -> (sideways: Double, lower: Double)
+    ) -> [(atMs: Int, event: FeedbackEvent)] {
+        var monitor = monitor(blocked, lowest, reportsLowest: true)
+        var heard: [(atMs: Int, event: FeedbackEvent)] = []
+        for t in stride(from: stepMs, through: through, by: stepMs) {
+            let ask = lead(t)
+            monitor.commanded(onTable + SIMD3(ask.sideways, 0, -ask.lower), point: .tool)
+            let state = ServerState(
+                activity: .poseTracking, endEffector: onTable + SIMD3(0, 0, 0.05), toolPoint: onTable)
+            heard += monitor.observe(state, at: t).map { (t, $0) }
+        }
+        return heard
+    }
+
+    /// An ask between the sustain distance and the blocked rule's short distance lower, with a long lateral part, so
+    /// that it is a lead the blocked rule judges and the lowest rule does not: 20 % over the sustain distance.
+    private func between(_ blocked: BlockedRule, _ lowest: LowestRule) -> Double {
+        let ask = lowest.sustainM * 1.2
+        XCTAssertLessThan(ask, blocked.shortM)
+        return ask
+    }
+
+    /// A blocked cue told for an ask of at least the sustain distance lower is the lowest cue's told height: a deeper
+    /// ask the same way afterwards is not told as "Can't go lower." again.
+    func testABlockedToldForAnAskOfTheSustainDistanceLowerIsTheLowestCuesToldHeight() {
+        for (name, blocked, lowest) in TestResponse.all {
+            let ask = between(blocked, lowest)
+            let heard = toolRun(blocked, lowest, through: 3 * blocked.windowMs) { t in
+                t <= 2 * blocked.windowMs ? (0.1, ask) : (0.1, blocked.shortM * 1.25)
+            }
+            XCTAssertEqual(
+                heard.map(\.atMs), [blocked.windowMs + stepMs], "\(name): one cue, when the first window is full")
+            XCTAssertEqual(heard.map(\.event), [.limit(.blocked)], name)
+        }
+    }
+
+    /// A tool-point ask the lowest rule can judge (every state of the second at least the sustain distance lower, and one
+    /// of them far enough to count as asking lower) is left to it, not told as blocked: a state of the second that asked
+    /// the least, past the short distance once, is judged the moment that state is a second old.
+    func testAWindowOfAsksAllReachingTheSustainDistanceIsLeftToTheLowestRule() {
+        for (name, blocked, lowest) in TestResponse.all {
+            let ask = between(blocked, lowest)
+            let heard = toolRun(blocked, lowest, through: 3 * blocked.windowMs) { t in
+                (0.1, t == stepMs ? blocked.shortM * 1.25 : ask)
+            }
+            XCTAssertEqual(heard.map(\.atMs), [blocked.windowMs + 2 * stepMs], "\(name): after the deep state is old")
+            XCTAssertEqual(heard.map(\.event), [.limit(.blocked)], name)
+        }
+    }
+
+    /// Back at the lowest height found, a window of the quick length whose asks all reach the quick distance is left to
+    /// the lowest rule although the second before it did not ask that much; one that does not reach it is judged by the
+    /// blocked rule as soon as the second is full.
+    func testAQuickWindowOfAsksIsLeftToTheLowestRuleOnlyWhenItReachesTheQuickDistance() {
+        for (name, blocked, lowest) in TestResponse.all {
+            let ask = between(blocked, lowest)
+            var monitor = monitor(blocked, lowest, reportsLowest: true)
+            // The first press finds the lowest height by the full stall.
+            var first: [FeedbackEvent] = []
+            for t in stride(from: stepMs, through: blocked.windowMs + stepMs, by: stepMs) {
+                monitor.commanded(onTable + SIMD3(0.1, 0, -blocked.shortM * 1.25), point: .tool)
+                first += monitor.observe(
+                    ServerState(
+                        activity: .poseTracking, endEffector: onTable + SIMD3(0, 0, 0.05), toolPoint: onTable),
+                    at: t)
+            }
+            XCTAssertEqual(first, [.limit(.lowest)], name)
+            monitor.released(.pose)
+            let pressedAt = blocked.windowMs + 2 * stepMs
+            monitor.startSent(.pose, restart: false, at: pressedAt)
+            // One deep state, two that ask nothing, then states of the in-between ask until the second is full.
+            let last = blocked.windowMs / stepMs + 1
+            XCTAssertGreaterThanOrEqual(Double(last - 3) * Double(stepMs), Double(lowest.quickMs) + Double(stepMs))
+            var heard: [(step: Int, event: FeedbackEvent)] = []
+            for i in 1...(last + 3) {
+                let lower = i == 1 ? blocked.shortM * 1.25 : (i <= 3 ? 0 : ask)
+                monitor.commanded(onTable + SIMD3(0.1, 0, -lower), point: .tool)
+                heard += monitor.observe(
+                    ServerState(
+                        activity: .poseTracking, endEffector: onTable + SIMD3(0, 0, 0.05), toolPoint: onTable),
+                    at: pressedAt + i * stepMs
+                ).map { (i, $0) }
+            }
+            if ask >= lowest.quickShortM {
+                // The quick window reaches the quick distance: the lowest rule judges it, and tells it as a quick stall.
+                XCTAssertEqual(heard.map(\.event), [.limit(.lowest)], name)
+            } else {
+                // It does not: the blocked rule judges it as soon as the second is full.
+                XCTAssertEqual(heard.map(\.step), [last], name)
+                XCTAssertEqual(heard.map(\.event), [.limit(.blocked)], name)
+            }
+        }
+    }
+
     // MARK: Lowest
 
     private func lowestRun(

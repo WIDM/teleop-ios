@@ -46,7 +46,8 @@ final class ManualToolControlTests: XCTestCase {
     }
 
     private func bringUp(
-        tool: Bool = true, mode: ControlMode = .screenTurns, aids: Bool = false, coordinated: Bool = false
+        tool: Bool = true, mode: ControlMode = .screenTurns, aids: Bool = false, coordinated: Bool = false,
+        profile: RobotProfile = ProfileLoader.current
     ) {
         clock = 10_000
         camera = TestPose.portrait
@@ -58,7 +59,7 @@ final class ManualToolControlTests: XCTestCase {
             pose: { [unowned self] in camera }, liveLink: true,
             makeTransport: { [unowned self] _ in wire }, makeObserverTransport: { _ in ManualToolTransport() },
             nowMs: { [unowned self] in clock }, inputClock: { [unowned self] in Double(clock) / 1000 },
-            assistOn: aids, lockChoice: .off)
+            profile: profile, assistOn: aids, lockChoice: .off)
         model.controlMode = mode
         model.session.state.setSmoothing(0)
         model.session.state.sensitivity = 1
@@ -113,6 +114,95 @@ final class ManualToolControlTests: XCTestCase {
             model.link.tick()
             XCTAssertEqual(wire.messages("pose_update").count, updates)
         }
+    }
+
+    /// The tool point's lead cap, its resync time and the coordinated height's cap are the profile's: run through the
+    /// SO-101 and through bench arm B (its own tool cap, a quicker tool resync), each expectation derived from the
+    /// profile in use. A literal for either number would pass for one profile and fail for the other.
+    func testTheToolPointCapAndResyncTimeAreTheProfilesOwn() throws {
+        var caps = Set<Float>()
+        for (name, chosen) in TestProfiles.motions {
+            caps.insert(chosen.motion.toolMaxLeadM)
+            bringUp(profile: chosen)
+            model.setPrecisionPanelOpen(true)
+            // The hold has to run past the cap before the resync time, or the resync would wait for the cap and not
+            // for the time: the buttons in the precision panel move at the fine speed.
+            XCTAssertLessThan(
+                Double(chosen.motion.toolMaxLeadM) / chosen.motion.fineMps * 1000,
+                Double(chosen.server.resync.toolAfterMs), name)
+            let start = clock
+            _ = try XCTUnwrap(try press(.left), name)
+            var farthest = 0.0
+            var stoppedAt: Int?
+            while clock - start < chosen.server.resync.toolAfterMs + 400, stoppedAt == nil {
+                clock += 20
+                state()
+                model.controller.tick()
+                model.link.tick()
+                for message in wire.messages("pose_update") {
+                    let p = (message["payload"] as! [String: Any])["p_rel_m"] as! [Double]
+                    farthest = max(farthest, simd_length(SIMD3(p[0], p[1], p[2])))
+                }
+                if !wire.messages("pose_stop").isEmpty { stoppedAt = clock }
+            }
+            // A hold that runs ahead of the arm is cut at the tool cap, not at the gripper link's.
+            XCTAssertEqual(farthest, Double(chosen.motion.toolMaxLeadM), accuracy: 1e-6, name)
+            // The server hold is ended to ask where the arm is once the tool resync time has passed, and not before.
+            let stop = try XCTUnwrap(stoppedAt, "\(name): resynced")
+            XCTAssertGreaterThanOrEqual(stop - start, chosen.server.resync.toolAfterMs, name)
+            XCTAssertLessThan(stop - start, chosen.server.resync.toolAfterMs + 100, name)
+        }
+        XCTAssertEqual(caps.count, TestProfiles.motions.count, "the two profiles have different tool caps")
+    }
+
+    /// The coordinated height never asks for more than the profile's tool cap: the arm does not move, so the hold's
+    /// target grows until the cap holds it.
+    func testTheCoordinatedHeightCapIsTheProfilesOwn() throws {
+        for (name, chosen) in TestProfiles.motions {
+            bringUp(coordinated: true, profile: chosen)
+            model.setPrecisionPanelOpen(true)
+            model.buttonDown(.down)
+            XCTAssertEqual(try lastPayload("pose_start")["tool_motion"] as? String, "coordinated_height", name)
+            var farthest = 0.0
+            for _ in 0..<100 {
+                clock += 20
+                wire.receive(
+                    "state",
+                    [
+                        "estop": false, "ik": "pose_tracking", "gripper": "open",
+                        "ee_pos": [0, -0.14, 0.16], "tool_pos": [0.01, -0.17, 0.07],
+                    ])
+                model.controller.tick()
+                model.link.tick()
+                for message in wire.messages("pose_update") {
+                    let p = (message["payload"] as! [String: Any])["p_rel_m"] as! [Double]
+                    farthest = max(farthest, abs(p[2]))
+                }
+            }
+            XCTAssertEqual(farthest, Double(chosen.motion.toolMaxLeadM), accuracy: 1e-6, name)
+            XCTAssertEqual(wire.messages("pose_stop").count, 0, "\(name): one hold")
+            model.buttonUp(.down)
+        }
+    }
+
+    /// Which point carries a held object is the profile's: a gripper-link server is carried on the gripper link's path,
+    /// a tool-point server stays on the tool point's.
+    func testAHeldObjectIsCarriedOnThePointTheProfileNames() throws {
+        var points = Set<HeldObjectPoint>()
+        for (name, chosen) in TestProfiles.motions {
+            points.insert(chosen.server.heldObjectPoint)
+            bringUp(coordinated: true, profile: chosen)
+            model.setPrecisionPanelOpen(true)
+            try grip()
+            XCTAssertTrue(model.link.holdingObject, name)
+            let start = try XCTUnwrap(try press(.left), name)
+            switch chosen.server.heldObjectPoint {
+            case .gripperLink: XCTAssertNil(start["control_point"], name)
+            case .toolPoint: XCTAssertEqual(start["control_point"] as? String, "tool", name)
+            }
+            try release(.left)
+        }
+        XCTAssertEqual(points.count, 2, "the two profiles name different points")
     }
 
     func testCoordinatedHeightCanReverseAfterRefusalBeforeNewTrackingState() throws {

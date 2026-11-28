@@ -8,7 +8,7 @@ enum TestMotion {
     static let so101 = MotionProfile(fineMps: 0.01, coarseMps: 0.04, maxLeadM: 0.08, toolMaxLeadM: 0.005)
 
     /// Bench arm B: buttons twice as fast, and both lead caps lowered so that they stay under B's 6 cm stop distance (the tool cap is not the SO-101's).
-    static let benchB = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.02)
+    static let benchB = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.004)
 
     static let all: [(name: String, motion: MotionProfile)] = [("SO-101", so101), ("bench arm B", benchB)]
 }
