@@ -14,6 +14,9 @@ extension RobotProfile {
         func notNegative(_ path: String, _ value: Double) {
             if !(value.isFinite && value >= 0) { faults.append("\(path) must be zero or more.") }
         }
+        func share(_ path: String, _ value: Double) {
+            if !(value.isFinite && value > 0 && value <= 1) { faults.append("\(path) must be above 0 and at most 1.") }
+        }
         func sign(_ path: String, _ value: Double) {
             if value != 1 && value != -1 { faults.append("\(path) must be 1 or -1.") }
         }
@@ -43,6 +46,25 @@ extension RobotProfile {
         notNegative("robot.wrist.lead.rate_max_deg_s", wrist.lead.rateMaxDegS)
         notNegative("robot.wrist.lead.memory_deg", wrist.lead.memoryDeg)
         if wrist.lead.freshStateMs <= 0 { faults.append("robot.wrist.lead.fresh_state_ms must be above zero.") }
+        positive("robot.motion.fine_mps", motion.fineMps)
+        positive("robot.motion.coarse_mps", motion.coarseMps)
+        positive("robot.motion.max_lead_m", Double(motion.maxLeadM))
+        positive("robot.motion.tool_max_lead_m", Double(motion.toolMaxLeadM))
+        positive("server.stop_distance_m", server.stopDistanceM)
+        // Caps are single-precision numbers: compare at that precision, so a cap written equal to the stop distance in
+        // the file is refused rather than rounded below it.
+        if server.stopDistanceM.isFinite && server.stopDistanceM > 0 {
+            for (path, cap) in [("max_lead_m", motion.maxLeadM), ("tool_max_lead_m", motion.toolMaxLeadM)]
+            where cap.isFinite && cap > 0 && cap >= Float(server.stopDistanceM) {
+                faults.append("robot.motion.\(path) must be under server.stop_distance_m.")
+            }
+        }
+        for (path, ms) in [
+            ("after_ms", server.resync.afterMs), ("tool_after_ms", server.resync.toolAfterMs),
+            ("timeout_ms", server.resync.timeoutMs),
+        ] where ms <= 0 {
+            faults.append("server.resync.\(path) must be above zero.")
+        }
         let jaw = gripper
         if !(jaw.closedReading.isFinite && jaw.openReading.isFinite && jaw.closedReading != jaw.openReading) {
             faults.append("robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.")
@@ -73,6 +95,23 @@ extension RobotProfile {
         if jaw.emptyAt.isFinite, jaw.fullyOpenAt.isFinite, jaw.emptyAt >= jaw.fullyOpenAt {
             faults.append("robot.gripper.empty_at must be below robot.gripper.fully_open_at.")
         }
+
+        positive("response.blocked.short_m", blocked.shortM)
+        positive("response.blocked.moved_m", blocked.movedM)
+        positive("response.blocked.window_ms", Double(blocked.windowMs))
+        positive("response.blocked.fresh_ms", Double(blocked.freshMs))
+        positive("response.blocked.arrival_gap_ms", Double(blocked.arrivalGapMs))
+        share("response.blocked.lead_progress_share", blocked.leadProgressShare)
+        positive("response.blocked.exclusion_m", blocked.exclusionM)
+        share("response.blocked.following_share", blocked.followingShare)
+        if !(blocked.sameWayDeg.isFinite && blocked.sameWayDeg > 0 && blocked.sameWayDeg < 90) {
+            faults.append("response.blocked.same_way_deg must be above 0 and below 90.")
+        }
+        positive("response.lowest.sustain_m", lowest.sustainM)
+        positive("response.lowest.quick_short_m", lowest.quickShortM)
+        positive("response.lowest.quick_moved_m", lowest.quickMovedM)
+        positive("response.lowest.quick_ms", Double(lowest.quickMs))
+        positive("response.lowest.descent_mps", lowest.descentMps)
 
         finite("scene.table_height_m", [tableHeight])
         finite("scene.workspace_min_m", [workspaceMin.x, workspaceMin.y, workspaceMin.z])
@@ -120,6 +159,17 @@ extension RobotProfile {
             notNegative("assist.go_to.allowance_s", goTo.allowanceS)
             notNegative("assist.go_to.start_grace_s", goTo.startGraceS)
             if goTo.corrections < 0 { faults.append("assist.go_to.corrections must be zero or more.") }
+            let pacing = goTo.pacing
+            share("assist.go_to.pacing.follow_share", pacing.followShare)
+            positive("assist.go_to.pacing.pace_gain", pacing.paceGain)
+            share("assist.go_to.pacing.slowest_share", pacing.slowestShare)
+            share("assist.go_to.pacing.start_share", pacing.startShare)
+            positive("assist.go_to.pacing.path_watch_tolerances", pacing.pathWatchTolerances)
+            positive("assist.go_to.pacing.fresh_ms", Double(pacing.freshMs))
+            positive("assist.go_to.pacing.still_m", pacing.stillM)
+            if !(pacing.paceChangeShare.isFinite && pacing.paceChangeShare >= 0 && pacing.paceChangeShare <= 1) {
+                faults.append("assist.go_to.pacing.pace_change_share must be between 0 and 1.")
+            }
         }
         if let views = assist.views {
             positive("assist.views.behind_top_above_table_m", views.behindTopAboveTableM)

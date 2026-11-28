@@ -172,10 +172,13 @@ public struct GoToLimits: Equatable, Sendable {
     /// from where it started: a start the server takes late, or an arm that lags at first, is not a stall. Seconds; 0
     /// is no grace.
     public var startGraceS: Double
+    /// How the move follows the arm's actual pace.
+    public var pacing: GoToPacing
 
     public init(
         travelHeightM: Double, speedMps: Double, arriveToleranceM: Double, corrections: Int, correctionReachM: Double,
-        settleS: Double, timeFactor: Double, allowanceS: Double, armDataTimeoutS: Double, startGraceS: Double = 0
+        settleS: Double, timeFactor: Double, allowanceS: Double, armDataTimeoutS: Double, startGraceS: Double = 0,
+        pacing: GoToPacing
     ) {
         self.travelHeightM = travelHeightM
         self.speedMps = speedMps
@@ -187,7 +190,11 @@ public struct GoToLimits: Equatable, Sendable {
         self.allowanceS = allowanceS
         self.armDataTimeoutS = armDataTimeoutS
         self.startGraceS = startGraceS
+        self.pacing = pacing
     }
+
+    /// A measured position older than this says nothing about now, seconds.
+    public var freshS: Double { Double(pacing.freshMs) / 1000 }
 
     /// A going move must always end by itself, so the numbers its path, its deadline and its watch on the arm data are
     /// built from have to make sense: a zero speed never arrives and a zero timeout ends every move at once. Zero
@@ -197,7 +204,56 @@ public struct GoToLimits: Equatable, Sendable {
         let positive = [travelHeightM, speedMps, arriveToleranceM, settleS, armDataTimeoutS, timeFactor]
         let notNegative = [correctionReachM, allowanceS, startGraceS]
         return positive.allSatisfy { $0.isFinite && $0 > 0 } && notNegative.allSatisfy { $0.isFinite && $0 >= 0 }
-            && corrections >= 0
+            && corrections >= 0 && pacing.isUsable
+    }
+}
+
+/// The numbers by which a going move follows how the arm actually answers (`GoMove`). They are tuned on one arm's
+/// response: a laggy or springy arm needs other ones.
+public struct GoToPacing: Equatable, Sendable {
+    /// Each fresh reading moves the link command this share of the way to the offset it measured, between 0 and 1. The
+    /// whole way overshoots where the jaws swing more than the link moves, since a reading shows a command's effect
+    /// only one or two readings later.
+    public var followShare: Double
+    /// The command moves at the profile's speed times min(1, `paceGain` / swing), swing being the measured offset's
+    /// change per unit of gripper-link travel.
+    public var paceGain: Double
+    /// The command never moves slower than this share of the speed, between 0 and 1.
+    public var slowestShare: Double
+    /// The share of the speed the command moves at until the first swing is measured, between 0 and 1.
+    public var startShare: Double
+    /// A fresh reading this many arrive tolerances from the leg ahead ends a following move stopped short.
+    public var pathWatchTolerances: Double
+    /// A measured position older than this says nothing about now, milliseconds.
+    public var freshMs: Int
+    /// Fresh measured points within this of one another count as standing still, and an arm this far from where it
+    /// started has been seen to move, metres.
+    public var stillM: Double
+    /// The pace is set again only when the share it would move at changes by more than this share of the present one,
+    /// between 0 and 1.
+    public var paceChangeShare: Double
+
+    public init(
+        followShare: Double, paceGain: Double, slowestShare: Double, startShare: Double, pathWatchTolerances: Double,
+        freshMs: Int, stillM: Double, paceChangeShare: Double
+    ) {
+        self.followShare = followShare
+        self.paceGain = paceGain
+        self.slowestShare = slowestShare
+        self.startShare = startShare
+        self.pathWatchTolerances = pathWatchTolerances
+        self.freshMs = freshMs
+        self.stillM = stillM
+        self.paceChangeShare = paceChangeShare
+    }
+
+    /// The numbers a move divides by or times itself out with have to make sense: a zero start share never starts, a
+    /// zero pace gain never moves, a negative freshness never accepts a reading.
+    var isUsable: Bool {
+        let shares = [followShare, paceGain, slowestShare, startShare]
+        return shares.allSatisfy { $0.isFinite && $0 > 0 } && followShare <= 1 && slowestShare <= 1 && startShare <= 1
+            && pathWatchTolerances.isFinite && pathWatchTolerances > 0 && freshMs > 0 && stillM.isFinite && stillM > 0
+            && paceChangeShare.isFinite && paceChangeShare >= 0 && paceChangeShare <= 1
     }
 }
 

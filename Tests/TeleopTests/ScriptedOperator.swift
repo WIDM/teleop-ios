@@ -57,20 +57,27 @@ final class ScriptedOperator {
     /// names them in the step it is on, so a run that fails says what the jaws were asked to do in the arm's own terms.
     let jaw: GripperProfile
 
+    /// How fast the arm's buttons move it: the hand holds a button for as long as that speed needs to cover a distance.
+    let motion: MotionProfile
+
     /// - Parameters:
     ///   - frames: the directions of the arm the app drives; they must be those of the app's profile, since the hand
     ///     and the app have to agree on what "up" is.
     ///   - jaw: the jaw of the arm the app drives; it must be that of the app's profile.
+    ///   - motion: the button speeds of the arm the app drives; they must be those of the app's profile, since the hand
+    ///     holds a button for the time the app's speed needs.
     ///   - makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or cuts
     ///     the network path.
     init(
         address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
         frames: Frames = TestProfiles.so101.frames, jaw: GripperProfile = TestProfiles.so101.gripper,
+        motion: MotionProfile = TestProfiles.so101.motion,
         haptics: HapticsPlaying = NoHaptics(),
         makeTransport: ((URL) -> LinkTransport)? = nil
     ) {
         self.frames = frames
         self.jaw = jaw
+        self.motion = motion
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
@@ -79,6 +86,7 @@ final class ScriptedOperator {
             makeTransport: makeTransport ?? { WebSocketTransport(url: $0) })
         precondition(frames == model.profile.frames, "the hand's frames are not the app profile's frames")
         precondition(jaw == model.profile.gripper, "the hand's jaw is not the app profile's jaw")
+        precondition(motion == model.profile.motion, "the hand's button speeds are not the app profile's")
         model.session.state.serverAddress = address
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
@@ -370,7 +378,8 @@ final class ScriptedOperator {
     private func holdButtons(for remaining: SIMD3<Float>, _ name: String) -> Bool {
         let parts = Self.buttonParts(for: remaining, frames: frames)
         for (button, distance) in parts where distance >= 0.001 {
-            let speed: ButtonSpeed = distance < 0.015 ? .fine : .coarse
+            // A short distance goes on the fine speed: one the fine speed covers in under 1.5 s.
+            let speed: ButtonSpeed = distance < Float(motion.fineMps * 1.5) ? .fine : .coarse
             model.selectSpeed(speed)
             model.buttonDown(button)
             guard model.session.state.armMoving else {
@@ -378,7 +387,7 @@ final class ScriptedOperator {
                 model.buttonUp(button)
                 return false
             }
-            _ = wait(Double(distance) / speed.metresPerSecond, until: { false })
+            _ = wait(Double(distance) / speed.metresPerSecond(in: motion), until: { false })
             model.buttonUp(button)
             pump(0.8)
         }

@@ -52,8 +52,32 @@ final class ProfileFileTests: XCTestCase {
             ("wrist.lead.rateMaxDegS", p.wrist.lead.rateMaxDegS, 10.0),
             ("wrist.lead.memoryDeg", p.wrist.lead.memoryDeg, 0.5),
             ("wrist.lead.freshStateMs", p.wrist.lead.freshStateMs, 400),
+            ("motion.fineMps", p.motion.fineMps, 0.01),
+            ("motion.coarseMps", p.motion.coarseMps, 0.04),
+            ("motion.maxLeadM", p.motion.maxLeadM, Float(0.08)),
+            ("motion.toolMaxLeadM", p.motion.toolMaxLeadM, Float(0.005)),
+            ("server.stopDistanceM", p.server.stopDistanceM, 0.10),
+            ("server.resync.afterMs", p.server.resync.afterMs, 1500),
+            ("server.resync.toolAfterMs", p.server.resync.toolAfterMs, 500),
+            ("server.resync.timeoutMs", p.server.resync.timeoutMs, 1500),
+            ("server.heldObjectPoint", p.server.heldObjectPoint, HeldObjectPoint.gripperLink),
+            ("server.stallDetection", p.server.stallDetection, StallDetection.simulation),
             ("recloseLoosensGrip", p.recloseLoosensGrip, true),
             ("usesDirectionalBlockedFeedback", p.usesDirectionalBlockedFeedback, true),
+            ("blocked.shortM", p.blocked.shortM, 0.010),
+            ("blocked.movedM", p.blocked.movedM, 0.002),
+            ("blocked.windowMs", p.blocked.windowMs, 1000),
+            ("blocked.freshMs", p.blocked.freshMs, 400),
+            ("blocked.arrivalGapMs", p.blocked.arrivalGapMs, 400),
+            ("blocked.leadProgressShare", p.blocked.leadProgressShare, 0.10),
+            ("blocked.exclusionM", p.blocked.exclusionM, 0.04),
+            ("blocked.followingShare", p.blocked.followingShare, 0.5),
+            ("blocked.sameWayDeg", p.blocked.sameWayDeg, 45.0),
+            ("lowest.sustainM", p.lowest.sustainM, 0.005),
+            ("lowest.quickShortM", p.lowest.quickShortM, 0.005),
+            ("lowest.quickMovedM", p.lowest.quickMovedM, 0.001),
+            ("lowest.quickMs", p.lowest.quickMs, 300),
+            ("lowest.descentMps", p.lowest.descentMps, 0.0005),
             ("assist.lock.timeLimitS", p.assist.lock?.timeLimitS, Double?(30.0)),
             ("assist.goTo.travelHeightM", p.assist.goTo?.travelHeightM, Double?(0.05)),
             ("assist.goTo.speedMps", p.assist.goTo?.speedMps, Double?(0.04)),
@@ -65,6 +89,14 @@ final class ProfileFileTests: XCTestCase {
             ("assist.goTo.allowanceS", p.assist.goTo?.allowanceS, Double?(3.0)),
             ("assist.goTo.armDataTimeoutS", p.assist.goTo?.armDataTimeoutS, Double?(2.0)),
             ("assist.goTo.startGraceS", p.assist.goTo?.startGraceS, Double?(1.5)),
+            ("assist.goTo.pacing.followShare", p.assist.goTo?.pacing.followShare, Double?(0.5)),
+            ("assist.goTo.pacing.paceGain", p.assist.goTo?.pacing.paceGain, Double?(0.25)),
+            ("assist.goTo.pacing.slowestShare", p.assist.goTo?.pacing.slowestShare, Double?(0.15)),
+            ("assist.goTo.pacing.startShare", p.assist.goTo?.pacing.startShare, Double?(0.5)),
+            ("assist.goTo.pacing.pathWatchTolerances", p.assist.goTo?.pacing.pathWatchTolerances, Double?(2.5)),
+            ("assist.goTo.pacing.freshMs", p.assist.goTo?.pacing.freshMs, Int?(400)),
+            ("assist.goTo.pacing.stillM", p.assist.goTo?.pacing.stillM, Double?(0.002)),
+            ("assist.goTo.pacing.paceChangeShare", p.assist.goTo?.pacing.paceChangeShare, Double?(0.05)),
             ("assist.guide.workAreaWords", p.assist.guide?.workAreaWords, Bool?(true)),
             ("assist.guide.lowestCue", p.assist.guide?.lowestCue, Bool?(true)),
             ("assist.guide.shadow", p.assist.guide?.shadow, Bool?(true)),
@@ -92,6 +124,8 @@ final class ProfileFileTests: XCTestCase {
         // parts it has (a vector, a signed axis).
         func isStructure(_ value: Any) -> Bool {
             value is EstimateBound || value is WristProfile || value is GripperProfile || value is WristLeadLimits
+                || value is MotionProfile || value is ServerProfile || value is ResyncTimes || value is BlockedRule
+                || value is LowestRule || value is GoToPacing
                 || value is Frames
                 || value is WorldTurn || value is AssistProfile
                 || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids

@@ -97,7 +97,7 @@ final class OperatingController {
         self.mode = mode
         self.hand = hand
         self.now = now
-        buttons = ButtonArbiter(frames: model.profile.frames)
+        buttons = ButtonArbiter(frames: model.profile.frames, motion: model.profile.motion)
         arbiter = InputArbiter(
             scheme: Self.scheme(mode) ?? .screenTurns, hand: hand,
             layout: SurfaceLayout(width: 402, height: 874, safeTop: 62, safeBottom: 34, constants: constants),

@@ -36,7 +36,7 @@ final class RobotProfileAssistTests: XCTestCase {
     /// already calls a stalled arm blocked, or a move could arrive at a place the arm never reached.
     func testTheArrivalToleranceIsUnderTheBlockedDistance() throws {
         let goTo = try XCTUnwrap(profile.assist.goTo)
-        XCTAssertLessThan(goTo.arriveToleranceM, FeedbackMonitor.blockedShortMeters)
+        XCTAssertLessThan(goTo.arriveToleranceM, TestProfiles.so101.blocked.shortM)
     }
 
     /// A going move ends "time is up" this long after its path's own time, times the factor: room for an arm that lags
@@ -58,7 +58,7 @@ final class RobotProfileAssistTests: XCTestCase {
         let atSpeed = path / goTo.speedMps
         // The deadline of a going move: the path's length over the speed, times the factor, plus the allowance.
         let limit = atSpeed * goTo.timeFactor + goTo.allowanceS
-        XCTAssertGreaterThanOrEqual(limit - atSpeed, Double(LiveLinkController.resyncTimeoutMs) / 1000)
+        XCTAssertGreaterThanOrEqual(limit - atSpeed, Double(TestProfiles.so101.server.resync.timeoutMs) / 1000)
     }
 
     /// The SO-101 allows every aid, with numbers the configuration accepts: lock for 30 s once the operator chooses a

@@ -11,17 +11,11 @@ final class LiveLinkController {
     static let speedSampleMs = 1000 / TeleopLink.poseRateHz / 2
     static let connectTimeout: TimeInterval = 5
     static let defaultPort = 8765
-    /// The server E-stops when the position it is asked for is more than 10 cm from where the arm is
-    /// (`pose_tracking_safety_stop`). A server hold is relative to the arm's position when it started, so no
-    /// single server hold ever asks for more than this. That holds however slow or stuck the arm is.
-    static let maxLeadMeters: Float = 0.08
-    static let toolMaxLeadMeters: Float = 0.005
-    /// The server reports no arm position during a hold. When the hand wants more than the limit, the server
-    /// hold is ended and restarted this often, which is the only way to learn how far the arm really got.
-    static let resyncAfterMs = 1500
-    static let toolResyncAfterMs = 500
-    /// Longest wait for the server to finish the old hold during a resync before the operator's hold ends.
-    static let resyncTimeoutMs = 1500
+    // The server's stop distance (the S4 server's `pose_tracking_safety_stop` is 10 cm), the caps under it and the
+    // resync times are the profile's: `robot.motion` and `server`. A server hold is relative to the arm's position when
+    // it started, so no single server hold ever asks for more than the cap, however slow or stuck the arm is. The
+    // server reports no arm position during a hold: when the hand wants more than the cap, the server hold is ended and
+    // restarted after the resync time, which is the only way to learn how far the arm really got.
     /// A dropped listening connection is opened again this often, without a word to the operator.
     static let observerRetryMs = 2000
     /// With the listening connection up, the link is lost when neither connection has heard anything this long
@@ -180,11 +174,11 @@ final class LiveLinkController {
     private var lastNotedStop: Int?
     /// Whether the simulator behind this connection's server has stopped responding. Starts afresh with every
     /// connection: a reconnect may reach a restarted server.
-    private var stall = SimStallDetector()
+    private var stall: SimStallDetector
     /// The newest state handed to the stall decision said the server is stopped.
     private(set) var serverSaysStopped = false
     /// Whether the jaws hold an object, which decides the path of the pad's holds (`startPadHold`).
-    private var objectHold = ObjectHold()
+    private var objectHold: ObjectHold
     /// Whether the operator is still owed this episode's reminder to open the jaws before moving in.
     private var jawsReminder: JawsClosedReminder
 
@@ -196,13 +190,15 @@ final class LiveLinkController {
         makeObserverTransport: ((URL) -> LinkTransport)? = nil,
         pose: @escaping () -> simd_float4x4?,
         nowMs: @escaping () -> Int = { Int(Date().timeIntervalSince1970 * 1000) },
-        gripper: GripperProfile,
-        wrist: WristProfile,
-        frames: Frames,
+        profile: RobotProfile,
         clientName: String = LiveLinkController.clientName()
     ) {
-        self.frames = frames
+        let gripper = profile.gripper
+        let wrist = profile.wrist
+        frames = profile.frames
         self.wrist = wrist
+        motion = profile.motion
+        server = profile.server
         leadBound = WristLeadBound(limits: wrist.lead)
         self.clientName = clientName
         self.makeTransport = makeTransport
@@ -210,7 +206,11 @@ final class LiveLinkController {
         self.pose = pose
         self.nowMs = nowMs
         self.gripper = gripper
-        monitor = FeedbackMonitor(limits: gripper.limits, frames: frames)
+        objectHold = ObjectHold(heldObjectPoint: profile.server.heldObjectPoint)
+        stall = SimStallDetector(detection: profile.server.stallDetection)
+        blockedRule = profile.blocked
+        monitor = FeedbackMonitor(
+            limits: gripper.limits, frames: frames, blocked: profile.blocked, lowest: profile.lowest)
         jawsReminder = JawsClosedReminder(limits: gripper.limits)
     }
 
@@ -220,6 +220,15 @@ final class LiveLinkController {
 
     /// The arm's wrist numbers; the lead bound's come from them.
     let wrist: WristProfile
+
+    /// The button speeds and the caps on how far a command runs ahead of the arm.
+    let motion: MotionProfile
+
+    /// The server's stop distance, resync times and the point that holds an object.
+    let server: ServerProfile
+
+    /// How old a measured position may be and still say something about now: the blocked rule's freshness.
+    let blockedRule: BlockedRule
 
     /// The profile's frames: which base axis each direction moves the arm along, and how the link's offsets are signed
     /// against the base frame.
@@ -247,8 +256,8 @@ final class LiveLinkController {
     var freshToolPointForStep: SIMD3<Double>? {
         guard toolCalibrationID != nil, !stall.stalled, armHeardAfterLastStop, link?.unfinishedStop == nil,
             let state = newestState, !state.estop, state.activity == .ok, newestStateServerMs != nil,
-            let receivedAt = newestStateAtMs, (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt),
-            let age = newestArmAgeMs, (0...FeedbackMonitor.freshStateMs).contains(age)
+            let receivedAt = newestStateAtMs, (0...blockedRule.freshMs).contains(nowMs() - receivedAt),
+            let age = newestArmAgeMs, (0...blockedRule.freshMs).contains(age)
         else { return nil }
         return newestArmState?.toolPoint
     }
@@ -290,7 +299,7 @@ final class LiveLinkController {
         guard armHeardAfterLastStop, link?.unfinishedStop == nil else { return .busy }
         guard toolCalibrationID != nil else { return nil }
         guard let state = newestState, let receivedAt = newestStateAtMs,
-            (0...FeedbackMonitor.freshStateMs).contains(nowMs() - receivedAt),
+            (0...blockedRule.freshMs).contains(nowMs() - receivedAt),
             state.endEffector != nil, state.toolPoint != nil
         else { return .noArmData }
         switch state.activity {
@@ -493,7 +502,7 @@ final class LiveLinkController {
         leadCapped = false
         stopUnanswered = nil
         lastNotedStop = nil
-        stall = SimStallDetector()
+        stall = SimStallDetector(detection: server.stallDetection)
         serverSaysStopped = false
         closeAfterStop = nil
         objectHold.apply(.reconnected)
@@ -636,7 +645,7 @@ final class LiveLinkController {
     /// The old server hold has finished and the server has said where the arm is: start the next one from there.
     private func finishResync(after state: ServerState, serverMs: Int?) {
         guard let link, translating, let pending = resync else { return }
-        if nowMs() - pending.sinceMs > Self.resyncTimeoutMs
+        if nowMs() - pending.sinceMs > server.resync.timeoutMs
             || (holdParams.toolCalibrationID != nil && holdParams.toolCalibrationID != link.toolCalibrationID)
         {
             onLog?("link: valid stopped tool state unavailable before resync deadline, hold ended")
@@ -871,7 +880,7 @@ final class LiveLinkController {
         if ticks % (TeleopLink.poseRateHz / 2) == 0 { link.probe() }
         // Every 133 ms while the gripper moves; the server asks for 150 ms and gives up at 750 ms.
         if link.gripperJogActive, ticks % 4 == 0 { link.keepalive() }
-        if let resync, translating, nowMs() - resync.sinceMs > Self.resyncTimeoutMs {
+        if let resync, translating, nowMs() - resync.sinceMs > server.resync.timeoutMs {
             onLog?("link: server did not finish the hold during a resync, hold ended")
             endedTranslation(monitor.endedByApp(.noAnswer))
             holdEnded()
@@ -892,7 +901,7 @@ final class LiveLinkController {
         let remaining = wanted - armProgress
         let distance = simd_length(remaining)
         let toolControl = holdParams.toolCalibrationID != nil
-        let maxLead = toolControl ? Self.toolMaxLeadMeters : Self.maxLeadMeters
+        let maxLead = toolControl ? motion.toolMaxLeadM : motion.maxLeadM
         let catchingUp = distance > maxLead
         leadCapped = catchingUp
         let delta = catchingUp ? remaining / distance * maxLead : remaining
@@ -915,7 +924,7 @@ final class LiveLinkController {
         }
         onCatchingUp?(catchingUp)
         // The hand wants more than one server hold may ask for: find out where the arm got to and go on from there.
-        let resyncAfter = toolControl ? Self.toolResyncAfterMs : Self.resyncAfterMs
+        let resyncAfter = toolControl ? server.resync.toolAfterMs : server.resync.afterMs
         if catchingUp, now - segmentStartedMs >= resyncAfter { beginResync() }
     }
 
@@ -931,13 +940,13 @@ final class LiveLinkController {
         // left says nothing about this hold: a refusal before it, or the clamp that ended the hold before.
         let waitingOutLeftOverLabel =
             coordinatedLeftOverLabel != nil
-            && (0...FeedbackMonitor.freshStateMs).contains(now - segmentStartedMs)
+            && (0...blockedRule.freshMs).contains(now - segmentStartedMs)
             && newestArmState?.activity == coordinatedLeftOverLabel
         // The hold moves the tool along up only: the link axis that is up carries the offset, the other two stay zero.
         let up = frames.up.axis.index
         guard let start = armAtSegmentStart, let state = newestArmState,
             let measured = state.toolPoint, let age = newestArmAgeMs,
-            (0...FeedbackMonitor.freshStateMs).contains(age), !state.estop, !state.simBusy,
+            (0...blockedRule.freshMs).contains(age), !state.estop, !state.simBusy,
             newestState?.estop != true, newestState?.simBusy != true,
             (0..<3).allSatisfy({ $0 == up || wanted[$0] == 0 }), wanted[up].isFinite
         else {
@@ -958,10 +967,10 @@ final class LiveLinkController {
         }
         let progress = Float(frames.linkSigns[up]) * (Float(measured[up]) - start[up])
         let remaining = wanted[up] - progress
-        let lead = min(max(remaining, -Self.toolMaxLeadMeters), Self.toolMaxLeadMeters)
+        let lead = min(max(remaining, -motion.toolMaxLeadM), motion.toolMaxLeadM)
         var delta = SIMD3<Float>.zero
         delta[up] = progress + lead
-        leadCapped = abs(remaining) > Self.toolMaxLeadMeters
+        leadCapped = abs(remaining) > motion.toolMaxLeadM
         link.poseUpdate(positionMeters: [Double(delta.x), Double(delta.y), Double(delta.z)])
         syncStart()
         if !link.startHeldBack {

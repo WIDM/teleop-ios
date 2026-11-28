@@ -20,6 +20,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case notAnAxis(String, found: String)
     /// A jaw unit that is neither `deg` nor `mm`.
     case notAUnit(String, found: String)
+    /// A value that is none of the words the field accepts.
+    case notAChoice(String, found: String, allowed: String)
     /// The file was read but its values do not make sense together: one sentence per fault.
     case invalid([String])
 
@@ -39,6 +41,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
                 + "Only quarter turns are supported, so a direction at another angle cannot be given."
         case .notAUnit(let path, let found):
             return "\(path) is \"\(found)\", which is not a unit; write \(JawUnit.allowedText)."
+        case .notAChoice(let path, let found, let allowed):
+            return "\(path) is \"\(found)\", which is not one of its values; write \(allowed)."
         case .invalid(let faults): return faults.joined(separator: " ")
         }
     }
@@ -73,9 +77,12 @@ extension RobotProfile: Codable {
         guard version == Self.formatVersion else { throw ProfileFormatError.unsupportedVersion(version) }
         let top = try StrictObject(
             checking: container, ["profile_version", "name", "robot", "server", "scene", "response", "assist"])
-        let robot = try top.section("robot", ["directions", "wrist", "gripper"])
+        let robot = try top.section("robot", ["directions", "wrist", "gripper", "motion"])
         let directions = try robot.section("directions", ["forward", "left", "up"])
-        let server = try top.section("server", ["link_signs"])
+        let server = try top.section(
+            "server", ["link_signs", "stop_distance_m", "resync", "held_object_point", "stall_detection"])
+        let resync = try server.section("resync", ["after_ms", "tool_after_ms", "timeout_ms"])
+        let motion = try robot.section("motion", ["fine_mps", "coarse_mps", "max_lead_m", "tool_max_lead_m"])
         let wrist = try robot.section(
             "wrist",
             [
@@ -99,7 +106,15 @@ extension RobotProfile: Codable {
         let worldAxes = try scene.section("base_axes_in_world", ["x", "y", "z"])
         let tool = try scene.section(
             "tool_offset", ["offset_m", "measured_at_m", "measured_flex_deg", "measured_roll_deg", "error_bound"])
-        let response = try top.section("response", ["directional_blocked_feedback"])
+        let response = try top.section("response", ["directional_blocked_feedback", "blocked", "lowest"])
+        let blocked = try response.section(
+            "blocked",
+            [
+                "short_m", "moved_m", "window_ms", "fresh_ms", "arrival_gap_ms", "lead_progress_share", "exclusion_m",
+                "following_share", "same_way_deg",
+            ])
+        let lowest = try response.section(
+            "lowest", ["sustain_m", "quick_short_m", "quick_moved_m", "quick_ms", "descent_mps"])
         self.init(
             name: try top.value("name"),
             toolOffset: try tool.vector3("offset_m"),
@@ -134,6 +149,27 @@ extension RobotProfile: Codable {
                 lead: WristLeadLimits(
                     leadDeg: try lead.value("lead_deg"), rateMaxDegS: try lead.value("rate_max_deg_s"),
                     memoryDeg: try lead.value("memory_deg"), freshStateMs: try lead.value("fresh_state_ms"))),
+            motion: MotionProfile(
+                fineMps: try motion.value("fine_mps"), coarseMps: try motion.value("coarse_mps"),
+                maxLeadM: try motion.value("max_lead_m"), toolMaxLeadM: try motion.value("tool_max_lead_m")),
+            server: ServerProfile(
+                stopDistanceM: try server.value("stop_distance_m"),
+                resync: ResyncTimes(
+                    afterMs: try resync.value("after_ms"), toolAfterMs: try resync.value("tool_after_ms"),
+                    timeoutMs: try resync.value("timeout_ms")),
+                heldObjectPoint: try server.choice("held_object_point", HeldObjectPoint.self),
+                stallDetection: try server.choice("stall_detection", StallDetection.self)),
+            blocked: BlockedRule(
+                shortM: try blocked.value("short_m"), movedM: try blocked.value("moved_m"),
+                windowMs: try blocked.value("window_ms"), freshMs: try blocked.value("fresh_ms"),
+                arrivalGapMs: try blocked.value("arrival_gap_ms"),
+                leadProgressShare: try blocked.value("lead_progress_share"),
+                exclusionM: try blocked.value("exclusion_m"), followingShare: try blocked.value("following_share"),
+                sameWayDeg: try blocked.value("same_way_deg")),
+            lowest: LowestRule(
+                sustainM: try lowest.value("sustain_m"), quickShortM: try lowest.value("quick_short_m"),
+                quickMovedM: try lowest.value("quick_moved_m"), quickMs: try lowest.value("quick_ms"),
+                descentMps: try lowest.value("descent_mps")),
             recloseLoosensGrip: try gripper.value("reclose_loosens_grip"),
             usesDirectionalBlockedFeedback: try response.value("directional_blocked_feedback"),
             assist: try top.value("assist"),
@@ -178,8 +214,20 @@ extension RobotProfile: Codable {
         try gripper.encode(self.gripper.fullyOpenAt, forKey: "fully_open_at")
         try gripper.encode(self.gripper.emptyAt, forKey: "empty_at")
         try gripper.encode(recloseLoosensGrip, forKey: "reclose_loosens_grip")
+        var motion = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "motion")
+        try motion.encode(self.motion.fineMps, forKey: "fine_mps")
+        try motion.encode(self.motion.coarseMps, forKey: "coarse_mps")
+        try motion.encode(self.motion.maxLeadM, forKey: "max_lead_m")
+        try motion.encode(self.motion.toolMaxLeadM, forKey: "tool_max_lead_m")
         var server = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "server")
         try server.encode([frames.linkSigns.x, frames.linkSigns.y, frames.linkSigns.z], forKey: "link_signs")
+        try server.encode(self.server.stopDistanceM, forKey: "stop_distance_m")
+        var resync = server.nestedContainer(keyedBy: ProfileKey.self, forKey: "resync")
+        try resync.encode(self.server.resync.afterMs, forKey: "after_ms")
+        try resync.encode(self.server.resync.toolAfterMs, forKey: "tool_after_ms")
+        try resync.encode(self.server.resync.timeoutMs, forKey: "timeout_ms")
+        try server.encode(self.server.heldObjectPoint.rawValue, forKey: "held_object_point")
+        try server.encode(self.server.stallDetection.rawValue, forKey: "stall_detection")
         var scene = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "scene")
         try scene.encode([frames.baseInWorld.x, frames.baseInWorld.y, frames.baseInWorld.z], forKey: "base_in_world_m")
         var worldAxes = scene.nestedContainer(keyedBy: ProfileKey.self, forKey: "base_axes_in_world")
@@ -201,6 +249,22 @@ extension RobotProfile: Codable {
         try tool.encode(estimateBound, forKey: "error_bound")
         var response = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "response")
         try response.encode(usesDirectionalBlockedFeedback, forKey: "directional_blocked_feedback")
+        var blocked = response.nestedContainer(keyedBy: ProfileKey.self, forKey: "blocked")
+        try blocked.encode(self.blocked.shortM, forKey: "short_m")
+        try blocked.encode(self.blocked.movedM, forKey: "moved_m")
+        try blocked.encode(self.blocked.windowMs, forKey: "window_ms")
+        try blocked.encode(self.blocked.freshMs, forKey: "fresh_ms")
+        try blocked.encode(self.blocked.arrivalGapMs, forKey: "arrival_gap_ms")
+        try blocked.encode(self.blocked.leadProgressShare, forKey: "lead_progress_share")
+        try blocked.encode(self.blocked.exclusionM, forKey: "exclusion_m")
+        try blocked.encode(self.blocked.followingShare, forKey: "following_share")
+        try blocked.encode(self.blocked.sameWayDeg, forKey: "same_way_deg")
+        var lowest = response.nestedContainer(keyedBy: ProfileKey.self, forKey: "lowest")
+        try lowest.encode(self.lowest.sustainM, forKey: "sustain_m")
+        try lowest.encode(self.lowest.quickShortM, forKey: "quick_short_m")
+        try lowest.encode(self.lowest.quickMovedM, forKey: "quick_moved_m")
+        try lowest.encode(self.lowest.quickMs, forKey: "quick_ms")
+        try lowest.encode(self.lowest.descentMps, forKey: "descent_mps")
         try top.encode(assist, forKey: "assist")
     }
 
@@ -264,14 +328,15 @@ extension GoToLimits: Codable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.strictContainer([
             "travel_height_m", "speed_mps", "arrive_tolerance_m", "corrections", "correction_reach_m", "settle_s",
-            "time_factor", "allowance_s", "arm_data_timeout_s", "start_grace_s",
+            "time_factor", "allowance_s", "arm_data_timeout_s", "start_grace_s", "pacing",
         ])
         self.init(
             travelHeightM: try c.value("travel_height_m"), speedMps: try c.value("speed_mps"),
             arriveToleranceM: try c.value("arrive_tolerance_m"), corrections: try c.value("corrections"),
             correctionReachM: try c.value("correction_reach_m"), settleS: try c.value("settle_s"),
             timeFactor: try c.value("time_factor"), allowanceS: try c.value("allowance_s"),
-            armDataTimeoutS: try c.value("arm_data_timeout_s"), startGraceS: try c.value("start_grace_s"))
+            armDataTimeoutS: try c.value("arm_data_timeout_s"), startGraceS: try c.value("start_grace_s"),
+            pacing: try c.value("pacing"))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -286,6 +351,33 @@ extension GoToLimits: Codable {
         try c.encode(allowanceS, forKey: "allowance_s")
         try c.encode(armDataTimeoutS, forKey: "arm_data_timeout_s")
         try c.encode(startGraceS, forKey: "start_grace_s")
+        try c.encode(pacing, forKey: "pacing")
+    }
+}
+
+extension GoToPacing: Codable {
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.strictContainer([
+            "follow_share", "pace_gain", "slowest_share", "start_share", "path_watch_tolerances", "fresh_ms",
+            "still_m", "pace_change_share",
+        ])
+        self.init(
+            followShare: try c.value("follow_share"), paceGain: try c.value("pace_gain"),
+            slowestShare: try c.value("slowest_share"), startShare: try c.value("start_share"),
+            pathWatchTolerances: try c.value("path_watch_tolerances"), freshMs: try c.value("fresh_ms"),
+            stillM: try c.value("still_m"), paceChangeShare: try c.value("pace_change_share"))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: ProfileKey.self)
+        try c.encode(followShare, forKey: "follow_share")
+        try c.encode(paceGain, forKey: "pace_gain")
+        try c.encode(slowestShare, forKey: "slowest_share")
+        try c.encode(startShare, forKey: "start_share")
+        try c.encode(pathWatchTolerances, forKey: "path_watch_tolerances")
+        try c.encode(freshMs, forKey: "fresh_ms")
+        try c.encode(stillM, forKey: "still_m")
+        try c.encode(paceChangeShare, forKey: "pace_change_share")
     }
 }
 
@@ -490,6 +582,17 @@ struct StrictObject {
         let text: String = try value(key)
         guard let axis = SignedAxis(text: text) else { throw ProfileFormatError.notAnAxis(path(key), found: text) }
         return axis
+    }
+
+    /// A value written as one of the words of a fixed set, such as `simulation` or `none`.
+    func choice<T: RawRepresentable & CaseIterable>(_ key: String, _ type: T.Type) throws -> T
+    where T.RawValue == String {
+        let text: String = try value(key)
+        guard let found = T(rawValue: text) else {
+            throw ProfileFormatError.notAChoice(
+                path(key), found: text, allowed: T.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " or "))
+        }
+        return found
     }
 
     /// The unit of the jaw's readings: `deg` or `mm`.

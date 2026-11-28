@@ -39,11 +39,11 @@ through `TestProfiles` in `Tests/TeleopTests`.
 {
   "profile_version": 1,
   "name": "SO-101 (S4 simulator)",
-  "robot":    { "directions": { ... }, "wrist": { ... }, "gripper": { ... } },
-  "server":   { "link_signs": [ ... ] },
+  "robot":    { "directions": { ... }, "wrist": { ... }, "gripper": { ... }, "motion": { ... } },
+  "server":   { "link_signs": [ ... ], "stop_distance_m": ..., "resync": { ... }, ... },
   "scene":    { ..., "base_axes_in_world": { ... }, "tool_offset": { ..., "error_bound": { ... } } },
-  "response": { ... },
-  "assist":   { "lock": ..., "go_to": ..., "guide": ..., "explain": ..., "views": ... }
+  "response": { "directional_blocked_feedback": ..., "blocked": { ... }, "lowest": { ... } },
+  "assist":   { "lock": ..., "go_to": { ..., "pacing": { ... } }, "guide": ..., "explain": ..., "views": ... }
 }
 ```
 
@@ -59,7 +59,9 @@ The rules:
 - **`profile_version`** is 1, and is read first: a file of another version is refused as that, whatever its keys.
 - **Units are in the key's name:** `_m` metres, `_deg` degrees, `_deg_s` degrees per second, `_s` seconds, `_ms`
   milliseconds, `_mps` metres per second, `_mm_per_cm` millimetres per centimetre, `_mm_per_deg` millimetres per
-  degree. A key without a unit is a count, a sign, a factor or a yes/no. The exception is the jaw's readings
+  degree. A key without a unit is a count, a sign, a share (a number between 0 and 1), a factor or a yes/no; a word
+  from a fixed set (`held_object_point`, `stall_detection`) is written as text, and any other word stops the load with
+  a sentence that names the words it accepts. The exception is the jaw's readings
   (`closed_reading`, `open_reading`, `valid_min`, `valid_max`, `fully_open_at`, `empty_at`): they are in the unit that
   `robot.gripper.unit` names, `deg` or `mm`.
 - **Vectors are arrays:** `[x, y, z]` in the robot base frame, or `[across, height]`. An array of the wrong length is
@@ -81,6 +83,16 @@ reports all of them at once. A profile is refused when:
 - `robot.directions.up` is not the base axis that `scene.base_axes_in_world` puts along world +z, the same way; the
   sentence names both fields;
 - `server.link_signs` has a value that is not 1 or -1;
+- `server.stop_distance_m` is not above zero; `server.resync.after_ms`, `tool_after_ms` or `timeout_ms` is not above
+  zero; `server.held_object_point` is neither `gripper_link` nor `tool_point`, or `server.stall_detection` is neither
+  `simulation` nor `none` (each sentence names the two);
+- `robot.motion.fine_mps`, `coarse_mps`, `max_lead_m` or `tool_max_lead_m` is not above zero, or `max_lead_m` or
+  `tool_max_lead_m` is not under `server.stop_distance_m` (the sentence names the cap);
+- `response.blocked`: a distance, window, freshness or arrival gap (`short_m`, `moved_m`, `window_ms`, `fresh_ms`,
+  `arrival_gap_ms`, `exclusion_m`) is not above zero, a share (`lead_progress_share`, `following_share`) is not above
+  0 and at most 1, or `same_way_deg` is not above 0 and below 90;
+- `response.lowest`: any of `sustain_m`, `quick_short_m`, `quick_moved_m`, `quick_ms` and `descent_mps` is not above
+  zero;
 - `scene.base_axes_in_world`: x, y and z do not lie along three different world axes, or they make a mirror image (the
   base's x cross y must be its z), or one has a sign other than 1 or -1 when built in code; `scene.base_in_world_m` is
   not finite numbers;
@@ -101,7 +113,9 @@ reports all of them at once. A profile is refused when:
 - `assist.lock.time_limit_s` is not above zero;
 - a number of `assist.go_to` is out of range: the travel height, speed, arrival tolerance, settle time, time factor
   and arm-data timeout must be above zero; the correction reach, allowance and start grace zero or more; the
-  corrections a whole number zero or more;
+  corrections a whole number zero or more; in `assist.go_to.pacing`, `follow_share`, `slowest_share` and
+  `start_share` must be above 0 and at most 1, `pace_gain`, `path_watch_tolerances`, `fresh_ms` and `still_m` above
+  zero, and `pace_change_share` between 0 and 1;
 - `assist.views` has a height that is not above zero or is below the travel height, a move limit that is not above
   zero, or is given without `assist.go_to`;
 - `assist.explain` is given without `assist.guide`.
@@ -132,15 +146,58 @@ about the mounting, and the load refuses a file in which they differ.
 
 ### `server`
 
-What the server does to what it is sent, which is a fact about the server, not about the arm.
+What the server does to what it is sent and how it behaves, which is a fact about the server, not about the arm.
 
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `link_signs` | [x, y, z], each 1 or -1 | the server moves the base by a translation hold's offset with each axis multiplied by these: the frame the app sends offsets in is the base frame with some axes mirrored | [1, 1, -1]: the S4 server was calibrated on a WebXR phone (mapping `phone_axes_20261025_v1`, `frame: webxr_local`) and moves the arm by [p0, p1, −p2] of the offset it is sent. A server whose z is up in its own frame would give [1, 1, 1] |
+| `stop_distance_m` | m | the server stops the arm for good when the position it is asked for is farther than this from where the arm is. No command may ask for more: `robot.motion.max_lead_m` and `tool_max_lead_m` must be under it, and the load refuses a file in which they are not | 0.10: the S4 server's `pose_tracking_safety_stop` distance |
+| `resync.after_ms` | ms | the server reports no arm position during a hold. When the hand wants more than the lead cap, the server hold is ended and started again from where the arm got to after this long of catching up, on the gripper link's path | 1500; no measurement is recorded in the code for it |
+| `resync.tool_after_ms` | ms | the same on the tool point's path | 500; no measurement is recorded either |
+| `resync.timeout_ms` | ms | the longest wait for the server to finish the old hold during a resync before the operator's hold ends | 1500 |
+| `held_object_point` | `gripper_link` or `tool_point` | which point a pad hold moves while the jaws hold an object. `gripper_link`: the gripper link's origin, with no coordinated height, once the jaws hold something; `tool_point`: the tool point, held or not | `gripper_link`: carrying the simulator's cube on the tool point's path, the arm lifted it in 1 of 10 trials, and on the gripper link's path in 9 of 10. That is a fact about the S4 server, so another server that lifts fine through the tool point says `tool_point` |
+| `stall_detection` | `simulation` or `none` | `simulation`: the server runs a simulation loop that can stop, and the app reads its signs (`sim_stalled`, `busy` answers, stale timing, a stop nobody answers) to pause and then say "Simulator not responding". `none`: the server has no such loop, and the detector never fires | `simulation`: the S4 server's loop stopped once while its network side kept answering, and the timed rules (2 s old states, 3 s busy, 3 s for a stop's answer) were set from that one recorded stop; they are not profile fields |
 
 A wrong sign reverses that axis: for the SO-101's z, every vertical move would go the other way. To find them, send a
 translation hold of +1 cm along each of the link's axes and read the change of `ee_pos`; the sign of the change is the
 sign.
+
+The full sentence for a stop because the arm fell behind (`stop.cause_arm_behind`, built by `StopCause.text`) takes
+the profile's `server.stop_distance_m` as its number, in centimetres, in both languages: 10 cm for the SO-101, 6 cm for
+a server that stops at 6 cm. The operating screen shows the short cause (`cause.behind`), which carries no number.
+
+What goes wrong when a value is wrong:
+
+- A stop distance that is larger than the server's lets the load accept a lead cap the server then answers with an
+  emergency stop. Read the distance in the server's source or find it by asking for larger and larger offsets on a
+  test arm.
+- A resync time that is too short ends and restarts holds that were about to arrive, so the arm moves in steps; too
+  long and the hand runs far ahead of an arm that does not follow. A timeout that is shorter than the server needs to
+  finish a hold ends the operator's hold in every resync.
+- `gripper_link` for a server that lifts fine through the tool point costs the coordinated height and the tool's
+  accuracy while carrying; `tool_point` for a server that does not lifts the object badly or has moves refused once it
+  is gripped. Lift an object both ways, ten times each, and keep the one that places it.
+- `simulation` for a server with no loop reads a slow bus as a stopped simulation and pauses the operator for nothing;
+  `none` for a server with a loop never says that the simulator has stopped.
+
+### `robot.motion`
+
+How fast the arm is asked to move from the buttons, and how far a command may run ahead of where the server's hold
+began.
+
+| Key | Unit | What it does | SO-101 |
+|---|---|---|---|
+| `fine_mps`, `coarse_mps` | m/s | how fast a held direction button moves the arm's target on the Fine and on the Coarse switch, in wall time | 0.01 and 0.04: Appendix A of the interaction specification; coarse is the pad's default and the speed of tap-to-go, near the measured median following speed of 0.034 m/s |
+| `max_lead_m` | m | the most a translation command on the gripper link's path may run ahead of where the server's hold began. Under `server.stop_distance_m`, whatever the arm's speed | 0.08: under the S4 server's 10 cm stop distance with 2 cm to spare; no measurement is recorded for the 2 cm |
+| `tool_max_lead_m` | m | the same on the tool point's path | 0.005: tuned to the S4 simulator; no measurement is recorded for it |
+
+What goes wrong when a value is wrong:
+
+- A speed that is faster than the arm follows makes a held button run away from the arm, and the cap then holds the
+  command back; one that is much slower than the arm's own speed makes coarse a crawl. Hold a button for 5 s on the
+  arm and compare the change of `ee_pos` with speed times 5.
+- A cap that is under what the arm follows in one resync period slows every hold; a cap near the stop distance leaves
+  no room for the lead that arrives while a command is in flight, and an emergency stop follows.
 
 ### `robot.wrist`
 
@@ -243,9 +300,57 @@ tolerance comes from hand trials, where a lift needed the jaws within about 1 cm
 
 ### `response`
 
+How the app tells that an arm is held back, and that it cannot go lower. The numbers come from how one arm and its
+server answer a command: the SO-101 in the S4 simulator reports about 12 to 17 passes a second and follows slowly, so a
+faster arm stalls inside a one second window and a slower one is told it is blocked while it is still moving. To
+find them on a new arm, drive it into the table and into a wall on purpose, log the states, and read how far the
+measured point moves in a second and how often states arrive.
+
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `directional_blocked_feedback` | yes/no | with the guide's additions on, "Blocked." is told by the direction asked, using the gripper-link box | true: the box has been checked against the workspace in the server's recordings |
+
+#### `response.blocked`
+
+"Blocked." is told when the commanded point is ahead of the measured arm and the arm makes little progress over a window
+of fresh states.
+
+| Key | Unit | What it does | SO-101 |
+|---|---|---|---|
+| `short_m` | m | the command must be at least this far ahead of the measured point | 0.010 |
+| `moved_m` | m | over the window the measured point moved less than this: the arm stood still. It is also the distance within which two points are the same place | 0.002 |
+| `window_ms` | ms | the window the arm is judged over | 1000: the code's comment names the simulator's 12 to 17 passes a second as where the window comes from |
+| `fresh_ms` | ms | a measured position older than this says nothing about now | 400: the listening connection reports about every 0.2 s |
+| `arrival_gap_ms` | ms | no two states of a judged window arrived further apart than this: states held back and delivered together say nothing about how the arm stood between them | 400; no measurement is recorded for it. An ordinary wireless network was measured holding every message back for up to 1.8 s and then delivering them together, which is what this number is there to ignore |
+| `lead_progress_share` | share | with a work box, an arm that made less progress along the lead than the lesser of `moved_m` and this share of the lead is not following | 0.10 |
+| `exclusion_m` | m | with a work box, an arm that moved this far, in any direction, is following, not held back | 0.04 |
+| `following_share` | share | with a work box, an arm that moved along the command's own travel by at least this share of it is following | 0.5 |
+| `same_way_deg` | deg | with a work box, a lead that turns by less than this is part of the same request | 45 |
+
+#### `response.lowest`
+
+"Can't go lower." is told when the height alone stands against an ask for lower: an arm on a table slides along it, so
+it is never still in all three directions.
+
+| Key | Unit | What it does | SO-101 |
+|---|---|---|---|
+| `sustain_m` | m | the full stall: every state of the window was sent at least this much lower (the newest at least `blocked.short_m`) | 0.005 |
+| `quick_short_m`, `quick_moved_m`, `quick_ms` | m, m, ms | the quicker stall, back near the lowest height already found (within `blocked.moved_m` of it): every state of the last `quick_ms` was sent at least `quick_short_m` lower, and the height moved less than `quick_moved_m` | 0.005 m, 0.001 m, 300 ms |
+| `descent_mps` | m/s | no stall is told while the height is still falling at least this fast over its window | 0.0005: at about 12 passes a second an arm asked down at the fine speed came down 1.4 to 2.0 mm a second, inside the 2 mm the full stall allows, while an arm that had stopped moved less than 0.1 mm |
+
+What goes wrong when a value is wrong:
+
+- Windows and distances that are too tight for the arm tell "Blocked." while it is still moving; too loose tell
+  nothing, and the operator holds against a wall.
+- A fresh time shorter than the states' interval makes every state stale, so the rules never judge; an arrival gap
+  that is too short makes a network that delivers in bursts hide every stall.
+- A descent rate that is too large calls an arm that is still coming down stopped, and tells "Can't go lower." before
+  it has landed; one that is too small keeps an arm that has stopped, but still drifts a little, "descending", and tells
+  nothing.
+- Some numbers are equal on the SO-101 and are separate fields, so that another arm or server can set each apart:
+  the three freshness times `robot.wrist.lead.fresh_state_ms`, `response.blocked.fresh_ms` (also the freshness of the
+  tool point's measured position for the link controller's lead) and `assist.go_to.pacing.fresh_ms` (all 400 ms), and
+  the two still distances `response.blocked.moved_m` and `assist.go_to.pacing.still_m` (both 0.002 m).
 
 ### `assist`
 
@@ -260,13 +365,24 @@ the robot does not allow that aid. With all five `null` the robot allows none an
 | `go_to.arrive_tolerance_m` | m | a fresh measured pinch point this close to the target has arrived | 0.008: under the "Blocked." rule's 10 mm; the grasp window's height |
 | `go_to.corrections` | count | how many times a move that settled short may aim again | 2: one may go to holding the travel height, one to the end |
 | `go_to.correction_reach_m` | m | the longest remainder a move aims again by | 0.03 |
-| `go_to.settle_s` | s | how long fresh positions must stay within 2 mm, with the command at its leg's end, to count as settled | 0.6 |
+| `go_to.settle_s` | s | how long fresh positions must stay within `pacing.still_m`, with the command at its leg's end, to count as settled | 0.6 |
 | `go_to.time_factor`, `go_to.allowance_s` | factor, s | the deadline: the path's length over the speed, times the factor, plus the allowance | 1.5 and 3.0: at least 3 s, and room for one re-sent start on the longest path in the box (a test pins both) |
 | `go_to.arm_data_timeout_s` | s | no measured position younger than this ends the move ("No arm data.") | 2.0: the listening connection reports about every 0.2 s, and an ordinary wireless network was measured holding messages back for up to 1.8 s |
-| `go_to.start_grace_s` | s | no stall is judged from positions measured this soon after the start, or after the end of the hold's last pause, unless the arm has already moved 2 mm | 1.5: a start the server takes late, or an arm that lags at first, is not a stall |
+| `go_to.start_grace_s` | s | no stall is judged from positions measured this soon after the start, or after the end of the hold's last pause, unless the arm has already moved `pacing.still_m` | 1.5: a start the server takes late, or an arm that lags at first, is not a stall |
+| `go_to.pacing.follow_share` | share | each fresh reading moves the link command this share of the way to the offset it measured (pinch point less gripper link). The whole way overshoots where the jaws swing more than the link moves, since a reading shows a command's effect one or two readings later | 0.5 |
+| `go_to.pacing.pace_gain`, `slowest_share`, `start_share` | factor, share, share | the command moves at the speed times min(1, `pace_gain` over the swing), swing being the measured offset's change per unit of gripper-link travel; never under `slowest_share` of the speed, and at `start_share` until the first swing is measured | 0.25, 0.15 and 0.5: tuned on the simulator's arm; no measurement is recorded for them |
+| `go_to.pacing.path_watch_tolerances` | factor | a fresh reading this many `arrive_tolerance_m` from the leg ahead ends the move stopped short | 2.5, so 20 mm for the SO-101 |
+| `go_to.pacing.fresh_ms` | ms | a measured position older than this says nothing about now: the command waits for a fresher one | 400 |
+| `go_to.pacing.still_m` | m | fresh points within this of one another count as standing still, an arm this far from where it started has been seen to move, and a pace is measured over this much link travel or more | 0.002 |
+| `go_to.pacing.pace_change_share` | share | the pace is set again only when the share it would move at changes by more than this share of the present one | 0.05 |
 | `guide` | yes/no each | which of the guide's additions run: `work_area_words`, `lowest_cue`, `shadow`, `direction_labels`, `wider_on_target` | all true |
 | `explain.slow_link_let_go` | yes/no | a hold the operator holds that a slow link stops lets go with "Slow link."; a robot that gives `explain` also gives `guide` | true |
 | `views.behind_top_above_table_m` | m | the fixed aiming views: how high above the table the rear view's top lies; at least the travel height | 0.09: keeps the heights used for positioning visible without spending space on the upper workspace |
 | `views.max_retargeted_move_s` | s, or null | how long a retargeted move may run | 30 |
+
+What goes wrong when a pacing value is wrong: a follow share near 1 overshoots on an arm whose jaws swing, and one
+near 0 follows nothing; a pace gain that is too large lets the command outrun the readings; a start share that is too
+low makes every move start slowly and a deadline that is too long; path watch tolerances that are too tight end moves
+that were fine.
 
 `ARCHITECTURE.md` ("The hands-free aids" and "The guide's additions") says how each aid uses these numbers.

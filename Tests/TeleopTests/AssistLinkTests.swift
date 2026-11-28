@@ -624,7 +624,7 @@ final class AssistLinkTests: XCTestCase {
             handForward(0.07, from: 0.03)
             for _ in 0..<60 where transport.types.last(where: { $0 != "test" }) != "pose_stop" { run(ticks: 1) }
             XCTAssertEqual(transport.types.last { $0 != "test" }, "pose_stop", "aids \(aids): the link asks")
-            let lead = Double(LiveLinkController.maxLeadMeters)
+            let lead = Double(TestProfiles.so101.motion.maxLeadM)
             let capped = SIMD3<Double>(try XCTUnwrap(model.link.commandedArm, "aids \(aids)"))
             XCTAssertEqual(capped.y, startedFrom.y - lead, accuracy: 1e-4, "aids \(aids): held at the cap")
             // The server moved the arm by the capped offset from where it really stood when it took the start.
@@ -797,7 +797,7 @@ final class AssistLinkTests: XCTestCase {
         // The wire carries tenths of a millimetre on each axis.
         XCTAssertEqual(simd_distance(first, asked), 0, accuracy: 0.0001, "the input rules' offset, as asked")
         XCTAssertGreaterThan(simd_length(first), 0, "on its way")
-        let cap = Double(LiveLinkController.maxLeadMeters)
+        let cap = Double(TestProfiles.so101.motion.maxLeadM)
         var capped = false
         for _ in 0..<90 where !capped {
             run(ticks: 1)
@@ -833,7 +833,7 @@ final class AssistLinkTests: XCTestCase {
         let sent = try XCTUnwrap(offsetsSent.last)
         let asked = try XCTUnwrap(model.controller.goOffset())
         let rest = asked - TestProfiles.so101.frames.link(fromBase: moved)
-        XCTAssertLessThan(simd_length(rest), Double(LiveLinkController.maxLeadMeters), "within the cap again")
+        XCTAssertLessThan(simd_length(rest), Double(TestProfiles.so101.motion.maxLeadM), "within the cap again")
         XCTAssertEqual(simd_distance(sent, rest), 0, accuracy: 0.0001, "the rest of the rules' offset")
         XCTAssertTrue(model.session.state.armMoving)
         XCTAssertNotNil(model.controller.loose, "the move goes on")

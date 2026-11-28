@@ -349,7 +349,7 @@ final class AppModel {
         self.nowMs = nowMs
         link = LiveLinkController(
             makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
-            gripper: profile.gripper, wrist: profile.wrist, frames: profile.frames, clientName: clientName
+            profile: profile, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         self.experimentTiming.send = { [weak self] type, payload in
@@ -1681,10 +1681,15 @@ enum StopCause: Equatable {
         }
     }
 
-    var text: String {
+    /// The sentence for this cause. `stopDistanceM` is how far behind the phone the profile's server lets the arm fall
+    /// before it stops it: the sentence for `armBehind` says that distance.
+    func text(stopDistanceM: Double) -> String {
         switch self {
         case .button: return L10n.string("stop.cause_button")
-        case .armBehind: return L10n.string("stop.cause_arm_behind")
+        case .armBehind:
+            // Tenths of a centimetre, so that 0.07 m reads "7" and not "7.000000000000001".
+            let centimetres = (stopDistanceM * 1000).rounded() / 10
+            return String(format: L10n.string("stop.cause_arm_behind"), String(format: "%g", centimetres))
         case .onConnect: return L10n.string("stop.cause_on_connect")
         case .reconnect: return L10n.string("stop.cause_reconnect")
         case .server(let reason): return String(format: L10n.string("stop.cause_server"), reason)

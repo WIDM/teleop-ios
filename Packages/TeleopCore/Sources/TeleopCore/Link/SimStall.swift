@@ -166,6 +166,8 @@ public struct SimStallDetector: Equatable, Sendable {
         case foreground
     }
 
+    /// Whether the server has a simulation loop to watch. With `.none` nothing is ever read: the level stays running.
+    public let detection: StallDetection
     public private(set) var level = Level.running
     /// What entered paused; nil while running.
     public private(set) var trigger: Trigger?
@@ -191,11 +193,12 @@ public struct SimStallDetector: Equatable, Sendable {
     private var resettingSinceMs: Int?
     private var resetRequestedAtMs: Int?
 
-    public init() {}
+    public init(detection: StallDetection) { self.detection = detection }
 
     /// Takes one input at `now` (milliseconds). True when the level changed.
     @discardableResult
     public mutating func observe(_ input: Input, at now: Int) -> Bool {
+        guard detection == .simulation else { return false }
         let before = level
         // A message heard in the background is not read: nothing may raise the level while the app is away, and after
         // the return the states that come then decide.

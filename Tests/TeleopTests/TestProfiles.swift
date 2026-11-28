@@ -28,6 +28,25 @@ enum TestProfiles {
     static let benchBGripper = GripperProfile(
         unit: .mm, closedReading: 0, openReading: 40, validMin: 0, validMax: 45, fullyOpenAt: 39, emptyAt: 1)
 
+    /// Bench arm B's motion: buttons twice as fast, and a lead cap under its 6 cm stop distance (the same numbers as the
+    /// package tests' `TestMotion.benchB`).
+    static let benchBMotion = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.004)
+
+    /// Bench arm B's server: a 6 cm stop distance, its own resync times, a held object lifted through the tool point and no simulation loop to watch (the same
+    /// numbers as the package tests' `TestServer.benchB`).
+    static let benchBServer = ServerProfile(
+        stopDistanceM: 0.06, resync: ResyncTimes(afterMs: 1200, toolAfterMs: 400, timeoutMs: 1000),
+        heldObjectPoint: .toolPoint, stallDetection: .none)
+
+    /// The SO-101's profile, and the SO-101's with bench arm B's motion and server facts: what a rule that reads them
+    /// is run through.
+    static let motions: [(name: String, profile: RobotProfile)] = {
+        var b = so101
+        b.motion = benchBMotion
+        b.server = benchBServer
+        return [("SO-101", so101), ("bench arm B", b)]
+    }()
+
     /// The jaws the app tests run a jaw rule through.
     static let grippers: [(name: String, gripper: GripperProfile)] = [
         ("SO-101", so101.gripper), ("bench arm B", benchBGripper),
@@ -57,5 +76,13 @@ extension ServerState {
     /// A state read with the SO-101's jaw readings, as the rule tests build one.
     init(payload: [String: Any]) {
         self.init(payload: payload, jawReadings: TestProfiles.so101.gripper.validReadings)
+    }
+}
+
+extension FeedbackMonitor {
+    /// A monitor with the SO-101's blocked and lowest numbers, as the rule tests build one.
+    init(limits: GripperLimits, frames: Frames) {
+        self.init(
+            limits: limits, frames: frames, blocked: TestProfiles.so101.blocked, lowest: TestProfiles.so101.lowest)
     }
 }

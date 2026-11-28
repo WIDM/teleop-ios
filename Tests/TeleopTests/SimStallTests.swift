@@ -77,7 +77,7 @@ final class SimStallTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeModel() {
+    private func makeModel(profile: RobotProfile = TestProfiles.so101) {
         clock = 10_000
         speech = SpySpeech()
         model = AppModel(
@@ -93,7 +93,7 @@ final class SimStallTests: XCTestCase {
                 return made
             },
             nowMs: { [unowned self] in clock },
-            clientName: "teleop-ios/1.0.0 (7)"
+            clientName: "teleop-ios/1.0.0 (7)", profile: profile
         )
         model.session.state.serverAddress = "100.64.0.1:8765"
         model.session.state.setSmoothing(0)
@@ -163,6 +163,37 @@ final class SimStallTests: XCTestCase {
         let look = OperatingWords.look(model.operating)
         XCTAssertEqual(look.word, "Simulator not responding", context, file: file, line: line)
         XCTAssertEqual(look.details, ["The stop stays on. Restart the server."], context, file: file, line: line)
+    }
+
+    // MARK: A server with no simulation loop
+
+    /// The profile says whether the server has a simulation loop to watch. The same stream of states whose captured time
+    /// stands still pauses the SO-101's server (`simulation`) and means nothing to one that has no such loop (`none`):
+    /// the phone goes on as if it ran, and nothing is held back.
+    func testAServerWithNoSimulationLoopIsNeverTakenForPaused() {
+        for detection in StallDetection.allCases {
+            var profile = TestProfiles.so101
+            profile.server.stallDetection = detection
+            makeModel(profile: profile)
+            model.connect()
+            transport.server("welcome")
+            serverNs = capturedNs + 73_800_000_000
+            for _ in 0..<3 { state(estop: false, loopRuns: false) }
+            switch detection {
+            case .simulation:
+                XCTAssertEqual(model.link.simulatorStallTrigger, .frozenTime)
+                XCTAssertTrue(model.link.simulatorStalled)
+            case .none:
+                XCTAssertNil(model.link.simulatorStallTrigger)
+                XCTAssertFalse(model.link.simulatorStalled)
+                XCTAssertEqual(model.link.simulatorLevel, .running)
+            }
+            // A move is not held back for it, either.
+            model.send(.holdArmStart)
+            let started = transport.types.contains("pose_start")
+            XCTAssertEqual(started, detection == .none, "\(detection)")
+            model.send(.holdArmEnd)
+        }
     }
 
     // MARK: Tonight's sequence, replayed

@@ -1572,8 +1572,8 @@ struct GoTrack {
     mutating func saw(_ fix: ArmFix?, at time: TimeInterval, limits: GoToLimits) {
         guard let fix, fix.ageS <= limits.armDataTimeoutS else { return }
         if fix.holdPaused { lastPausedAt = time }
-        guard fix.ageS <= GoWatch.freshS else { return }
-        if simd_distance(fix.pinch, start) >= FeedbackMonitor.blockedMovedMeters { seenMoving = true }
+        guard fix.ageS <= limits.freshS else { return }
+        if simd_distance(fix.pinch, start) >= limits.pacing.stillM { seenMoving = true }
         if target.z - fix.pinch.z <= limits.arriveToleranceM { travelHeightSeen = true }
     }
 }
@@ -1585,7 +1585,7 @@ struct GoTrack {
 /// target; stopped short only after the arm settled with the command at its leg's end, after the last pause and after
 /// the start's grace; no arm data; time).
 struct GoWatch {
-    static let freshS = Double(FeedbackMonitor.freshStateMs) / 1000
+    static let freshS = Double(TestPacing.so101.freshMs) / 1000
 
     /// One step, as `run` saw it.
     struct Step {

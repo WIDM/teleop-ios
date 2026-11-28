@@ -27,6 +27,17 @@ loader, the profile files, the tests, the build settings and the test plans this
      profile file, read through `WristProfile` and `GripperProfile`;
   8. a `WristProfile`, `GripperProfile` or `WristLeadLimits` built, or held in a `static let` or `static var`, outside
      the core's Profile folder and the tests: they travel inside the profile.
+  9. a motion, server or response number that the profile replaced: the link controller's `maxLeadMeters`,
+     `toolMaxLeadMeters`, `resyncAfterMs`, `toolResyncAfterMs` and `resyncTimeoutMs`, a button speed's own
+     `metresPerSecond`, the feedback monitor's statics (`blockedShortMeters`, `blockedMovedMeters`, `blockedWindowMs`,
+     `FeedbackMonitor.freshStateMs`, `arrivalGapMs`, `lowestQuickShortMeters`, `lowestQuickMovedMeters`,
+     `lowestQuickMs`, `lowestSustainMeters`, `lowestDescentMetersPerSecond`), the going move's (`GoMove.freshS`,
+     `settleMoveM`, `followShare`, `paceGain`, `slowestShare`, `startShare`, `pathWatchTolerances`), and any of the
+     profile's motion, server, blocked, lowest and pacing fields given a number as a default or a constant
+     (`var maxLeadM: Float = 0.08`). They are `robot.motion`, `server`, `response` and `assist.go_to.pacing` of the
+     profile file, read through `MotionProfile`, `ServerProfile`, `BlockedRule`, `LowestRule` and `GoToPacing`;
+ 10. a `MotionProfile`, `ServerProfile`, `ResyncTimes`, `BlockedRule`, `LowestRule` or `GoToPacing` built, or held in a
+     `static let` or `static var`, outside the core's Profile folder and the tests: they travel inside the profile.
 Naming a profile is not building one. Everywhere but the core's Profile folder and the tests, the loader included, it
 refuses a RobotProfile built in code: `RobotProfile(...)`, `RobotProfile.init(...)`, `.init(...)` whose type is
 RobotProfile (inside the type, also `Self`): written beside it (`let p: RobotProfile = .init(...)`) or as the type of
@@ -116,7 +127,7 @@ REMOVED_DIRECTIONS = (
     ),
 )
 # The wrist's and the jaw's numbers belong to one arm's profile file. These are the statics, defaults and names that held
-# them in code before the profile did; each is refused in code of every Swift file outside ALLOWED.
+# them in code; each is refused in code of every Swift file outside ALLOWED.
 # (`freshStateMs` is left out: the feedback monitor has a number of that name of its own, which is not the wrist's.)
 WRIST_JAW_FIELDS = (
     "rollClampDeg|tiltClampDeg|rollWindowDeg|tiltWindowDeg|rollSign|tiltSign|turnLimit|tiltLimit|turnRateDegS|"
@@ -145,6 +156,70 @@ REMOVED_WRIST_JAW = (
         "robot.gripper of the profile",
     ),
 )
+# The motion, server and response numbers belong to one arm's and one server's profile file. These are the statics and
+# names that held them in code; each is refused in code of every Swift file outside ALLOWED.
+# (`FeedbackMonitor.freshStateMs` is named with its type: the wrist's lead limits have a field of the same name.)
+MOTION_FIELDS = (
+    "fineMps|coarseMps|maxLeadM|toolMaxLeadM|stopDistanceM|toolAfterMs|leadProgressShare|exclusionM|followingShare|"
+    "sameWayDeg|sustainM|quickShortM|quickMovedM|quickMs|descentMps|followShare|paceGain|slowestShare|startShare|"
+    "pathWatchTolerances|paceChangeShare"
+)
+REMOVED_MOTION_RESPONSE = (
+    (
+        re.compile(r"\b(?:maxLeadMeters|toolMaxLeadMeters)\b"),
+        "the link controller's lead caps (maxLeadMeters, toolMaxLeadMeters), replaced by robot.motion.max_lead_m and "
+        "tool_max_lead_m of the profile",
+    ),
+    (
+        re.compile(r"\b(?:resyncAfterMs|toolResyncAfterMs|resyncTimeoutMs)\b"),
+        "the link controller's resync times, replaced by server.resync of the profile",
+    ),
+    (
+        re.compile(r"\.\s*metresPerSecond\b(?!\s*\()"),
+        "a button speed's own metresPerSecond, replaced by robot.motion.fine_mps and coarse_mps of the profile",
+    ),
+    (
+        re.compile(
+            r"\b(?:blockedShortMeters|blockedMovedMeters|blockedWindowMs|lowestQuickShortMeters|lowestQuickMovedMeters|"
+            r"lowestQuickMs|lowestSustainMeters|lowestDescentMetersPerSecond)\b|\bFeedbackMonitor\s*\.\s*"
+            r"(?:freshStateMs|arrivalGapMs)\b"
+        ),
+        "the feedback monitor's blocked and lowest statics, replaced by response.blocked and response.lowest of the "
+        "profile",
+    ),
+    (
+        re.compile(
+            r"\bGoMove\s*\.\s*(?:freshS|settleMoveM|followShare|paceGain|slowestShare|startShare|"
+            r"pathWatchTolerances)\b"
+        ),
+        "the going move's statics, replaced by assist.go_to.pacing of the profile",
+    ),
+    (
+        re.compile(
+            r"\b(?:" + MOTION_FIELDS + r")\b\s*(?::\s*[\w<>?\[\]]+\s*)?=\s*[-+]?\d"
+        ),
+        "a motion, server or response number written as a default or a constant in code, replaced by robot.motion, "
+        "server, response and assist.go_to.pacing of the profile",
+    ),
+)
+# Names that are a profile field only because of the type they were in: `freshStateMs` is the wrist's field too, `freshS`
+# and `settleMoveM` mean nothing outside the going move. Inside the type, and in any extension of it, the static that
+# held the number may not be declared again, and `Self.` may not read it, though the name alone is not refused.
+TYPE_STATICS = {
+    "FeedbackMonitor": "freshStateMs|arrivalGapMs",
+    "GoMove": "freshS|settleMoveM|followShare|paceGain|slowestShare|startShare|pathWatchTolerances",
+}
+TYPE_STATICS_WHAT = {
+    "FeedbackMonitor": "the feedback monitor's blocked and lowest statics, replaced by response.blocked and "
+    "response.lowest of the profile",
+    "GoMove": "the going move's statics, replaced by assist.go_to.pacing of the profile",
+}
+MOTION_TYPES = r"(?:MotionProfile|ServerProfile|ResyncTimes|BlockedRule|LowestRule|GoToPacing)"
+BUILDS_MOTION = re.compile(r"(?<![\w.])" + MOTION_TYPES + r"\s*(?:\.\s*init\s*)?\(")
+INFERRED_MOTION_VALUE = re.compile(
+    r"(?:\w+\s*\.\s*)*" + MOTION_TYPES + r"\s*(?:\.\s*(?!self\b|Type\b)\w+|\()"
+)
+MOTION_TYPE = re.compile(r"\b" + MOTION_TYPES + r"\b(?!\s*\.\s*\w)")
 WRIST_JAW_TYPES = r"(?:WristProfile|GripperProfile|WristLeadLimits)"
 BUILDS_WRIST_JAW = re.compile(r"(?<![\w.])" + WRIST_JAW_TYPES + r"\s*(?:\.\s*init\s*)?\(")
 # A static's value that is one of these though no type says so: built, or a static member of the type
@@ -526,7 +601,7 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             report(m.start(), f"the profile id {pid} named outside the loader")
 
     if swift:
-        for pattern, what in REMOVED_DIRECTIONS + REMOVED_WRIST_JAW:
+        for pattern, what in REMOVED_DIRECTIONS + REMOVED_WRIST_JAW + REMOVED_MOTION_RESPONSE:
             for m in pattern.finditer(code):
                 report(m.start(), what)
 
@@ -535,6 +610,19 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             for m in re.finditer(re.escape(name), text):
                 report(m.start(), f"the profile name '{name}' written in code")
         return
+
+    for head in TYPE_HEAD.finditer(code):
+        owner = re.sub(r"\s", "", head["name"]).split(".")[-1]
+        if owner not in TYPE_STATICS or head["kind"] not in ("extension", "struct", "class", "enum", "actor"):
+            continue
+        opening = head.end() - 1
+        closing = closing_brace(code, opening)
+        fields = TYPE_STATICS[owner]
+        declared = re.compile(r"\bstatic\s+" + MODIFIERS + r"(?:let|var)\s+`?(?:" + fields + r")\b")
+        read = re.compile(r"\bSelf\s*\.\s*(?:" + fields + r")\b")
+        for pattern in (declared, read):
+            for m in pattern.finditer(code, opening, closing):
+                report(m.start(), TYPE_STATICS_WHAT[owner])
 
     for offset, literal in literals:
         for name, forms in names:
@@ -548,6 +636,8 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             report(offset, "robot frames held in a static")
         if WRIST_JAW_TYPE.search(kind) or INFERRED_WRIST_JAW_VALUE.match(value):
             report(offset, "a robot's wrist or jaw held in a static")
+        if MOTION_TYPE.search(kind) or INFERRED_MOTION_VALUE.match(value):
+            report(offset, "a robot's motion, server or response numbers held in a static")
     for opening, closing, body in bodies:
         for offset, kind, value in static_bindings(body, opening, closing):
             implicit = IMPLICIT_INIT.match(value) and (
@@ -577,6 +667,8 @@ def builds(code, bodies, report):
         report(m.start(), "robot frames built in code")
     for m in BUILDS_WRIST_JAW.finditer(code):
         report(m.start(), "a robot's wrist or jaw built in code")
+    for m in BUILDS_MOTION.finditer(code):
+        report(m.start(), "a robot's motion, server or response numbers built in code")
     for m in INIT_LABEL.finditer(code):
         if not (DECLARES.search(code, max(0, m.start() - 40), m.start()) or declared_field(code, m.start())):
             report(m.start(), "a robot profile built in code")

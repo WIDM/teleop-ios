@@ -117,7 +117,7 @@ final class FeedbackMonitorLowestTests: XCTestCase {
         XCTAssertEqual(events.map(\.event), [.limit(.lowest)])
         let told = try XCTUnwrap(events.first?.atMs)
         XCTAssertLessThanOrEqual(told - arrived, 400)
-        XCTAssertGreaterThanOrEqual(told - arrived, FeedbackMonitor.lowestQuickMs)
+        XCTAssertGreaterThanOrEqual(told - arrived, TestResponse.so101Lowest.quickMs)
     }
 
     /// Each number of the quicker stall, just outside: 2.5 mm from the lowest height, 4 mm below, 1.2 mm of motion.

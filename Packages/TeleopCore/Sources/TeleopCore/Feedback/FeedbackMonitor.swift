@@ -35,30 +35,10 @@ public struct FeedbackMonitor {
     public static let acceptMarginMs = 50
     /// Round trips the acceptance time is the median of.
     public static let roundTripWindow = 10
-    /// A measured position older than this says nothing about now.
-    public static let freshStateMs = 400
-    public static let blockedShortMeters = 0.010
-    public static let blockedMovedMeters = 0.002
-    public static let blockedWindowMs = 1000
-    /// The lowest rule's quicker stall, back near the lowest height already found: every state of its window sent at
-    /// least this much lower, and the height moved less than this in this long.
-    public static let lowestQuickShortMeters = 0.005
-    public static let lowestQuickMovedMeters = 0.001
-    public static let lowestQuickMs = 300
-    /// The lowest rule's full stall asks the newest state to be sent at least `blockedShortMeters` lower and every
-    /// state of its second at least this much, so a hand that wavers around 10 mm still asks.
-    public static let lowestSustainMeters = 0.005
-    /// With the lowest rule on, no two states of a window it judges arrived further apart than this: states held back
-    /// and delivered together say nothing about how the arm stood between them.
-    public static let arrivalGapMs = 400
-    /// The lowest rule tells no stall while the height judged is still falling at least this fast over the stall's
-    /// window (`isComingDown`). A slow simulator moves the arm slowly in wall time: at
-    /// about 12 passes a second an arm asked down at the fine speed came down 1.4 to 2.0 mm a second, inside the
-    /// 2 mm the full stall allows, while the height of an arm that had stopped moved less than 0.1 mm. A rate, unlike a
-    /// distance, is judged the same over the full stall's second and the quicker stall's 0.3 s.
-    public static let lowestDescentMetersPerSecond = 0.0005
-
     public let limits: GripperLimits
+    /// The numbers of the blocked rule and of the lowest rule, from the robot's profile (`robot` response section).
+    public let blockedRule: BlockedRule
+    public let lowestRule: LowestRule
     /// How the base frame relates to the operator's view: "height", "lower" and "lowest" below are along its up.
     public let frames: Frames
     /// Gripper-link bounds in the active robot profile. Never applied to tool-point targets.
@@ -156,9 +136,11 @@ public struct FeedbackMonitor {
     /// A close ended in contact and nothing has opened since, no scene reset, no new server run.
     public private(set) var gripping = false
 
-    public init(limits: GripperLimits, frames: Frames) {
+    public init(limits: GripperLimits, frames: Frames, blocked: BlockedRule, lowest: LowestRule) {
         self.limits = limits
         self.frames = frames
+        blockedRule = blocked
+        lowestRule = lowest
     }
 
     /// The operator's hold engaged now, if any.
@@ -322,7 +304,7 @@ public struct FeedbackMonitor {
                     let below = request.map { frames.height(of: position) - frames.height(of: $0) }
                     let clamp = state.activity == .poseClamped ? current.ownLabelSeen : nil
                     if current.workspaceExplainsStall, state.activity == .poseTracking, let request,
-                        Self.length(position - request) < Self.blockedMovedMeters
+                        Self.length(position - request) < blockedRule.movedM
                     {
                         current.workspaceExplainsStall = false
                     }
@@ -332,7 +314,7 @@ public struct FeedbackMonitor {
                             height: frames.height(of: position), originHeight: frames.height(of: origin),
                             pinchHeight: state.toolPoint.map { frames.height(of: $0) }, below: below,
                             request: request, clamp: clamp))
-                    current.samples.removeAll { now - $0.atMs > Self.blockedWindowMs + Self.freshStateMs * 2 }
+                    current.samples.removeAll { now - $0.atMs > blockedRule.windowMs + blockedRule.freshMs * 2 }
                 }
                 if reportsLowest { events += judgeHeight(&current, at: now) }
                 // With the lowest rule on, a pinch point asked at least 10 mm lower is that rule's to judge, as on the
@@ -341,20 +323,20 @@ public struct FeedbackMonitor {
                 // not follow. Only asks that rule can judge are left to it (`lowestRuleCanJudge`): any other ask would
                 // get neither cue.
                 let lowestRuleJudges =
-                    reportsLowest && current.point == .tool && Self.asksLowerThisSecond(current, frames)
+                    reportsLowest && current.point == .tool && asksLowerThisSecond(current, frames)
                     && lowestRuleCanJudge(current)
                 if !current.blocked, blockedWorkspace != nil || current.point == .tool, !lowestRuleJudges,
-                    Self.isNotFollowing(&current, workspace: current.point == .tool ? nil : blockedWorkspace, at: now),
+                    isNotFollowing(&current, workspace: current.point == .tool ? nil : blockedWorkspace, at: now),
                     let newest = current.samples.last
                 {
                     current.blocked = true
-                    if let below = newest.below, below >= Self.lowestSustainMeters, let request = newest.request {
+                    if let below = newest.below, below >= lowestRule.sustainM, let request = newest.request {
                         current.lowestTold = ToldHeight(newest, blockedLead: request - newest.position)
                     }
                     events.append(.limit(.blocked))
                 } else if current.point == .linkOrigin, blockedWorkspace == nil, !reportsLowest, !current.blocked,
                     !current.clamped,
-                    Self.isBlocked(current, at: now)
+                    isBlocked(current, at: now)
                 {
                     current.blocked = true
                     events.append(.limit(.blocked))
@@ -420,23 +402,23 @@ public struct FeedbackMonitor {
     }
 
     /// The commanded point is far ahead and the measured arm has stood still for the whole window.
-    private static func isBlocked(_ hold: Engaged, at now: Int) -> Bool {
-        guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < freshStateMs,
-            length(target - newest.position) >= blockedShortMeters,
-            let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= blockedWindowMs })
+    private func isBlocked(_ hold: Engaged, at now: Int) -> Bool {
+        guard let target = hold.target, let newest = hold.samples.last, now - newest.atMs < blockedRule.freshMs,
+            Self.length(target - newest.position) >= blockedRule.shortM,
+            let oldest = hold.samples.last(where: { newest.atMs - $0.atMs >= blockedRule.windowMs })
         else { return false }
         let window = hold.samples.filter { $0.atMs >= oldest.atMs }
-        return window.allSatisfy { length($0.position - oldest.position) < blockedMovedMeters }
+        return window.allSatisfy { Self.length($0.position - oldest.position) < blockedRule.movedM }
     }
 
     /// An aided hold is blocked when a sustained request has a consistent lead but makes too little progress.
-    private static func isNotFollowing(
+    private func isNotFollowing(
         _ hold: inout Engaged, workspace: (low: SIMD3<Double>, high: SIMD3<Double>)?, at now: Int
     ) -> Bool {
         let since = hold.point == .tool ? hold.beganAtMs : hold.sentAtMs
         let samples = hold.samples.filter { $0.atMs >= since && $0.request != nil }
-        guard let newest = samples.last, now - newest.atMs < freshStateMs,
-            let window = window(of: samples, ms: blockedWindowMs), arrivesRegularly(window),
+        guard let newest = samples.last, now - newest.atMs < blockedRule.freshMs,
+            let window = Self.window(of: samples, ms: blockedRule.windowMs), arrivesRegularly(window),
             let oldest = window.first
         else { return false }
 
@@ -449,19 +431,22 @@ public struct FeedbackMonitor {
         guard let firstLead = leads.first, let firstTarget = targets.first, let lastTarget = targets.last else {
             return false
         }
-        let leadLength = length(firstLead)
-        guard leadLength >= blockedShortMeters,
-            leads.allSatisfy({ length($0) >= blockedShortMeters && pointsSameWay(firstLead, $0) })
+        let leadLength = Self.length(firstLead)
+        guard leadLength >= blockedRule.shortM,
+            leads.allSatisfy({ Self.length($0) >= blockedRule.shortM && pointsSameWay(firstLead, $0) })
         else { return false }
 
         let moved = newest.position - oldest.position
-        guard simd_dot(moved, firstLead) / leadLength < min(blockedMovedMeters, leadLength * 0.10),
-            length(moved) < 0.04
+        guard
+            simd_dot(moved, firstLead) / leadLength
+                < min(blockedRule.movedM, leadLength * blockedRule.leadProgressShare),
+            Self.length(moved) < blockedRule.exclusionM
         else { return false }
         let targetTravel = lastTarget - firstTarget
-        let commandDistance = length(targetTravel)
-        if commandDistance >= blockedMovedMeters,
-            simd_dot(moved, targetTravel) / commandDistance >= max(blockedMovedMeters, commandDistance * 0.5)
+        let commandDistance = Self.length(targetTravel)
+        if commandDistance >= blockedRule.movedM,
+            simd_dot(moved, targetTravel) / commandDistance
+                >= max(blockedRule.movedM, commandDistance * blockedRule.followingShare)
         {
             return false
         }
@@ -470,8 +455,8 @@ public struct FeedbackMonitor {
             guard sample.clamp != nil, let request = sample.request else { return false }
             return hold.clamped
                 || target.indices.contains { axis in
-                    abs(request[axis] - target[axis]) >= blockedMovedMeters
-                        && abs(sample.position[axis] - target[axis]) <= blockedMovedMeters
+                    abs(request[axis] - target[axis]) >= blockedRule.movedM
+                        && abs(sample.position[axis] - target[axis]) <= blockedRule.movedM
                 }
         }
         if window.contains(where: { $0.clamp == true }) || zip(clamps, clamps.dropFirst()).contains(where: { $0 && $1 })
@@ -492,7 +477,7 @@ public struct FeedbackMonitor {
 
     /// The lowest cue, once per approach, and "Blocked." when the operator is not asking for lower.
     private mutating func judgeHeight(_ hold: inout Engaged, at now: Int) -> [FeedbackEvent] {
-        if let told = hold.lowestTold, let newest = hold.samples.last, Self.hasLeftToldHeight(newest, told) {
+        if let told = hold.lowestTold, let newest = hold.samples.last, hasLeftToldHeight(newest, told) {
             hold.lowestTold = nil
         }
         if isLowestStall(hold, at: now), let newest = hold.samples.last {
@@ -506,7 +491,7 @@ public struct FeedbackMonitor {
             return [.limit(.lowest)]
         }
         guard hold.point == .linkOrigin, blockedWorkspace == nil, !hold.blocked, !hold.clamped,
-            Self.isBlockedWithoutAskingLower(hold, at: now, frames)
+            isBlockedWithoutAskingLower(hold, at: now, frames)
         else { return [] }
         hold.blocked = true
         return [.limit(.blocked)]
@@ -516,51 +501,51 @@ public struct FeedbackMonitor {
     /// least 10 mm lower, every state of the last second at least 5 mm lower, arriving regularly, and the height
     /// within 2 mm over that second. Or the quicker one, back within 2 mm of the lowest height found of the same kind:
     /// every state of the last 0.3 s at least 5 mm lower, arriving regularly, and the height within 1 mm. Neither while
-    /// the height is still coming down over its window (`lowestDescentMetersPerSecond`).
+    /// the height is still coming down over its window (`lowestRule.descentMps`).
     private func isLowestStall(_ hold: Engaged, at now: Int) -> Bool {
-        guard hold.target != nil, let newest = hold.samples.last, now - newest.atMs < Self.freshStateMs else {
+        guard hold.target != nil, let newest = hold.samples.last, now - newest.atMs < blockedRule.freshMs else {
             return false
         }
-        if let below = newest.below, below >= Self.blockedShortMeters,
-            let window = Self.window(of: hold.samples, ms: Self.blockedWindowMs),
-            Self.asks(window, atLeast: Self.lowestSustainMeters), Self.arrivesRegularly(window),
-            Self.isStill(window, within: Self.blockedMovedMeters), !Self.isComingDown(window)
+        if let below = newest.below, below >= blockedRule.shortM,
+            let window = Self.window(of: hold.samples, ms: blockedRule.windowMs),
+            Self.asks(window, atLeast: lowestRule.sustainM), arrivesRegularly(window),
+            isStill(window, within: blockedRule.movedM), !isComingDown(window)
         {
             return true
         }
         let height = newest.pinchHeight ?? newest.height
         guard let lowest = newest.pinch == nil ? lowestSeen : lowestPinchSeen,
-            abs(height - lowest) <= Self.blockedMovedMeters,
-            let window = Self.window(of: hold.samples, ms: Self.lowestQuickMs),
-            Self.asks(window, atLeast: Self.lowestQuickShortMeters), Self.arrivesRegularly(window)
+            abs(height - lowest) <= blockedRule.movedM,
+            let window = Self.window(of: hold.samples, ms: lowestRule.quickMs),
+            Self.asks(window, atLeast: lowestRule.quickShortM), arrivesRegularly(window)
         else { return false }
-        return Self.isStill(window, within: Self.lowestQuickMovedMeters) && !Self.isComingDown(window)
+        return isStill(window, within: lowestRule.quickMovedM) && !isComingDown(window)
     }
 
     /// Version 1.0.1's blocked stall, silent while any state of its second was sent at least 10 mm lower (the operator
     /// is asking for lower, and the lowest rule answers that), and judged only over states that arrived regularly.
-    private static func isBlockedWithoutAskingLower(_ hold: Engaged, at now: Int, _ frames: Frames) -> Bool {
+    private func isBlockedWithoutAskingLower(_ hold: Engaged, at now: Int, _ frames: Frames) -> Bool {
         guard isBlocked(hold, at: now), !asksLowerNow(hold, frames),
-            let window = Self.window(of: hold.samples, ms: blockedWindowMs)
+            let window = Self.window(of: hold.samples, ms: blockedRule.windowMs)
         else { return false }
-        return arrivesRegularly(window) && !window.contains { $0.below.map { $0 >= blockedShortMeters } ?? false }
+        return arrivesRegularly(window) && !window.contains { $0.below.map { $0 >= blockedRule.shortM } ?? false }
     }
 
     /// The command held now is at least 10 mm under the newest state's gripper link. The operator is asking for lower
     /// although no state has arrived with that ask yet: a state without the gripper link's position adds no sample,
     /// and the next state with one is judged by the lowest rule.
-    private static func asksLowerNow(_ hold: Engaged, _ frames: Frames) -> Bool {
+    private func asksLowerNow(_ hold: Engaged, _ frames: Frames) -> Bool {
         guard let target = hold.target, let newest = hold.samples.last else { return false }
-        return newest.height - frames.height(of: target) >= blockedShortMeters
+        return newest.height - frames.height(of: target) >= blockedRule.shortM
     }
 
     /// The command held now, or one held when a state of the last second arrived, is at least 10 mm under the measured
     /// point.
-    private static func asksLowerThisSecond(_ hold: Engaged, _ frames: Frames) -> Bool {
+    private func asksLowerThisSecond(_ hold: Engaged, _ frames: Frames) -> Bool {
         guard let newest = hold.samples.last else { return false }
         return asksLowerNow(hold, frames)
             || hold.samples.contains {
-                newest.atMs - $0.atMs <= blockedWindowMs && ($0.below.map { $0 >= blockedShortMeters } ?? false)
+                newest.atMs - $0.atMs <= blockedRule.windowMs && ($0.below.map { $0 >= blockedRule.shortM } ?? false)
             }
     }
 
@@ -569,32 +554,32 @@ public struct FeedbackMonitor {
     /// kind, every state of the last 0.3 s asked as much as the quicker stall needs. True while there is no second of
     /// states yet: nothing is judged as blocked before then either.
     private func lowestRuleCanJudge(_ hold: Engaged) -> Bool {
-        guard let window = Self.window(of: hold.samples, ms: Self.blockedWindowMs) else { return true }
-        if Self.asks(window, atLeast: Self.lowestSustainMeters) { return true }
+        guard let window = Self.window(of: hold.samples, ms: blockedRule.windowMs) else { return true }
+        if Self.asks(window, atLeast: lowestRule.sustainM) { return true }
         guard let newest = hold.samples.last,
             let lowest = newest.pinch == nil ? lowestSeen : lowestPinchSeen,
-            abs((newest.pinchHeight ?? newest.height) - lowest) <= Self.blockedMovedMeters,
-            let quick = Self.window(of: hold.samples, ms: Self.lowestQuickMs)
+            abs((newest.pinchHeight ?? newest.height) - lowest) <= blockedRule.movedM,
+            let quick = Self.window(of: hold.samples, ms: lowestRule.quickMs)
         else { return false }
-        return Self.asks(quick, atLeast: Self.lowestQuickShortMeters)
+        return Self.asks(quick, atLeast: lowestRule.quickShortM)
     }
 
     /// Rising 10 mm rearms the lowest cue. After a downward Blocked, a lower height or a new direction also rearms it.
-    private static func hasLeftToldHeight(_ newest: Sample, _ told: ToldHeight) -> Bool {
+    private func hasLeftToldHeight(_ newest: Sample, _ told: ToldHeight) -> Bool {
         let sameKind = (newest.pinch != nil) == told.ofPinch
         let measured = sameKind ? (newest.pinchHeight ?? newest.height) : newest.originHeight
         let previous = sameKind ? told.height : told.gripperHeight
-        if measured >= previous + blockedShortMeters { return true }
+        if measured >= previous + blockedRule.shortM { return true }
         guard let blockedLead = told.blockedLead else { return false }
-        if measured <= previous - blockedShortMeters { return true }
+        if measured <= previous - blockedRule.shortM { return true }
         guard let request = newest.request else { return false }
         let lead = request - newest.position
-        return length(lead) >= blockedShortMeters && !pointsSameWay(blockedLead, lead)
+        return Self.length(lead) >= blockedRule.shortM && !pointsSameWay(blockedLead, lead)
     }
 
-    /// A change of less than 45 degrees is part of the same request.
-    private static func pointsSameWay(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Bool {
-        simd_dot(a, b) > (simd_dot(a, a) * simd_dot(b, b) * 0.5).squareRoot()
+    /// A change of less than `sameWayDeg` is part of the same request.
+    private func pointsSameWay(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Bool {
+        blockedRule.pointsSameWay(a, b)
     }
 
     /// From the last sample at least `ms` older than the newest to the newest, with every sample that arrived in that
@@ -611,26 +596,26 @@ public struct FeedbackMonitor {
         window.allSatisfy { $0.below.map { $0 >= meters } ?? false }
     }
 
-    /// No two consecutive samples arrived more than `arrivalGapMs` apart.
-    private static func arrivesRegularly(_ window: [Sample]) -> Bool {
-        zip(window, window.dropFirst()).allSatisfy { $1.atMs - $0.atMs <= arrivalGapMs }
+    /// No two consecutive samples arrived more than `blockedRule.arrivalGapMs` apart.
+    private func arrivesRegularly(_ window: [Sample]) -> Bool {
+        zip(window, window.dropFirst()).allSatisfy { $1.atMs - $0.atMs <= blockedRule.arrivalGapMs }
     }
 
     /// Every sample's height is less than `meters` from the oldest's: the pinch point's when every sample carries it,
     /// the gripper link's for all of them otherwise.
-    private static func isStill(_ window: [Sample], within meters: Double) -> Bool {
-        let heights = heights(of: window)
+    private func isStill(_ window: [Sample], within meters: Double) -> Bool {
+        let heights = Self.heights(of: window)
         // Every height is measured against the window's first sample: of several that arrived in its first
         // millisecond, the one that arrived first.
         guard let oldest = heights.first else { return false }
         return heights.allSatisfy { abs($0 - oldest) < meters }
     }
 
-    /// The window's heights fall at least `lowestDescentMetersPerSecond`, by the least-squares line through them: the
+    /// The window's heights fall at least `lowestRule.descentMps`, by the least-squares line through them: the
     /// arm is still coming down, however slowly the simulator runs. A line, not the first and newest heights alone,
     /// so one state that wavers decides nothing.
-    private static func isComingDown(_ window: [Sample]) -> Bool {
-        let heights = heights(of: window)
+    private func isComingDown(_ window: [Sample]) -> Bool {
+        let heights = Self.heights(of: window)
         guard let first = window.first, heights.count >= 2 else { return false }
         let seconds = window.map { Double($0.atMs - first.atMs) / 1000 }
         let meanTime = seconds.reduce(0, +) / Double(seconds.count)
@@ -638,7 +623,7 @@ public struct FeedbackMonitor {
         let spread = seconds.reduce(0) { $0 + ($1 - meanTime) * ($1 - meanTime) }
         guard spread > 0 else { return false }
         let covariance = zip(seconds, heights).reduce(0) { $0 + ($1.0 - meanTime) * ($1.1 - meanHeight) }
-        return covariance / spread <= -lowestDescentMetersPerSecond
+        return covariance / spread <= -lowestRule.descentMps
     }
 
     /// The pinch point's heights when every sample carries it, the gripper link's for all of them otherwise.

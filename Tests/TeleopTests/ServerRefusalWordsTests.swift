@@ -216,7 +216,7 @@ final class ServerRefusalWordsTests: XCTestCase {
             XCTAssertEqual(heard.count, 1, "stopFirst = \(stopFirst)")
             XCTAssertEqual(heard.first?.speech, [.refusedJointLimit], "stopFirst = \(stopFirst)")
             XCTAssertTrue(generalWords.isEmpty, "stopFirst = \(stopFirst)")
-            clock += LiveLinkController.resyncTimeoutMs + 1
+            clock += TestProfiles.so101.server.resync.timeoutMs + 1
             state()
             model.link.tick()
             XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) }, "stopFirst = \(stopFirst)")

@@ -21,9 +21,14 @@ final class ProfileFormatTests: XCTestCase {
             "gripper": {
               "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
               "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
-            }
+            },
+            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.004 }
           },
-          "server": { "link_signs": [1, 1, 1] },
+          "server": {
+            "link_signs": [1, 1, 1], "stop_distance_m": 0.06,
+            "resync": { "after_ms": 1200, "tool_after_ms": 400, "timeout_ms": 1000 },
+            "held_object_point": "tool_point", "stall_detection": "none"
+          },
           "scene": {
             "base_in_world_m": [0.1, 0.2, 0.3],
             "base_axes_in_world": { "x": "+y", "y": "+x", "z": "-z" },
@@ -45,13 +50,26 @@ final class ProfileFormatTests: XCTestCase {
               }
             }
           },
-          "response": { "directional_blocked_feedback": false },
+          "response": {
+            "directional_blocked_feedback": false,
+            "blocked": {
+              "short_m": 0.02, "moved_m": 0.004, "window_ms": 500, "fresh_ms": 300, "arrival_gap_ms": 200,
+              "lead_progress_share": 0.15, "exclusion_m": 0.06, "following_share": 0.8, "same_way_deg": 30
+            },
+            "lowest": {
+              "sustain_m": 0.01, "quick_short_m": 0.014, "quick_moved_m": 0.002, "quick_ms": 150, "descent_mps": 0.001
+            }
+          },
           "assist": {
             "lock": { "time_limit_s": 20 },
             "go_to": {
               "travel_height_m": 0.04, "speed_mps": 0.03, "arrive_tolerance_m": 0.006, "corrections": 1,
               "correction_reach_m": 0.02, "settle_s": 0.5, "time_factor": 2, "allowance_s": 2,
-              "arm_data_timeout_s": 1.5, "start_grace_s": 1
+              "arm_data_timeout_s": 1.5, "start_grace_s": 1,
+              "pacing": {
+                "follow_share": 0.4, "pace_gain": 0.5, "slowest_share": 0.25, "start_share": 0.3,
+                "path_watch_tolerances": 2, "fresh_ms": 300, "still_m": 0.004, "pace_change_share": 0.1
+              }
             },
             "guide": {
               "work_area_words": true, "lowest_cue": false, "shadow": true, "direction_labels": false,
@@ -118,6 +136,11 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.wrist, TestWrist.benchB)
         XCTAssertEqual(profile.gripper, TestJaw.benchB)
         XCTAssertEqual(profile.gripper.validReadings, 0...45)
+        XCTAssertEqual(profile.motion, TestMotion.benchB)
+        XCTAssertEqual(profile.server, TestServer.benchB)
+        XCTAssertEqual(profile.blocked, TestResponse.benchBBlocked)
+        XCTAssertEqual(profile.lowest, TestResponse.benchBLowest)
+        XCTAssertEqual(profile.assist.goTo?.pacing, TestPacing.benchB)
         var expected = TestFrames.benchB
         expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
         XCTAssertEqual(profile.frames, expected)
@@ -319,11 +342,68 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// A held-object point that is neither `gripper_link` nor `tool_point` is refused with the two it accepts.
+    func testAHeldObjectPointThatIsNeitherOfTheTwoIsRefused() throws {
+        let wrong = changing(try object(), at: ["server", "held_object_point"]) { $0["held_object_point"] = "elbow" }
+        let found = error(wrong)
+        XCTAssertEqual(
+            found,
+            .notAChoice(
+                "server.held_object_point", found: "elbow", allowed: "\"gripper_link\" or \"tool_point\""))
+        XCTAssertEqual(
+            "\(found!)",
+            "server.held_object_point is \"elbow\", which is not one of its values; write \"gripper_link\" or "
+                + "\"tool_point\".")
+        let tool = changing(try object(), at: ["server", "held_object_point"]) {
+            $0["held_object_point"] = "tool_point"
+        }
+        XCTAssertEqual(try decode(tool).server.heldObjectPoint, .toolPoint)
+        let link = changing(try object(), at: ["server", "held_object_point"]) {
+            $0["held_object_point"] = "gripper_link"
+        }
+        XCTAssertEqual(try decode(link).server.heldObjectPoint, .gripperLink)
+    }
+
+    /// A stall detection that is neither `simulation` nor `none` is refused with the two it accepts.
+    func testAStallDetectionThatIsNeitherOfTheTwoIsRefused() throws {
+        let wrong = changing(try object(), at: ["server", "stall_detection"]) { $0["stall_detection"] = "always" }
+        XCTAssertEqual(
+            error(wrong),
+            .notAChoice("server.stall_detection", found: "always", allowed: "\"simulation\" or \"none\""))
+        for (word, expected) in [("simulation", StallDetection.simulation), ("none", .none)] {
+            let right = changing(try object(), at: ["server", "stall_detection"]) { $0["stall_detection"] = word }
+            XCTAssertEqual(try decode(right).server.stallDetection, expected)
+        }
+    }
+
     /// Both units load, and the unit is what the profile says it is.
     func testBothJawUnitsLoad() throws {
         for unit in JawUnit.allCases {
             let file = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = unit.rawValue }
             XCTAssertEqual(try decode(file).gripper.unit, unit)
+        }
+    }
+
+    /// A cap written equal to the stop distance in the file is refused, though the cap is a single-precision number
+    /// and the stop distance a double: 0.06 as a float is a little below 0.06 as a double.
+    func testACapWrittenEqualToTheStopDistanceInTheFileIsRefused() throws {
+        for key in ["max_lead_m", "tool_max_lead_m"] {
+            let equal = changing(try object(), at: ["robot", "motion", key]) { $0[key] = 0.06 }
+            XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: equal))) { error in
+                XCTAssertEqual(
+                    "\(error)", "robot.motion.\(key) must be under server.stop_distance_m.")
+            }
+        }
+        let just = changing(try object(), at: ["robot", "motion", "max_lead_m"]) { $0["max_lead_m"] = 0.059 }
+        XCTAssertNoThrow(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: just)))
+    }
+
+    /// A stop distance that is not above zero is one fault, not that one and a cap fault for each cap.
+    func testAStopDistanceOfZeroGivesOneSentence() throws {
+        var profile = try RobotProfile.load(json: Data(Self.sample.utf8))
+        for bad in [0.0, -0.06] {
+            profile.server.stopDistanceM = bad
+            XCTAssertEqual(profile.validate(), ["server.stop_distance_m must be above zero."])
         }
     }
 
@@ -429,6 +509,40 @@ final class ProfileFormatTests: XCTestCase {
             ("robot.gripper.fully_open_at must be a finite number.", { $0.gripper.fullyOpenAt = -.infinity }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),
+            ("robot.motion.fine_mps must be above zero.", { $0.motion.fineMps = 0 }),
+            ("robot.motion.coarse_mps must be above zero.", { $0.motion.coarseMps = -0.04 }),
+            ("robot.motion.max_lead_m must be above zero.", { $0.motion.maxLeadM = 0 }),
+            ("robot.motion.tool_max_lead_m must be above zero.", { $0.motion.toolMaxLeadM = -0.005 }),
+            ("server.stop_distance_m must be above zero.", { $0.server.stopDistanceM = 0 }),
+            ("server.stop_distance_m must be above zero.", { $0.server.stopDistanceM = .nan }),
+            ("robot.motion.max_lead_m must be under server.stop_distance_m.", { $0.motion.maxLeadM = 0.07 }),
+            ("robot.motion.max_lead_m must be under server.stop_distance_m.", { $0.server.stopDistanceM = 0.05 }),
+            ("robot.motion.tool_max_lead_m must be under server.stop_distance_m.", { $0.motion.toolMaxLeadM = 0.07 }),
+            ("server.resync.after_ms must be above zero.", { $0.server.resync.afterMs = 0 }),
+            ("server.resync.tool_after_ms must be above zero.", { $0.server.resync.toolAfterMs = -1 }),
+            ("server.resync.timeout_ms must be above zero.", { $0.server.resync.timeoutMs = 0 }),
+            ("response.blocked.short_m must be above zero.", { $0.blocked.shortM = 0 }),
+            ("response.blocked.moved_m must be above zero.", { $0.blocked.movedM = -0.002 }),
+            ("response.blocked.window_ms must be above zero.", { $0.blocked.windowMs = 0 }),
+            ("response.blocked.fresh_ms must be above zero.", { $0.blocked.freshMs = 0 }),
+            ("response.blocked.arrival_gap_ms must be above zero.", { $0.blocked.arrivalGapMs = -1 }),
+            (
+                "response.blocked.lead_progress_share must be above 0 and at most 1.",
+                { $0.blocked.leadProgressShare = 0 }
+            ),
+            (
+                "response.blocked.lead_progress_share must be above 0 and at most 1.",
+                { $0.blocked.leadProgressShare = 1.5 }
+            ),
+            ("response.blocked.exclusion_m must be above zero.", { $0.blocked.exclusionM = 0 }),
+            ("response.blocked.following_share must be above 0 and at most 1.", { $0.blocked.followingShare = 2 }),
+            ("response.blocked.same_way_deg must be above 0 and below 90.", { $0.blocked.sameWayDeg = 0 }),
+            ("response.blocked.same_way_deg must be above 0 and below 90.", { $0.blocked.sameWayDeg = 90 }),
+            ("response.lowest.sustain_m must be above zero.", { $0.lowest.sustainM = 0 }),
+            ("response.lowest.quick_short_m must be above zero.", { $0.lowest.quickShortM = -0.01 }),
+            ("response.lowest.quick_moved_m must be above zero.", { $0.lowest.quickMovedM = 0 }),
+            ("response.lowest.quick_ms must be above zero.", { $0.lowest.quickMs = 0 }),
+            ("response.lowest.descent_mps must be above zero.", { $0.lowest.descentMps = .nan }),
             ("scene.base_in_world_m must be finite numbers.", { $0.baseInWorld.x = .infinity }),
             (
                 "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "
@@ -500,6 +614,29 @@ final class ProfileFormatTests: XCTestCase {
             ("assist.go_to.allowance_s must be zero or more.", { $0.assist.goTo?.allowanceS = -1 }),
             ("assist.go_to.start_grace_s must be zero or more.", { $0.assist.goTo?.startGraceS = -1 }),
             ("assist.go_to.corrections must be zero or more.", { $0.assist.goTo?.corrections = -1 }),
+            (
+                "assist.go_to.pacing.follow_share must be above 0 and at most 1.",
+                { $0.assist.goTo?.pacing.followShare = 1.2 }
+            ),
+            ("assist.go_to.pacing.pace_gain must be above zero.", { $0.assist.goTo?.pacing.paceGain = 0 }),
+            (
+                "assist.go_to.pacing.slowest_share must be above 0 and at most 1.",
+                { $0.assist.goTo?.pacing.slowestShare = 0 }
+            ),
+            (
+                "assist.go_to.pacing.start_share must be above 0 and at most 1.",
+                { $0.assist.goTo?.pacing.startShare = -0.5 }
+            ),
+            (
+                "assist.go_to.pacing.path_watch_tolerances must be above zero.",
+                { $0.assist.goTo?.pacing.pathWatchTolerances = 0 }
+            ),
+            ("assist.go_to.pacing.fresh_ms must be above zero.", { $0.assist.goTo?.pacing.freshMs = 0 }),
+            ("assist.go_to.pacing.still_m must be above zero.", { $0.assist.goTo?.pacing.stillM = 0 }),
+            (
+                "assist.go_to.pacing.pace_change_share must be between 0 and 1.",
+                { $0.assist.goTo?.pacing.paceChangeShare = 1.5 }
+            ),
             (
                 "assist.views.behind_top_above_table_m must be above zero.",
                 {
