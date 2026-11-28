@@ -44,6 +44,9 @@ public struct RobotProfile: Equatable, Sendable {
     public var motion: MotionProfile
     /// What the app plans around in the server: its stop distance, resync times and the point that holds an object.
     public var server: ServerProfile
+    /// How a hold is judged "Blocked." and "Can't go lower.": the numbers of the two rules.
+    public var blocked: BlockedRule
+    public var lowest: LowestRule
     /// True when closing the jaws again after they met something would loosen the grip (a close starts from the
     /// measured angle), so a second close is refused until they have opened. False for a robot that must squeeze
     /// harder to hold.
@@ -78,6 +81,8 @@ public struct RobotProfile: Equatable, Sendable {
         wrist: WristProfile,
         motion: MotionProfile,
         server: ServerProfile,
+        blocked: BlockedRule,
+        lowest: LowestRule,
         recloseLoosensGrip: Bool,
         usesDirectionalBlockedFeedback: Bool,
         assist: AssistProfile,
@@ -100,6 +105,8 @@ public struct RobotProfile: Equatable, Sendable {
         self.wrist = wrist
         self.motion = motion
         self.server = server
+        self.blocked = blocked
+        self.lowest = lowest
         self.recloseLoosensGrip = recloseLoosensGrip
         self.usesDirectionalBlockedFeedback = usesDirectionalBlockedFeedback
         self.assist = assist

@@ -78,3 +78,11 @@ extension ServerState {
         self.init(payload: payload, jawReadings: TestProfiles.so101.gripper.validReadings)
     }
 }
+
+extension FeedbackMonitor {
+    /// A monitor with the SO-101's blocked and lowest numbers, as the rule tests build one.
+    init(limits: GripperLimits, frames: Frames) {
+        self.init(
+            limits: limits, frames: frames, blocked: TestProfiles.so101.blocked, lowest: TestProfiles.so101.lowest)
+    }
+}

@@ -211,8 +211,8 @@ struct GuidePicture: Equatable {
         lift = aids?.shadow == true ? (rise > 0 ? min(max((pinchPoint.z - table) / rise, 0), 1) : 0) : nil
         directionLabels = aids?.directionLabels == true
 
-        // Back within the monitor's 2 mm of the lowest height, the height says so.
-        let atLowest = lowest.map { abs(pinchPoint.z - $0) <= FeedbackMonitor.blockedMovedMeters } ?? false
+        // Back within the blocked rule's moved distance (2 mm on the SO-101) of the lowest height, the height says so.
+        let atLowest = lowest.map { abs(pinchPoint.z - $0) <= profile.blocked.movedM } ?? false
         let heightCm = (pinchPoint.z - table) * 100
         var lines: [Line] = [atLowest ? .heightLowest(cm: heightCm) : .height(cm: heightCm)]
         if let open = jawOpening { lines.append(.jaws(percentOpen: Int((open * 100).rounded()))) }

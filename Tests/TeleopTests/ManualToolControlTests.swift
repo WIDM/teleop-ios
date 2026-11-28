@@ -655,7 +655,7 @@ final class ManualToolControlTests: XCTestCase {
 
     func testStaleToolMeasurementRefusesThePad() {
         bringUp()
-        clock += FeedbackMonitor.freshStateMs + 1
+        clock += TestProfiles.so101.blocked.freshMs + 1
         model.setPrecisionPanelOpen(true)
         model.buttonDown(.down)
         XCTAssertTrue(wire.messages("pose_start").isEmpty)
@@ -716,7 +716,7 @@ final class ManualToolControlTests: XCTestCase {
             bringUp()
             model.setPrecisionPanelOpen(true)
             failedState(activity: activity)
-            if activity == "no_solution" { clock += FeedbackMonitor.freshStateMs + 1 }
+            if activity == "no_solution" { clock += TestProfiles.so101.blocked.freshMs + 1 }
             model.buttonDown(.up)
             XCTAssertFalse(model.session.state.armMoving, activity)
             XCTAssertTrue(wire.messages("pose_start").isEmpty, activity)

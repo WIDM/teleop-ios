@@ -24,11 +24,11 @@ import simd
 /// The server moves the gripper link, and the pinch point is a point fixed to the gripper, which tilts and turns with
 /// the arm's posture: a pinch-point path sent unchanged as link offsets misses, by more than the link moves near the
 /// base. When the reading at the tap reported the pinch point (`offset` given), the move follows the measured offset
-/// (pinch point less gripper link): each fresh reading moves the link command `followShare` of the way to the path
+/// (pinch point less gripper link): each fresh reading moves the link command `pacing.followShare` of the way to the path
 /// less the offset's change since the tap, and the gripper link asked for stays inside the box less the tap's offset.
-/// Four rules keep that feedback safe. The command moves no faster than the readings can keep up (`paceGain`): where
+/// Four rules keep that feedback safe. The command moves no faster than the readings can keep up (`pacing.paceGain`): where
 /// the jaws swing more than the link moves, a following error grows with speed. A fresh reading farther than
-/// `pathWatchTolerances` arrive tolerances from the leg ahead (from where the command was `settleS` before it was
+/// `pacing.pathWatchTolerances` arrive tolerances from the leg ahead (from where the command was `settleS` before it was
 /// measured) ends the move stopped short: the pinch point is not going where it is sent (a point out of reach, a
 /// posture where the jaws move against the link, a blocked arm). A fresh reading that no longer reports the pinch
 /// point ends the move stopped short too: the arm stops where it is, so nothing jumps, and nothing is steered on an
@@ -46,24 +46,6 @@ struct GoMove: Equatable, Sendable {
 
     /// Why the move is over. The deadline is not here: the input rules judge it in their gate.
     enum Verdict: Equatable, Sendable { case arrived, stoppedShort, noArmData }
-
-    /// A measured position older than this says nothing about now (the feedback monitor's own number).
-    static let freshS = Double(FeedbackMonitor.freshStateMs) / 1000
-    /// Fresh measured points within this of one another count as standing still, and an arm this far from where it
-    /// started has been seen to move (the monitor's blocked rule's number).
-    static let settleMoveM = FeedbackMonitor.blockedMovedMeters
-    /// Each fresh reading moves the link command this share of the way to the offset it measured. The whole way
-    /// overshoots where the jaws swing more than the link moves, since a reading shows a command's effect only one or
-    /// two readings later.
-    static let followShare = 0.5
-    /// The command moves at the profile's speed times min(1, paceGain / swing), swing being the measured offset's
-    /// change per unit of gripper-link travel over the newest `settleMoveM` or more of it; never below `slowestShare`
-    /// of the speed, and at `startShare` until the first swing is measured.
-    static let paceGain = 0.25
-    static let slowestShare = 0.15
-    static let startShare = 0.5
-    /// A fresh reading this many arrive tolerances from the leg ahead ends a following move stopped short.
-    static let pathWatchTolerances = 2.5
 
     /// Which base axis is up, and how the link's offsets are signed: "vertical", "level", "raise" and "travel height"
     /// below are along up.
@@ -92,14 +74,14 @@ struct GoMove: Equatable, Sendable {
     private var legStartedAt: TimeInterval
     /// The latest call whose fix said the link was pausing the hold. Nothing measured before it counts for a stall.
     private var pausedUntil = -TimeInterval.infinity
-    /// A fresh fix has shown the arm `settleMoveM` or more from `start`: the start's grace is over.
+    /// A fresh fix has shown the arm `pacing.stillM` or more from `start`: the start's grace is over.
     private var seenMoving = false
-    /// The first of a run of fresh fixes within `settleMoveM` of it, and when it was measured.
+    /// The first of a run of fresh fixes within `pacing.stillM` of it, and when it was measured.
     private var settle: Settle?
     /// The measured gripper-to-pinch offset of the reading at the tap, when the server reported the pinch point; nil:
     /// the move follows nothing.
     private let tapOffset: SIMD3<Double>?
-    /// What the link command takes off the planned path: at each fresh reading it moves `followShare` of the way to
+    /// What the link command takes off the planned path: at each fresh reading it moves `pacing.followShare` of the way to
     /// that reading's change of offset since the tap.
     private var drift = SIMD3<Double>.zero
     /// When the newest reading taken into the following was measured.
@@ -149,8 +131,8 @@ struct GoMove: Equatable, Sendable {
         deadline = now + path / limits.speedMps * limits.timeFactor + limits.allowanceS
         tapOffset = offset
         if offset != nil {
-            speedShare = Self.startShare
-            deadline += path / limits.speedMps * (1 / Self.startShare - 1) * limits.timeFactor
+            speedShare = limits.pacing.startShare
+            deadline += path / limits.speedMps * (1 / limits.pacing.startShare - 1) * limits.timeFactor
         }
     }
 
@@ -232,7 +214,7 @@ struct GoMove: Equatable, Sendable {
         if fix.holdPaused { pausedUntil = now }
         let measuredAt = now - fix.ageS
         // A reading from before a new target cannot show progress on that target.
-        guard fix.ageS <= Self.freshS, measuredAt >= retargetedAt else {
+        guard fix.ageS <= limits.freshS, measuredAt >= retargetedAt else {
             settle = nil
             if tapOffset != nil || retargetedAt.isFinite { freeze(at: now) }
             return nil
@@ -243,7 +225,7 @@ struct GoMove: Equatable, Sendable {
             pinch = follow(fix, measuredAt: measuredAt, now: now)
             if endShort { return .stoppedShort }
         }
-        if simd_distance(pinch, start) >= Self.settleMoveM { seenMoving = true }
+        if simd_distance(pinch, start) >= limits.pacing.stillM { seenMoving = true }
         if simd_distance(pinch, target) <= limits.arriveToleranceM { return .arrived }
         let atLegEnd = now >= legEndsAt
         // Only a measured point lower than the travel height less the tolerance holds the corner: sweeping low is what
@@ -262,7 +244,7 @@ struct GoMove: Equatable, Sendable {
             settle = nil
             return nil
         }
-        if let settle, simd_distance(pinch, settle.anchor) <= Self.settleMoveM {
+        if let settle, simd_distance(pinch, settle.anchor) <= limits.pacing.stillM {
             guard measuredAt - settle.measuredAt >= limits.settleS else { return nil }
         } else {
             settle = Settle(anchor: pinch, measuredAt: measuredAt)
@@ -313,16 +295,16 @@ struct GoMove: Equatable, Sendable {
             return pinch
         }
         let offset = pinch - gripper
-        drift += (offset - tapOffset - drift) * Self.followShare
+        drift += (offset - tapOffset - drift) * limits.pacing.followShare
         if let from = paceLink {
             let travel = simd_distance(gripper, from)
-            if travel >= Self.settleMoveM {
+            if travel >= limits.pacing.stillM {
                 let swing = simd_distance(offset, paceOffset) / travel
-                let share = min(1, max(Self.slowestShare, Self.paceGain / max(swing, 1e-9)))
+                let share = min(1, max(limits.pacing.slowestShare, limits.pacing.paceGain / max(swing, 1e-9)))
                 paceLink = gripper
                 paceOffset = offset
                 let pace = nextShare ?? speedShare
-                if abs(share - pace) > 0.05 * pace { changePace(to: share, at: now) }
+                if abs(share - pace) > limits.pacing.paceChangeShare * pace { changePace(to: share, at: now) }
             }
         } else {
             paceLink = gripper
@@ -335,7 +317,7 @@ struct GoMove: Equatable, Sendable {
         let leg = legTo - from
         let lengthSquared = simd_length_squared(leg)
         let along = lengthSquared > 0 ? min(1, max(0, simd_dot(pinch - from, leg) / lengthSquared)) : 0
-        if simd_distance(pinch, from + leg * along) > Self.pathWatchTolerances * limits.arriveToleranceM {
+        if simd_distance(pinch, from + leg * along) > limits.pacing.pathWatchTolerances * limits.arriveToleranceM {
             endShort = true
         }
         return pinch

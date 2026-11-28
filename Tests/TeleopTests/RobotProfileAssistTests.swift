@@ -36,7 +36,7 @@ final class RobotProfileAssistTests: XCTestCase {
     /// already calls a stalled arm blocked, or a move could arrive at a place the arm never reached.
     func testTheArrivalToleranceIsUnderTheBlockedDistance() throws {
         let goTo = try XCTUnwrap(profile.assist.goTo)
-        XCTAssertLessThan(goTo.arriveToleranceM, FeedbackMonitor.blockedShortMeters)
+        XCTAssertLessThan(goTo.arriveToleranceM, TestProfiles.so101.blocked.shortM)
     }
 
     /// A going move ends "time is up" this long after its path's own time, times the factor: room for an arm that lags

@@ -108,7 +108,25 @@
     }
   },
   "response": {
-    "directional_blocked_feedback": true
+    "directional_blocked_feedback": true,
+    "blocked": {
+      "short_m": 0.01,
+      "moved_m": 0.002,
+      "window_ms": 1000,
+      "fresh_ms": 400,
+      "arrival_gap_ms": 400,
+      "lead_progress_share": 0.1,
+      "exclusion_m": 0.04,
+      "following_share": 0.5,
+      "same_way_deg": 45
+    },
+    "lowest": {
+      "sustain_m": 0.005,
+      "quick_short_m": 0.005,
+      "quick_moved_m": 0.001,
+      "quick_ms": 300,
+      "descent_mps": 0.0005
+    }
   },
   "assist": {
     "lock": {
@@ -124,7 +142,17 @@
       "time_factor": 1.5,
       "allowance_s": 3.0,
       "arm_data_timeout_s": 2.0,
-      "start_grace_s": 1.5
+      "start_grace_s": 1.5,
+      "pacing": {
+        "follow_share": 0.5,
+        "pace_gain": 0.25,
+        "slowest_share": 0.15,
+        "start_share": 0.5,
+        "path_watch_tolerances": 2.5,
+        "fresh_ms": 400,
+        "still_m": 0.002,
+        "pace_change_share": 0.05
+      }
     },
     "guide": {
       "work_area_words": true,

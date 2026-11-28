@@ -1302,9 +1302,9 @@ public struct InputArbiter: Sendable {
         guard !cancelled, !touch.liftWide, now - touch.downAt <= constants.tapMaxS + Self.slack,
             layout.millimetres(simd_length(touch.farthest)) <= constants.tapSlopMm + Self.slack,
             tapRefusal == nil, case .inside(let panel)? = touch.tapSite, let views = assist.views,
-            let fix = facts.arm, fix.ageS <= GoMove.freshS, !fix.holdPaused,
+            var current = move, let fix = facts.arm, fix.ageS <= current.limits.freshS, !fix.holdPaused,
             [fix.pinch.x, fix.pinch.y, fix.pinch.z].allSatisfy(\.isFinite),
-            var current = move, now <= current.deadline + Self.slack
+            now <= current.deadline + Self.slack
         else { return endLoose(.byYou) }
         let point: SIMD3<Double>
         if panel.view(at: touch.down) == .behind {
@@ -1351,7 +1351,7 @@ public struct InputArbiter: Sendable {
         }
         // A reading with a part that is not a finite number is no position: a move from it would have a time limit that
         // never comes, or ask for offsets the link drops.
-        guard let fix = facts.arm, fix.ageS <= GoMove.freshS,
+        guard let fix = facts.arm, fix.ageS <= rule.freshS,
             [fix.pinch.x, fix.pinch.y, fix.pinch.z].allSatisfy(\.isFinite)
         else {
             cue(.refused(.noArmData))
