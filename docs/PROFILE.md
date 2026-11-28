@@ -151,12 +151,12 @@ What the server does to what it is sent and how it behaves, which is a fact abou
 | Key | Unit | What it does | SO-101 |
 |---|---|---|---|
 | `link_signs` | [x, y, z], each 1 or -1 | the server moves the base by a translation hold's offset with each axis multiplied by these: the frame the app sends offsets in is the base frame with some axes mirrored | [1, 1, -1]: the S4 server was calibrated on a WebXR phone (mapping `phone_axes_20261025_v1`, `frame: webxr_local`) and moves the arm by [p0, p1, −p2] of the offset it is sent. A server whose z is up in its own frame would give [1, 1, 1] |
-| `stop_distance_m` | m | the server stops the arm for good when the position it is asked for is farther than this from where the arm is. No command may ask for more: `robot.motion.max_lead_m` and `tool_max_lead_m` must be under it, and the load refuses a file in which they are not | 0.10: the S4 server's `pose_tracking_safety_stop` distance, as the app's own comment recorded it before the profile did |
+| `stop_distance_m` | m | the server stops the arm for good when the position it is asked for is farther than this from where the arm is. No command may ask for more: `robot.motion.max_lead_m` and `tool_max_lead_m` must be under it, and the load refuses a file in which they are not | 0.10: the S4 server's `pose_tracking_safety_stop` distance |
 | `resync.after_ms` | ms | the server reports no arm position during a hold. When the hand wants more than the lead cap, the server hold is ended and started again from where the arm got to after this long of catching up, on the gripper link's path | 1500; no measurement is recorded in the code for it |
 | `resync.tool_after_ms` | ms | the same on the tool point's path | 500; no measurement is recorded either |
 | `resync.timeout_ms` | ms | the longest wait for the server to finish the old hold during a resync before the operator's hold ends | 1500 |
 | `held_object_point` | `gripper_link` or `tool_point` | which point a pad hold moves while the jaws hold an object. `gripper_link`: the gripper link's origin, with no coordinated height, once the jaws hold something; `tool_point`: the tool point, held or not | `gripper_link`: carrying the simulator's cube on the tool point's path, the arm lifted it in 1 of 10 trials, and on the gripper link's path in 9 of 10. That is a fact about the S4 server, so another server that lifts fine through the tool point says `tool_point` |
-| `stall_detection` | `simulation` or `none` | `simulation`: the server runs a simulation loop that can stop, and the app reads its signs (`sim_stalled`, `busy` answers, stale timing, a stop nobody answers) to pause and then say "Simulator not responding". `none`: the server has no such loop, and the detector never fires | `simulation`: the S4 server's loop stopped once while its network side kept answering, and the timed rules (2 s old states, 3 s busy, 3 s for a stop's answer) come from that night's record; they are not profile fields |
+| `stall_detection` | `simulation` or `none` | `simulation`: the server runs a simulation loop that can stop, and the app reads its signs (`sim_stalled`, `busy` answers, stale timing, a stop nobody answers) to pause and then say "Simulator not responding". `none`: the server has no such loop, and the detector never fires | `simulation`: the S4 server's loop stopped once while its network side kept answering, and the timed rules (2 s old states, 3 s busy, 3 s for a stop's answer) were set from that one recorded stop; they are not profile fields |
 
 A wrong sign reverses that axis: for the SO-101's z, every vertical move would go the other way. To find them, send a
 translation hold of +1 cm along each of the link's axes and read the change of `ee_pos`; the sign of the change is the
@@ -344,7 +344,13 @@ What goes wrong when a value is wrong:
   nothing, and the operator holds against a wall.
 - A fresh time shorter than the states' interval makes every state stale, so the rules never judge; an arrival gap
   that is too short makes a network that delivers in bursts hide every stall.
-- A descent rate that is under what the arm comes down at tells "Can't go lower." before it has landed.
+- A descent rate that is too large calls an arm that is still coming down stopped, and tells "Can't go lower." before
+  it has landed; one that is too small keeps an arm that has stopped, but still drifts a little, "descending", and tells
+  nothing.
+- Some numbers are equal on the SO-101 and are separate fields, so that another arm or server can set each apart:
+  the three freshness times `robot.wrist.lead.fresh_state_ms`, `response.blocked.fresh_ms` (also the freshness of the
+  tool point's measured position for the link controller's lead) and `assist.go_to.pacing.fresh_ms` (all 400 ms), and
+  the two still distances `response.blocked.moved_m` and `assist.go_to.pacing.still_m` (both 0.002 m).
 
 ### `assist`
 

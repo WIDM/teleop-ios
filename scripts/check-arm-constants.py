@@ -127,7 +127,7 @@ REMOVED_DIRECTIONS = (
     ),
 )
 # The wrist's and the jaw's numbers belong to one arm's profile file. These are the statics, defaults and names that held
-# them in code before the profile did; each is refused in code of every Swift file outside ALLOWED.
+# them in code; each is refused in code of every Swift file outside ALLOWED.
 # (`freshStateMs` is left out: the feedback monitor has a number of that name of its own, which is not the wrist's.)
 WRIST_JAW_FIELDS = (
     "rollClampDeg|tiltClampDeg|rollWindowDeg|tiltWindowDeg|rollSign|tiltSign|turnLimit|tiltLimit|turnRateDegS|"
@@ -157,7 +157,7 @@ REMOVED_WRIST_JAW = (
     ),
 )
 # The motion, server and response numbers belong to one arm's and one server's profile file. These are the statics and
-# names that held them in code before the profile did; each is refused in code of every Swift file outside ALLOWED.
+# names that held them in code; each is refused in code of every Swift file outside ALLOWED.
 # (`FeedbackMonitor.freshStateMs` is named with its type: the wrist's lead limits have a field of the same name.)
 MOTION_FIELDS = (
     "fineMps|coarseMps|maxLeadM|toolMaxLeadM|stopDistanceM|toolAfterMs|leadProgressShare|exclusionM|followingShare|"
