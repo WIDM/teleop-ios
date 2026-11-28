@@ -1,0 +1,146 @@
+{
+  "profile_version": 1,
+  "name": "Bench arm B (test only)",
+  "robot": {
+    "directions": {
+      "forward": "+x",
+      "left": "-y",
+      "up": "-z"
+    },
+    "wrist": {
+      "roll_sign": -1,
+      "tilt_sign": 1,
+      "roll_window_deg": 90,
+      "tilt_window_deg": 45,
+      "roll_clamp_deg": 40,
+      "tilt_clamp_deg": 30,
+      "tilt_centre_deg": 15,
+      "turn_rate_deg_s": 40,
+      "tilt_rate_deg_s": 20,
+      "lead": {
+        "lead_deg": 3,
+        "rate_max_deg_s": 20,
+        "memory_deg": 1,
+        "fresh_state_ms": 300
+      }
+    },
+    "gripper": {
+      "unit": "mm",
+      "closed_reading": 0,
+      "open_reading": 40,
+      "valid_min": 0,
+      "valid_max": 45,
+      "fully_open_at": 39,
+      "empty_at": 1,
+      "reclose_loosens_grip": false
+    },
+    "motion": {
+      "fine_mps": 0.02,
+      "coarse_mps": 0.08,
+      "max_lead_m": 0.05,
+      "tool_max_lead_m": 0.004
+    }
+  },
+  "server": {
+    "link_signs": [1, 1, 1],
+    "stop_distance_m": 0.06,
+    "resync": {
+      "after_ms": 1200,
+      "tool_after_ms": 400,
+      "timeout_ms": 1000
+    },
+    "held_object_point": "tool_point",
+    "stall_detection": "none"
+  },
+  "scene": {
+    "base_in_world_m": [0.1, -0.2, 0.4],
+    "base_axes_in_world": {
+      "x": "+y",
+      "y": "+x",
+      "z": "-z"
+    },
+    "table_height_m": -0.28,
+    "workspace_min_m": [-0.108, -0.11, 0.145],
+    "workspace_max_m": [0.052, 0.05, 0.305],
+    "target_size_m": 0.025,
+    "goal_size_m": 0.05,
+    "grasp_tolerance_m": [0.007, 0.01],
+    "on_target_window_m": [0.009, 0.012],
+    "tool_offset": {
+      "offset_m": [0.012, 0.02, 0.095],
+      "measured_at_m": [-0.062, -0.09, 0.1725],
+      "measured_flex_deg": 15,
+      "measured_roll_deg": 0,
+      "error_bound": {
+        "x_mm_per_cm": 1,
+        "plus_y_mm_per_cm": 2,
+        "minus_y_mm_per_cm": 3,
+        "z_mm_per_cm": 4,
+        "flex_mm_per_deg": 0.5,
+        "roll_mm_per_deg": 0.25
+      }
+    }
+  },
+  "response": {
+    "directional_blocked_feedback": true,
+    "blocked": {
+      "short_m": 0.02,
+      "moved_m": 0.004,
+      "window_ms": 500,
+      "fresh_ms": 300,
+      "arrival_gap_ms": 200,
+      "lead_progress_share": 0.15,
+      "exclusion_m": 0.06,
+      "following_share": 0.8,
+      "same_way_deg": 30
+    },
+    "lowest": {
+      "sustain_m": 0.01,
+      "quick_short_m": 0.014,
+      "quick_moved_m": 0.002,
+      "quick_ms": 150,
+      "descent_mps": 0.001
+    }
+  },
+  "assist": {
+    "lock": {
+      "time_limit_s": 20
+    },
+    "go_to": {
+      "travel_height_m": 0.04,
+      "speed_mps": 0.03,
+      "arrive_tolerance_m": 0.006,
+      "corrections": 1,
+      "correction_reach_m": 0.02,
+      "settle_s": 0.5,
+      "time_factor": 2,
+      "allowance_s": 2,
+      "arm_data_timeout_s": 1.5,
+      "start_grace_s": 1,
+      "pacing": {
+        "follow_share": 0.4,
+        "pace_gain": 0.5,
+        "slowest_share": 0.25,
+        "start_share": 0.3,
+        "path_watch_tolerances": 2,
+        "fresh_ms": 300,
+        "still_m": 0.004,
+        "pace_change_share": 0.1
+      }
+    },
+    "guide": {
+      "work_area_words": true,
+      "lowest_cue": true,
+      "shadow": true,
+      "direction_labels": true,
+      "wider_on_target": true
+    },
+    "explain": {
+      "slow_link_let_go": true
+    },
+    "views": {
+      "behind_top_above_table_m": 0.08,
+      "max_retargeted_move_s": 20
+    }
+  }
+}

@@ -49,44 +49,33 @@ final class ScriptedOperator {
     /// The step at which the run could not go on; nil while it can.
     private var haltedDuring: String?
 
-    /// Which base axis is forward, left and up for the arm this hand drives, and how the world sits against the base:
-    /// the hand's moves are written in the operator's terms and turned into the base's through these.
-    let frames: Frames
-
-    /// The jaw of the arm this hand drives: the readings it opens to and closes to, and the unit they are in. The hand
-    /// names them in the step it is on, so a run that fails says what the jaws were asked to do in the arm's own terms.
-    let jaw: GripperProfile
-
-    /// How fast the arm's buttons move it: the hand holds a button for as long as that speed needs to cover a distance.
-    let motion: MotionProfile
+    /// The arm this hand drives: the app's robot profile. The hand's moves are written in the operator's terms and turned
+    /// into the base's through its frames, its jaw targets are named in its jaw's unit, and it holds a button for as long
+    /// as its button speeds need. The app is given this very profile, so the hand and the app cannot disagree on what
+    /// "up" is, how far a jaw opens or how fast a button moves.
+    let profile: RobotProfile
+    var frames: Frames { profile.frames }
+    var jaw: GripperProfile { profile.gripper }
+    var motion: MotionProfile { profile.motion }
 
     /// - Parameters:
-    ///   - frames: the directions of the arm the app drives; they must be those of the app's profile, since the hand
-    ///     and the app have to agree on what "up" is.
-    ///   - jaw: the jaw of the arm the app drives; it must be that of the app's profile.
-    ///   - motion: the button speeds of the arm the app drives; they must be those of the app's profile, since the hand
-    ///     holds a button for the time the app's speed needs.
+    ///   - profile: the arm the app drives, given to the app model and read by the hand; the SO-101's unless a test
+    ///     says another.
     ///   - makeTransport: both of the app's sockets; a real WebSocket when nil. A test passes one that stalls or cuts
     ///     the network path.
     init(
         address: String, mode: ControlMode = .screenTurns, smoothing: Double, pace: Double = 1,
-        frames: Frames = TestProfiles.so101.frames, jaw: GripperProfile = TestProfiles.so101.gripper,
-        motion: MotionProfile = TestProfiles.so101.motion,
+        profile: RobotProfile = TestProfiles.so101,
         haptics: HapticsPlaying = NoHaptics(),
         makeTransport: ((URL) -> LinkTransport)? = nil
     ) {
-        self.frames = frames
-        self.jaw = jaw
-        self.motion = motion
+        self.profile = profile
         self.mode = mode
         self.pace = pace
         savedMode = UserDefaults.standard.string(forKey: AppModel.controlModeKey)
         model = AppModel(
             start: .s1, haptics: haptics, pose: { [unowned self] in camera }, liveLink: true,
-            makeTransport: makeTransport ?? { WebSocketTransport(url: $0) })
-        precondition(frames == model.profile.frames, "the hand's frames are not the app profile's frames")
-        precondition(jaw == model.profile.gripper, "the hand's jaw is not the app profile's jaw")
-        precondition(motion == model.profile.motion, "the hand's button speeds are not the app profile's")
+            makeTransport: makeTransport ?? { WebSocketTransport(url: $0) }, profile: profile)
         model.session.state.serverAddress = address
         model.session.state.setSmoothing(smoothing)
         model.controlMode = mode
@@ -461,7 +450,6 @@ final class ScriptedOperator {
     /// recording session, against the session's file.
     func pickAndPlace(warmUpHolds: Int) throws {
         let started = Date()
-        let profile = model.profile
         // Only what the server says during this run counts.
         successSeen = false
         countingSuccess = false
