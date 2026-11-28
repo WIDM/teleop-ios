@@ -1,10 +1,19 @@
 # Status
 
-What the app does, what is known not to work, and what version 1 leaves out. How each part works is in
+What the app does at version 1.4.0, what is known not to work, and what version 1 leaves out. How each part works is in
 `docs/ARCHITECTURE.md`; how it is tested is in `docs/TESTING.md`.
 
 ## Works, and the default tests cover it
 
+- The robot profile: what the app must know about one robot setup (the six directions and the frames, the wrist, the
+  jaw and its unit, the speeds, the server's stop distance and resync times, the scene, the numbers behind the
+  feedback rules, the hands-free aids) is one strict JSON file in `App/Resources/Profiles/`, named by the build in
+  `project.yml` (`TeleopRobotProfile`) or for one launch by `-robotProfile <id>`; a missing, misspelt or invalid file
+  stops the launch with a sentence. The app ships one, the SO-101 in the S4 simulator, `so101-s4-sim.json`
+  (`docs/PROFILE.md`). The default tests run a second, different arm, bench arm B (parallel jaws reading 0 to 40 mm, a
+  base hanging over the table, a narrower turn and a wider tilt), through the whole pick and place in all three
+  control modes with the same scripted operator, from its file alone, against the app's server model. The direction
+  check (`DirectionCheckTests`) runs for both arms there.
 - The operating screen in all three control modes (screen turns, key turns, buttons), driven through the input
   rules. A scripted pick-and-place in each mode, through raw inputs only, passes against the server model in every
   default run.
@@ -25,7 +34,7 @@ What the app does, what is known not to work, and what version 1 leaves out. How
   the connection opens), with coordinated height for Up and Down on a server that offers that as well: the wrist moves
   with the arm so the jaws rise and fall on a vertical line with their direction kept. Once the server reports that the
   jaws closed on something, these holds go on the gripper link's path (the path of the origin of the arm's last link,
-  which carries the jaws, as version 1.1.0 sent every hold), without coordinated height, until the jaws open, the scene
+  which carries the jaws), without coordinated height, until the jaws open, the scene
   is reset or the link is made again.
 - When a server refuses or ends a manual arm hold, the phone says what to do for three kinds of reason (the arm touched
   something, a joint is at its limit, the arm cannot get there along its path); other reasons keep the general words.
@@ -47,10 +56,10 @@ What the app does, what is known not to work, and what version 1 leaves out. How
 - Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
 - Every operating state drawn in both languages at two screen heights.
 - The hands-free aids, behind one master switch on the aids' page that the Aids button in the Settings header
-  opens, on by default; with it off, lock, tap-to-go and the guide's additions are as in version 1.0.1, a hold that a
+  opens, on by default; with it off, lock, tap-to-go and the guide's additions do nothing, a hold that a
   slow link stops is shown on the screen only, and the operating screen in a phone mode says "Hands-free aids off:
-  taps do nothing". The app's unit tests pass unedited in a test plan that turns it off. The Settings form itself is
-  as in version 1.0.1.
+  taps do nothing". The app's unit tests pass unedited in a test plan that turns it off. The Settings form itself has
+  no row for the aids.
   - Lock, chosen on the same page, in the two phone modes: a press of vol+, or a thumb slid up the glass while vol+ is
     held, keeps the arm following the phone with no key held, until any key or touch, STOP, the robot profile's time
     limit, lost tracking or a phone no longer held upright stops it.
@@ -105,7 +114,17 @@ hand.
 The Live test plan has no test of the Wrist page or of coordinated height. The app tests that cover them use scripted
 fake transports, and the Wrist page's UI tests also use the local server model.
 
+Bench arm B is a test arm: no second real arm has run under the app. Its pass says the app's rules and the server
+model agree with its file, not that a real arm's numbers (speeds, lag, the response numbers) would. Before a new arm's
+first move, the direction check against its server and a person watching the six directions are still needed
+(`docs/PROFILE.md`, "Before the first move on a new arm"). The Live plan's direction check (`OperatorLiveTests`) has not run against a real server
+in this version; `DirectionCheckTests` runs the same check against the app's server model.
+
 ## Known not to work
+
+- A new arm still needs code for: a third wrist direction, a base mounted at an angle that is not a quarter turn,
+  grippers that are not two jaws, objects that are not a box, and tasks that are not pick and place. The loader refuses
+  a direction file the app cannot express with a sentence that says so.
 
 - The app does not reconnect by itself after a lost link: the operating screen shows "Link lost" with "Connect again
   in Settings", and the operator connects again from Settings → Server. On `p4_standby` and `p6_high_latency` a lost
@@ -126,15 +145,16 @@ fake transports, and the Wrist page's UI tests also use the local server model.
 - A server that has gone silent is noticed after 3 s, but only after tens of seconds while the app's own main
   thread stalls on every tick: each late tick counts as the app not running, not as silence.
 - Nothing ends the holds when the phone overheats.
-- Which way a turn or a tilt of the phone moves the wrist (`rollSign`, `tiltSign` in `RobotProfile`) is +1 for both,
-  the value the profile keeps until a check on the live robot sets it.
+- Which way a turn or a tilt of the phone, and the Wrist page's buttons, move the wrist (`robot.wrist.roll_sign`,
+  `tilt_sign` in the profile file) is +1 for both on the SO-101, the value the file keeps until a check on the live
+  robot sets it.
 - An ending of a follow that comes within about 0.36 s of its latch has no vibration of its own, because the
   latch's pattern is still playing; its words still play.
 - The ending heard when the app leaves the foreground during a follow or a move ("Stopped here. You left the app.")
   is raised as the app goes, and may not be heard.
 - When the server goes quiet during a move to a tapped point, the operator hears "Stopped here. No arm data." and
   about a second later "Link lost.": two cues for one cause.
-- "Can't go lower." stays quiet on a link whose states arrive more than 0.4 s apart (`FeedbackMonitor.arrivalGapMs`),
+- "Can't go lower." stays quiet on a link whose states arrive more than 0.4 s apart (`response.blocked.arrival_gap_ms` in the profile; 0.4 s for the SO-101),
   and a first stall on top of an object leaves the remembered lowest height there until a stall lower down.
 - The robot profile gives no wider on-target window yet (`RobotProfile.onTargetWindow` is nil), so "On target" uses
   the grasp tolerance with the aids on as well.
@@ -157,6 +177,8 @@ fake transports, and the Wrist page's UI tests also use the local server model.
 
 ## Left out of version 1
 
+- A screen to choose or import a robot profile, and a server that sends its own: one build drives one arm, chosen when
+  the build is made.
 - Voice commands. Choosing the movement axis by voice is an unfinished experiment, shown only when the app is
   launched with `-voiceEntry YES`.
 - Wrist buttons in buttons mode. They exist only on the Wrist page of Fine controls in the phone modes.

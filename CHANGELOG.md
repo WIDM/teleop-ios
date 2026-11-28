@@ -7,6 +7,59 @@ Rules: every build installed on a phone gets a new version here first. `0.x.0` a
 fixes. `MARKETING_VERSION` in `project.yml` is the single place the number lives, and each
 version is tagged `vX.Y.Z` on the commit that carries it.
 
+## Unreleased
+
+## 1.4.0 (2026-11-28)
+
+Changing to another robot arm needs a profile file, not code. For the SO-101 in the S4 simulator, this version
+behaves as 1.3.0 did.
+
+What a person using the app notices:
+
+- Nothing changes on the SO-101: every button, key, gesture, speed, word, vibration and limit is as in 1.3.0. The
+  only thing in the app that says anything new is Settings → About, which shows 1.4.0.
+
+What a maintainer, or someone bringing another arm, needs to know:
+
+- **The robot profile file.** What the app must know about one robot setup is one JSON file in
+  `App/Resources/Profiles/` (`docs/PROFILE.md`). It holds the six directions (which way of the arm is forward, left and
+  up, how the link's offsets are signed, where the base sits in the world), the wrist (turn and tilt windows, the limit
+  per hold, the signs, the wrist buttons' rates and the lead bound), the jaw (its unit, `deg` or `mm`, the two readings
+  the opening is drawn between, the readings that count as a jaw reading, and the readings that count as fully open and
+  as closed on nothing), the button speeds and how far a command may run ahead, the server's stop distance, resync
+  times and stall watching, the scene (work box, table, object and goal sizes, where the jaws pinch), the numbers
+  behind "Blocked." and "Can't go lower.", and the hands-free aids the arm allows with their numbers. The file is
+  strict: every key must be there, an unknown or doubled key is refused, and a value that cannot be right (a limit
+  above its window, a mirror image, an empty jaw above its fully open reading) is refused with a sentence that names
+  the key. The SO-101's file is the model for another arm's; its page in the guide says how each number was found.
+- **A build chooses its profile in `project.yml`** (`TeleopRobotProfile`); the launch argument `-robotProfile <id>`
+  overrides it for one launch. There is no screen to choose one: one build drives one arm. A missing, misspelt or
+  invalid file stops the launch with the reason; the app never falls back to another arm's numbers. A check
+  (`scripts/check-arm-constants.py`) fails when code names a profile, holds one in a static, or keeps one of the
+  removed numbers or direction tables.
+- **The jaw reading keeps the message field `gripper_deg`** and carries the reading in the profile's unit: degrees
+  for a hinged jaw, millimetres for parallel jaws. The record on the phone says which unit it was.
+- **Bench arm B is the proof that a second arm runs from its file alone.** It is a test-only profile (`Tests/TeleopTests/Profiles/bench-arm-b.json`)
+  for an arm unlike the SO-101: its base hangs over the table with its z axis pointing down, its world is turned a
+  quarter turn, its jaws are parallel and read 0 to 40 mm, and it turns less and tilts more. The same scripted
+  operator that picks and places on the SO-101 does the whole task on B, in all three control modes, with and without
+  a reported tool point, and passes on the server model's own success report (20 runs in a row of all six variants,
+  120 passed). Nothing in the test asks which arm it is. This ran against the app's own server model, not a real
+  arm; no second arm was available to try.
+- **The direction check, and a person watching, before a new arm's first move.** The check presses each of the six
+  directions once for about 1 cm, reads where the arm's point went, and stops at the first direction that did not go
+  the way the file names, with a sentence that starts with that direction. Against a real server it is the Live test
+  `OperatorLiveTests.testEveryDirectionGoesTheNamedWay`. It cannot tell which way forward points in the room: after it passes, a
+  person watches the arm and presses the six buttons once each (forward away, left to the left, up up). The guide
+  says how to run it and what each failure means. `DirectionCheckTests` runs it in every
+  default test run against the app's server model, for the SO-101 and for B, which is how the check itself is tested.
+- **What a new arm still cannot do without code:** a third wrist direction (the app turns and tilts the wrist; a
+  6-axis arm's third direction is not driven from the phone); a base mounted at an angle that is not a quarter turn;
+  grippers that are not two jaws; a task that is not picking a box up and putting it on a goal; and a server that sends
+  its own profile or a screen to import one.
+- The wrist buttons on the Wrist page now use the same two signs as the phone's wrist gesture. On the SO-101 both are
+  +1, so nothing changes there; on an arm whose signs are not +1, the buttons and the gesture agree.
+
 ## 1.3.0 (2026-11-25)
 
 - Build 36 (1.3.0): Fine controls has two pages, switched at the bottom: Move, as before, and Wrist, where the

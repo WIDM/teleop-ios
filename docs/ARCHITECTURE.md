@@ -16,7 +16,7 @@ A few words recur here. `docs/PROTOCOL.md` explains them in full under "Words us
   ("The hands-free aids" below).
 - **Hands-free aids**: lock, tap-to-go, the guide's additions and the cue for a hold a slow link stops, all turned on
   and off by one master switch on the aids' page, which the Aids button in the Settings header opens. With the switch
-  off, each of them is as in version 1.0.1; the other features described here, Fine controls and the handling of a
+  off, none of them acts and the phone modes, Fine controls and STOP work without them; the other features described here, Fine controls and the handling of a
   paused simulator among them, do not depend on it.
 - **Fine controls**: a panel of direction, jaw and wrist buttons that the two phone modes open from the operating
   screen ("Fine controls" below).
@@ -399,7 +399,7 @@ point's path lifted it in 1 trial of 10, and on the gripper link's path it reach
 changes only on contact reported, an open sent or refused, a state showing the jaws opening, a scene reset (the
 answer, or a state naming a new episode) and a new control connection; an emergency stop changes nothing, since the
 jaws stay shut on what they hold. A free phone move (no axis chosen) and a move to a tapped point always take the gripper link's path.
-A hold on the pinch point caps its lead at 5 mm and resyncs after 0.5 s (`toolMaxLeadMeters`, `toolResyncAfterMs`); a
+A hold on the pinch point caps its lead at 5 mm and resyncs after 0.5 s (`robot.motion.tool_max_lead_m` and `server.resync.tool_after_ms` in the profile; 5 mm and 0.5 s are the SO-101's); a
 coordinated height hold keeps one server hold and one reference. `docs/PROTOCOL.md`, "Pinch-point holds and
 coordinated height", has the messages.
 
@@ -473,10 +473,10 @@ Both are on the aids' page. A button in the Settings header, Aids, beside Done, 
 the same header and above the same STOP band; the way back is in the title's place, and Done leaves Settings from
 either. The page holds the master switch, with what Off turns off under it, and, when the robot allows lock, a
 section headed Lock with one row per choice, disabled while the switch is off, with where lock works under it. The
-Settings form itself has the rows of version 1.0.1 and nothing of the aids, and a later aid's settings go on the
+Settings form itself has nothing of the aids, and a later aid's settings go on the
 page too. Settings opens on its form every time, also after STOP was pressed on the aids' page.
 
-### One configuration, and off is version 1.0.1
+### One configuration, and off means no aid
 
 `AppModel.assist` is an `Assist`, resolved by `Assist.resolve` from the two settings and the robot's share of the
 aids, `RobotProfile.assist`. It is derived, never stored, so it cannot disagree with them. It has five members: one for
@@ -485,11 +485,11 @@ each of the four aids, `lock`, `goTo` (tap-to-go), `guide` (the guide's addition
 numbers, and lock only when a variant is chosen; a member whose numbers are unusable (not finite, or below their
 bound) resolves to nil, so the rules trust what they get.
 
-Three places read the aids, and each reads nil as version 1.0.1: the input rules (`lock`, `goTo`, `views`), `AppModel`
+Three places read the aids, and each reads nil as no aid at all: the input rules (`lock`, `goTo`, `views`), `AppModel`
 (`goTo` for the arm and the panel in the input facts, `views` for the second panel; `guide` for the picture, the
 on-target window and the link's cues; `explain` for the slow-link cue; whether any aid is on, for where the link takes
 an arm hold's start point, `LiveLinkController.anyAidOn`) and the tutorial's last page. Everything else the aids add is
-reached only through what those three produce. So with the switch off the aids' own behaviour is that of version 1.0.1, apart
+reached only through what those three produce. So with the switch off no aid acts, apart
 from the line on the operating screen that says taps do nothing; the features that are not aids, such as Fine controls and
 the handling of a paused simulator, stay as they are; the aids' page still shows the switch, so it can
 be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
@@ -674,8 +674,8 @@ lock chosen and, with the task aid on as well, a line for the tap.
   faces. While a move to a tapped point runs, the server's clamp END does not play at all ("Tap-to-go" above).
 - **Blocked.** (`FeedbackMonitor.isNotFollowing`) With the guide's additions on and a profile that sets
   `usesDirectionalBlockedFeedback`, the profile's gripper-link box (`RobotProfile.gripperWorkspace`) goes to the monitor
-  as `blockedWorkspace`, and "Blocked." is told by what is asked of the arm: over a second of regularly arriving states,
-  the command, cut to that box, stays at least 10 mm ahead of the arm in one direction, the arm makes progress along it of less than 2 mm and less than a
+  as `blockedWorkspace`, and "Blocked." is told by what is asked of the arm. With the SO-101's numbers (`response.blocked`
+  in its profile): over a second of regularly arriving states, the command, cut to that box, stays at least 10 mm ahead of the arm in one direction, the arm makes progress along it of less than 2 mm and less than a
   tenth of the lead (the smaller of the two) and moves under 4 cm in all, and has not followed at least half of any
   movement of the command itself. A stall that the box's face or the server's clamp explains is not told. A hold on the
   pinch point is always judged this way, on the pinch point and with no box. A hold on the gripper link origin is
@@ -685,13 +685,13 @@ lock chosen and, with the task aid on as well, a line for the tap.
   is never still in all three directions, so this rule judges height, not position: the pinch point's height when the
   state carries `tool_pos` (on a table it stays put whatever the arm's posture), else the gripper link's. During a
   translation hold other than a move to a tapped point ("Tap-to-go" above) it plays END and "Can't go lower." in place
-  of "Blocked." when the newest state was sent at least 10 mm lower, every state of the last second at least 5 mm lower,
+  of "Blocked." when, with the SO-101's numbers (`response.lowest` in its profile), the newest state was sent at least 10 mm lower, every state of the last second at least 5 mm lower,
   and the height stayed within 2 mm over that second; or, back within 2 mm of the lowest height already found, when
   every state of the last 0.3 s was sent at least 5 mm lower and the height stayed within 1 mm. Each state is judged by
   the command held when it arrived, and a window counts only when no two of its states arrived more than
-  `FeedbackMonitor.arrivalGapMs` apart, so states held back and delivered together cannot make a stall out of an arm
+  `response.blocked.arrival_gap_ms` apart, so states held back and delivered together cannot make a stall out of an arm
   that was moving, and neither stall is told while the height judged is still falling by 0.5 mm a second or more over its
-  window (`isComingDown`, `lowestDescentMetersPerSecond`): a slow simulator can bring an arm down by under 2 mm a
+  window (`isComingDown`, `response.lowest.descent_mps`): a slow simulator can bring an arm down by under 2 mm a
   second. A state that arrives between a resync's stop and its re-sent start adds no sample and is not judged
   (`FeedbackMonitor.resyncBegan`): the link stopped the arm to learn where it got to, which says nothing about where it
   can go. The samples from before that pause are kept. An arm held short at the lead cap is no such pause: standing
@@ -875,20 +875,15 @@ must fail it; `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it agai
 box, the arrival tolerance under the blocked rule's 10 mm, an allowance of at least 3 s that leaves room for one
 re-sent start on the longest path in the box.
 
-The SO-101 simulator's file (`App/Resources/Profiles/so101-s4-sim.json`) is the one profile; `ProfileLoader` reads
-it, and nothing else in the app names it. The input rules' thresholds are in `InputConstants`
-(`profile.inputConstants` adds the profile's wrist signs); the aids' thumb gestures add `slideUnderWayMm`, `tapMaxS`
-and `tapSlopMm`, the last parameters of its initializer. A few numbers that come from the server's rules sit next
-to the code that uses them: the 8 cm cap per server hold and the 1.5 s resync, and the pinch point's 5 mm lead and
-0.5 s resync (`LiveLinkController`), the ranges the server accepts for `pose_start` (`PoseParams`), the buttons' speeds
-(`ButtonSpeed`), and the wrist buttons' rates, 20 degrees a second for turn and 10 for tilt (`WristButton`). Numbers that are about a
-judgement rather than about an arm sit beside the rule that uses them: the work-area cue's slack, re-arm and gap
-(`WorkAreaCue`), the lowest rule's (`FeedbackMonitor`), and a following move's, which have no unit (`GoMove`):
-`followShare` (0.5), the share of the way each fresh reading moves the drift towards that reading's change of offset;
-`paceGain` (0.25), the pace's gain: the share of the speed is this over the swing; `slowestShare` (0.15), the slowest
-share of the speed; `startShare` (0.5), the share of the speed a following move starts at; and `pathWatchTolerances`
-(2.5): a fresh reading more than this many arrive tolerances off the leg ahead ends the move. A pace changes only when
-the new one differs from it by more than five percent.
+The SO-101 simulator's file (`App/Resources/Profiles/so101-s4-sim.json`) is the one profile the app ships;
+`ProfileLoader` reads the file the build names, and nothing else in the app names a profile. The input rules'
+thresholds are in `InputConstants` (`profile.inputConstants` adds the profile's wrist); the aids' thumb gestures add
+`slideUnderWayMm`, `tapMaxS` and `tapSlopMm`, the last parameters of its initializer. What stays in code is about the
+hand, the phone, the screen, the network or the protocol every server speaking it shares, not about an arm: the
+ranges the server accepts for `pose_start` (`PoseParams`), the work-area cue's slack and re-arm distance
+(`WorkAreaCue`, 2 mm and 5 mm, which suit work boxes of about 16 cm), the stall detector's timed rules, and the
+thumb and screen constants of `InputConstants`. `scripts/check-arm-constants.py` fails when an arm's number is
+written in code again.
 
 ## The server model used by tests
 

@@ -41,9 +41,9 @@ through it, the world to base conversion, the floor-below-the-table question and
 frame. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
 movement and the right button through the frames.
 
-The wrist and the jaw are run the same way, with a test-only wrist and jaw as bench arm B will have them (`TestWrist`
+The wrist and the jaw are run the same way, with a test-only wrist and jaw as bench arm B has them (`TestWrist`
 and `TestJaw` in the core tests, `TestProfiles.benchBWrist` and `benchBGripper` in the app tests): a narrower turn, a
-wider tilt on a fixed centre, both signs the other way, buttons twice as fast, parallel jaws reading 0 to 40 mm.
+wider tilt on a fixed centre, the turn sign the other way and the tilt sign as the SO-101's, buttons twice as fast, parallel jaws reading 0 to 40 mm.
 `WristAcrossWristsTests` runs the buttons' signs and rates (a button and the phone agree on the sign), the ranges a hold
 may command, the tilt window's centre, the phone hold's stop at the clamp and the lead bound's allowance, freshness and
 memory through both wrists, each expectation written in the wrist's own numbers; `JawAcrossJawsTests` the opening
@@ -51,7 +51,7 @@ share, "fully open", "closed on nothing", the reminder and the readings that cou
 runs the Wrist page's buttons and window through both wrists at the app, `OperatingRulesTests` the opening share, and
 `ScriptedHandJawTests` checks that the scripted hand names the jaw's readings in the jaw's unit.
 
-Motion and response run the same way, with test-only numbers as bench arm B will have them (`TestMotion`, `TestServer`,
+Motion and response run the same way, with test-only numbers as bench arm B has them (`TestMotion`, `TestServer`,
 `TestResponse` and `TestPacing` in the core tests, `TestProfiles.benchBMotion` and `benchBServer` in the app tests):
 buttons twice as fast, a 6 cm stop distance with a lead cap under it, quicker resync times, no simulation loop to watch,
 and a blocked rule, lowest rule and pacing of their own. `MotionAcrossMotionsTests` runs the button ramp, the pad and the
@@ -95,10 +95,12 @@ cannot tell which way forward points in the room (`docs/PROFILE.md`, "Before the
 `python3 scripts/check-profile-doc.py` fails when the file printed in the guide is not a bundled profile file (the scripts'
 unit tests run it, so CI does too).
 
-At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
-live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
+At 1.4.0 the core package has 1085 test methods, the app tests 710 and the UI tests 101. The Default plan skips the 12
+live ones by name (`OperatorLiveTests` has 4, `ServerMotionTests` 8), so it runs 698 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
-`Tests/TeleopUITests`; a test plan's own list (below) says what it runs.
+`Tests/TeleopUITests`; a test plan's own list (below) says what it runs. A run of the Default plan passes 798 (698 app and 101 UI
+tests less the 1 skipped by design, `OffPlanTests` outside the AssistOff plan), the AssistOff plan 698 and `swift test`
+1098 (more than the 1085 methods, because test classes that other test classes inherit run again in each).
 
 Two more checks sit beside the tests:
 
@@ -201,10 +203,8 @@ iPhone simulator is set to and whatever language the app last saved there. Each 
 with `-appLanguage en`, and a UI test names the app's language at every launch: one that needs Traditional Chinese
 asks for it (`-appLanguage zh-Hant`, below).
 
-On a recent Mac a full run of the Default plan took about three quarters of an hour with its build: about seven
-minutes of the app's unit tests and more than half an hour of UI tests. The AssistOff plan took about seven minutes.
-These times were measured when the Default plan ran 409 app unit tests; it now runs 645, and the times have not been
-measured again.
+On a recent Mac the test phase of the Default plan takes about 55 minutes (698 app unit tests and 101 UI tests) and
+the AssistOff plan about 11 minutes, each plus its build.
 Two things make a run fail for reasons that have nothing to do with the code:
 
 - **Nothing else may use the iPhone simulator while the tests run on it**: no second test run, and no other tool
