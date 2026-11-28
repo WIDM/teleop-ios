@@ -13,7 +13,8 @@ loader, the profile files, the tests, the build settings and the test plans this
   4. a profile's `name`, or its leading words, written as a string in code;
   5. a direction table or conversion that the profile's frames replaced: `OperatorDirection.baseAxis`, the
      `baseVector` and `linkVector` properties of a direction, the `OperatorFrame` conversions and the static
-     `GuideProjection.operatorPoint` and `base(fromOperator:)`. Which base axis is forward, left and up, how the link's
+     `GuideProjection.operatorPoint` and `base(fromOperator:)` (also a `static func` of either name declared again inside
+     `GuideProjection`, or read through `Self`). Which base axis is forward, left and up, how the link's
      offsets are signed and how the world sits against the base are `robot.directions`, `server.link_signs` and
      `scene.base_axes_in_world` of the profile file, read through `Frames`;
   6. a `Frames` held in a `static let` or `static var`, or built (`Frames(...)`), outside the core's Profile folder and
@@ -38,6 +39,15 @@ loader, the profile files, the tests, the build settings and the test plans this
      profile file, read through `MotionProfile`, `ServerProfile`, `BlockedRule`, `LowestRule` and `GoToPacing`;
  10. a `MotionProfile`, `ServerProfile`, `ResyncTimes`, `BlockedRule`, `LowestRule` or `GoToPacing` built, or held in a
      `static let` or `static var`, outside the core's Profile folder and the tests: they travel inside the profile.
+ 11. a decision made by which profile is in use: a branch on a profile's `name` or `id` (`if profile.name == ...`,
+     `switch profile.name`, `profile.name.hasPrefix(...)`, `ProfileLoader.current.name`, the same on any value the
+     file declares as a `RobotProfile`, and a variable set from such a read and then compared or switched on;
+     showing the name is fine), the loader's choice read outside the loader (`ProfileLoader.chosenID`, `chosen`, `load`,
+     `infoKey`, `argumentKey`), and the names of the build setting and the launch argument (`TeleopRobotProfile`,
+     `robotProfile`) written anywhere but the loader, the tests, the build files and the documents. Code that behaves
+     differently for one arm has a field in the profile for it; it never asks which arm it is.
+ 12. the wrist lead bound's `freshStateMs` given a number as a default inside `WristLeadBound` or `WristLeadLimits`
+     (`var freshStateMs = 400`, `freshStateMs: Int = 400`), which is `robot.wrist.lead.fresh_state_ms` of the profile.
 Naming a profile is not building one. Everywhere but the core's Profile folder and the tests, the loader included, it
 refuses a RobotProfile built in code: `RobotProfile(...)`, `RobotProfile.init(...)`, `.init(...)` whose type is
 RobotProfile (inside the type, also `Self`): written beside it (`let p: RobotProfile = .init(...)`) or as the type of
@@ -50,7 +60,8 @@ Metatypes (`RobotProfile.Type`, `RobotProfile.self`), types nested in RobotProfi
 profiles and pass. Swift comments and the text of string literals are not code: rules 2, the build rule and the read
 rule skip them.
 
-The check reads text, not types. It guards against accidents, not deliberate evasion: a name spelled with Swift
+The check reads text, not types. It is a tripwire for mistakes, not a proof that nothing decides by the arm; review
+covers what it cannot see. It guards against accidents, not deliberate evasion: a name spelled with Swift
 escapes (`"SO-\\u{61}rm"`), a profile built by a helper whose type is inferred, or a name tested by a fragment passes.
 Review covers those.
 
@@ -209,11 +220,29 @@ TYPE_STATICS = {
     "FeedbackMonitor": "freshStateMs|arrivalGapMs",
     "GoMove": "freshS|settleMoveM|followShare|paceGain|slowestShare|startShare|pathWatchTolerances",
 }
+# Static functions that were removed from a type and live on as instance methods of the same name: declaring one again
+# or reading it through `Self` brings the old conversion back.
+TYPE_STATIC_FUNCS = {
+    "GuideProjection": "operatorPoint|base",
+}
+TYPE_STATIC_FUNCS_WHAT = {
+    "GuideProjection": "the static GuideProjection conversions, replaced by the profile's frames",
+}
 TYPE_STATICS_WHAT = {
     "FeedbackMonitor": "the feedback monitor's blocked and lowest statics, replaced by response.blocked and "
     "response.lowest of the profile",
     "GoMove": "the going move's statics, replaced by assist.go_to.pacing of the profile",
 }
+# Types whose field of this name may not be given a number again, whatever the field is called elsewhere: the wrist lead
+# bound's `freshStateMs` is `robot.wrist.lead.fresh_state_ms` of the profile.
+TYPE_DEFAULTS = {
+    "WristLeadBound": "freshStateMs",
+    "WristLeadLimits": "freshStateMs",
+}
+TYPE_DEFAULTS_WHAT = (
+    "the wrist lead bound's freshStateMs written as a default in code, replaced by robot.wrist.lead.fresh_state_ms of "
+    "the profile"
+)
 MOTION_TYPES = r"(?:MotionProfile|ServerProfile|ResyncTimes|BlockedRule|LowestRule|GoToPacing)"
 BUILDS_MOTION = re.compile(r"(?<![\w.])" + MOTION_TYPES + r"\s*(?:\.\s*init\s*)?\(")
 INFERRED_MOTION_VALUE = re.compile(
@@ -273,6 +302,36 @@ TYPE_HEAD = re.compile(
     r"(?P<name>(?:\w+\s*\.\s*)*\w+)[^{;]*\{"
 )
 CURRENT = re.compile(r"\bProfileLoader\s*\.\s*current\b")
+# Deciding by which profile is in use. A profile's name is for people and logs (showing it is fine, branching on it is
+# not); the loader's choice is read only by the loader. Each is refused in code outside ALLOWED (the loader and the tests are in it).
+CHOSEN_BY = (
+    (
+        re.compile(r"\bProfileLoader\s*\.\s*(?:chosenID|chosen|load|infoKey|argumentKey)\b"),
+        "the profile loader's choice read outside the loader: nothing may be decided by which profile is in use",
+    ),
+)
+BRANCH_ON_NAME_WHAT = (
+    "a branch on a robot profile's name or id: a name is for people and logs, so nothing may be decided by it"
+)
+# Where a profile's `name` or `id` is read: from the chosen profile, or from a value the file declares as a RobotProfile
+# (`profile` and `robotProfile` always count), with `?` or `!` before the dot allowed.
+PROFILE_VALUE_BINDINGS = (
+    re.compile(r"\b(?P<id>[A-Za-z_]\w*)\s*:\s*(?:\w+\s*\.\s*)?RobotProfile\b"),
+    re.compile(
+        r"\b(?:let|var)\s+(?P<id>[A-Za-z_]\w*)\s*(?::[^=\n]+)?=\s*"
+        r"(?:ProfileLoader\s*\.\s*current\b|(?:\w+\s*\.\s*)?RobotProfile\s*(?:\.\s*init\s*)?\()"
+    ),
+)
+KNOWN_PROFILE_VALUES = ("profile", "robotProfile")
+# What a name is compared or tested with, and the statements that branch.
+TESTED = (
+    r"(?:[=!~]=|\?|\.\s*(?:hasPrefix|hasSuffix|contains|starts|firstIndex|range|compare|lowercased|uppercased|"
+    r"isEmpty|elementsEqual|caseInsensitiveCompare)\b)"
+)
+BRANCHING = r"\b(?:if|guard|while|switch|case|where)\b"
+# The build setting and the launch argument that choose a profile: written only where the loader, the build files, the
+# test plans, the documents and the tests are.
+CHOICE_KEYS = re.compile(r"\b(?:TeleopRobotProfile|robotProfile)\b")
 
 HINT = (
     "put the number in the robot profile file (App/Resources/Profiles/<id>.json) and read it through "
@@ -593,6 +652,43 @@ def check(path):
         builds(code, bodies, report)
 
 
+def profile_values(code):
+    """The identifiers that hold a RobotProfile in this file: `profile`, `robotProfile`, and any declared with that type
+    or set from the chosen profile or a built one."""
+    found = set(KNOWN_PROFILE_VALUES)
+    for pattern in PROFILE_VALUE_BINDINGS:
+        found.update(m["id"] for m in pattern.finditer(code))
+    return found
+
+
+def name_branches(code):
+    """Offsets of a decision made by a profile's name or id: the read (`profile.name`, `robotProfile?.id`,
+    `ProfileLoader.current.name`, `<value declared RobotProfile>.name`) in a branching line or a `switch` whose subject
+    starts on the next line, or compared or tested; and a variable set from such a read (`let n = profile.name`) and
+    then compared, tested or switched on (names are matched per file, not per scope). A tripwire for mistakes, not a proof."""
+    values = "|".join(sorted(re.escape(v) for v in profile_values(code)))
+    read = r"(?:\bProfileLoader\s*\.\s*current|\b(?:" + values + r"))\s*[?!]?\s*\.\s*(?:name|id)\b"
+    offsets = set()
+    for pattern in (
+        re.compile(BRANCHING + r"[^\n]*" + read),
+        re.compile(r"\bswitch\s+" + read),
+        re.compile(read + r"\s*" + TESTED),
+    ):
+        offsets.update(m.start() for m in pattern.finditer(code))
+    declaration = re.compile(r"\b(?:let|var)\s+(?P<id>[A-Za-z_]\w*)\s*(?::[^=\n]+)?=\s*" + read)
+    for held in {m["id"] for m in declaration.finditer(code)}:
+        # the declaration is the read, judged above; only the later uses count
+        uses = declaration.sub(lambda m: " " * len(m.group(0)) if m["id"] == held else m.group(0), code)
+        v = r"(?<![\w.])" + re.escape(held) + r"\b"
+        for pattern in (
+            re.compile(v + r"\s*" + TESTED),
+            re.compile(r"[=!~]=\s*" + v),
+            re.compile(r"\bswitch\s+" + v),
+        ):
+            offsets.update(m.start() for m in pattern.finditer(uses))
+    return sorted(offsets)
+
+
 def names_or_holds(text, code, literals, bodies, swift, report):
     for m in REMOVED.finditer(text):
         report(m.start(), "the name so101Simulator")
@@ -600,10 +696,17 @@ def names_or_holds(text, code, literals, bodies, swift, report):
         for m in pattern.finditer(text):
             report(m.start(), f"the profile id {pid} named outside the loader")
 
+    for m in CHOICE_KEYS.finditer(text):
+        report(m.start(), "the build's profile choice (TeleopRobotProfile, robotProfile) read outside the loader")
+
     if swift:
-        for pattern, what in REMOVED_DIRECTIONS + REMOVED_WRIST_JAW + REMOVED_MOTION_RESPONSE:
+        for pattern, what in (
+            REMOVED_DIRECTIONS + REMOVED_WRIST_JAW + REMOVED_MOTION_RESPONSE + CHOSEN_BY
+        ):
             for m in pattern.finditer(code):
                 report(m.start(), what)
+        for offset in name_branches(code):
+            report(offset, BRANCH_ON_NAME_WHAT)
 
     if not swift:
         for name, _ in names:
@@ -613,10 +716,25 @@ def names_or_holds(text, code, literals, bodies, swift, report):
 
     for head in TYPE_HEAD.finditer(code):
         owner = re.sub(r"\s", "", head["name"]).split(".")[-1]
-        if owner not in TYPE_STATICS or head["kind"] not in ("extension", "struct", "class", "enum", "actor"):
+        if head["kind"] not in ("extension", "struct", "class", "enum", "actor"):
             continue
         opening = head.end() - 1
         closing = closing_brace(code, opening)
+        if owner in TYPE_DEFAULTS:
+            fields = TYPE_DEFAULTS[owner]
+            number = r"\s*(?::\s*[\w<>?\[\]]+\s*)?=\s*[-+]?\d"
+            given = re.compile(r"\b(?:let|var)\s+`?(?:" + fields + r")`?\b" + number + r"|\b(?:" + fields + r")\b" + number)
+            for m in given.finditer(code, opening, closing):
+                report(m.start(), TYPE_DEFAULTS_WHAT)
+        if owner in TYPE_STATIC_FUNCS:
+            funcs = TYPE_STATIC_FUNCS[owner]
+            declared = re.compile(r"\bstatic\s+" + MODIFIERS + r"func\s+`?(?:" + funcs + r")`?\b")
+            read = re.compile(r"\bSelf\s*\.\s*(?:" + funcs + r")\b")
+            for pattern in (declared, read):
+                for m in pattern.finditer(code, opening, closing):
+                    report(m.start(), TYPE_STATIC_FUNCS_WHAT[owner])
+        if owner not in TYPE_STATICS:
+            continue
         fields = TYPE_STATICS[owner]
         declared = re.compile(r"\bstatic\s+" + MODIFIERS + r"(?:let|var)\s+`?(?:" + fields + r")\b")
         read = re.compile(r"\bSelf\s*\.\s*(?:" + fields + r")\b")

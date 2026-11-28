@@ -61,6 +61,24 @@ the profile's own numbers; `StallDetectionAcrossServersTests` runs every way the
 and `none`; `LiveLinkTests` runs the lead cap and the resync times through both at the link controller. The scripted
 hand holds a button for the time the profile's speed needs.
 
+A whole second arm runs the whole task. Bench arm B is a profile file in the app tests' own resources
+(`Tests/TeleopTests/Profiles/bench-arm-b.json`, not in the app) and `BenchArmB.config` sets the in-app server model up
+as its server from that file and a world scene: the base hangs 28 cm over the table (40 cm from the world origin)
+with its z pointing down, the model steps 8 times a second (each step a real eighth of a second, so what an arm may move in a step and the counts of
+steps for a reset or a success on show are scaled to keep the SO-101 model's speed and durations), the arm stops at
+6 cm, and the jaw is a linear one that reads the gap in millimetres. `BenchArmBTests` runs the same `ScriptedOperator`
+the SO-101 runs, with B's profile given to the app, through every control mode, with and without a reported tool
+point, and passes on the server's own `task_success`; nothing in it asks which arm it is. It also checks that the
+file carries the numbers the package tests use for B, and that the model and the profile describe one arm (pinch
+offset, table height, work box, sizes). `BenchArmBScenesTests` draws the UI tests' scenes for B, along its up. B's
+grasp tolerance is the SO-101's and it has no wider on-target window, and the cue rules (on target felt once on the
+approach, none while holding, none after the release) are the SO-101's, counted by the same `OnTargetCueTally`. The
+task cannot prove B's forward, left, wrist or jaw numbers: the script and the app read them from the same file, so a
+wrong sign there moves both and the task still finishes. The wrist and jaw numbers are pinned by their own rule
+tests; directions are checked on the arm itself before its first move (`docs/PROFILE.md`). To
+run the whole task on B 20 times in a row:
+`xcodebuild test ... -testPlan Default -test-iterations 20 -only-testing:TeleopTests/BenchArmBTests/<test>`.
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and

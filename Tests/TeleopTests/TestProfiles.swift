@@ -14,29 +14,27 @@ enum TestProfiles {
         }
     }()
 
-    /// A wrist unlike the SO-101's in every number, as bench arm B will have it (the same numbers as the package
-    /// tests' `TestWrist.benchB`): a narrower turn, a wider tilt on a fixed centre, a turn sign the other way and a
-    /// tilt sign the same as the SO-101's (so a rule that reads one axis's sign for the other gives a different
-    /// answer), buttons twice as fast.
-    static let benchBWrist = WristProfile(
-        rollSign: -1, tiltSign: 1, rollWindowDeg: 90, tiltWindowDeg: 45, rollClampDeg: 40, tiltClampDeg: 30,
-        tiltCentre: .fixed(15), turnRateDegS: 40, tiltRateDegS: 20,
-        lead: WristLeadLimits(leadDeg: 3, rateMaxDegS: 20, memoryDeg: 1, freshStateMs: 300))
+    /// Bench arm B, a deliberately different arm given only as a file: `Tests/TeleopTests/Profiles/bench-arm-b.json`,
+    /// in the test bundle and not in the app. Read the same way the app reads the SO-101's.
+    static let benchB: RobotProfile = {
+        do {
+            return try ProfileLoader.load(id: "bench-arm-b", bundle: Bundle(for: TestBundleMarker.self))
+        } catch {
+            fatalError("\(error)")
+        }
+    }()
 
-    /// A jaw unlike the SO-101's: parallel, read in millimetres between the pads, 0 shut and 40 open (the same numbers
-    /// as the package tests' `TestJaw.benchB`).
-    static let benchBGripper = GripperProfile(
-        unit: .mm, closedReading: 0, openReading: 40, validMin: 0, validMax: 45, fullyOpenAt: 39, emptyAt: 1)
-
-    /// Bench arm B's motion: buttons twice as fast, and a lead cap under its 6 cm stop distance (the same numbers as the
-    /// package tests' `TestMotion.benchB`).
-    static let benchBMotion = MotionProfile(fineMps: 0.02, coarseMps: 0.08, maxLeadM: 0.05, toolMaxLeadM: 0.004)
-
-    /// Bench arm B's server: a 6 cm stop distance, its own resync times, a held object lifted through the tool point and no simulation loop to watch (the same
-    /// numbers as the package tests' `TestServer.benchB`).
-    static let benchBServer = ServerProfile(
-        stopDistanceM: 0.06, resync: ResyncTimes(afterMs: 1200, toolAfterMs: 400, timeoutMs: 1000),
-        heldObjectPoint: .toolPoint, stallDetection: .none)
+    /// B's wrist, jaw, motion and server, as the file gives them: a wrist unlike the SO-101's in every number (a narrower
+    /// turn, a wider tilt on a fixed centre, a turn sign the other way and a tilt sign the same as the SO-101's, so a
+    /// rule that reads one axis's sign for the other gives a different answer, buttons twice as fast); a parallel jaw
+    /// read in millimetres between the pads, 0 shut and 40 open; buttons twice as fast with a lead cap under its 6 cm
+    /// stop distance; a server with its own resync times, a held object lifted through the tool point and no
+    /// simulation loop to watch. The package tests' `TestWrist.benchB`, `TestJaw.benchB`, `TestMotion.benchB` and
+    /// `TestServer.benchB` carry the same numbers, and `BenchArmBTests` checks it.
+    static var benchBWrist: WristProfile { benchB.wrist }
+    static var benchBGripper: GripperProfile { benchB.gripper }
+    static var benchBMotion: MotionProfile { benchB.motion }
+    static var benchBServer: ServerProfile { benchB.server }
 
     /// The SO-101's profile, and the SO-101's with bench arm B's motion and server facts: what a rule that reads them
     /// is run through.
@@ -57,6 +55,9 @@ enum TestProfiles {
         ("SO-101", so101.wrist), ("bench arm B", benchBWrist),
     ]
 }
+
+/// Names the test bundle, which holds the test-only profile files.
+private final class TestBundleMarker {}
 
 extension SurfaceLayout {
     /// The operating screen's zones with the SO-101's input numbers, as the app tests draw it.
