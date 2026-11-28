@@ -28,7 +28,7 @@ final class BenchArmBTests: XCTestCase {
 
     /// B differs from the SO-101 in every group of the profile, so a rule that read the SO-101's number for any of them
     /// would give another answer.
-    func testBDiffersFromTheSO101WhereTheInventoryFoundAnAssumption() {
+    func testBDiffersFromTheSO101InEveryGroupOfTheProfile() {
         let so = TestProfiles.so101, b = TestProfiles.benchB
         XCTAssertNotEqual(b.frames.forward, so.frames.forward)
         XCTAssertEqual(b.frames.forward, SignedAxis(.x, 1), "forward is base +x")
@@ -146,12 +146,21 @@ final class BenchArmBTests: XCTestCase {
 
     /// The same script the SO-101 runs, on B: the whole pick and place, passing on the server model's own
     /// `task_success`.
+    ///
+    /// What this cannot show: the script and the app read B's file through the same frames, wrist and jaw, so a wrong
+    /// forward or left sign, a wrong wrist sign or rate, or a wrong jaw reading in B's file moves the script and the
+    /// app together and the task still finishes. The task shows that nothing reads the SO-101's number for B, and that
+    /// the base, link, world turn, up and table in the file match the model's scene. A direction check against the
+    /// arm's own axes covers the directions; `testTheFileCarriesTheNumbersThePackageTestsUseForB` only compares the
+    /// file with the numbers written beside it, so it guards the file against edits and proves nothing about them.
     private func pickAndPlace(_ mode: ControlMode, toolPoint: Bool = true) throws {
         try start(mode, toolPoint: toolPoint)
         let model = hand.model!
         var reported = false, estimated = false
         var onTargetBeforeTheClose = false
+        var cues = OnTargetCueTally()
         hand.watch = {
+            cues.update(model)
             guard let arm = model.operating.arm else { return }
             switch arm.pinchSource {
             case .reported: reported = true
@@ -171,6 +180,7 @@ final class BenchArmBTests: XCTestCase {
         XCTAssertEqual(reported, toolPoint, "\(mode)")
         XCTAssertEqual(estimated, !toolPoint, "\(mode)")
         XCTAssertTrue(onTargetBeforeTheClose, "\(mode): the guide never said On target at the grasp")
+        cues.assertOnceOnTheApproach(model, mode: mode)
     }
 
     func testBenchArmBDoesThePickAndPlaceWithScreenTurns() throws {
