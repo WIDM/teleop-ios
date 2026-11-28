@@ -34,10 +34,12 @@ struct OnTargetCueTally {
     ) {
         XCTAssertLessThan(model.cueLog.count, 200, "the cue log still holds the whole script", file: file, line: line)
         XCTAssertEqual(
-            beforeTheGrasp.count, 1, "\(mode): ON TARGET once on the approach, \(beforeTheGrasp)", file: file, line: line)
+            beforeTheGrasp.count, 1, "\(mode): ON TARGET once on the approach, \(beforeTheGrasp)", file: file,
+            line: line)
         XCTAssertEqual(beforeTheGrasp.first?.dropped, false, "\(mode): and felt", file: file, line: line)
         XCTAssertEqual(whileHolding, 0, "\(mode)", file: file, line: line)
         XCTAssertEqual(
-            afterTheRelease, 0, "\(mode): letting go of the carried object is no new approach", file: file, line: line)
+            afterTheRelease, 0, "\(mode): letting go of the carried object is no new approach", file: file,
+            line: line)
     }
 }
