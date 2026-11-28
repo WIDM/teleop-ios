@@ -202,6 +202,18 @@ REMOVED_MOTION_RESPONSE = (
         "server, response and assist.go_to.pacing of the profile",
     ),
 )
+# Names that are a profile field only because of the type they were in: `freshStateMs` is the wrist's field too, `freshS`
+# and `settleMoveM` mean nothing outside the going move. Inside the type, and in any extension of it, the static that
+# held the number may not be declared again, and `Self.` may not read it, though the name alone is not refused.
+TYPE_STATICS = {
+    "FeedbackMonitor": "freshStateMs|arrivalGapMs",
+    "GoMove": "freshS|settleMoveM|followShare|paceGain|slowestShare|startShare|pathWatchTolerances",
+}
+TYPE_STATICS_WHAT = {
+    "FeedbackMonitor": "the feedback monitor's blocked and lowest statics, replaced by response.blocked and "
+    "response.lowest of the profile",
+    "GoMove": "the going move's statics, replaced by assist.go_to.pacing of the profile",
+}
 MOTION_TYPES = r"(?:MotionProfile|ServerProfile|ResyncTimes|BlockedRule|LowestRule|GoToPacing)"
 BUILDS_MOTION = re.compile(r"(?<![\w.])" + MOTION_TYPES + r"\s*(?:\.\s*init\s*)?\(")
 INFERRED_MOTION_VALUE = re.compile(
@@ -598,6 +610,19 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             for m in re.finditer(re.escape(name), text):
                 report(m.start(), f"the profile name '{name}' written in code")
         return
+
+    for head in TYPE_HEAD.finditer(code):
+        owner = re.sub(r"\s", "", head["name"]).split(".")[-1]
+        if owner not in TYPE_STATICS or head["kind"] not in ("extension", "struct", "class", "enum", "actor"):
+            continue
+        opening = head.end() - 1
+        closing = closing_brace(code, opening)
+        fields = TYPE_STATICS[owner]
+        declared = re.compile(r"\bstatic\s+" + MODIFIERS + r"(?:let|var)\s+`?(?:" + fields + r")\b")
+        read = re.compile(r"\bSelf\s*\.\s*(?:" + fields + r")\b")
+        for pattern in (declared, read):
+            for m in pattern.finditer(code, opening, closing):
+                report(m.start(), TYPE_STATICS_WHAT[owner])
 
     for offset, literal in literals:
         for name, forms in names:

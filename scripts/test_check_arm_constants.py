@@ -209,6 +209,37 @@ class CheckArmConstantsTests(unittest.TestCase):
                 out = self.assertFails({relative: text}, what, f"{relative}: {text}")
                 self.assertIn("put the number in the robot profile file", out)
 
+    def test_a_removed_static_declared_again_or_read_through_self_inside_its_type_fails(self):
+        monitor = "the feedback monitor's blocked and lowest statics"
+        going = "the going move's statics"
+        for text, what in (
+            ("struct FeedbackMonitor {\n    static let freshStateMs = 400\n}\n", monitor),
+            ("extension FeedbackMonitor {\n    private static let arrivalGapMs = 400\n}\n", monitor),
+            ("final class FeedbackMonitor {\n    static var freshStateMs: Int { 400 }\n}\n", monitor),
+            ("struct FeedbackMonitor {\n    func f(age: Int) -> Bool { age <= Self.freshStateMs }\n}\n", monitor),
+            ("struct FeedbackMonitor {\n    func f(gap: Int) -> Bool { gap <= Self . arrivalGapMs }\n}\n", monitor),
+            ("struct GoMove {\n    static let freshS = 0.4\n}\n", going),
+            ("extension GoMove {\n    static let settleMoveM = 0.002\n}\n", going),
+            ("struct GoMove {\n    func f(m: Double) -> Bool { m < Self.settleMoveM }\n}\n", going),
+            ("struct GoMove {\n    static let paceGain: Double = 0.25\n}\n", going),
+            ("struct GoMove {\n    let g = Self.followShare * 2\n}\n", going),
+        ):
+            for relative in (APP, CORE):
+                out = self.assertFails({relative: text}, what, f"{relative}: {text}")
+                self.assertIn("put the number in the robot profile file", out)
+
+    def test_the_names_of_a_removed_static_pass_where_they_are_not_the_removed_static(self):
+        self.assertPasses(
+            {
+                APP: "struct FeedbackMonitor {\n    let blockedRule: BlockedRule\n"
+                "    func f(age: Int) -> Bool { age <= blockedRule.freshMs && Self.length(v) > 0 }\n}\n"
+                "struct WristLeadLimits {\n    static let freshStateMs = wrist.lead.freshStateMs\n}\n"
+                "struct Other {\n    func f() -> Int { Self.freshS }\n    static let arrivalGapMs: Int = limit()\n}\n",
+                CORE: "struct GoMove {\n    let limits: GoToLimits\n    func f(t: Double) -> Bool { t <= limits.freshS }\n}\n",
+                CORE_TEST: "struct FeedbackMonitor {\n    static let freshStateMs = 400\n    let a = Self.freshStateMs\n}\n",
+            }
+        )
+
     def test_a_motion_or_response_number_read_from_the_profile_passes(self):
         self.assertPasses(
             {
