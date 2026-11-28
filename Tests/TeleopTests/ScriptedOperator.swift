@@ -314,7 +314,7 @@ final class ScriptedOperator {
 
     /// Where the server reports the arm now, in the newest `state` from either connection (the one `freshState` waited
     /// for); nil, and said why, when it cannot be known.
-    private func reportedArm(_ name: String) -> SIMD3<Float>? {
+    func reportedArm(_ name: String) -> SIMD3<Float>? {
         guard freshState() else { return nil }
         guard let arm = model.serverState?.endEffector else {
             print("PICK \(name): the server's newest state has no arm position. log: \(model.debugLog.suffix(3))")

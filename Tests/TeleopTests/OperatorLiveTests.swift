@@ -7,6 +7,8 @@ import XCTest
 ///
 ///     TEST_RUNNER_TELEOP_MOTION=1 xcodebuild test ... -testPlan Live
 ///
+/// `testEveryDirectionGoesTheNamedWay` is the direction check for a new arm; see `docs/PROFILE.md`.
+///
 /// It needs the simulator's scene at its reset pose with nobody else driving it. It may run in a recording session,
 /// where each success saves a take; it has not been tried in one yet.
 ///
@@ -54,5 +56,13 @@ final class OperatorLiveTests: XCTestCase {
     func testPickAndPlaceButtons() throws {
         try start(.buttons)
         try hand.pickAndPlace(warmUpHolds: 0)
+    }
+
+    /// The direction check (`DirectionCheck`) against the real server: six 1 cm moves, each read back from the server's
+    /// state, each along the base axis the build's profile names. Run it first on a new arm, with the arm clear.
+    func testEveryDirectionGoesTheNamedWay() throws {
+        try start(.buttons)
+        let faults = try XCTUnwrap(hand.directionCheckFaults(), "the check could not read the arm")
+        XCTAssertEqual(faults, [], faults.joined(separator: "\n"))
     }
 }
