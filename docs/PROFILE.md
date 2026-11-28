@@ -162,9 +162,9 @@ A wrong sign reverses that axis: for the SO-101's z, every vertical move would g
 translation hold of +1 cm along each of the link's axes and read the change of `ee_pos`; the sign of the change is the
 sign.
 
-The sentence the operator reads when the server stops the arm for falling behind (`stop.cause_arm_behind`) takes the
-profile's `server.stop_distance_m` as its number, in centimetres, in both languages: 10 cm for the SO-101, 6 cm for a
-server that stops at 6 cm.
+The full sentence for a stop because the arm fell behind (`stop.cause_arm_behind`, built by `StopCause.text`) takes
+the profile's `server.stop_distance_m` as its number, in centimetres, in both languages: 10 cm for the SO-101, 6 cm for
+a server that stops at 6 cm. The operating screen shows the short cause (`cause.behind`), which carries no number.
 
 What goes wrong when a value is wrong:
 
