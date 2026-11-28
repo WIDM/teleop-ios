@@ -165,10 +165,15 @@ public final class TeleopLink {
     /// - Parameters:
     ///   - send: writes one text frame.
     ///   - now: clock in milliseconds.
-    public init(send: @escaping (String) -> Void, now: @escaping () -> Int) {
+    ///   - jawReadings: the jaw readings that count in a `state` (`GripperProfile.validReadings`).
+    public init(send: @escaping (String) -> Void, now: @escaping () -> Int, jawReadings: ClosedRange<Double>) {
         self.send = send
         self.now = now
+        self.jawReadings = jawReadings
     }
+
+    /// The jaw readings that count; a `gripper_deg` outside them is read as missing.
+    private let jawReadings: ClosedRange<Double>
 
     /// - Parameter name: how the server's log names this connection.
     public func hello(name: String) {
@@ -506,7 +511,7 @@ public final class TeleopLink {
             if let position = payload["ee_pos"] as? [Double], position.count == 3 { lastEndEffector = position }
             if let position = payload["object_pos"] as? [Double], position.count == 3 { lastObject = position }
             if let position = payload["goal_pos"] as? [Double], position.count == 3 { lastGoal = position }
-            let parsed = ServerState(payload: payload)
+            let parsed = ServerState(payload: payload, jawReadings: jawReadings)
             lastState = parsed
             lastStateAtMs = now()
             lastStateServerMs = message["ts"] as? Int

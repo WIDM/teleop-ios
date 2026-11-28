@@ -18,6 +18,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case badValue(String)
     /// A direction or axis that is not one of the six signed axes. The file can only say quarter turns.
     case notAnAxis(String, found: String)
+    /// A jaw unit that is neither `deg` nor `mm`.
+    case notAUnit(String, found: String)
     /// The file was read but its values do not make sense together: one sentence per fault.
     case invalid([String])
 
@@ -35,6 +37,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
         case .notAnAxis(let path, let found):
             return "\(path) is \"\(found)\", which is not an axis; write one of \(SignedAxis.allowedText). "
                 + "Only quarter turns are supported, so a direction at another angle cannot be given."
+        case .notAUnit(let path, let found):
+            return "\(path) is \"\(found)\", which is not a unit; write \(JawUnit.allowedText)."
         case .invalid(let faults): return faults.joined(separator: " ")
         }
     }
@@ -72,8 +76,19 @@ extension RobotProfile: Codable {
         let robot = try top.section("robot", ["directions", "wrist", "gripper"])
         let directions = try robot.section("directions", ["forward", "left", "up"])
         let server = try top.section("server", ["link_signs"])
-        let wrist = try robot.section("wrist", ["roll_sign", "tilt_sign"])
-        let gripper = try robot.section("gripper", ["open_deg", "empty_deg", "reclose_loosens_grip"])
+        let wrist = try robot.section(
+            "wrist",
+            [
+                "roll_sign", "tilt_sign", "roll_window_deg", "tilt_window_deg", "roll_clamp_deg", "tilt_clamp_deg",
+                "tilt_centre_deg", "turn_rate_deg_s", "tilt_rate_deg_s", "lead",
+            ])
+        let lead = try wrist.section("lead", ["lead_deg", "rate_max_deg_s", "memory_deg", "fresh_state_ms"])
+        let gripper = try robot.section(
+            "gripper",
+            [
+                "unit", "closed_reading", "open_reading", "valid_min", "valid_max", "fully_open_at", "empty_at",
+                "reclose_loosens_grip",
+            ])
         let scene = try top.section(
             "scene",
             [
@@ -101,13 +116,24 @@ extension RobotProfile: Codable {
             graspTolerance: try scene.vector2("grasp_tolerance_m"),
             targetSize: try scene.value("target_size_m"),
             goalSize: try scene.value("goal_size_m"),
-            gripperOpenDeg: try gripper.value("open_deg"),
-            gripperEmptyDeg: try gripper.value("empty_deg"),
+            gripper: GripperProfile(
+                unit: try gripper.jawUnit("unit"), closedReading: try gripper.value("closed_reading"),
+                openReading: try gripper.value("open_reading"), validMin: try gripper.value("valid_min"),
+                validMax: try gripper.value("valid_max"), fullyOpenAt: try gripper.value("fully_open_at"),
+                emptyAt: try gripper.value("empty_at")),
             workspaceMin: try scene.vector3("workspace_min_m"),
             workspaceMax: try scene.vector3("workspace_max_m"),
             tableHeight: try scene.value("table_height_m"),
-            rollSign: try wrist.value("roll_sign"),
-            tiltSign: try wrist.value("tilt_sign"),
+            wrist: WristProfile(
+                rollSign: try wrist.value("roll_sign"), tiltSign: try wrist.value("tilt_sign"),
+                rollWindowDeg: try wrist.value("roll_window_deg"), tiltWindowDeg: try wrist.value("tilt_window_deg"),
+                rollClampDeg: try wrist.value("roll_clamp_deg"), tiltClampDeg: try wrist.value("tilt_clamp_deg"),
+                tiltCentre: (try wrist.optional("tilt_centre_deg") as Double?).map(TiltCentre.fixed)
+                    ?? .measuredAfterReset,
+                turnRateDegS: try wrist.value("turn_rate_deg_s"), tiltRateDegS: try wrist.value("tilt_rate_deg_s"),
+                lead: WristLeadLimits(
+                    leadDeg: try lead.value("lead_deg"), rateMaxDegS: try lead.value("rate_max_deg_s"),
+                    memoryDeg: try lead.value("memory_deg"), freshStateMs: try lead.value("fresh_state_ms"))),
             recloseLoosensGrip: try gripper.value("reclose_loosens_grip"),
             usesDirectionalBlockedFeedback: try response.value("directional_blocked_feedback"),
             assist: try top.value("assist"),
@@ -125,11 +151,32 @@ extension RobotProfile: Codable {
         try directions.encode(frames.left.text, forKey: "left")
         try directions.encode(frames.up.text, forKey: "up")
         var wrist = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "wrist")
-        try wrist.encode(rollSign, forKey: "roll_sign")
-        try wrist.encode(tiltSign, forKey: "tilt_sign")
+        try wrist.encode(self.wrist.rollSign, forKey: "roll_sign")
+        try wrist.encode(self.wrist.tiltSign, forKey: "tilt_sign")
+        try wrist.encode(self.wrist.rollWindowDeg, forKey: "roll_window_deg")
+        try wrist.encode(self.wrist.tiltWindowDeg, forKey: "tilt_window_deg")
+        try wrist.encode(self.wrist.rollClampDeg, forKey: "roll_clamp_deg")
+        try wrist.encode(self.wrist.tiltClampDeg, forKey: "tilt_clamp_deg")
+        if case .fixed(let centre) = self.wrist.tiltCentre {
+            try wrist.encode(centre, forKey: "tilt_centre_deg")
+        } else {
+            try wrist.encodeNil(forKey: "tilt_centre_deg")
+        }
+        try wrist.encode(self.wrist.turnRateDegS, forKey: "turn_rate_deg_s")
+        try wrist.encode(self.wrist.tiltRateDegS, forKey: "tilt_rate_deg_s")
+        var lead = wrist.nestedContainer(keyedBy: ProfileKey.self, forKey: "lead")
+        try lead.encode(self.wrist.lead.leadDeg, forKey: "lead_deg")
+        try lead.encode(self.wrist.lead.rateMaxDegS, forKey: "rate_max_deg_s")
+        try lead.encode(self.wrist.lead.memoryDeg, forKey: "memory_deg")
+        try lead.encode(self.wrist.lead.freshStateMs, forKey: "fresh_state_ms")
         var gripper = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "gripper")
-        try gripper.encode(gripperOpenDeg, forKey: "open_deg")
-        try gripper.encode(gripperEmptyDeg, forKey: "empty_deg")
+        try gripper.encode(self.gripper.unit.rawValue, forKey: "unit")
+        try gripper.encode(self.gripper.closedReading, forKey: "closed_reading")
+        try gripper.encode(self.gripper.openReading, forKey: "open_reading")
+        try gripper.encode(self.gripper.validMin, forKey: "valid_min")
+        try gripper.encode(self.gripper.validMax, forKey: "valid_max")
+        try gripper.encode(self.gripper.fullyOpenAt, forKey: "fully_open_at")
+        try gripper.encode(self.gripper.emptyAt, forKey: "empty_at")
         try gripper.encode(recloseLoosensGrip, forKey: "reclose_loosens_grip")
         var server = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "server")
         try server.encode([frames.linkSigns.x, frames.linkSigns.y, frames.linkSigns.z], forKey: "link_signs")
@@ -443,6 +490,13 @@ struct StrictObject {
         let text: String = try value(key)
         guard let axis = SignedAxis(text: text) else { throw ProfileFormatError.notAnAxis(path(key), found: text) }
         return axis
+    }
+
+    /// The unit of the jaw's readings: `deg` or `mm`.
+    func jawUnit(_ key: String) throws -> JawUnit {
+        let text: String = try value(key)
+        guard let unit = JawUnit(rawValue: text) else { throw ProfileFormatError.notAUnit(path(key), found: text) }
+        return unit
     }
 
     func vector2(_ key: String) throws -> SIMD2<Float> {

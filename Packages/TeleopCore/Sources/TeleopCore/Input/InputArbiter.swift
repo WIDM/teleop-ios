@@ -135,7 +135,7 @@ public struct InputArbiter: Sendable {
     }
 
     public init(
-        scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants = .appendixA,
+        scheme: InputScheme, hand: Hand = .right, layout: SurfaceLayout, constants: InputConstants,
         assist: Assist = .off
     ) {
         self.scheme = scheme

@@ -26,13 +26,15 @@ enum OperatingFixtures {
         // A move to a point tapped on the guide: the commanded ring on its way, the cross where it is headed.
         all["going"] = display(.going(catchingUp: false), arm: going(), recorder: capturing)
         all["turning"] = display(
-            .turning(degrees: 42, limit: 55, estimated: false), mode: .keyTurns, arm: hotel(), recorder: capturing)
+            .turning(degrees: 42, limit: profile.wrist.rollClampDeg, estimated: false), mode: .keyTurns,
+            arm: hotel(), recorder: capturing)
         var turningLeft = all["turning"]!
         turningLeft.hand = .left
         all["turning_left"] = turningLeft
         // A server that measures no wrist angles: the estimated pinch point cannot rule out a tilt, so it is approximate.
         all["tilting_estimated"] = display(
-            .tilting(degrees: 8, limit: 20, estimated: true), arm: approximate(task()), recorder: .unknown
+            .tilting(degrees: 8, limit: profile.wrist.tiltClampDeg, estimated: true), arm: approximate(task()),
+            recorder: .unknown
         )
         all["opening"] = display(.opening, arm: onTarget(), recorder: armed)
         all["closing_gripped"] = display(.closing(gripped: true), mode: .keyTurns, arm: holding(), recorder: capturing)

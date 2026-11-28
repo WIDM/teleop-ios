@@ -349,7 +349,7 @@ final class AppModel {
         self.nowMs = nowMs
         link = LiveLinkController(
             makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
-            gripperLimits: profile.gripperLimits, frames: profile.frames, clientName: clientName
+            gripper: profile.gripper, wrist: profile.wrist, frames: profile.frames, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         self.experimentTiming.send = { [weak self] type, payload in
@@ -747,7 +747,8 @@ final class AppModel {
             resetRefusal: resetRefusal,
             gripping: profile.recloseLoosensGrip && gripping,
             wrist: WristReadings(
-                rollDeg: serverState?.wristRollDeg, flexDeg: serverState?.wristFlexDeg, flexAtResetDeg: flexAtReset
+                rollDeg: serverState?.wristRollDeg, flexDeg: serverState?.wristFlexDeg,
+                flexAtResetDeg: profile.wrist.tiltCentreDeg(measuredAfterReset: flexAtReset)
             ),
             connectionUp: !s.liveLink || link.isUp || link.observerUp,
             attitudeFrame: controller.attitudeFrame
@@ -1226,7 +1227,7 @@ final class AppModel {
 
     private var operatingFacts: OperatingFacts {
         let s = session.state
-        var facts = OperatingFacts()
+        var facts = OperatingFacts(wrist: profile.wrist)
         facts.connected = s.connected
         facts.connecting = s.liveLink && link.isOpen
         facts.connectionLost = s.connectionLost
@@ -1259,8 +1260,6 @@ final class AppModel {
         // The line is taken down as soon as it is no longer true: the jaws opened, or they hold something.
         facts.lastOpenJawsFirstAtMs = link.jawsClosedWithNothingHeld ? lastOpenJawsFirstAtMs : nil
         facts.nowMs = nowMs()
-        facts.turnLimit = profile.inputConstants.rollClampDeg
-        facts.tiltLimit = profile.inputConstants.tiltClampDeg
         return facts
     }
 

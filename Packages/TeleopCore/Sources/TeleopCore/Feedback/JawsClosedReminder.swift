@@ -5,7 +5,7 @@
 /// are still closed as the episode began, the screen shows the reminder for a moment. It is shown only, never felt or
 /// spoken, and the move itself goes on.
 ///
-/// Closed is what the state reports about the jaws: the server's jaws label, or without one the measured jaw angle
+/// Closed is what the state reports about the jaws: the server's jaws label, or without one the measured jaw reading
 /// against the robot profile's numbers (`GripperLimits`). Never the object's position, so it holds on any server and
 /// any arm. Nothing is said while the jaws hold something (`ObjectHold.holding`) or a close has just ended in contact
 /// (`FeedbackMonitor.gripping`), where closed jaws are right; nor during a stop, or while the simulator is paused or
@@ -16,7 +16,7 @@ public struct JawsClosedReminder: Equatable, Sendable {
     public struct Look: Equatable, Sendable {
         /// The server's jaws label; nil when it does not say.
         public var jaws: GripperState?
-        /// The measured jaw angle, degrees; nil when not reported.
+        /// The measured jaw reading, in the profile's unit; nil when not reported.
         public var jawDeg: Double?
         /// The jaws hold an object (`ObjectHold.holding`).
         public var holding: Bool
@@ -49,11 +49,11 @@ public struct JawsClosedReminder: Equatable, Sendable {
         self.limits = limits
     }
 
-    /// Whether the jaws are closed: the label when the server gives one, otherwise the measured angle, closed at or
-    /// below the empty angle and open above it. Nil when neither is known.
+    /// Whether the jaws are closed: the label when the server gives one, otherwise the measured reading, closed at or
+    /// below `emptyAt` and open above it. Nil when neither is known.
     public static func jawsClosed(_ jaws: GripperState?, degrees: Double?, limits: GripperLimits) -> Bool? {
         if let jaws { return jaws == .closed }
-        return degrees.map { $0 <= limits.emptyDeg }
+        return degrees.map { $0 <= limits.emptyAt }
     }
 
     /// A state from either connection. One naming another episode than the last begins a new episode.

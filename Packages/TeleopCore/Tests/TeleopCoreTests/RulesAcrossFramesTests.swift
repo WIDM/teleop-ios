@@ -386,7 +386,7 @@ class RulesAcrossFramesTests: XCTestCase {
         _ scenario: [(arm: SIMD3<Double>, gap: SIMD3<Double>, from: Int, through: Int, clamped: Bool)],
         pinch: SIMD3<Double>? = nil
     ) -> Outcome {
-        var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: frames)
+        var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: frames)
         monitor.reportsLowest = true
         monitor.startSent(.pose, restart: false, at: 0)
         var told: [Told] = []
@@ -411,7 +411,7 @@ class RulesAcrossFramesTests: XCTestCase {
     func testAnAskForLowerHeldNowSilencesTheBlockedCueAlongUp() {
         let onTable = SIMD3(0.02, -0.14, 0.133)
         func told(_ frames: Frames, finalGap: SIMD3<Double>) -> [Told] {
-            var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: frames)
+            var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: frames)
             monitor.reportsLowest = true
             monitor.startSent(.pose, restart: false, at: 0)
             let arm = TestFrames.carry(onTable, from: so, to: frames)

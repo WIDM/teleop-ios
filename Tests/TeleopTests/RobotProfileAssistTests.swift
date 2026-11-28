@@ -112,11 +112,11 @@ final class RobotProfileAssistTests: XCTestCase {
         }
     }
 
-    /// "Fully open" is felt at the opening angle of the profile the model was given, not the SO-101's: a robot whose
-    /// jaws open only to 50 degrees hears it at 60, the SO-101 (97 degrees) does not.
+    /// "Fully open" is felt at the `fully_open_at` reading of the profile the model was given, not the SO-101's: a robot
+    /// whose jaws read 50 when fully open hears it at 60, the SO-101 (97) does not.
     func testTheLinkJudgesTheJawsByTheModelsProfile() {
         var narrow = profile
-        narrow.gripperOpenDeg = 50
+        narrow.gripper.fullyOpenAt = 50
         XCTAssertTrue(heardFullyOpen(atDegrees: 60, profile: narrow))
         XCTAssertFalse(heardFullyOpen(atDegrees: 60, profile: profile))
     }

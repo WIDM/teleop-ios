@@ -182,6 +182,27 @@ final class OperatingRulesTests: XCTestCase {
         XCTAssertNil(bare?.target)
     }
 
+    /// The SO-101's jaw at 48.5 degrees is half open (the test above); the same place along each jaw's own travel is
+    /// the same share, a reading past either end is held to shut or open, and one the jaw cannot give is no reading.
+    func testTheJawOpeningIsTheShareOfEachJawsOwnTravel() {
+        for (name, gripper) in TestProfiles.grippers {
+            var profile = TestProfiles.so101
+            profile.gripper = gripper
+            func opening(_ reading: Double) -> Double? {
+                let state = ServerState(
+                    payload: ["ee_pos": [0.02, -0.14, 0.16], "gripper_deg": reading, "estop": false],
+                    jawReadings: gripper.validReadings)
+                return OperatingRules.arm(state, commanded: nil, gripping: false, profile: profile)?.jawOpening
+            }
+            let travel = gripper.openReading - gripper.closedReading
+            XCTAssertEqual(opening(gripper.closedReading) ?? -1, 0, accuracy: 1e-9, name)
+            XCTAssertEqual(opening(gripper.closedReading + travel / 2) ?? -1, 0.5, accuracy: 1e-9, name)
+            XCTAssertEqual(opening(gripper.openReading) ?? -1, 1, accuracy: 1e-9, name)
+            XCTAssertEqual(opening(gripper.validMax) ?? -1, 1, accuracy: 1e-9, name)
+            XCTAssertNil(opening(gripper.validMax + 1), name)
+        }
+    }
+
     /// With `tool_pos` the guide's pinch point is the server's; the commanded ring and the box move by the measured
     /// `tool_pos − ee_pos` instead of the profile's offset.
     func testTheGuidesPinchPointIsTheReportedToolPoint() {

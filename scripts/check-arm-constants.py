@@ -20,6 +20,13 @@ loader, the profile files, the tests, the build settings and the test plans this
      the tests: the frames travel inside the values that carry the profile, never as a global or a default. That
      includes a static whose type is not written: its value builds one (`Frames(...)`, `Frames.init(...)`,
      `TeleopCore.Frames(...)`), names a static member of `Frames`, or ends in `.frames` or is `frames`.
+  7. a wrist or jaw number that the profile replaced: `WristButton`'s own rates (`turnRate`, `tiltRate`),
+     `InputConstants.appendixA` (the default wrist), the jaw thresholds `gripperOpenDeg`, `gripperEmptyDeg`, `openDeg`
+     and `emptyDeg`, and any of the profile's wrist and jaw fields given a number as a default or a constant
+     (`var turnLimit = 55`, `leadDeg: Double = 2`). The wrist is `robot.wrist` and the jaw `robot.gripper` of the
+     profile file, read through `WristProfile` and `GripperProfile`;
+  8. a `WristProfile`, `GripperProfile` or `WristLeadLimits` built, or held in a `static let` or `static var`, outside
+     the core's Profile folder and the tests: they travel inside the profile.
 Naming a profile is not building one. Everywhere but the core's Profile folder and the tests, the loader included, it
 refuses a RobotProfile built in code: `RobotProfile(...)`, `RobotProfile.init(...)`, `.init(...)` whose type is
 RobotProfile (inside the type, also `Self`): written beside it (`let p: RobotProfile = .init(...)`) or as the type of
@@ -108,6 +115,44 @@ REMOVED_DIRECTIONS = (
         "the static GuideProjection conversions, replaced by the profile's frames",
     ),
 )
+# The wrist's and the jaw's numbers belong to one arm's profile file. These are the statics, defaults and names that held
+# them in code before the profile did; each is refused in code of every Swift file outside ALLOWED.
+# (`freshStateMs` is left out: the feedback monitor has a number of that name of its own, which is not the wrist's.)
+WRIST_JAW_FIELDS = (
+    "rollClampDeg|tiltClampDeg|rollWindowDeg|tiltWindowDeg|rollSign|tiltSign|turnLimit|tiltLimit|turnRateDegS|"
+    "tiltRateDegS|leadDeg|rateMaxDegS|memoryDeg|closedReading|openReading|validMin|validMax|"
+    "fullyOpenAt|emptyAt"
+)
+REMOVED_WRIST_JAW = (
+    (
+        re.compile(r"\b(?:turnRate|tiltRate)\b"),
+        "the wrist buttons' own rates (WristButton.turnRate, tiltRate), replaced by robot.wrist.turn_rate_deg_s and "
+        "tilt_rate_deg_s of the profile",
+    ),
+    (
+        re.compile(r"\bappendixA\b"),
+        "InputConstants.appendixA, the default wrist, replaced by robot.wrist of the profile",
+    ),
+    (
+        re.compile(r"\b(?:gripperOpenDeg|gripperEmptyDeg|openDeg|emptyDeg)\b"),
+        "the jaw thresholds in degrees, replaced by robot.gripper.fully_open_at and empty_at of the profile",
+    ),
+    (
+        re.compile(
+            r"\b(?:" + WRIST_JAW_FIELDS + r")\b\s*(?::\s*[\w<>?\[\]]+\s*)?=\s*[-+]?\d"
+        ),
+        "a wrist or jaw number written as a default or a constant in code, replaced by robot.wrist and "
+        "robot.gripper of the profile",
+    ),
+)
+WRIST_JAW_TYPES = r"(?:WristProfile|GripperProfile|WristLeadLimits)"
+BUILDS_WRIST_JAW = re.compile(r"(?<![\w.])" + WRIST_JAW_TYPES + r"\s*(?:\.\s*init\s*)?\(")
+# A static's value that is one of these though no type says so: built, or a static member of the type
+# (`GripperProfile.so101`; not `.self` or `.Type`).
+INFERRED_WRIST_JAW_VALUE = re.compile(
+    r"(?:\w+\s*\.\s*)*" + WRIST_JAW_TYPES + r"\s*(?:\.\s*(?!self\b|Type\b)\w+|\()"
+)
+WRIST_JAW_TYPE = re.compile(r"\b" + WRIST_JAW_TYPES + r"\b(?!\s*\.\s*\w)")
 FRAMES_TYPE = re.compile(r"\bFrames\b(?!\s*\.\s*\w)")
 BUILDS_FRAMES = re.compile(r"(?<!\w)Frames\s*\(")
 # A static's value that is a Frames though no type says so: built, a static member of Frames (`Frames.init(`,
@@ -481,7 +526,7 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             report(m.start(), f"the profile id {pid} named outside the loader")
 
     if swift:
-        for pattern, what in REMOVED_DIRECTIONS:
+        for pattern, what in REMOVED_DIRECTIONS + REMOVED_WRIST_JAW:
             for m in pattern.finditer(code):
                 report(m.start(), what)
 
@@ -501,6 +546,8 @@ def names_or_holds(text, code, literals, bodies, swift, report):
             report(offset, "a robot profile held in code")
         if FRAMES_TYPE.search(kind) or INFERRED_FRAMES_VALUE.match(value):
             report(offset, "robot frames held in a static")
+        if WRIST_JAW_TYPE.search(kind) or INFERRED_WRIST_JAW_VALUE.match(value):
+            report(offset, "a robot's wrist or jaw held in a static")
     for opening, closing, body in bodies:
         for offset, kind, value in static_bindings(body, opening, closing):
             implicit = IMPLICIT_INIT.match(value) and (
@@ -528,6 +575,8 @@ def builds(code, bodies, report):
         report(m.start(), "a robot profile built in code")
     for m in BUILDS_FRAMES.finditer(code):
         report(m.start(), "robot frames built in code")
+    for m in BUILDS_WRIST_JAW.finditer(code):
+        report(m.start(), "a robot's wrist or jaw built in code")
     for m in INIT_LABEL.finditer(code):
         if not (DECLARES.search(code, max(0, m.start() - 40), m.start()) or declared_field(code, m.start())):
             report(m.start(), "a robot profile built in code")

@@ -13,8 +13,15 @@ final class ProfileFormatTests: XCTestCase {
           "name": "Test arm",
           "robot": {
             "directions": { "forward": "+x", "left": "-y", "up": "-z" },
-            "wrist": { "roll_sign": -1, "tilt_sign": 1 },
-            "gripper": { "open_deg": 80, "empty_deg": 3, "reclose_loosens_grip": false }
+            "wrist": {
+              "roll_sign": -1, "tilt_sign": 1, "roll_window_deg": 90, "tilt_window_deg": 45, "roll_clamp_deg": 40,
+              "tilt_clamp_deg": 30, "tilt_centre_deg": 15, "turn_rate_deg_s": 40, "tilt_rate_deg_s": 20,
+              "lead": { "lead_deg": 3, "rate_max_deg_s": 20, "memory_deg": 1, "fresh_state_ms": 300 }
+            },
+            "gripper": {
+              "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
+              "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
+            }
           },
           "server": { "link_signs": [1, 1, 1] },
           "scene": {
@@ -108,6 +115,9 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.graspTolerance, SIMD2(0.005, 0.007))
         XCTAssertEqual(profile.onTargetWindow, SIMD2(0.01, 0.012))
         XCTAssertEqual(profile.rollSign, -1)
+        XCTAssertEqual(profile.wrist, TestWrist.benchB)
+        XCTAssertEqual(profile.gripper, TestJaw.benchB)
+        XCTAssertEqual(profile.gripper.validReadings, 0...45)
         var expected = TestFrames.benchB
         expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
         XCTAssertEqual(profile.frames, expected)
@@ -155,11 +165,13 @@ final class ProfileFormatTests: XCTestCase {
     func testOptionalValuesAreNullNotLeftOut() throws {
         let sample = try object()
         var nulls = changing(sample, at: ["assist", "lock"]) { $0["lock"] = NSNull() }
+        nulls = changing(nulls, at: ["robot", "wrist", "tilt_centre_deg"]) { $0["tilt_centre_deg"] = NSNull() }
         nulls = changing(nulls, at: ["scene", "on_target_window_m"]) { $0["on_target_window_m"] = NSNull() }
         nulls = changing(nulls, at: ["assist", "views", "max_retargeted_move_s"]) {
             $0["max_retargeted_move_s"] = NSNull()
         }
         let profile = try decode(nulls)
+        XCTAssertEqual(profile.wrist.tiltCentre, .measuredAfterReset)
         XCTAssertNil(profile.assist.lock)
         XCTAssertNil(profile.onTargetWindow)
         XCTAssertNil(profile.assist.views?.maxRetargetedMoveS)
@@ -291,6 +303,30 @@ final class ProfileFormatTests: XCTestCase {
         }
     }
 
+    /// A jaw unit that is neither of the two is refused with its path and the two that are allowed; a unit of the
+    /// wrong kind is named like any value of the wrong kind.
+    func testAJawUnitThatIsNotDegOrMmIsRefused() throws {
+        for text in ["cm", "DEG", "degrees", ""] {
+            let wrong = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = text }
+            let refused = try XCTUnwrap(error(wrong), text)
+            XCTAssertEqual(refused, .notAUnit("robot.gripper.unit", found: text))
+            XCTAssertEqual(
+                "\(refused)", "robot.gripper.unit is \"\(text)\", which is not a unit; write \"deg\" or \"mm\".")
+        }
+        let number = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = 3 }
+        XCTAssertThrowsError(try RobotProfile.load(json: JSONSerialization.data(withJSONObject: number))) { error in
+            XCTAssertEqual(error as? ProfileFormatError, .badValue("robot.gripper.unit"))
+        }
+    }
+
+    /// Both units load, and the unit is what the profile says it is.
+    func testBothJawUnitsLoad() throws {
+        for unit in JawUnit.allCases {
+            let file = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = unit.rawValue }
+            XCTAssertEqual(try decode(file).gripper.unit, unit)
+        }
+    }
+
     func testAnotherVersionIsRefused() throws {
         let later = changing(try object(), at: ["profile_version"]) { $0["profile_version"] = 2 }
         XCTAssertEqual(error(later), .unsupportedVersion(2))
@@ -323,9 +359,76 @@ final class ProfileFormatTests: XCTestCase {
             ("name must not be empty.", { $0.name = " " }),
             ("robot.wrist.roll_sign must be 1 or -1.", { $0.rollSign = 0.5 }),
             ("robot.wrist.tilt_sign must be 1 or -1.", { $0.tiltSign = 0 }),
-            ("robot.gripper.open_deg must be above zero.", { $0.gripperOpenDeg = 0 }),
-            ("robot.gripper.empty_deg must be zero or more.", { $0.gripperEmptyDeg = -1 }),
-            ("robot.gripper.empty_deg must be below robot.gripper.open_deg.", { $0.gripperEmptyDeg = 80 }),
+            ("robot.wrist.roll_window_deg must be above zero.", { $0.wrist.rollWindowDeg = 0 }),
+            ("robot.wrist.tilt_window_deg must be above zero.", { $0.wrist.tiltWindowDeg = -5 }),
+            ("robot.wrist.roll_clamp_deg must be above zero.", { $0.wrist.rollClampDeg = 0 }),
+            ("robot.wrist.tilt_clamp_deg must be above zero.", { $0.wrist.tiltClampDeg = -1 }),
+            (
+                "robot.wrist.roll_clamp_deg must not be above robot.wrist.roll_window_deg.",
+                { $0.wrist.rollClampDeg = 91 }
+            ),
+            (
+                "robot.wrist.tilt_clamp_deg must not be above robot.wrist.tilt_window_deg.",
+                { $0.wrist.tiltClampDeg = 46 }
+            ),
+            ("robot.wrist.tilt_centre_deg must be a finite number, or null.", { $0.wrist.tiltCentre = .fixed(.nan) }),
+            ("robot.wrist.turn_rate_deg_s must be above zero.", { $0.wrist.turnRateDegS = 0 }),
+            ("robot.wrist.tilt_rate_deg_s must be above zero.", { $0.wrist.tiltRateDegS = -10 }),
+            ("robot.wrist.lead.lead_deg must be zero or more.", { $0.wrist.lead.leadDeg = -1 }),
+            ("robot.wrist.lead.rate_max_deg_s must be zero or more.", { $0.wrist.lead.rateMaxDegS = -1 }),
+            ("robot.wrist.lead.memory_deg must be zero or more.", { $0.wrist.lead.memoryDeg = -0.5 }),
+            ("robot.wrist.lead.fresh_state_ms must be above zero.", { $0.wrist.lead.freshStateMs = 0 }),
+            (
+                "robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.",
+                { $0.gripper.openReading = 0 }
+            ),
+            (
+                "robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.",
+                { $0.gripper.closedReading = .nan }
+            ),
+            (
+                "robot.gripper.closed_reading must be below robot.gripper.open_reading; a jaw whose reading falls "
+                    + "as it opens is not supported.",
+                {
+                    $0.gripper.closedReading = 40; $0.gripper.openReading = 0
+                }
+            ),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMax = 0 }),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMin = 50 }),
+            ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMax = .infinity }),
+            (
+                "robot.gripper.closed_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.validMin = 5 }
+            ),
+            (
+                "robot.gripper.open_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.validMax = 30 }
+            ),
+            (
+                "robot.gripper.open_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.openReading = .nan }
+            ),
+            // The two floors the jaw had before the readings were named: `open_deg` above zero and `empty_deg` zero
+            // or more, now stated against the jaw's own shut reading and open reading.
+            ("robot.gripper.empty_at must be at or above robot.gripper.closed_reading.", { $0.gripper.emptyAt = -1 }),
+            (
+                "robot.gripper.empty_at must be below robot.gripper.fully_open_at.",
+                {
+                    $0.gripper.fullyOpenAt = 0; $0.gripper.emptyAt = 0
+                }
+            ),
+            (
+                "robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.",
+                { $0.gripper.fullyOpenAt = 41 }
+            ),
+            (
+                "robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.",
+                { $0.gripper.fullyOpenAt = .nan }
+            ),
+            ("robot.gripper.empty_at must be a finite number.", { $0.gripper.emptyAt = .infinity }),
+            ("robot.gripper.fully_open_at must be a finite number.", { $0.gripper.fullyOpenAt = -.infinity }),
+            ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
+            ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),
             ("scene.base_in_world_m must be finite numbers.", { $0.baseInWorld.x = .infinity }),
             (
                 "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "

@@ -66,8 +66,9 @@ struct SurfaceSize: Equatable {
     var insets: SurfaceInsets
 
     /// The zones before the model has reported its own, from the same inputs, so the first frame is already right.
-    var layout: SurfaceLayout {
-        SurfaceLayout(width: width, height: height, safeTop: insets.top, safeBottom: insets.bottom)
+    func layout(_ constants: InputConstants) -> SurfaceLayout {
+        SurfaceLayout(
+            width: width, height: height, safeTop: insets.top, safeBottom: insets.bottom, constants: constants)
     }
 }
 
@@ -77,7 +78,7 @@ private struct OperatingSurface: View {
     let surface: SurfaceSize
 
     var body: some View {
-        let layout = display.layout ?? surface.layout
+        let layout = display.layout ?? surface.layout(model.profile.inputConstants)
         let look = OperatingWords.look(display)
         let scale = layout.height / 874
         ZStack(alignment: .topLeading) {

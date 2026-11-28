@@ -6,7 +6,7 @@ import XCTest
 /// during a stop or while the simulator is paused or not responding.
 final class JawsClosedReminderTests: XCTestCase {
     /// The S4 simulator's gripper numbers.
-    private let limits = GripperLimits(openDeg: 95, emptyDeg: 5)
+    private let limits = GripperLimits(fullyOpenAt: 95, emptyAt: 5)
     private var rule: JawsClosedReminder!
 
     override func setUp() {

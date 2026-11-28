@@ -41,6 +41,16 @@ through it, the world to base conversion, the floor-below-the-table question and
 frame. `ScriptedHandFramesTests` checks that the scripted hand turns a move into the right phone
 movement and the right button through the frames.
 
+The wrist and the jaw are run the same way, with a test-only wrist and jaw as bench arm B will have them (`TestWrist`
+and `TestJaw` in the core tests, `TestProfiles.benchBWrist` and `benchBGripper` in the app tests): a narrower turn, a
+wider tilt on a fixed centre, both signs the other way, buttons twice as fast, parallel jaws reading 0 to 40 mm.
+`WristAcrossWristsTests` runs the buttons' signs and rates (a button and the phone agree on the sign), the ranges a hold
+may command, the tilt window's centre, the phone hold's stop at the clamp and the lead bound's allowance, freshness and
+memory through both wrists, each expectation written in the wrist's own numbers; `JawAcrossJawsTests` the opening
+share, "fully open", "closed on nothing", the reminder and the readings that count through both jaws. `WristPanelTests`
+runs the Wrist page's buttons and window through both wrists at the app, `OperatingRulesTests` the opening share, and
+`ScriptedHandJawTests` checks that the scripted hand names the jaw's readings in the jaw's unit.
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
@@ -60,7 +70,10 @@ Two more checks sit beside the tests:
   the profile loader and the tests names a profile id or a profile's name, holds a profile in a `static let` or
   `static var`, builds a profile outside `Packages/TeleopCore/Sources/TeleopCore/Profile/` or names `so101Simulator`,
   when code outside the tests holds a direction table or a conversion by base axis or holds a
-  `Frames` in a static (a static whose type is not written included), and when any code, tests included, reads `ProfileLoader.current` outside `AppModel` and
+  `Frames` in a static (a static whose type is not written included), when code outside the tests gives a wrist or jaw
+number as a default or a constant, names a removed one (`WristButton.turnRate`, `InputConstants.appendixA`,
+`gripperOpenDeg`) or builds or holds a `WristProfile` or `GripperProfile`, and when any code, tests included, reads
+`ProfileLoader.current` outside `AppModel` and
   `OperatingFixtures` (`docs/PROFILE.md`).
   `python3 -B -m unittest scripts/test_check_strings.py scripts/test_analyze_holds.py
   scripts/test_check_arm_constants.py` tests three of the scripts; `-B` leaves no `scripts/__pycache__/` behind for

@@ -6,7 +6,7 @@ final class ToolPointFeedbackTests: XCTestCase {
     private let tool = SIMD3(0.01, -0.17, 0.07)
 
     private func monitor(aids: Bool) -> FeedbackMonitor {
-        var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+        var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
         monitor.reportsLowest = aids
         if aids { monitor.blockedWorkspace = (SIMD3(-0.1, -0.3, 0.12), SIMD3(0.1, 0, 0.3)) }
         monitor.startSent(.pose, restart: false, at: 0)

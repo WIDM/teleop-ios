@@ -13,19 +13,18 @@ public enum WristButton: String, CaseIterable, Sendable {
         }
     }
 
-    /// Server degrees a second, sign included. A positive pitch points the jaws toward the table (PROTOCOL.md,
-    /// "the wrist"), so Tilt down is positive. Turn right is a positive roll, as seen in the top and side views.
-    public var degreesPerSecond: Double {
+    /// Server degrees a second for this arm, sign included: the button's rate from the wrist profile, times the
+    /// profile's sign for its axis, the same sign the phone's turn and tilt use. Turn right and Tilt down count
+    /// positive in the operator's terms: a turn clockwise as the operator sees the screen, and the jaws toward the
+    /// table (the top of the phone away from the operator).
+    public func degreesPerSecond(in wrist: WristProfile) -> Double {
         switch self {
-        case .tiltDown: return Self.tiltRate
-        case .tiltUp: return -Self.tiltRate
-        case .turnRight: return Self.turnRate
-        case .turnLeft: return -Self.turnRate
+        case .tiltDown: return wrist.tiltSign * wrist.tiltRateDegS
+        case .tiltUp: return -wrist.tiltSign * wrist.tiltRateDegS
+        case .turnRight: return wrist.rollSign * wrist.turnRateDegS
+        case .turnLeft: return -wrist.rollSign * wrist.turnRateDegS
         }
     }
-
-    public static let turnRate = 20.0
-    public static let tiltRate = 10.0
 }
 
 /// One wrist button's hold: the angle it asks for at each moment. The angle counts from when the hold's start went
@@ -34,12 +33,15 @@ public enum WristButton: String, CaseIterable, Sendable {
 public struct WristButtonRamp: Equatable, Sendable {
     public let button: WristButton
     public let range: ClosedRange<Double>
+    /// Server degrees a second, from the arm's wrist profile.
+    public let degreesPerSecond: Double
     /// When `orient_start` went out; nil while it waits.
     public private(set) var startedAt: TimeInterval?
 
-    public init(button: WristButton, range: ClosedRange<Double>) {
+    public init(button: WristButton, range: ClosedRange<Double>, wrist: WristProfile) {
         self.button = button
         self.range = range
+        degreesPerSecond = button.degreesPerSecond(in: wrist)
     }
 
     public mutating func started(at time: TimeInterval) {
@@ -49,7 +51,7 @@ public struct WristButtonRamp: Equatable, Sendable {
     /// The angle unclamped, so a caller can tell the limit from the angle.
     private func asked(at time: TimeInterval) -> Double {
         guard let startedAt else { return 0 }
-        return button.degreesPerSecond * max(0, time - startedAt)
+        return degreesPerSecond * max(0, time - startedAt)
     }
 
     /// The hold's target at `time`: the anchor until the start went out, then the rate times the time since, held to
@@ -62,6 +64,6 @@ public struct WristButtonRamp: Equatable, Sendable {
     /// The angle has reached the end of `range` in the button's direction.
     public func atLimit(at time: TimeInterval) -> Bool {
         let angle = asked(at: time)
-        return button.degreesPerSecond > 0 ? angle >= range.upperBound : angle <= range.lowerBound
+        return degreesPerSecond > 0 ? angle >= range.upperBound : angle <= range.lowerBound
     }
 }

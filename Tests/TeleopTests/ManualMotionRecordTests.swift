@@ -83,13 +83,14 @@ final class ManualMotionRecordTests: XCTestCase {
         return Run(wire: wire, records: records)
     }
 
-    private func gripRun(record: Bool) -> Run {
+    private func gripRun(record: Bool, gripper: GripperProfile = TestProfiles.so101.gripper) -> Run {
         let transport = MotionRecordTransport()
         var clock = 10_000
         var records: [(Int, String)] = []
         let link = LiveLinkController(
             makeTransport: { _ in transport }, makeObserverTransport: { _ in MotionRecordTransport() },
-            pose: { nil }, nowMs: { clock }, gripperLimits: TestProfiles.so101.gripperLimits,
+            pose: { nil }, nowMs: { clock }, gripper: gripper,
+            wrist: TestProfiles.so101.wrist,
             frames: TestProfiles.so101.frames, clientName: "teleop-grip-record-test")
         XCTAssertTrue(link.connect(to: "127.0.0.1:8765"))
         transport.server("welcome")
@@ -137,6 +138,20 @@ final class ManualMotionRecordTests: XCTestCase {
                     && $0.1.contains("wrist_flex_deg=40.0000 wrist_roll_deg=3.0000")
                     && $0.1.contains("jaw_deg=") && $0.1.contains("server_activity=gripperJogging")
             })
+    }
+
+    /// The session record writes the jaw reading under the field's name and says what it is measured in: the SO-101's
+    /// degrees, and the millimetres of a parallel jaw.
+    func testTheRecordNamesTheJawsUnit() {
+        for (unit, gripper) in [("deg", TestProfiles.so101.gripper), ("mm", TestProfiles.benchBGripper)] {
+            let recorded = gripRun(record: true, gripper: gripper)
+            XCTAssertGreaterThanOrEqual(recorded.records.count, 2, unit)
+            XCTAssertTrue(
+                recorded.records.allSatisfy {
+                    $0.1.contains("jaw_deg=") && !$0.1.contains("jaw_deg=none")
+                        && $0.1.contains("jaw_unit=\(unit) server_activity=gripperJogging")
+                }, unit)
+        }
     }
 
     func testRecordingDoesNotChangeUpOrDownCommandsIncludingResync() {

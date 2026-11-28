@@ -65,7 +65,7 @@ final class ProfileLoaderTests: XCTestCase {
                 return XCTFail("\(error)")
             }
             XCTAssertEqual(id, "test-invalid-profile")
-            XCTAssertTrue(reason.contains("robot.gripper.empty_deg must be below robot.gripper.open_deg."), reason)
+            XCTAssertTrue(reason.contains("robot.gripper.empty_at must be below robot.gripper.fully_open_at."), reason)
             XCTAssertTrue(reason.contains("scene.target_size_m must be above zero."), reason)
         }
     }
@@ -76,7 +76,7 @@ final class ProfileLoaderTests: XCTestCase {
                 error as? ProfileLoader.Failure,
                 .unreadable(
                     id: "test-misspelt-profile",
-                    reason: "The profile has robot.gripper.open_degs, which is not a field of this format."))
+                    reason: "The profile has robot.gripper.fully_open_ats, which is not a field of this format."))
         }
     }
 }

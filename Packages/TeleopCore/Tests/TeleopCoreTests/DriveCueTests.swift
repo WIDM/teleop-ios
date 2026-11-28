@@ -142,7 +142,7 @@ final class DriveCueTests: XCTestCase {
         ]
         let reasons = others + FeedbackMonitor.emergencyStopReasons.sorted()
         for reason in reasons {
-            var monitor = FeedbackMonitor(limits: GripperLimits(openDeg: 97, emptyDeg: 2), frames: TestFrames.so101)
+            var monitor = FeedbackMonitor(limits: GripperLimits(fullyOpenAt: 97, emptyAt: 2), frames: TestFrames.so101)
             monitor.startSent(.pose, restart: false, at: 0)
             let events = monitor.startRefused(reason: reason, at: 20)
             var silent = events.isEmpty

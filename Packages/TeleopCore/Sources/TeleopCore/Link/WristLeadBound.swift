@@ -9,11 +9,11 @@
 /// `WristTarget.degrees`. On an unknown server, which reports no wrist angles, the value passes unchanged.
 /// Time comes in as the measured angles' age.
 public struct WristLeadBound: Equatable, Sendable {
-    /// Appendix A `wristLeadDeg`, `wristRateMaxDegS`, `leadMemoryDeg`, `freshStateMs`.
-    public var leadDeg = 2.0
-    public var rateMaxDegS = 10.0
-    public var memoryDeg = 0.5
-    public var freshStateMs = 400
+    /// The arm's numbers (`WristLeadLimits`): `leadDeg`, `rateMaxDegS`, `memoryDeg`, `freshStateMs`.
+    public var leadDeg: Double
+    public var rateMaxDegS: Double
+    public var memoryDeg: Double
+    public var freshStateMs: Int
 
     private struct Memory: Equatable, Sendable {
         var lead: Double
@@ -31,7 +31,12 @@ public struct WristLeadBound: Equatable, Sendable {
     private var memory: [WristAxis: Memory] = [:]
     private var hold: Hold?
 
-    public init() {}
+    public init(limits: WristLeadLimits) {
+        leadDeg = limits.leadDeg
+        rateMaxDegS = limits.rateMaxDegS
+        memoryDeg = limits.memoryDeg
+        freshStateMs = limits.freshStateMs
+    }
 
     /// The lead remembered for `axis` from the last wrist hold, while it still applies.
     public func rememberedLead(_ axis: WristAxis) -> Double? { memory[axis]?.lead }
