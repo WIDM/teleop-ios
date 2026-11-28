@@ -61,6 +61,19 @@ the profile's own numbers; `StallDetectionAcrossServersTests` runs every way the
 and `none`; `LiveLinkTests` runs the lead cap and the resync times through both at the link controller. The scripted
 hand holds a button for the time the profile's speed needs.
 
+A whole second arm runs the whole task. Bench arm B is a profile file in the app tests' own resources
+(`Tests/TeleopTests/Profiles/bench-arm-b.json`, not in the app) and `BenchArmB.config` sets the in-app server model up
+as its server from that file and a world scene: the base hangs 40 cm over the table with its z pointing down, the
+model steps 8 times a second (each step a real eighth of a second, so what an arm may move in a step and the counts of
+steps for a reset or a success on show are scaled to keep the SO-101 model's speed and durations), the arm stops at
+6 cm, and the jaw is a linear one that reads the gap in millimetres. `BenchArmBTests` runs the same `ScriptedOperator`
+the SO-101 runs, with B's profile given to the app, through every control mode, with and without a reported tool
+point, and passes on the server's own `task_success`; nothing in it asks which arm it is. It also checks that the
+file carries the numbers the package tests use for B, and that the model and the profile describe one arm (pinch
+offset, table height, work box, sizes). `BenchArmBScenesTests` draws the UI tests' scenes for B, along its up. To
+run the whole task on B 20 times in a row:
+`xcodebuild test ... -testPlan Default -test-iterations 20 -only-testing:TeleopTests/BenchArmBTests/<test>`.
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
