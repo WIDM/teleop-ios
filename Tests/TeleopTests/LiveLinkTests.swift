@@ -32,6 +32,8 @@ final class LiveLinkTests: XCTestCase {
     private var position: SIMD3<Float>? = .zero
     private var clock = 10_000
     private var model: AppModel!
+    /// The robot the model drives; the motion and server tests run it once per profile.
+    private var profile = TestProfiles.so101
     private var savedLanguage = L10n.language
     private var felt = SpyHaptics()
     private var speech = SpySpeech()
@@ -79,7 +81,8 @@ final class LiveLinkTests: XCTestCase {
                 return made
             },
             nowMs: { [unowned self] in clock },
-            clientName: "teleop-ios/1.0.0 (7)"
+            clientName: "teleop-ios/1.0.0 (7)",
+            profile: profile
         )
         model.session.state.serverAddress = "100.64.0.1:8765"
         // Exact offsets in these tests; smoothing has its own test.
@@ -645,7 +648,7 @@ final class LiveLinkTests: XCTestCase {
         sweepRight()
         XCTAssertTrue(model.session.state.armMoving, "a fast hand must not end the hold")
         XCTAssertTrue(model.catchingUp)
-        XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+        XCTAssertEqual(simd_length(lastOffset()), TestProfiles.so101.motion.maxLeadM, accuracy: 0.0005)
         XCTAssertLessThan(lastOffset().x, 0, "still heading the way the hand went")
         // However long the hand waits, the same server hold never asks for more.
         for _ in 0..<40 { tick() }
@@ -656,7 +659,45 @@ final class LiveLinkTests: XCTestCase {
             let x: Double = p[0], y: Double = p[1], z: Double = p[2]
             farthest = max(farthest, (x * x + y * y + z * z).squareRoot())
         }
-        XCTAssertLessThanOrEqual(farthest, Double(LiveLinkController.maxLeadMeters) + 0.0005)
+        XCTAssertLessThanOrEqual(farthest, Double(TestProfiles.so101.motion.maxLeadM) + 0.0005)
+    }
+
+    /// The cap on how far a hold may run ahead and the resync times are the profile's: run through the SO-101 and
+    /// through bench arm B (a lower cap under a 6 cm stop distance, a quicker resync), each expectation derived from the
+    /// profile in use.
+    func testTheLeadCapAndTheResyncTimesComeFromTheProfile() {
+        for (name, chosen) in TestProfiles.motions {
+            profile = chosen
+            sweepRight()
+            let started = clock - 10 * 33
+            XCTAssertEqual(simd_length(lastOffset()), chosen.motion.maxLeadM, accuracy: 0.0005, name)
+            var farthest = 0.0
+            func noteFarthest() {
+                for message in transport.sent where message["type"] as? String == "pose_update" {
+                    let p = (message["payload"] as! [String: Any])["p_rel_m"] as! [Double]
+                    farthest = max(farthest, (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).squareRoot())
+                }
+            }
+            // Catching up: the hold is ended and restarted only once the profile's resync time has passed.
+            while clock - started < chosen.server.resync.afterMs - 33 { run(ticks: 1) }
+            XCTAssertFalse(transport.types.contains("pose_stop"), "\(name): not before the resync time")
+            var stoppedAt: Int?
+            for _ in 0..<5 where stoppedAt == nil {
+                run(ticks: 1)
+                if transport.types.contains("pose_stop") { stoppedAt = clock }
+            }
+            let stop = try! XCTUnwrap(stoppedAt, "\(name): stopped after the resync time")
+            XCTAssertGreaterThanOrEqual(stop - started, chosen.server.resync.afterMs, name)
+            XCTAssertLessThan(stop - started, chosen.server.resync.afterMs + 2 * 33, name)
+            // The server never finishes the old hold: the operator's hold ends once the profile's timeout has passed.
+            while clock - stop < chosen.server.resync.timeoutMs - 33 { run(ticks: 1) }
+            XCTAssertTrue(model.session.state.armMoving, "\(name): not before the timeout")
+            run(ticks: 4)
+            XCTAssertFalse(model.session.state.armMoving, "\(name): the timeout ends the hold")
+            noteFarthest()
+            XCTAssertLessThanOrEqual(farthest, Double(chosen.motion.maxLeadM) + 0.0005, name)
+            XCTAssertLessThan(farthest, chosen.server.stopDistanceM, "\(name): never asks the stop distance")
+        }
     }
 
     func testSmallMovesPassStraightThrough() {
@@ -687,7 +728,7 @@ final class LiveLinkTests: XCTestCase {
         XCTAssertEqual(transport.types.last, "pose_start")
         tick()
         // 17 cm still to go, so the new hold asks for the limit again, measured from the arm's new position.
-        XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+        XCTAssertEqual(simd_length(lastOffset()), TestProfiles.so101.motion.maxLeadM, accuracy: 0.0005)
         // The guide's commanded point: 3 cm done plus 8 cm asked, from the arm's new position.
         XCTAssertEqual(model.link.commandedArm!.x, -0.11, accuracy: 0.001)
     }
@@ -711,7 +752,7 @@ final class LiveLinkTests: XCTestCase {
             // The arm has not moved at all.
             serverFinishesHold(armAt: [0.0, 0.0, 0.1])
             tick()
-            XCTAssertEqual(simd_length(lastOffset()), LiveLinkController.maxLeadMeters, accuracy: 0.0005)
+            XCTAssertEqual(simd_length(lastOffset()), TestProfiles.so101.motion.maxLeadM, accuracy: 0.0005)
         }
         XCTAssertTrue(model.session.state.armMoving)
     }

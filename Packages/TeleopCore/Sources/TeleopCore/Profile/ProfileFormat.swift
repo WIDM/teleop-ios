@@ -20,6 +20,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
     case notAnAxis(String, found: String)
     /// A jaw unit that is neither `deg` nor `mm`.
     case notAUnit(String, found: String)
+    /// A value that is none of the words the field accepts.
+    case notAChoice(String, found: String, allowed: String)
     /// The file was read but its values do not make sense together: one sentence per fault.
     case invalid([String])
 
@@ -39,6 +41,8 @@ public enum ProfileFormatError: Error, Equatable, CustomStringConvertible {
                 + "Only quarter turns are supported, so a direction at another angle cannot be given."
         case .notAUnit(let path, let found):
             return "\(path) is \"\(found)\", which is not a unit; write \(JawUnit.allowedText)."
+        case .notAChoice(let path, let found, let allowed):
+            return "\(path) is \"\(found)\", which is not one of its values; write \(allowed)."
         case .invalid(let faults): return faults.joined(separator: " ")
         }
     }
@@ -73,9 +77,12 @@ extension RobotProfile: Codable {
         guard version == Self.formatVersion else { throw ProfileFormatError.unsupportedVersion(version) }
         let top = try StrictObject(
             checking: container, ["profile_version", "name", "robot", "server", "scene", "response", "assist"])
-        let robot = try top.section("robot", ["directions", "wrist", "gripper"])
+        let robot = try top.section("robot", ["directions", "wrist", "gripper", "motion"])
         let directions = try robot.section("directions", ["forward", "left", "up"])
-        let server = try top.section("server", ["link_signs"])
+        let server = try top.section(
+            "server", ["link_signs", "stop_distance_m", "resync", "held_object_point"])
+        let resync = try server.section("resync", ["after_ms", "tool_after_ms", "timeout_ms"])
+        let motion = try robot.section("motion", ["fine_mps", "coarse_mps", "max_lead_m", "tool_max_lead_m"])
         let wrist = try robot.section(
             "wrist",
             [
@@ -134,6 +141,15 @@ extension RobotProfile: Codable {
                 lead: WristLeadLimits(
                     leadDeg: try lead.value("lead_deg"), rateMaxDegS: try lead.value("rate_max_deg_s"),
                     memoryDeg: try lead.value("memory_deg"), freshStateMs: try lead.value("fresh_state_ms"))),
+            motion: MotionProfile(
+                fineMps: try motion.value("fine_mps"), coarseMps: try motion.value("coarse_mps"),
+                maxLeadM: try motion.value("max_lead_m"), toolMaxLeadM: try motion.value("tool_max_lead_m")),
+            server: ServerProfile(
+                stopDistanceM: try server.value("stop_distance_m"),
+                resync: ResyncTimes(
+                    afterMs: try resync.value("after_ms"), toolAfterMs: try resync.value("tool_after_ms"),
+                    timeoutMs: try resync.value("timeout_ms")),
+                heldObjectPoint: try server.choice("held_object_point", HeldObjectPoint.self)),
             recloseLoosensGrip: try gripper.value("reclose_loosens_grip"),
             usesDirectionalBlockedFeedback: try response.value("directional_blocked_feedback"),
             assist: try top.value("assist"),
@@ -178,8 +194,19 @@ extension RobotProfile: Codable {
         try gripper.encode(self.gripper.fullyOpenAt, forKey: "fully_open_at")
         try gripper.encode(self.gripper.emptyAt, forKey: "empty_at")
         try gripper.encode(recloseLoosensGrip, forKey: "reclose_loosens_grip")
+        var motion = robot.nestedContainer(keyedBy: ProfileKey.self, forKey: "motion")
+        try motion.encode(self.motion.fineMps, forKey: "fine_mps")
+        try motion.encode(self.motion.coarseMps, forKey: "coarse_mps")
+        try motion.encode(self.motion.maxLeadM, forKey: "max_lead_m")
+        try motion.encode(self.motion.toolMaxLeadM, forKey: "tool_max_lead_m")
         var server = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "server")
         try server.encode([frames.linkSigns.x, frames.linkSigns.y, frames.linkSigns.z], forKey: "link_signs")
+        try server.encode(self.server.stopDistanceM, forKey: "stop_distance_m")
+        var resync = server.nestedContainer(keyedBy: ProfileKey.self, forKey: "resync")
+        try resync.encode(self.server.resync.afterMs, forKey: "after_ms")
+        try resync.encode(self.server.resync.toolAfterMs, forKey: "tool_after_ms")
+        try resync.encode(self.server.resync.timeoutMs, forKey: "timeout_ms")
+        try server.encode(self.server.heldObjectPoint.rawValue, forKey: "held_object_point")
         var scene = top.nestedContainer(keyedBy: ProfileKey.self, forKey: "scene")
         try scene.encode([frames.baseInWorld.x, frames.baseInWorld.y, frames.baseInWorld.z], forKey: "base_in_world_m")
         var worldAxes = scene.nestedContainer(keyedBy: ProfileKey.self, forKey: "base_axes_in_world")
@@ -490,6 +517,17 @@ struct StrictObject {
         let text: String = try value(key)
         guard let axis = SignedAxis(text: text) else { throw ProfileFormatError.notAnAxis(path(key), found: text) }
         return axis
+    }
+
+    /// A value written as one of the words of a fixed set, such as `simulation` or `none`.
+    func choice<T: RawRepresentable & CaseIterable>(_ key: String, _ type: T.Type) throws -> T
+    where T.RawValue == String {
+        let text: String = try value(key)
+        guard let found = T(rawValue: text) else {
+            throw ProfileFormatError.notAChoice(
+                path(key), found: text, allowed: T.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: " or "))
+        }
+        return found
     }
 
     /// The unit of the jaw's readings: `deg` or `mm`.

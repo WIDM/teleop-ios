@@ -87,11 +87,11 @@ final class ManualMotionRecordTests: XCTestCase {
         let transport = MotionRecordTransport()
         var clock = 10_000
         var records: [(Int, String)] = []
+        var profile = TestProfiles.so101
+        profile.gripper = gripper
         let link = LiveLinkController(
             makeTransport: { _ in transport }, makeObserverTransport: { _ in MotionRecordTransport() },
-            pose: { nil }, nowMs: { clock }, gripper: gripper,
-            wrist: TestProfiles.so101.wrist,
-            frames: TestProfiles.so101.frames, clientName: "teleop-grip-record-test")
+            pose: { nil }, nowMs: { clock }, profile: profile, clientName: "teleop-grip-record-test")
         XCTAssertTrue(link.connect(to: "127.0.0.1:8765"))
         transport.server("welcome")
         transport.server("state", ["estop": false, "gripper": "open", "ee_pos": [0.0, 0.0, 0.15]])

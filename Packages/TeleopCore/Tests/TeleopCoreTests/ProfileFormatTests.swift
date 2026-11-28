@@ -21,9 +21,14 @@ final class ProfileFormatTests: XCTestCase {
             "gripper": {
               "unit": "mm", "closed_reading": 0, "open_reading": 40, "valid_min": 0, "valid_max": 45,
               "fully_open_at": 39, "empty_at": 1, "reclose_loosens_grip": false
-            }
+            },
+            "motion": { "fine_mps": 0.02, "coarse_mps": 0.08, "max_lead_m": 0.05, "tool_max_lead_m": 0.005 }
           },
-          "server": { "link_signs": [1, 1, 1] },
+          "server": {
+            "link_signs": [1, 1, 1], "stop_distance_m": 0.06,
+            "resync": { "after_ms": 1200, "tool_after_ms": 400, "timeout_ms": 1000 },
+            "held_object_point": "gripper_link"
+          },
           "scene": {
             "base_in_world_m": [0.1, 0.2, 0.3],
             "base_axes_in_world": { "x": "+y", "y": "+x", "z": "-z" },
@@ -118,6 +123,8 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.wrist, TestWrist.benchB)
         XCTAssertEqual(profile.gripper, TestJaw.benchB)
         XCTAssertEqual(profile.gripper.validReadings, 0...45)
+        XCTAssertEqual(profile.motion, TestMotion.benchB)
+        XCTAssertEqual(profile.server, TestServer.benchB)
         var expected = TestFrames.benchB
         expected.baseInWorld = SIMD3(0.1, 0.2, 0.3)
         XCTAssertEqual(profile.frames, expected)
@@ -320,6 +327,22 @@ final class ProfileFormatTests: XCTestCase {
     }
 
     /// Both units load, and the unit is what the profile says it is.
+    /// A held-object point that is neither `gripper_link` nor `tool_point` is refused with the two it accepts.
+    func testAHeldObjectPointThatIsNeitherOfTheTwoIsRefused() throws {
+        let wrong = changing(try object(), at: ["server", "held_object_point"]) { $0["held_object_point"] = "elbow" }
+        let found = error(wrong)
+        XCTAssertEqual(
+            found,
+            .notAChoice(
+                "server.held_object_point", found: "elbow", allowed: "\"gripper_link\" or \"tool_point\""))
+        XCTAssertEqual(
+            "\(found!)",
+            "server.held_object_point is \"elbow\", which is not one of its values; write \"gripper_link\" or "
+                + "\"tool_point\".")
+        let tool = changing(try object(), at: ["server", "held_object_point"]) { $0["held_object_point"] = "tool_point" }
+        XCTAssertEqual(try decode(tool).server.heldObjectPoint, .toolPoint)
+    }
+
     func testBothJawUnitsLoad() throws {
         for unit in JawUnit.allCases {
             let file = changing(try object(), at: ["robot", "gripper", "unit"]) { $0["unit"] = unit.rawValue }
@@ -427,6 +450,18 @@ final class ProfileFormatTests: XCTestCase {
             ),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),
+            ("robot.motion.fine_mps must be above zero.", { $0.motion.fineMps = 0 }),
+            ("robot.motion.coarse_mps must be above zero.", { $0.motion.coarseMps = -0.04 }),
+            ("robot.motion.max_lead_m must be above zero.", { $0.motion.maxLeadM = 0 }),
+            ("robot.motion.tool_max_lead_m must be above zero.", { $0.motion.toolMaxLeadM = -0.005 }),
+            ("server.stop_distance_m must be above zero.", { $0.server.stopDistanceM = 0 }),
+            ("server.stop_distance_m must be above zero.", { $0.server.stopDistanceM = .nan }),
+            ("robot.motion.max_lead_m must be under server.stop_distance_m.", { $0.motion.maxLeadM = 0.07 }),
+            ("robot.motion.max_lead_m must be under server.stop_distance_m.", { $0.server.stopDistanceM = 0.05 }),
+            ("robot.motion.tool_max_lead_m must be under server.stop_distance_m.", { $0.motion.toolMaxLeadM = 0.07 }),
+            ("server.resync.after_ms must be above zero.", { $0.server.resync.afterMs = 0 }),
+            ("server.resync.tool_after_ms must be above zero.", { $0.server.resync.toolAfterMs = -1 }),
+            ("server.resync.timeout_ms must be above zero.", { $0.server.resync.timeoutMs = 0 }),
             ("scene.base_in_world_m must be finite numbers.", { $0.baseInWorld.x = .infinity }),
             (
                 "robot.directions: forward, left and up make a mirror image of the operator's view, not a turn of "

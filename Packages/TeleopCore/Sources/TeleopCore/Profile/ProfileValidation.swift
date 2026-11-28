@@ -43,6 +43,23 @@ extension RobotProfile {
         notNegative("robot.wrist.lead.rate_max_deg_s", wrist.lead.rateMaxDegS)
         notNegative("robot.wrist.lead.memory_deg", wrist.lead.memoryDeg)
         if wrist.lead.freshStateMs <= 0 { faults.append("robot.wrist.lead.fresh_state_ms must be above zero.") }
+        positive("robot.motion.fine_mps", motion.fineMps)
+        positive("robot.motion.coarse_mps", motion.coarseMps)
+        positive("robot.motion.max_lead_m", Double(motion.maxLeadM))
+        positive("robot.motion.tool_max_lead_m", Double(motion.toolMaxLeadM))
+        positive("server.stop_distance_m", server.stopDistanceM)
+        if server.stopDistanceM.isFinite {
+            for (path, cap) in [("max_lead_m", motion.maxLeadM), ("tool_max_lead_m", motion.toolMaxLeadM)]
+            where cap.isFinite && cap > 0 && Double(cap) >= server.stopDistanceM {
+                faults.append("robot.motion.\(path) must be under server.stop_distance_m.")
+            }
+        }
+        for (path, ms) in [
+            ("after_ms", server.resync.afterMs), ("tool_after_ms", server.resync.toolAfterMs),
+            ("timeout_ms", server.resync.timeoutMs),
+        ] where ms <= 0 {
+            faults.append("server.resync.\(path) must be above zero.")
+        }
         let jaw = gripper
         if !(jaw.closedReading.isFinite && jaw.openReading.isFinite && jaw.closedReading != jaw.openReading) {
             faults.append("robot.gripper.closed_reading and robot.gripper.open_reading must be different numbers.")

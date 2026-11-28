@@ -52,6 +52,15 @@ final class ProfileFileTests: XCTestCase {
             ("wrist.lead.rateMaxDegS", p.wrist.lead.rateMaxDegS, 10.0),
             ("wrist.lead.memoryDeg", p.wrist.lead.memoryDeg, 0.5),
             ("wrist.lead.freshStateMs", p.wrist.lead.freshStateMs, 400),
+            ("motion.fineMps", p.motion.fineMps, 0.01),
+            ("motion.coarseMps", p.motion.coarseMps, 0.04),
+            ("motion.maxLeadM", p.motion.maxLeadM, Float(0.08)),
+            ("motion.toolMaxLeadM", p.motion.toolMaxLeadM, Float(0.005)),
+            ("server.stopDistanceM", p.server.stopDistanceM, 0.10),
+            ("server.resync.afterMs", p.server.resync.afterMs, 1500),
+            ("server.resync.toolAfterMs", p.server.resync.toolAfterMs, 500),
+            ("server.resync.timeoutMs", p.server.resync.timeoutMs, 1500),
+            ("server.heldObjectPoint", p.server.heldObjectPoint, HeldObjectPoint.gripperLink),
             ("recloseLoosensGrip", p.recloseLoosensGrip, true),
             ("usesDirectionalBlockedFeedback", p.usesDirectionalBlockedFeedback, true),
             ("assist.lock.timeLimitS", p.assist.lock?.timeLimitS, Double?(30.0)),
@@ -92,6 +101,7 @@ final class ProfileFileTests: XCTestCase {
         // parts it has (a vector, a signed axis).
         func isStructure(_ value: Any) -> Bool {
             value is EstimateBound || value is WristProfile || value is GripperProfile || value is WristLeadLimits
+                || value is MotionProfile || value is ServerProfile || value is ResyncTimes
                 || value is Frames
                 || value is WorldTurn || value is AssistProfile
                 || value is LockLimits || value is GoToLimits || value is GuideAids || value is ExplainAids

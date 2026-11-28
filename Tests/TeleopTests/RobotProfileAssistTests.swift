@@ -58,7 +58,7 @@ final class RobotProfileAssistTests: XCTestCase {
         let atSpeed = path / goTo.speedMps
         // The deadline of a going move: the path's length over the speed, times the factor, plus the allowance.
         let limit = atSpeed * goTo.timeFactor + goTo.allowanceS
-        XCTAssertGreaterThanOrEqual(limit - atSpeed, Double(LiveLinkController.resyncTimeoutMs) / 1000)
+        XCTAssertGreaterThanOrEqual(limit - atSpeed, Double(TestProfiles.so101.server.resync.timeoutMs) / 1000)
     }
 
     /// The SO-101 allows every aid, with numbers the configuration accepts: lock for 30 s once the operator chooses a

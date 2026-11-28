@@ -398,8 +398,8 @@ final class ManualToolControlTests: XCTestCase {
             }
             let delta = try XCTUnwrap(try lastPayload("pose_update")["p_rel_m"] as? [Double])
             let lead = simd_length(SIMD3(delta[0], delta[1], delta[2]))
-            XCTAssertGreaterThan(lead, Double(LiveLinkController.toolMaxLeadMeters))
-            XCTAssertLessThanOrEqual(lead, Double(LiveLinkController.maxLeadMeters) + 1e-6)
+            XCTAssertGreaterThan(lead, Double(TestProfiles.so101.motion.toolMaxLeadM))
+            XCTAssertLessThanOrEqual(lead, Double(TestProfiles.so101.motion.maxLeadM) + 1e-6)
             XCTAssertEqual(wire.messages("pose_stop").count, 4, "no resync within 1.5 s, aids \(aids)")
             try release(.left)
 
@@ -932,7 +932,7 @@ final class ManualToolControlTests: XCTestCase {
     func testIdleToolSnapshotPastResyncDeadlineCannotRestartEvenBeforeTimerTick() throws {
         bringUp()
         _ = try beginResync()
-        clock += LiveLinkController.resyncTimeoutMs + 1
+        clock += TestProfiles.so101.server.resync.timeoutMs + 1
         state(tool: [0.014, -0.17, 0.07])
         XCTAssertEqual(wire.messages("pose_start").count, 1)
         XCTAssertTrue(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
@@ -991,7 +991,7 @@ final class ManualToolControlTests: XCTestCase {
             let refusals = model.cueLog.filter { Self.tellsAServerRefusal($0.event) }.count
             XCTAssertEqual(refusals, 1, "stopFirst = \(stopFirst)")
             let updates = wire.messages("pose_update").count
-            clock += LiveLinkController.resyncTimeoutMs + 1
+            clock += TestProfiles.so101.server.resync.timeoutMs + 1
             state()
             model.link.tick()
             XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
@@ -1011,7 +1011,7 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertTrue(model.link.startButtonHold { SIMD3(0.1, 0, 0) })
         let current = try XCTUnwrap(wire.messages("pose_start").last?["seq"] as? Int)
         XCTAssertNotEqual(previous, current)
-        clock += LiveLinkController.resyncAfterMs + 1
+        clock += TestProfiles.so101.server.resync.afterMs + 1
         state()
         model.link.tick()
         XCTAssertEqual(wire.messages("pose_stop").count, 2)
@@ -1037,7 +1037,7 @@ final class ManualToolControlTests: XCTestCase {
             } else {
                 XCTAssertFalse(model.link.startButtonHold(useToolPoint: true, { SIMD3(0.02, 0, 0) }))
             }
-            clock += LiveLinkController.toolResyncAfterMs + 1
+            clock += TestProfiles.so101.server.resync.toolAfterMs + 1
             state()
             model.link.tick()
             XCTAssertEqual(wire.messages("pose_start").count, 1)
@@ -1071,7 +1071,7 @@ final class ManualToolControlTests: XCTestCase {
         model.link.tick()
         model.link.endHold()
         wire.receive("ack", ["seq": start, "status": "rejected", "reason": "tool_measured_corridor"])
-        clock += LiveLinkController.resyncTimeoutMs + 1
+        clock += TestProfiles.so101.server.resync.timeoutMs + 1
         state()
         model.link.tick()
         XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.lateRejection) || $0.event == .letGo(.noAnswer) })
@@ -1085,7 +1085,7 @@ final class ManualToolControlTests: XCTestCase {
         XCTAssertEqual(wire.messages("pose_start").count, 1)
         let updates = wire.messages("pose_update").count
         XCTAssertFalse(model.cueLog.contains { $0.event == .letGo(.noAnswer) })
-        clock += LiveLinkController.resyncTimeoutMs + 1
+        clock += TestProfiles.so101.server.resync.timeoutMs + 1
         model.link.tick()
         state()
         XCTAssertEqual(wire.messages("pose_start").count, 1)

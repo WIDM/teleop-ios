@@ -3,7 +3,9 @@
 ///
 /// The pad's holds take the tool point while nothing is held. Carrying the simulator's cube on that path, the arm lifted
 /// it in 1 of 10 trials, and in 7 the server refused moves once it was gripped. On the gripper link's path, as version
-/// 1.1.0 sent every hold, the cube was lifted and placed in the goal in 9 of 10.
+/// 1.1.0 sent every hold, the cube was lifted and placed in the goal in 9 of 10. That is a fact about that server, not
+/// about the arm: the profile says which point holds an object (`ServerProfile.heldObjectPoint`), and for a server
+/// that lifts fine through the tool point the pad's holds keep taking it.
 public struct ObjectHold: Equatable, Sendable {
     public enum Change: Equatable, Sendable {
         /// The server reported gripper contact for the close that ran last.
@@ -22,12 +24,14 @@ public struct ObjectHold: Equatable, Sendable {
     }
 
     public private(set) var holding = false
+    /// Which point a pad hold moves while the jaws hold an object, by the profile.
+    public let heldObjectPoint: HeldObjectPoint
     /// An open went out and neither its refusal nor a state showing the jaws opening has come since.
     private var openAwaitingStart = false
     /// The episode the newest state named on this connection.
     private var episode: Int?
 
-    public init() {}
+    public init(heldObjectPoint: HeldObjectPoint) { self.heldObjectPoint = heldObjectPoint }
 
     public mutating func apply(_ change: Change) {
         switch change {
@@ -60,10 +64,11 @@ public struct ObjectHold: Equatable, Sendable {
     }
 
     /// The path of a pad, precision-panel or up and down hold. Nothing held: the tool point when the server has a
-    /// calibration for it, with coordinated height for up and down where the server offers it. Held: the gripper
-    /// link's path for every direction, with no coordinated height.
+    /// calibration for it, with coordinated height for up and down where the server offers it. Held, with the profile's
+    /// held-object point the gripper link: the gripper link's path for every direction, with no coordinated height.
+    /// With the tool point as that point, holding changes nothing.
     public func padHoldPath(toolCalibrated: Bool, coordinatedHeight: Bool, vertical: Bool) -> PadHoldPath {
-        if holding { return PadHoldPath(useToolPoint: false, toolMotion: nil) }
+        if holding, heldObjectPoint == .gripperLink { return PadHoldPath(useToolPoint: false, toolMotion: nil) }
         let motion: PoseToolMotion? = coordinatedHeight && vertical ? .coordinatedHeight : nil
         return PadHoldPath(useToolPoint: toolCalibrated, toolMotion: motion)
     }

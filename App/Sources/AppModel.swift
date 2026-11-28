@@ -349,7 +349,7 @@ final class AppModel {
         self.nowMs = nowMs
         link = LiveLinkController(
             makeTransport: makeTransport, makeObserverTransport: makeObserverTransport, pose: pose, nowMs: nowMs,
-            gripper: profile.gripper, wrist: profile.wrist, frames: profile.frames, clientName: clientName
+            profile: profile, clientName: clientName
         )
         stopExits = StopExits.offered(recorder: nil, practice: !liveLink)
         self.experimentTiming.send = { [weak self] type, payload in
