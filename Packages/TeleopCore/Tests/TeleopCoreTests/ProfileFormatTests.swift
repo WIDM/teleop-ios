@@ -115,9 +115,7 @@ final class ProfileFormatTests: XCTestCase {
         XCTAssertEqual(profile.graspTolerance, SIMD2(0.005, 0.007))
         XCTAssertEqual(profile.onTargetWindow, SIMD2(0.01, 0.012))
         XCTAssertEqual(profile.rollSign, -1)
-        var wrist = TestWrist.benchB
-        wrist.tiltSign = 1
-        XCTAssertEqual(profile.wrist, wrist)
+        XCTAssertEqual(profile.wrist, TestWrist.benchB)
         XCTAssertEqual(profile.gripper, TestJaw.benchB)
         XCTAssertEqual(profile.gripper.validReadings, 0...45)
         var expected = TestFrames.benchB
@@ -399,20 +397,33 @@ final class ProfileFormatTests: XCTestCase {
             ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMin = 50 }),
             ("robot.gripper.valid_min must be below robot.gripper.valid_max.", { $0.gripper.validMax = .infinity }),
             (
-                "robot.gripper.fully_open_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
-                { $0.gripper.fullyOpenAt = 46 }
+                "robot.gripper.closed_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.validMin = 5 }
             ),
             (
-                "robot.gripper.fully_open_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                "robot.gripper.open_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.validMax = 30 }
+            ),
+            (
+                "robot.gripper.open_reading must be inside the valid readings, robot.gripper.valid_min to valid_max.",
+                { $0.gripper.openReading = .nan }
+            ),
+            // The two floors the jaw had before the readings were named: `open_deg` above zero and `empty_deg` zero
+            // or more, now stated against the jaw's own shut reading and open reading.
+            ("robot.gripper.empty_at must be at or above robot.gripper.closed_reading.", { $0.gripper.emptyAt = -1 }),
+            (
+                "robot.gripper.empty_at must be below robot.gripper.fully_open_at.",
+                {
+                    $0.gripper.fullyOpenAt = 0; $0.gripper.emptyAt = 0
+                }
+            ),
+            (
+                "robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.",
+                { $0.gripper.fullyOpenAt = 41 }
+            ),
+            (
+                "robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.",
                 { $0.gripper.fullyOpenAt = .nan }
-            ),
-            (
-                "robot.gripper.empty_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
-                { $0.gripper.emptyAt = -1 }
-            ),
-            (
-                "robot.gripper.empty_at must be inside the valid readings, robot.gripper.valid_min to valid_max.",
-                { $0.gripper.emptyAt = 50 }
             ),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 39 }),
             ("robot.gripper.empty_at must be below robot.gripper.fully_open_at.", { $0.gripper.emptyAt = 40 }),

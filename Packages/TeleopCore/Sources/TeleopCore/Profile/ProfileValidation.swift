@@ -54,11 +54,17 @@ extension RobotProfile {
         let validEnds = jaw.validMin.isFinite && jaw.validMax.isFinite && jaw.validMin < jaw.validMax
         if !validEnds { faults.append("robot.gripper.valid_min must be below robot.gripper.valid_max.") }
         if validEnds {
-            for (path, reading) in [("fully_open_at", jaw.fullyOpenAt), ("empty_at", jaw.emptyAt)]
+            for (path, reading) in [("closed_reading", jaw.closedReading), ("open_reading", jaw.openReading)]
             where !(reading >= jaw.validMin && reading <= jaw.validMax) {
                 faults.append(
                     "robot.gripper.\(path) must be inside the valid readings, robot.gripper.valid_min to valid_max.")
             }
+        }
+        if !(jaw.emptyAt >= jaw.closedReading) {
+            faults.append("robot.gripper.empty_at must be at or above robot.gripper.closed_reading.")
+        }
+        if !(jaw.fullyOpenAt <= jaw.openReading) {
+            faults.append("robot.gripper.fully_open_at must be at or below robot.gripper.open_reading.")
         }
         if jaw.emptyAt.isFinite, jaw.fullyOpenAt.isFinite, jaw.emptyAt >= jaw.fullyOpenAt {
             faults.append("robot.gripper.empty_at must be below robot.gripper.fully_open_at.")

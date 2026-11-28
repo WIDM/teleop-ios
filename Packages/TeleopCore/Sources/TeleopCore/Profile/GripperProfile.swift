@@ -41,9 +41,11 @@ public struct GripperProfile: Equatable, Sendable {
         self.emptyAt = emptyAt
     }
 
-    /// The readings that count, as a range. Only for a profile that has passed `validate()`, which makes sure the
-    /// two ends are in order.
-    public var validReadings: ClosedRange<Double> { validMin...validMax }
+    /// The readings that count, as a range. `validate()` refuses a profile whose two ends are not finite and in
+    /// order; for one that was not validated this is the single reading 0 rather than a crash.
+    public var validReadings: ClosedRange<Double> {
+        validMin.isFinite && validMax.isFinite && validMin <= validMax ? validMin...validMax : 0...0
+    }
 
     /// How open the jaws are at `reading`, 0 shut to 1 open, held to that range.
     public func opening(at reading: Double) -> Double {
