@@ -10,8 +10,8 @@ final class WristAcrossWristsTests: XCTestCase {
 
     private func constants(_ wrist: WristProfile) -> InputConstants { InputConstants(wrist: wrist) }
 
-    /// Sanity: B differs from the SO-101 wherever the profile lets an arm differ, so a rule that read the other's
-    /// number would be caught.
+    /// Sanity: B differs from the SO-101 in every wrist number except the tilt sign, and B's two signs differ from
+    /// each other, so a rule that read the other wrist's number or the other axis's sign would be caught.
     func testBenchBDiffersFromTheSO101InEveryWristNumber() {
         let a = TestWrist.so101, b = TestWrist.benchB
         XCTAssertNotEqual(a.rollSign, b.rollSign)
