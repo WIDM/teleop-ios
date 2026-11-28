@@ -858,6 +858,16 @@ finite, a turning pinch point on a base whose up is not along world +z), whichev
 build it from the profile pass the profile's frames to `settingFrames`. Heights the guide keeps
 (`lowestGripperZ`, `lowestPinchZ`, the table) are along up, which is the base's z only where z is up.
 
+The direction check (`Tests/TeleopTests/DirectionCheck.swift`) is the test-side guard on these three relations. A
+`ScriptedOperator` in the buttons mode presses the pad's six direction buttons once each for about 1 cm on the Fine
+speed, reads the arm's `ee_pos` from the server's state after each, and `DirectionCheck.fault` judges each move against
+the base axis `Frames.axis(for:)` names: along it, the right way, by 0.5 to 1.5 cm, within 3 mm along the other two. It
+checks that what the app sends (the directions and the link signs) and what the server does with it agree; it cannot say
+which way forward points in the room, since the app sends what the profile says. `DirectionCheckTests` runs it in the
+Default plan against the server model set up for the SO-101 and for the second test arm, with a planted wrong link sign
+that must fail it; `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it against a real server in the Live plan.
+`docs/PROFILE.md` ("Before the first move on a new arm") says how to run it and what each failure means.
+
 `RobotProfileAssistTests` holds the shipped profile to what these numbers must satisfy: the travel height inside the
 box, the arrival tolerance under the blocked rule's 10 mm, an allowance of at least 3 s that leaves room for one
 re-sent start on the longest path in the box.

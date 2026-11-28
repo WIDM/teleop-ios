@@ -74,6 +74,18 @@ offset, table height, work box, sizes). `BenchArmBScenesTests` draws the UI test
 run the whole task on B 20 times in a row:
 `xcodebuild test ... -testPlan Default -test-iterations 20 -only-testing:TeleopTests/BenchArmBTests/<test>`.
 
+The direction check is the test to run before the first move on a new arm. `DirectionCheck` (in `Tests/TeleopTests`)
+has the scripted hand press the six direction buttons once each for about 1 cm, read the arm's position from the
+server's state, and fail a direction that did not go along the base axis the profile names, the right way, by 0.5 to
+1.5 cm and within 3 mm along the other axes; the failure names the direction and the axis the arm went along instead.
+`DirectionCheckTests` runs it in the Default plan against the in-app server model for the SO-101 and for bench arm B, and
+plants a wrong link sign in B's file, which must fail it. `OperatorLiveTests.testEveryDirectionGoesTheNamedWay` runs it
+against a real server in the Live plan (skipped unless `TEST_RUNNER_TELEOP_MOTION=1`, at `TEST_RUNNER_TELEOP_ADDRESS`),
+with the SO-101's profile or the one `TEST_RUNNER_TELEOP_PROFILE=<id>` names; for example
+`TEST_RUNNER_TELEOP_MOTION=1 TEST_RUNNER_TELEOP_PROFILE=<id> xcodebuild test ... -testPlan Live
+-only-testing:TeleopTests/OperatorLiveTests/testEveryDirectionGoesTheNamedWay`. It cannot tell which way forward points
+in the room (`docs/PROFILE.md`, "Before the first move on a new arm").
+
 At 1.3.0 the core package has 949 test methods, the app tests 656 and the UI tests 101. The Default plan skips the 11
 live ones by name (`OperatorLiveTests` has 3, `ServerMotionTests` 8), so it runs 645 app tests and the 101 UI tests.
 The counts are the `func test...` methods in `Packages/TeleopCore/Tests`, `Tests/TeleopTests` and
@@ -273,7 +285,7 @@ The scheme has four test plans (`TestPlans/`):
   switch did not reach them. It shows that every app test, those written for version 1.0.1 included, passes
   unedited with the aids off. It needs no server either. CI runs it after Critical or Default, and only when that
   plan passed.
-- **Live** runs only `OperatorLiveTests` and `ServerMotionTests`, which drive the arm in Isaac Sim.
+- **Live** runs only `OperatorLiveTests` (three pick-and-place runs and the direction check) and `ServerMotionTests`, which drive the arm in Isaac Sim or another real server.
 
 Every plan sets the environment variable `OS_ACTIVITY_DT_MODE` to `NO`. Without it Xcode starts the tests with
 `OS_ACTIVITY_DT_MODE=YES`, which copies every line any framework writes to the system log to the tests' console as
