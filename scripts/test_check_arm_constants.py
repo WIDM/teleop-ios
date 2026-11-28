@@ -642,12 +642,20 @@ class CheckArmConstantsTests(unittest.TestCase):
 
     # Every static the batches removed, in the form it had: each fails if it comes back, in the app and in the core.
     REMOVED_STATICS = (
-        # batch 1: the profile constant
+        # the profile constant
         ("extension RobotProfile {\n    static let so101Simulator = make()\n}\n", "the name so101Simulator"),
-        # batch 2: the direction table and conversions
+        # the direction table and conversions
         ("extension OperatorDirection {\n    var baseAxis: SignedAxis { .init(.y, -1) }\n}\n", "baseAxis"),
         ("enum OperatorFrame {\n    static func link(fromBase b: V) -> V { b }\n}\n", "OperatorFrame"),
-        # batch 3: the wrist and the jaw
+        (
+            "struct GuideProjection {\n    static func operatorPoint(_ p: V) -> V { p }\n}\n",
+            "the static GuideProjection conversions",
+        ),
+        (
+            "struct GuideProjection {\n    public static func base(fromOperator p: V) -> V { p }\n}\n",
+            "the static GuideProjection conversions",
+        ),
+        # the wrist and the jaw
         ("struct WristButton {\n    public static let turnRate = 20.0\n}\n", "the wrist buttons' own rates"),
         ("struct WristButton {\n    public static let tiltRate = 10.0\n}\n", "the wrist buttons' own rates"),
         ("extension InputConstants {\n    public static let appendixA = InputConstants()\n}\n", "appendixA"),
@@ -657,13 +665,13 @@ class CheckArmConstantsTests(unittest.TestCase):
         ("struct WristLeadBound {\n    public var freshStateMs = 400\n}\n", "the wrist lead bound's freshStateMs"),
         ("struct Jaw {\n    static let openDeg = 97\n}\n", "the jaw thresholds in degrees"),
         ("struct Jaw {\n    static let emptyDeg = 2\n}\n", "the jaw thresholds in degrees"),
-        # batch 4: the link controller's caps and times
+        # the link controller's caps and times
         ("struct LiveLinkController {\n    static let maxLeadMeters: Float = 0.08\n}\n", "the link controller's lead caps"),
         ("struct LiveLinkController {\n    static let toolMaxLeadMeters: Float = 0.005\n}\n", "the link controller's lead caps"),
         ("struct LiveLinkController {\n    static let resyncAfterMs = 1500\n}\n", "the link controller's resync times"),
         ("struct LiveLinkController {\n    static let toolResyncAfterMs = 500\n}\n", "the link controller's resync times"),
         ("struct LiveLinkController {\n    static let resyncTimeoutMs = 1500\n}\n", "the link controller's resync times"),
-        # batch 4: the feedback monitor's statics
+        # the feedback monitor's statics
         ("struct FeedbackMonitor {\n    public static let blockedShortMeters = 0.010\n}\n", "the feedback monitor's blocked and lowest statics"),
         ("struct FeedbackMonitor {\n    public static let blockedMovedMeters = 0.002\n}\n", "the feedback monitor's blocked and lowest statics"),
         ("struct FeedbackMonitor {\n    public static let blockedWindowMs = 1000\n}\n", "the feedback monitor's blocked and lowest statics"),
@@ -674,7 +682,7 @@ class CheckArmConstantsTests(unittest.TestCase):
         ("struct FeedbackMonitor {\n    public static let lowestQuickMs = 300\n}\n", "the feedback monitor's blocked and lowest statics"),
         ("struct FeedbackMonitor {\n    public static let lowestSustainMeters = 0.005\n}\n", "the feedback monitor's blocked and lowest statics"),
         ("struct FeedbackMonitor {\n    public static let lowestDescentMetersPerSecond = 0.0005\n}\n", "the feedback monitor's blocked and lowest statics"),
-        # batch 4: the going move's statics
+        # the going move's statics
         ("struct GoMove {\n    static let freshS = Double(FeedbackMonitor.freshStateMs) / 1000\n}\n", "the going move's statics"),
         ("struct GoMove {\n    static let settleMoveM = FeedbackMonitor.blockedMovedMeters\n}\n", "the going move's statics"),
         ("struct GoMove {\n    static let followShare = 0.5\n}\n", "the going move's statics"),
@@ -738,6 +746,76 @@ class CheckArmConstantsTests(unittest.TestCase):
             for relative in (APP, CORE):
                 out = self.assertFails({relative: text}, "a branch on a robot profile's name", f"{relative}: {text}")
                 self.assertIn("put the number in the robot profile file", out)
+
+    def test_a_static_conversion_declared_again_inside_guide_projection_fails(self):
+        what = "the static GuideProjection conversions"
+        for text in (
+            "struct GuideProjection {\n    static func operatorPoint(_ p: V) -> V { p }\n}\n",
+            "struct GuideProjection {\n    public static func base(fromOperator p: V) -> V { p }\n}\n",
+            "extension GuideProjection {\n    static func base(fromOperator p: V) -> V { p }\n}\n",
+            "extension GuideProjection {\n    nonisolated static func operatorPoint(_ p: V) -> V { p }\n}\n",
+            "struct GuideProjection {\n    func above(_ p: V) -> V { Self.operatorPoint(p) }\n}\n",
+            "struct GuideProjection {\n    func below(_ p: V) -> V { Self . base(fromOperator: p) }\n}\n",
+            "extension GuideProjection {\n    func x(_ p: V) -> V { Self.base(fromOperator: p) }\n}\n",
+        ):
+            for relative in (APP, CORE):
+                self.assertFails({relative: text}, what, f"{relative}: {text}")
+
+    def test_the_instance_conversions_of_guide_projection_and_other_types_pass(self):
+        self.assertPasses(
+            {
+                CORE: "struct GuideProjection {\n"
+                "    public func operatorPoint(_ p: V) -> V { frames.operatorPoint(p) }\n"
+                "    public func base(fromOperator p: V) -> V { frames.base(fromOperator: p) }\n"
+                "    private static func length(_ r: R) -> Double { r.upperBound }\n"
+                "    func width() -> Double { Self.length(range) }\n}\n"
+                "struct Other {\n    static func base(_ p: V) -> V { p }\n"
+                "    func x(_ p: V) -> V { Self.base(p) }\n}\n",
+                CORE_TEST: "struct GuideProjection {\n    static func base(fromOperator p: V) -> V { p }\n}\n",
+            }
+        )
+
+    def test_a_branch_on_a_profiles_name_or_id_in_the_other_forms_fails(self):
+        for text in (
+            'if ProfileLoader.current.name == "x" { slow() }\n',
+            "let slow = ProfileLoader.current.id == label\n",
+            "let slow = ProfileLoader.current . name.hasPrefix(word)\n",
+            "if robotProfile.name == other { slow() }\n",
+            "if profile.id == other { slow() }\n",
+            "if profile?.name == other { slow() }\n",
+            "guard profile!.name != other else { return }\n",
+            "func go(arm: RobotProfile) {\n    if arm.name == other { slow() }\n}\n",
+            "func go(arm: TeleopCore.RobotProfile?) {\n    if arm?.name == other { slow() }\n}\n",
+            "let p: RobotProfile\nif p.name == other { slow() }\n",
+            "var held: RobotProfile\nlet slow = held.name.contains(word)\n",
+            "let arm = RobotProfile(name: n)\nswitch arm.name { default: break }\n",
+            "let n = profile.name\nif n == other { slow() }\n",
+            "let n = profile.name\nlet slow = n.hasPrefix(word)\n",
+            "let n = profile.name\nlet slow = other == n\n",
+            "let n = profile.name\nswitch n {\ncase \"a\": break\ndefault: break\n}\n",
+            "var n: String = arm.name\nwhile n.isEmpty { wait() }\n".replace("arm.name", "profile.name"),
+            "if let n = profile?.name, n == other { slow() }\n",
+            "switch\n    profile.name {\ncase \"a\": break\ndefault: break\n}\n".replace("switch\n    profile.name", "switch profile.name"),
+            "switch profile.name\n{\ncase \"a\": break\ndefault: break\n}\n",
+            "switch\n    profile.name\n{\ndefault: break\n}\n",
+            "func go(arm: RobotProfile) {\n    let n = arm.name\n    if n == other { slow() }\n}\n",
+        ):
+            for relative in (APP, CORE):
+                out = self.assertFails({relative: text}, "a branch on a robot profile's name or id", f"{relative}: {text}")
+                self.assertIn("put the number in the robot profile file", out)
+
+    def test_reading_a_profiles_name_without_deciding_by_it_passes(self):
+        self.assertPasses(
+            {
+                APP: "let title = profile.name\n"
+                "Text(profile.name)\n"
+                "func go(arm: RobotProfile) {\n    let label = arm.name\n    print(label)\n    show(label)\n}\n"
+                "let shown = profile.name\nlet louder = shown + \"!\"\nif count == 1 { show(shown) }\n"
+                "func f(device: Device) {\n    if device.name == other { }\n    let n = device.name\n    if n == x { }\n}\n",
+                APP_TEST: "let n = profile.name\nif n == other { }\nswitch profile.name { default: break }\n",
+                CORE_TEST: "if arm.name == other { }\n",
+            }
+        )
 
     def test_showing_a_profiles_name_or_branching_on_a_name_in_a_test_passes(self):
         self.assertPasses(
