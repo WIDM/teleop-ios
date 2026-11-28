@@ -56,10 +56,10 @@ What the app does at version 1.4.0, what is known not to work, and what version 
 - Practice without a robot, marked on the operating screen, Connect, Settings and the tutorial.
 - Every operating state drawn in both languages at two screen heights.
 - The hands-free aids, behind one master switch on the aids' page that the Aids button in the Settings header
-  opens, on by default; with it off, lock, tap-to-go and the guide's additions are as in version 1.0.1, a hold that a
+  opens, on by default; with it off, lock, tap-to-go and the guide's additions do nothing, a hold that a
   slow link stops is shown on the screen only, and the operating screen in a phone mode says "Hands-free aids off:
-  taps do nothing". The app's unit tests pass unedited in a test plan that turns it off. The Settings form itself is
-  as in version 1.0.1.
+  taps do nothing". The app's unit tests pass unedited in a test plan that turns it off. The Settings form itself has
+  no row for the aids.
   - Lock, chosen on the same page, in the two phone modes: a press of vol+, or a thumb slid up the glass while vol+ is
     held, keeps the arm following the phone with no key held, until any key or touch, STOP, the robot profile's time
     limit, lost tracking or a phone no longer held upright stops it.

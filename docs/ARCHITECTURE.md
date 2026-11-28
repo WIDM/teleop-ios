@@ -473,10 +473,10 @@ Both are on the aids' page. A button in the Settings header, Aids, beside Done, 
 the same header and above the same STOP band; the way back is in the title's place, and Done leaves Settings from
 either. The page holds the master switch, with what Off turns off under it, and, when the robot allows lock, a
 section headed Lock with one row per choice, disabled while the switch is off, with where lock works under it. The
-Settings form itself has the rows of version 1.0.1 and nothing of the aids, and a later aid's settings go on the
+Settings form itself has nothing of the aids, and a later aid's settings go on the
 page too. Settings opens on its form every time, also after STOP was pressed on the aids' page.
 
-### One configuration, and off is version 1.0.1
+### One configuration, and off means no aid
 
 `AppModel.assist` is an `Assist`, resolved by `Assist.resolve` from the two settings and the robot's share of the
 aids, `RobotProfile.assist`. It is derived, never stored, so it cannot disagree with them. It has five members: one for
@@ -485,11 +485,11 @@ each of the four aids, `lock`, `goTo` (tap-to-go), `guide` (the guide's addition
 numbers, and lock only when a variant is chosen; a member whose numbers are unusable (not finite, or below their
 bound) resolves to nil, so the rules trust what they get.
 
-Three places read the aids, and each reads nil as version 1.0.1: the input rules (`lock`, `goTo`, `views`), `AppModel`
+Three places read the aids, and each reads nil as no aid at all: the input rules (`lock`, `goTo`, `views`), `AppModel`
 (`goTo` for the arm and the panel in the input facts, `views` for the second panel; `guide` for the picture, the
 on-target window and the link's cues; `explain` for the slow-link cue; whether any aid is on, for where the link takes
 an arm hold's start point, `LiveLinkController.anyAidOn`) and the tutorial's last page. Everything else the aids add is
-reached only through what those three produce. So with the switch off the aids' own behaviour is that of version 1.0.1, apart
+reached only through what those three produce. So with the switch off no aid acts, apart
 from the line on the operating screen that says taps do nothing; the features that are not aids, such as Fine controls and
 the handling of a paused simulator, stay as they are; the aids' page still shows the switch, so it can
 be turned back on. A test checks by reflection that `Assist.off` has every member nil, so a
@@ -685,7 +685,7 @@ lock chosen and, with the task aid on as well, a line for the tap.
   is never still in all three directions, so this rule judges height, not position: the pinch point's height when the
   state carries `tool_pos` (on a table it stays put whatever the arm's posture), else the gripper link's. During a
   translation hold other than a move to a tapped point ("Tap-to-go" above) it plays END and "Can't go lower." in place
-  of "Blocked." when the newest state was sent at least 10 mm lower, every state of the last second at least 5 mm lower,
+  of "Blocked." when, with the SO-101's numbers (`response.lowest` in its profile), the newest state was sent at least 10 mm lower, every state of the last second at least 5 mm lower,
   and the height stayed within 2 mm over that second; or, back within 2 mm of the lowest height already found, when
   every state of the last 0.3 s was sent at least 5 mm lower and the height stayed within 1 mm. Each state is judged by
   the command held when it arrived, and a window counts only when no two of its states arrived more than
