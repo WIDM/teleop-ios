@@ -61,10 +61,21 @@ final class OperatorLiveTests: XCTestCase {
 
     /// The direction check (`DirectionCheck`) against the real server: six 1 cm moves, each read back from the server's
     /// state, each along the base axis the profile names: the SO-101's, or the one `TEST_RUNNER_TELEOP_PROFILE` names by
-    /// id (a file in `App/Resources/Profiles`). Run it first on a new arm, with the arm clear.
+    /// id (a file in `App/Resources/Profiles`). Run it first on a new arm. Unlike the runs above it does not reset the
+    /// scene and does not release a stop: it connects, reads and presses, so the operator brings the arm to a clear
+    /// start pose first (`docs/PROFILE.md`, "Before the first move on a new arm").
     func testEveryDirectionGoesTheNamedWay() throws {
-        try start(.buttons, profile: try TestProfiles.chosenForLiveRuns())
-        let faults = try XCTUnwrap(hand.directionCheckFaults(), "the check could not read the arm")
-        XCTAssertEqual(faults, [], faults.joined(separator: "\n"))
+        guard ProcessInfo.processInfo.environment["TELEOP_MOTION"] != nil else {
+            throw XCTSkip("set TEST_RUNNER_TELEOP_MOTION=1 to drive the server")
+        }
+        let address = ScriptedOperator.liveServerAddress
+        hand = ScriptedOperator(
+            address: address, mode: .buttons, smoothing: 0.3, profile: try TestProfiles.chosenForLiveRuns())
+        guard hand.connect(within: 4) else { throw XCTSkip("no server on \(address)") }
+        hand.step = "waiting for the first state"
+        hand.pump(1)
+        let result = try XCTUnwrap(hand.directionCheck(), "the check could not read the arm")
+        XCTAssertEqual(result.faults, [], result.faults.joined(separator: "\n"))
+        XCTAssertEqual(result.moves.count, 6, "all six directions pressed")
     }
 }
