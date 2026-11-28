@@ -165,7 +165,7 @@ What each failure means and what to change:
 | the hold did not start | the app did not start a hold: a stop is latched, the state is old or the server refused | read the app's log lines the test prints; clear a stop yourself; check the address; run again |
 | the arm did not move | the hold started and the point moved under 2 mm: the server did not act on it, or the arm was against a limit at its start pose | move the arm's start pose off any limit with the server's own jog and run again; check that the server accepts the app's holds |
 | the arm went the wrong way along an axis | the sign of that axis differs between what the app sends and what the server does with it. For both `up` and `down` it is the sign of the vertical axis | `server.link_signs`: flip the sign of the base axis the sentence names, and run the check again |
-| the arm went along another axis instead | the server's frame has axes swapped relative to the base, which a profile cannot say | stop; this arm's server needs code, not only a file |
+| the arm went along another axis instead | one possible cause is a server frame with axes swapped relative to the base, which a profile cannot say; a limit near the start pose, a sag under gravity or a path that is not straight (a move of 8 mm along x with 9 mm of sag in z lands here too) are others | move the start pose clear of limits and run again; if the move goes along the same other axis again, stop: this arm's server needs code, not only a file |
 | the arm went along the axis but also along another (more than 30 degrees off) | the arm was against a limit, sagged under gravity or moved on a path that is not straight; the app's signs cannot make a single-axis move leave its axis | move the start pose clear of limits and run again; if it repeats on one direction, look at that arm's path with the server's own tools |
 
 A warning about distance is not a failure; when it is large or repeats on every direction, measure the speed
@@ -177,7 +177,11 @@ operator stands behind the base, looking at the work area (or, for an arm that h
 of the table, looking at the arm), so the box's centre less the base origin should point along forward and not along
 back. When the centre lies behind the base along forward by more than a quarter of the box's width, the check prints a
 warning before the first press. It is a plausibility rule, not a proof: it cannot tell a work area that lies beside
-the arm, and it never refuses a file.
+the arm, and it never refuses a file. It also has a dead zone: an arm that hangs over its work area has the box's
+centre near the base, and inside the quarter of the box's width the check says nothing. Bench arm B's box is 16 cm
+wide with its centre 2.8 cm behind the base along forward, against a dead zone of 4 cm, so neither B nor B with forward
+and left both reversed is warned. The warning helps for an arm whose work area lies clearly in front of it; a person
+watching the arm, and the look at the six buttons below, are still required.
 
 **A pass says that what the app sends and what the server does agree, and nothing about the room.** Then look at
 the arm and press each of the six buttons once on the pad. Forward must go away from the operator, left to the operator's
@@ -330,9 +334,15 @@ How to measure on a new arm:
 - `lead.*`: the lead is how far the command may run ahead of the measured wrist. Hold a wrist button on the arm and
   note how far the measured angle trails the command: `lead_deg` a little above that, `rate_max_deg_s` the wrist's own
   speed, `memory_deg` the smallest angle the server's report resolves, `fresh_state_ms` about twice the interval
-  between the server's states. Where roll and flex have different speeds, write the faster of the two for
-  `rate_max_deg_s`: the allowance grows with the state's age and one number serves both joints, so the faster joint is
-  never held back, and `lead_deg` is what bounds the command on the slower one.
+  between the server's states. Both joints, roll and flex, use the same rule: the command may lead the measured angle
+  by `lead_deg + rate_max_deg_s × the state's age`, and there is no second cap on `lead_deg` alone. So one
+  `rate_max_deg_s` serves both joints, and where their speeds differ a rate that fits the faster joint loosens the
+  slower joint's allowance too. Example: `lead_deg` 3 and `rate_max_deg_s` 40 allow 3 + 40 × 0.3 = 15 degrees at 0.3 s
+  of state age, on the slow joint as on the fast one. To choose: start with the faster joint's speed for
+  `rate_max_deg_s` and the steady lag for `lead_deg`; then hold each of the two wrist buttons against the arm and compare
+  how far the measured angle trails the command with the allowance at your server's state age. If the slower joint's
+  allowance is larger than you can accept, lower `rate_max_deg_s` (the faster joint is then held back a little) or
+  lower `lead_deg`.
 
 What goes wrong when a value is wrong:
 
